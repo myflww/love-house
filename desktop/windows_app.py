@@ -10,31 +10,29 @@ import sys
 import tempfile
 import threading
 import time
-import traceback
 from http.server import ThreadingHTTPServer
-from urllib.parse import urlsplit
-from urllib.request import urlopen
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
+sys.path.insert(0,str(Path(__file__).resolve().parent))
 from nkb._version import __version__
 from nkb.core.atlas import atlas_brain
 from nkb.service.host import MemoryHost,make_controller
 from nkb.service.credentials import KeyStore
 from nkb.storage.jsonfile import JsonFileStorage
+from windows_diagnostics import (WEBVIEW2_URL,AlreadyRunning,StartupLog,WebView2Unavailable,
+                                 diagnostic_report,failure_record,runtime_folder,startup_facts,
+                                 startup_log_path,system_facts,webview2_status)
 
-WEBVIEW2_URL='https://developer.microsoft.com/microsoft-edge/webview2/'
 SMOKE_PREFIX='love-house-webview2-smoke-'
-
-
-def smoke_failure(exc):
-    """Safe exception diagnostics: code/location, never exception text or keys."""
-    frames=traceback.extract_tb(exc.__traceback__)
-    result={'type':type(exc).__name__,'errno':getattr(exc,'errno',None),'winerror':getattr(exc,'winerror',None)}
-    if getattr(exc,'filename',None):result['file']=Path(exc.filename).name
-    if frames:
-        last=frames[-1];result['at']={'file':Path(last.filename).name,'function':last.name,'line':last.lineno}
-    return result
+ALREADY_RUNNING_MESSAGE=('爱之屋已经在运行。\n\n请切回已经打开的窗口。如果看不到窗口，'
+                         '请在任务管理器里结束 LoveHouse.exe 后再打开。\n\n启动日志：\n{log}')
+WEBVIEW2_MESSAGE=('爱之屋需要微软 WebView2 运行时才能显示界面，这台电脑上还没有找到。\n\n'
+                  '安装 Microsoft Edge WebView2 Runtime 后重新打开爱之屋即可，记忆数据不受影响。\n\n'
+                  '是否现在打开微软官方下载页？\n'+WEBVIEW2_URL)
+FAILURE_MESSAGE=('爱之屋未能打开。\n\n错误类型：{kind}\n启动日志：\n{log}\n\n'
+                 '现有记忆数据已保留。是否打开日志所在文件夹？')
+smoke_failure=failure_record
 
 
 def smoke_report(path,value):
@@ -113,7 +111,7 @@ class DesktopLock:
                 import fcntl
                 fcntl.flock(stream.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
         except OSError:
-            stream.close();raise RuntimeError('爱之屋已经打开，请切回原来的窗口。') from None
+            stream.close();raise AlreadyRunning('爱之屋已经打开，请切回原来的窗口。') from None
         self.file=stream
     def release(self):
         if self.file:
@@ -205,11 +203,44 @@ class NativeAPI:
         finally:self._saving.release()
 
 
-def notify(message):
+def notify(message,title='爱之屋',flags=0x10):
     if sys.platform=='win32':
         import ctypes
-        ctypes.windll.user32.MessageBoxW(None,message,'爱之屋',0x10)
+        ctypes.windll.user32.MessageBoxW(None,message,title,flags)
     elif sys.stderr:print(message,file=sys.stderr)
+
+
+def ask_yes_no(message,title='爱之屋'):
+    """只有用户明确点"是"才继续；非 Windows 环境一律不猜。"""
+    if sys.platform=='win32':
+        import ctypes
+        return ctypes.windll.user32.MessageBoxW(None,message,title,0x04|0x40)==6
+    if sys.stderr:print(message,file=sys.stderr)
+    return False
+
+
+def open_target(target):
+    """打开官方下载页或日志目录；失败只记录，不改变退出码。"""
+    try:
+        if sys.platform=='win32':os.startfile(str(target));return True
+        if sys.platform=='darwin':
+            import subprocess
+            subprocess.run(['open',str(target)],check=False);return True
+        return False
+    except OSError:return False
+
+
+def write_diagnostics(data_dir,log):
+    """把只含运行时事实的诊断文本写到数据目录，供用户直接转发。"""
+    facts=startup_facts(data_dir)
+    report=diagnostic_report(facts,log.tail())
+    name=time.strftime('diagnostics-%Y%m%d-%H%M%S')+'.txt'
+    for folder in (Path(data_dir)/'logs',Path(tempfile.gettempdir())/'LoveHouse'):
+        try:
+            folder.mkdir(parents=True,exist_ok=True)
+            target=folder/name;target.write_text(report,encoding='utf-8');return target
+        except OSError:continue
+    raise OSError('diagnostics could not be written')
 
 
 def backend_smoke(report):
@@ -260,11 +291,14 @@ def backend_smoke(report):
     return result
 
 
-def run_window(data_dir,*,smoke=False,report=None,result=None):
+def run_window(data_dir,*,smoke=False,report=None,result=None,log=None):
     import webview
+    folder=runtime_folder()
+    if folder is not None:webview.settings['WEBVIEW2_RUNTIME_PATH']=str(folder)
     runtime=ControllerRuntime(data_dir,testing=smoke).start()
     if result is None:result={}
     result.update(ok=False,version=__version__,renderer='edgechromium',phase='window_start',process_complete=False)
+    if log:log.write('window',phase='window_start',smoke=smoke,runtime_path=folder.name if folder else None)
     try:
         api=NativeAPI(runtime.url)
         window=webview.create_window('爱之屋',runtime.url,js_api=api,width=1360,height=900,min_size=(900,600),
@@ -293,7 +327,9 @@ def run_window(data_dir,*,smoke=False,report=None,result=None):
                 finally:window.destroy()
             window.events.loaded+=verify
         webview.start(gui='edgechromium',debug=False,private_mode=False,storage_path=str(Path(data_dir)/'WebView2'))
-        if result.get('error') and not result['ok']:raise RuntimeError('WebView2 unavailable; no legacy renderer fallback')
+        if log:log.write('window',phase='window_closed',renderer=result.get('renderer'))
+        if result.get('error') and not result['ok']:
+            raise WebView2Unavailable({'available':False,'renderer':result.get('renderer'),'checked':webview2_status()})
     finally:
         result['window_phase']=result.get('phase')
         result['phase']='controller_shutdown'
@@ -305,15 +341,17 @@ def run_window(data_dir,*,smoke=False,report=None,result=None):
     return result
 
 
-def native_smoke(report):
+def native_smoke(report,log=None):
     """Own the native test scratch explicitly; report only after final cleanup."""
     directory=Path(tempfile.mkdtemp(prefix=SMOKE_PREFIX)).resolve()
     (directory/'.love-house-smoke-owner.json').write_text(json.dumps({
         'schema':'love-house-native-smoke/v1','pid':os.getpid(),'directory':directory.name}),encoding='utf-8')
     result={'ok':False,'version':__version__,'phase':'native_start','process_complete':False}
+    if log:log.write('smoke',phase='native_start',isolated=True)
+    scratch_log=StartupLog(Path(directory)/'startup.log')
     primary=None
     try:
-        run_window(directory,smoke=True,result=result)
+        run_window(directory,smoke=True,result=result,log=scratch_log)
     except Exception as exc:
         primary=exc;result['ok']=False;result.setdefault('failure',smoke_failure(exc))
     finally:
@@ -333,24 +371,45 @@ def native_smoke(report):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-dir',type=Path);parser.add_argument('--backend-smoke',action='store_true')
-    parser.add_argument('--smoke-test',action='store_true');parser.add_argument('--report',type=Path)
+    parser.add_argument('--smoke-test',action='store_true');parser.add_argument('--diagnose',action='store_true')
+    parser.add_argument('--report',type=Path)
     args=parser.parse_args()
     if (args.backend_smoke or args.smoke_test) and not args.report:parser.error('smoke tests require --report')
-    if not args.backend_smoke and sys.platform!='win32':parser.error('Windows native shell requires Windows 10/11 x64')
+    native=not (args.backend_smoke or args.smoke_test or args.diagnose)
+    if native and sys.platform!='win32':parser.error('Windows native shell requires Windows 10/11 x64')
+    data_dir=args.data_dir or default_data_dir()
+    log=StartupLog(startup_log_path(data_dir))
+    log.write('start',version=__version__,native=native,**system_facts())
     try:
         if args.backend_smoke:backend_smoke(args.report)
-        elif args.smoke_test:native_smoke(args.report)
-        else:run_window(args.data_dir or default_data_dir())
+        elif args.smoke_test:native_smoke(args.report,log=log)
+        elif args.diagnose:
+            target=write_diagnostics(data_dir,log);log.write('diagnostics',file=target.name)
+            open_target(target.parent);return 0
+        else:
+            facts=webview2_status();log.write('webview2',**facts)
+            if not facts['available']:raise WebView2Unavailable(facts)
+            run_window(data_dir,log=log)
         return 0
+    except AlreadyRunning:
+        log.write('already_running')
+        notify(ALREADY_RUNNING_MESSAGE.format(log=log.path),flags=0x40)
+        return 1
+    except WebView2Unavailable as exc:
+        log.write('webview2_unavailable',renderer=exc.facts.get('renderer'),checked=exc.facts.get('checked'))
+        if ask_yes_no(WEBVIEW2_MESSAGE):open_target(WEBVIEW2_URL)
+        return 1
     except Exception as exc:
+        record=failure_record(exc);log.write('failure',**record)
         if args.backend_smoke or args.smoke_test:
             try:
                 previous=json.loads(args.report.read_text('utf-8')) if args.report.exists() else {}
-                previous.update(ok=False,process_complete=False,failure=smoke_failure(exc))
+                previous.update(ok=False,process_complete=False,failure=record)
                 if previous.get('phase') in (None,'complete'):previous['phase']='process_finalization_failed'
                 smoke_report(args.report,previous)
             except Exception:pass  # The nonzero exit remains mandatory even if disk reporting fails.
-        if not (args.smoke_test or args.backend_smoke):notify('爱之屋未能打开。若另一窗口已经打开，请切回该窗口。\n本程序需要微软WebView2 Runtime，请从微软官方页面安装后重试：\n'+WEBVIEW2_URL+'\n现有记忆数据已保留。')
+        else:
+            if ask_yes_no(FAILURE_MESSAGE.format(kind=record['type'],log=log.path)):open_target(log.path.parent)
         return 1
 
 

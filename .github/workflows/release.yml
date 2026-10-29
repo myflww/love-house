@@ -89,6 +89,15 @@ jobs:
           if ($process.ExitCode -ne 0 -or -not (Test-Path $native)) { throw 'Installed native smoke failed' }
           $nativeResult = Get-Content $native | ConvertFrom-Json
           if (-not $nativeResult.ok -or -not $nativeResult.process_complete) { throw 'Installed native report is not finalized success' }
+          $diagDir = Join-Path $env:RUNNER_TEMP 'LoveHouseDiagnostics'
+          $process = Start-Process "$target\LoveHouse.exe" -ArgumentList @('--diagnose','--data-dir',"`"$diagDir`"") -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw 'Installed diagnose mode failed' }
+          $diag = Get-ChildItem "$diagDir\logs\diagnostics-*.txt" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $diag) { throw 'Diagnose mode wrote no runtime report' }
+          $diagText = Get-Content $diag.FullName -Raw
+          if ($diagText -notmatch 'WebView2' -or $diagText -notmatch 'Release') { throw 'Diagnose report is missing runtime facts' }
+          if ($diagText -match 'brain\.json' -or $diagText -match '"assistant"') { throw 'Diagnose report leaked memory content' }
+          Copy-Item $diag.FullName build/windows/reports/installed-diagnostics.txt
           Copy-Item $report build/windows/reports/installed-backend.json
           Copy-Item $native build/windows/reports/installed-native.json
       - name: Upload tested Windows installers

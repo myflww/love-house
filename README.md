@@ -51,7 +51,7 @@
 | 设备 | 选择的安装包 | 说明 |
 |---|---|---|
 | macOS · Apple 芯片 | `LoveHouse-…-macOS-arm64.zip` | 解压后将“爱之屋.app”放进应用目录；macOS 13 或更新版本 |
-| Windows · 64 位 | `LoveHouse-Setup-…-Windows-x64.exe` | 按用户安装，无需自己安装 Python 或 Node；使用系统 WebView2 |
+| Windows · 64 位 | `LoveHouse-Setup-…-Windows-x64.exe` | 按用户安装，无需自己安装 Python 或 Node；需要系统 WebView2，缺少时启动会说明并给出微软官方安装入口 |
 | 开发者 / 其他平台 | Source code | Python 3.11+ 可运行本地记忆服务；图形桌面包按上表提供 |
 
 当前独立分发包尚未使用商业发行证书：macOS 包采用本地签名、未公证，Windows 包未附发行商代码签名。请核对本仓库来源与 SHA256，保留系统安全保护。

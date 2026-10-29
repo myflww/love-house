@@ -126,6 +126,8 @@ class WindowsPackagingTests(unittest.TestCase):
         workflow=(ROOT/'.github/workflows/release.yml').read_text('utf-8')
         self.assertIn('runs-on: windows-latest',workflow)
         self.assertIn('installed-native.json',workflow)
+        self.assertIn('--diagnose',workflow)
+        self.assertIn('installed-diagnostics.txt',workflow)
         self.assertIn('needs: windows',workflow)
         self.assertNotIn('continue-on-error: true',workflow)
         self.assertIn('native.json',(ROOT/'scripts/build_windows.py').read_text('utf-8'))
@@ -259,6 +261,137 @@ class WindowsPackagingTests(unittest.TestCase):
                 return SimpleNamespace(returncode=0)
             with patch.object(builder.subprocess,'run',side_effect=process),self.assertRaises(RuntimeError):
                 builder.require_report(['FAKE-LoveHouse.exe'],report)
+
+
+    def test_webview2_detection_reads_every_documented_channel(self):
+        diagnostics=load('love_house_windows_diagnostics','desktop/windows_diagnostics.py')
+        channel='{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+        user_path='Software\\Microsoft\\EdgeUpdate\\Clients\\'+channel
+        machine_path='Software\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients\\'+channel
+        class Key:
+            def __init__(self,values):self.values=values
+            def __enter__(self):return self
+            def __exit__(self,*arguments):return False
+        class Registry:
+            HKEY_CURRENT_USER='HKCU';HKEY_LOCAL_MACHINE='HKLM'
+            def __init__(self,values):self.values=values
+            def OpenKey(self,hive,key):
+                if (hive,key) in self.values:return Key(self.values[(hive,key)])
+                raise OSError(2,'FAKE missing key')
+            def QueryValueEx(self,key,name):
+                if name in key.values:return key.values[name],1
+                raise OSError(2,'FAKE missing value')
+        registry=Registry({('HKCU',user_path):{'pv':'120.0.2210.144'},
+                           ('HKLM',machine_path):{'pv':'7.0.0.0'}})
+        self.assertEqual(diagnostics.registry_channels(registry),
+                         [{'channel':'runtime','hive':'HKCU','version':'120.0.2210.144'}])
+        self.assertEqual(diagnostics.registry_channels(Registry({})),[])
+
+    def test_webview2_status_accepts_standard_files_and_never_guesses(self):
+        diagnostics=load('love_house_windows_diagnostics','desktop/windows_diagnostics.py')
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);executable=root/'Microsoft/EdgeWebView/Application/120.0.2210.144/msedgewebview2.exe'
+            executable.parent.mkdir(parents=True);executable.write_bytes(b'FAKE loader')
+            found=diagnostics.webview2_status({'LOCALAPPDATA':str(root)},registry=lambda:[])
+            self.assertTrue(found['available']);self.assertEqual(found['version'],'120.0.2210.144')
+            self.assertEqual(found['file_hits'],1)
+            missing=diagnostics.webview2_status({'LOCALAPPDATA':str(root/'empty')},registry=lambda:[])
+            self.assertFalse(missing['available']);self.assertIsNone(missing['version'])
+
+    def test_bundled_fixed_runtime_is_offered_to_pywebview(self):
+        diagnostics=load('love_house_windows_diagnostics','desktop/windows_diagnostics.py')
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);exe=root/'LoveHouse.exe';exe.write_bytes(b'FAKE')
+            folder=root/'WebView2Runtime';folder.mkdir();(folder/'msedgewebview2.exe').write_bytes(b'FAKE')
+            with patch.object(diagnostics.sys,'executable',str(exe)):
+                self.assertEqual(diagnostics.runtime_folder(),folder.resolve())
+                status=diagnostics.webview2_status({'LOCALAPPDATA':str(root/'empty')},registry=lambda:[])
+                self.assertTrue(status['available']);self.assertTrue(status['custom_folder'])
+
+    def test_startup_log_records_failure_type_without_exception_text(self):
+        diagnostics=load('love_house_windows_diagnostics','desktop/windows_diagnostics.py')
+        with tempfile.TemporaryDirectory() as directory:
+            log=diagnostics.StartupLog(Path(directory)/'logs/startup.log',max_bytes=500)
+            for _ in range(30):log.write('failure',type='PermissionError',note='x'*80)
+            self.assertTrue((Path(directory)/'logs/startup.1.log').is_file())
+            text=(Path(directory)/'logs/startup.log').read_text('utf-8')
+            self.assertLess(len(text),1400);self.assertIn('"event": "failure"',text)
+            try:raise PermissionError(13,'FAKE-PRIVATE-KEY',str(Path(directory)/'secret.txt'))
+            except PermissionError as exc:record=diagnostics.failure_record(exc)
+            self.assertEqual(record['type'],'PermissionError');self.assertNotIn('FAKE-PRIVATE-KEY',json.dumps(record))
+            self.assertEqual(diagnostics.classify(WindowsErrorStub()),'unexpected')
+
+    def test_main_offers_official_page_when_webview2_is_missing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            asked=[];opened=[]
+            with patch.object(windows.sys,'platform','win32'),\
+                 patch.object(windows,'webview2_status',return_value={'available':False}),\
+                 patch.object(windows,'ask_yes_no',side_effect=lambda message:asked.append(message) or True),\
+                 patch.object(windows,'open_target',side_effect=opened.append),\
+                 patch.object(sys,'argv',['LoveHouse.exe','--data-dir',directory]):
+                self.assertEqual(windows.main(),1)
+            log=(Path(directory)/'logs/startup.log').read_text('utf-8')
+            self.assertIn('webview2_unavailable',log)
+            self.assertIn('WebView2',asked[0])
+            self.assertEqual(opened,[windows.WEBVIEW2_URL])
+            self.assertNotIn('已经在运行',asked[0])
+
+    def test_main_reports_running_instance_separately_from_missing_runtime(self):
+        with tempfile.TemporaryDirectory() as directory:
+            messages=[]
+            with patch.object(windows.sys,'platform','win32'),\
+                 patch.object(windows,'webview2_status',return_value={'available':True,'version':'120.0.2210.144'}),\
+                 patch.object(windows,'run_window',side_effect=windows.AlreadyRunning('FAKE lock busy')),\
+                 patch.object(windows,'notify',side_effect=lambda message,**keywords:messages.append(message)),\
+                 patch.object(sys,'argv',['LoveHouse.exe','--data-dir',directory]):
+                self.assertEqual(windows.main(),1)
+            self.assertIn('已经在运行',messages[0]);self.assertNotIn('WebView2',messages[0])
+            self.assertIn('already_running',(Path(directory)/'logs/startup.log').read_text('utf-8'))
+
+    def test_main_logs_only_failure_type_and_opens_log_folder(self):
+        with tempfile.TemporaryDirectory() as directory:
+            opened=[]
+            def explode(*arguments,**keywords):raise ValueError('FAKE-PRIVATE-KEY')
+            with patch.object(windows.sys,'platform','win32'),\
+                 patch.object(windows,'webview2_status',return_value={'available':True}),\
+                 patch.object(windows,'run_window',side_effect=explode),\
+                 patch.object(windows,'ask_yes_no',return_value=True),\
+                 patch.object(windows,'open_target',side_effect=opened.append),\
+                 patch.object(sys,'argv',['LoveHouse.exe','--data-dir',directory]):
+                self.assertEqual(windows.main(),1)
+            log=(Path(directory)/'logs/startup.log').read_text('utf-8')
+            self.assertIn('"type": "ValueError"',log);self.assertNotIn('FAKE-PRIVATE-KEY',log)
+            self.assertEqual(opened,[(Path(directory)/'logs')])
+
+    def test_diagnose_writes_runtime_facts_and_opens_their_folder(self):
+        with tempfile.TemporaryDirectory() as directory:
+            opened=[]
+            with patch.object(windows,'open_target',side_effect=opened.append),\
+                 patch.object(sys,'argv',['LoveHouse.exe','--diagnose','--data-dir',directory]):
+                self.assertEqual(windows.main(),0)
+            reports=list((Path(directory)/'logs').glob('diagnostics-*.txt'))
+            self.assertEqual(len(reports),1)
+            text=reports[0].read_text('utf-8')
+            self.assertIn('WebView2',text);self.assertIn('本文件不含记忆',text)
+            self.assertNotIn(str(Path.home()),text)
+            self.assertEqual(opened,[reports[0].parent])
+
+    def test_installer_explains_missing_runtime_without_bundling_it(self):
+        installer=(ROOT/'desktop/windows-installer.iss').read_text('utf-8')
+        self.assertIn('WebView2Present',installer);self.assertIn('CurStepChanged',installer)
+        self.assertIn('developer.microsoft.com/microsoft-edge/webview2',installer)
+        self.assertNotIn('Webview2Setup.exe',installer)
+
+    def test_native_shell_separates_startup_log_from_memory_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log=windows.StartupLog(windows.startup_log_path(directory))
+            log.write('start',version='FAKE')
+            self.assertTrue(Path(directory,'logs/startup.log').is_file())
+            self.assertFalse(Path(directory,'brain.json').exists())
+
+
+class WindowsErrorStub(Exception):
+    """Stand-in for a non-diagnostic exception in classification tests."""
 
 
 if __name__=='__main__':unittest.main()

@@ -6,7 +6,9 @@ on:
     paths:
       - 'android/release-candidate.json'
       - 'scripts/verify_android_release.py'
+      - 'scripts/publish_android_release.py'
       - 'tests/test_android_release_verification.py'
+      - 'tests/test_android_release_publish.py'
       - '.github/workflows/android-release.yml'
   workflow_dispatch:
 
@@ -20,6 +22,8 @@ concurrency:
 jobs:
   candidate:
     runs-on: ubuntu-24.04
+    outputs:
+      present: ${{ steps.candidate.outputs.present }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -106,3 +110,47 @@ jobs:
             build/android-release/verification.json
           if-no-files-found: ignore
           retention-days: 14
+
+  publish:
+    needs: candidate
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/codex/android-preview' &&
+      needs.candidate.result == 'success' && needs.candidate.outputs.present == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '12266719'
+          packages: 'platform-tools'
+          log-accepted-android-sdk-licenses: 'false'
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-signed-candidate-api-28
+          path: build/android-release-artifacts/api-28
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-signed-candidate-api-36
+          path: build/android-release-artifacts/api-36
+      - name: Verify both signed candidates before creating the Android preview
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python -m unittest tests.test_android_release_publish -v
+          sdkmanager 'build-tools;36.0.0'
+          python scripts/publish_android_release.py

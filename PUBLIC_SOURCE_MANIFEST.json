@@ -2,6 +2,11 @@
   "schema": "love-house-public-source/v1",
   "files": [
     {
+      "path": ".gitattributes",
+      "bytes": 155,
+      "sha256": "887b0d98edef2513bd4fc917a36c635e8f3f81657a8bb2a8d450e43456e947c0"
+    },
+    {
       "path": ".github/workflows/ci.yml",
       "bytes": 1924,
       "sha256": "d98e8c770553f86b26197e2e4221fef3a1948942fbe41fbf7c389d3644361ba6"
@@ -1058,8 +1063,8 @@
     },
     {
       "path": "scripts/prepare_public_release.py",
-      "bytes": 13026,
-      "sha256": "3ce78c348576a48325a59f8362df652f9d8634bf8f0352365d32739a5c835658"
+      "bytes": 13044,
+      "sha256": "056f48108217b2533c9ab8c197b19279f5739ce680c405a0afa897977d63da3b"
     },
     {
       "path": "scripts/sync_harness_assets.py",

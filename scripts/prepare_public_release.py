@@ -13,7 +13,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 ROOT_FILES = frozenset({
-    '.gitignore', 'README.md', 'CHANGELOG.md', 'CONTRIBUTING.md', 'ROADMAP.md',
+    '.gitignore', '.gitattributes', 'README.md', 'CHANGELOG.md', 'CONTRIBUTING.md', 'ROADMAP.md',
     'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'pyproject.toml', 'Makefile',
     '启动爱之屋.command', '启动知识星图.command', '启动爱之屋Windows.cmd',
 })

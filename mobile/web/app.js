@@ -386,7 +386,7 @@ function renderMap() {
   for (const position of positions) {
     const node = svgElement('g', { 'data-node': position.memory.id, tabindex: '0', role: 'button', 'aria-label': '查看记忆：' + titleOf(position.memory) });
     node.append(svgElement('circle', { cx: position.x, cy: position.y, r: 17, fill: 'url(#starGlow)' }));
-    node.append(svgElement('circle', { cx: position.x, cy: position.y, r: 13, fill: 'transparent' }));
+    node.append(svgElement('circle', { cx: position.x, cy: position.y, r: 26, fill: 'transparent' }));
     node.append(svgElement('circle', { cx: position.x, cy: position.y, r: 3.5, fill: position.memory.status === 'disabled' ? '#877880' : '#ffcadf', stroke: '#fff4f8', 'stroke-width': '.8' }));
     const title = svgElement('title'); title.textContent = titleOf(position.memory); node.append(title);
     if (showLabels) { const label = svgElement('text', { x: position.x, y: position.y + 19, 'text-anchor': 'middle' }); label.textContent = titleOf(position.memory).slice(0, 9); node.append(label); }

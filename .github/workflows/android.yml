@@ -55,6 +55,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Initialize Android SDK and command-line tools on PATH
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '12266719'
+          packages: 'platform-tools'
+          log-accepted-android-sdk-licenses: 'false'
       - uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: '8.13'
@@ -65,7 +71,9 @@ jobs:
           python -m unittest discover -s mobile/tests -p 'test_*.py' -v
           python scripts/prepare_mobile_assets.py
       - name: Install the pinned Android SDK components
-        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+        run: |
+          command -v sdkmanager
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
       - name: Assemble debug test package and unsigned release
         run: gradle -p android --no-daemon --stacktrace :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease :app:lintRelease
       - name: Enable KVM access on this disposable Linux runner

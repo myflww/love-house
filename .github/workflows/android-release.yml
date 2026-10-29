@@ -51,10 +51,18 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Initialize Android SDK and command-line tools on PATH
+        if: steps.candidate.outputs.present == 'true'
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '12266719'
+          packages: 'platform-tools'
+          log-accepted-android-sdk-licenses: 'false'
       - name: Check release verification boundaries and install SDK tools
         if: steps.candidate.outputs.present == 'true'
         run: |
           python -m unittest tests.test_android_release_verification -v
+          command -v sdkmanager
           sdkmanager 'platform-tools' 'build-tools;36.0.0'
           python scripts/verify_android_release.py
       - name: Enable KVM on the disposable Linux runner

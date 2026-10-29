@@ -18,8 +18,8 @@
     },
     {
       "path": ".gitignore",
-      "bytes": 1146,
-      "sha256": "86a5482dc603c6f71c8580196db313453bfa28c98f23b1953040c9339d8eab43"
+      "bytes": 1276,
+      "sha256": "d07e582346c9ebddea842037e5289b264168235ddb1f017622f57ab5f25f19b2"
     },
     {
       "path": "assets/branding/icon-prompt.txt",
@@ -273,8 +273,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 9692,
-      "sha256": "66fb4774d5f5fe713cc36e7cdd507262008bef9655eed8b89258f19ce45cbeee"
+      "bytes": 10976,
+      "sha256": "6b0edd32ddec69fd77016f2674029a0eac2a5c84565e0c9a1713a760b7c9160a"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -283,13 +283,13 @@
     },
     {
       "path": "desktop/agent_memory_bridge.py",
-      "bytes": 4785,
-      "sha256": "9b302c32e8821fb52aa8e6c6af6f1cbafad7f39902fbb5d7b2fe7faf6ca230bc"
+      "bytes": 4798,
+      "sha256": "1440eb425de5631a6e1199915b5fe3b039f87fc97d0ac1e40e753b6e169a14e8"
     },
     {
       "path": "desktop/agent_memory_hook.py",
-      "bytes": 1439,
-      "sha256": "2d17d5a725bcb4f0c6b261e79f45bae26524211576f1b86923c8e04b906da29c"
+      "bytes": 1452,
+      "sha256": "957130a0a89318bdc866488338b326534f6385c81d940eb0b3ca261188a0330b"
     },
     {
       "path": "desktop/AtlasApp.swift",
@@ -308,8 +308,8 @@
     },
     {
       "path": "desktop/harness_bridge.py",
-      "bytes": 22699,
-      "sha256": "e7ce0882d2b64a6d2cd42141ff08f4bbadd8ee1d8818963c6caf24580c40db2a"
+      "bytes": 23037,
+      "sha256": "34d187a664258cca38897b1a04cc72011aa519875869e35e1b376657fa64db81"
     },
     {
       "path": "desktop/Icon.swift",
@@ -343,18 +343,33 @@
     },
     {
       "path": "desktop/test_harness_bridge.py",
-      "bytes": 10605,
-      "sha256": "cb14a0ba064e60ea60269af45e288e768d6544219d50ac0715145551fd9b2806"
+      "bytes": 10622,
+      "sha256": "b2eb23c8c58dc0a1a2e8c781541ae3c42c7c0e8ea0bf1f89023b509b26edb24f"
+    },
+    {
+      "path": "desktop/test_stdio_encoding.py",
+      "bytes": 4440,
+      "sha256": "ea01737a069110a6c624b749d233869ed611b92d02c78cf22843f1c09eec3bef"
     },
     {
       "path": "desktop/windows-installer.iss",
-      "bytes": 1734,
-      "sha256": "27d2cb371688d457c56f08ae3558a24d2177c16696eec64fc6fa61fa75918063"
+      "bytes": 3607,
+      "sha256": "895deb6460fcddc8ddd9531fb1adb1a4df63f8d86d3a2c55c709e8b1cb32c2e0"
     },
     {
       "path": "desktop/windows_app.py",
-      "bytes": 20238,
-      "sha256": "871cf9906626dd9ba9e68e1075a7bd44ea356da06d80eeefeb23cfa528a40bfb"
+      "bytes": 29066,
+      "sha256": "c55fb709aee8370affdba4571d5f426fa6c6ae9730f9b4776750b8fbea3b4052"
+    },
+    {
+      "path": "desktop/windows_diagnostics.py",
+      "bytes": 17548,
+      "sha256": "b574027bb689ccdec897680f30f3cafef52c8f49ef22d74b7029bc348cb04871"
+    },
+    {
+      "path": "desktop/windows_prerequisites.py",
+      "bytes": 14874,
+      "sha256": "6758d246c561bd2d742c876f7fc5bf3ff252191cab8372660437bac00b3b9c1a"
     },
     {
       "path": "docs/API.md",
@@ -365,6 +380,46 @@
       "path": "docs/DeepSeek与Harness接入.md",
       "bytes": 4290,
       "sha256": "43b22087da77377b42731c5e3aa19150b5a6dadfa5da0bf6616cdb414ad48cd9"
+    },
+    {
+      "path": "docs/releases/v0.5.0-platform-notes.md",
+      "bytes": 2995,
+      "sha256": "db53b4d31e55c7634d0080713c7c798d13870a157c6533d13eb1086a59a27f59"
+    },
+    {
+      "path": "docs/releases/windows-0.5.1rc1.md",
+      "bytes": 2228,
+      "sha256": "98d180bd78d08334642ff81d1ac35cbfa3b4eb3e0eef1e25d945cf331f56f69f"
+    },
+    {
+      "path": "docs/WINDOWS-HANDOFF-CHANGES.json",
+      "bytes": 3107,
+      "sha256": "01caeb437f83c823631004eb05877768076c00dbc59e3ae95d4e7dd32930e652"
+    },
+    {
+      "path": "docs/WINDOWS-HANDOFF.md",
+      "bytes": 10016,
+      "sha256": "490f07536b25210589c26ea0fb5df5af3c11404993b2af55c01f607da8020d50"
+    },
+    {
+      "path": "docs/WINDOWS-RUNTIME-ORIGIN.json",
+      "bytes": 727,
+      "sha256": "52104ee995e99139f272d1185cb540f46dd6c10ce315b960965b7947a8436ca6"
+    },
+    {
+      "path": "docs/WINDOWS-TASK-PROMPT.md",
+      "bytes": 3017,
+      "sha256": "e728c097078ea58a3e25f399122ae9f7cdeaab072bc2fbc96e6983329a7f9ba3"
+    },
+    {
+      "path": "docs/WINDOWS-VALIDATION.json",
+      "bytes": 3191,
+      "sha256": "6a2374cc45c3cd4c4051d282dfb70b374d6ac2c2e62d125e092440b8be588985"
+    },
+    {
+      "path": "docs/WINDOWS-VALIDATION.md",
+      "bytes": 5327,
+      "sha256": "6e8c79803ab8374aaeac5cbb5d306d246a2cf973d0ea9a3ffaef659f2b1473f2"
     },
     {
       "path": "docs/下载与系统支持.md",
@@ -573,8 +628,8 @@
     },
     {
       "path": "nkb/_version.py",
-      "bytes": 22,
-      "sha256": "2c12b8ea17aeb6f9f72a6b02aca218bbc4508a46df9e365a8f6c45ad769e0b34"
+      "bytes": 25,
+      "sha256": "2776bec12bee720e482e4a1707d9d1359023e368ab3152c8b9123718f5cc41ca"
     },
     {
       "path": "nkb/adapters/__init__.py",
@@ -1053,8 +1108,13 @@
     },
     {
       "path": "scripts/build_windows.py",
-      "bytes": 10079,
-      "sha256": "386282f6ea920b794d7bbb59deb711d92f96a63ec6a54141304677d8ac49c625"
+      "bytes": 11464,
+      "sha256": "6cb0c8163e27923aad7e681b8f31fcd239a66e9ee0d8e4a7e372730747938b8d"
+    },
+    {
+      "path": "scripts/fetch_windows_runtime.py",
+      "bytes": 4360,
+      "sha256": "6a9e0b691955ab1cb72cbd0ed32fa4c4ff0bbc2ea5dae98ca17a55adb9888ee8"
     },
     {
       "path": "scripts/launch.py",
@@ -1068,8 +1128,8 @@
     },
     {
       "path": "scripts/prepare_public_release.py",
-      "bytes": 13044,
-      "sha256": "056f48108217b2533c9ab8c197b19279f5739ce680c405a0afa897977d63da3b"
+      "bytes": 13627,
+      "sha256": "528bec13af9d3ca073cb2371f991e1991b192b517183cd551705a79d29c2f6d1"
     },
     {
       "path": "scripts/sync_harness_assets.py",
@@ -1173,8 +1233,8 @@
     },
     {
       "path": "tests/test_harness_legacy_detection.py",
-      "bytes": 2428,
-      "sha256": "ec0326f82533664b04f523589113aa7e6c283ee66d1d2b3d0a358eca52079715"
+      "bytes": 2633,
+      "sha256": "ce6d21b51b226f151a990303cf3300a12e2c1d58b41df335fe511b2a621ad43b"
     },
     {
       "path": "tests/test_http.py",
@@ -1268,8 +1328,8 @@
     },
     {
       "path": "tests/test_public_release.py",
-      "bytes": 7716,
-      "sha256": "459500a68cf1cd1f1433d3cb97d14d2e928f805c4b70ae05865b5b0771799c80"
+      "bytes": 8839,
+      "sha256": "5c0eec213f91b2ffed192ed9c7ba96291e05f3a1c5e9a0ddf753e0874b37c5ec"
     },
     {
       "path": "tests/test_recording_dedup.py",
@@ -1293,8 +1353,18 @@
     },
     {
       "path": "tests/test_windows_packaging.py",
-      "bytes": 16785,
-      "sha256": "8ac9174f3cf1d3d8b0b8d16a98cef4368a5f6bc695af7d6b9c5a163112fa9a13"
+      "bytes": 29378,
+      "sha256": "5c192f835f43caeb5052a3ef446aa752b853880516caeb42342e275a3d1cc4a6"
+    },
+    {
+      "path": "tests/test_windows_prerequisites.py",
+      "bytes": 14496,
+      "sha256": "3cfc721369dde4d03af56c85cb1a388fb4693f3a13022b85920b4f2d27aae604"
+    },
+    {
+      "path": "tests/test_windows_startup_regressions.py",
+      "bytes": 18317,
+      "sha256": "95f19123adb7dda54a4cc8a9572a5eb064db4b97ba4564087ca4440e6a571393"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",

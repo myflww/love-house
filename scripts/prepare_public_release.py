@@ -116,8 +116,15 @@ def scan_bytes(relative: Path, content: bytes, *, home: Path | None = None) -> l
         findings.append({'path': relative.as_posix(), 'line': 0, 'category': 'unsafe-svg'})
     patterns = list(SECRET_PATTERNS)
     home = home or Path.home()
-    if str(home) not in ('/', '.', ''):
-        patterns.append(('developer-home-path', re.compile(re.escape(str(home)) + r'(?:/|\\)')))
+    # Source may use POSIX separators, native Windows separators or escaped
+    # Windows paths in JSON/Python strings. Inspect all three consistently,
+    # irrespective of the OS running this release gate.
+    normalized_home = str(home).replace('\\', '/').rstrip('/')
+    if normalized_home not in ('', '.') and not re.fullmatch(r'[A-Za-z]:', normalized_home):
+        separator = r'(?:/|\\+)'
+        home_pattern = separator.join(re.escape(part) for part in normalized_home.split('/'))
+        flags = re.I if re.match(r'^[A-Za-z]:/', normalized_home) or normalized_home.startswith('//') else 0
+        patterns.append(('developer-home-path', re.compile(home_pattern + r'(?=$|[/\\\s\'"<>])', flags)))
     for category, pattern in patterns:
         for match in pattern.finditer(text):
             if category in {'model-key', 'github-token'} and EXAMPLE_VALUE.search(match.group()):
@@ -228,7 +235,7 @@ def prepare(source: Path, destination: Path) -> dict:
                 'excluded': ['user memories', 'credentials', 'reports', 'reference clones',
                              'rollback copies', 'historical screenshots', 'source maps']}
     (destination / 'PUBLIC_SOURCE_MANIFEST.json').write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8', newline='\n')
     return {'ok': True, 'files': len(entries), 'bytes': sum(e['bytes'] for e in entries),
             'findings': [], 'manifest': 'PUBLIC_SOURCE_MANIFEST.json'}
 

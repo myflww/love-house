@@ -58,3 +58,7 @@ node_modules/
 *.lovehouse.md
 /爱之屋.html
 /知识星图.html
+
+# Verified offline Microsoft runtime is fetched during Windows builds.
+/resources/runtime/*.exe
+/resources/runtime/manifest.json

@@ -101,7 +101,10 @@ class SafeStartupDiagnosticsTests(unittest.TestCase):
             facts = diagnostics.startup_facts()
         self.assertEqual(facts["webview2"], missing)
         self.assertEqual(facts["webview2_discovery"], stale)
-        self.assertIn("runtime_unavailable", diagnostics.diagnostic_report(facts))
+        # This assertion exercises Windows wording even on Linux CI. Native
+        # non-Windows reports correctly say that WebView2 is not applicable.
+        with patch.object(diagnostics.sys, "platform", "win32"):
+            self.assertIn("runtime_unavailable", diagnostics.diagnostic_report(facts))
 
     def test_unversioned_or_old_runtime_files_do_not_count_as_available(self):
         with tempfile.TemporaryDirectory() as directory:

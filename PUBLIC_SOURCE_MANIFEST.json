@@ -1348,8 +1348,8 @@
     },
     {
       "path": "tests/test_windows_startup_regressions.py",
-      "bytes": 18095,
-      "sha256": "673cd2551a178f256f8662deb6e972137d80c5b43cac95b09dc5c647162d69d0"
+      "bytes": 18317,
+      "sha256": "95f19123adb7dda54a4cc8a9572a5eb064db4b97ba4564087ca4440e6a571393"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",

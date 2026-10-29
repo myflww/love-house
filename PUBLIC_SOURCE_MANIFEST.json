@@ -7,6 +7,16 @@
       "sha256": "887b0d98edef2513bd4fc917a36c635e8f3f81657a8bb2a8d450e43456e947c0"
     },
     {
+      "path": ".github/workflows/android-release.yml",
+      "bytes": 5760,
+      "sha256": "94a90d42be7d6453e866f11d68ac47b9af1f1874517e5c3d673f5dd73bff17f9"
+    },
+    {
+      "path": ".github/workflows/android.yml",
+      "bytes": 6294,
+      "sha256": "3a4356f17381db767ff4ed4929de4b68f77c0259ef108b2f4e44bc50e4de335c"
+    },
+    {
       "path": ".github/workflows/ci.yml",
       "bytes": 1924,
       "sha256": "d98e8c770553f86b26197e2e4221fef3a1948942fbe41fbf7c389d3644361ba6"
@@ -368,8 +378,8 @@
     },
     {
       "path": "docs/下载与系统支持.md",
-      "bytes": 5469,
-      "sha256": "f672ad9986e233acd1ceb76433622207cd9f14e4e44340f965663ef2c041f78c"
+      "bytes": 6458,
+      "sha256": "db0443c3233e98e14a0346437ec5442e0e816165f3a4f8a93e9ea8a1d73f88b1"
     },
     {
       "path": "docs/发布与许可.md",
@@ -395,6 +405,11 @@
       "path": "docs/开源视觉来源.md",
       "bytes": 2221,
       "sha256": "60bb41e0e55d31a97f9afb0a654b171a8dbd7d1ac34eb008377b3f8fc9099caa"
+    },
+    {
+      "path": "docs/手机版安装与使用.md",
+      "bytes": 4775,
+      "sha256": "526a00e1f39ff300e7f1e313956efae0a9cdf5175cea1679af11a6008fc6bc92"
     },
     {
       "path": "docs/架构.md",
@@ -1038,8 +1053,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 12090,
-      "sha256": "09baf39568b8395e80c54aaa9fbff762f90a76cfb639ce62d8c89092ee76c401"
+      "bytes": 13055,
+      "sha256": "2244ad8b18ab33fa01c60a40460152b9bcc1ac4794dd77836e89f4f94007e7df"
     },
     {
       "path": "ROADMAP.md",

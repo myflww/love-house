@@ -51,3 +51,10 @@ node_modules/
 
 !nkb/service/harness/dist/
 !nkb/service/harness/dist/*.js
+
+# Local validation and intentionally exported personal memories are private by default
+/reports/
+*.lovehouse.json
+*.lovehouse.md
+/爱之屋.html
+/知识星图.html

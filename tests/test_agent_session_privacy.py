@@ -31,6 +31,14 @@ class AgentSessionPrivacyTests(unittest.TestCase):
         self.server.shutdown();self.server.server_close();self.thread.join()
         self.host.stop();self.temp.cleanup()
 
+    def test_setup_text_describes_actual_scope_instead_of_promising_single_window_for_all_mode(self):
+        single=self.host.connection_config(self.cid)
+        self.assertIn('默认只接收首个真实完整hook绑定的窗口',single['agent_setup_text'])
+        advanced=self.host.new_connection({'name':'用户明确选择全部','host':'agent','library_id':'default','session_scope':'connection'})
+        self.assertIn('高级整连接范围',advanced['agent_setup_text'])
+        self.assertNotIn('其他窗口不记录',advanced['agent_setup_text'])
+        self.assertFalse(advanced['connection_config_public']['window_only'])
+
     def request(self,path,data,token=None):
         request=Request('http://127.0.0.1:'+str(self.server.server_port)+path,
             data=json.dumps(data,ensure_ascii=False).encode(),

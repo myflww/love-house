@@ -331,6 +331,9 @@ class MemoryHost:
                    "不要把初始有界包误称为已经加载全部记忆，不要安装同一窗口下的其他记忆库配置。\n\n"
                    +code+"\n\n若宿主支持真实轮次结束钩子，请将下列命令接入回调，stdin传实际用户发言和最终可见回复。默认只接收首个真实完整hook绑定的窗口。尚未绑定时，手动补录不抢占窗口；其他窗口不记录。没有钩子时，请明确说明尚未自动存档；需手动工具模式时由用户明确选择高级整连接范围。\n"
                    +json.dumps(bundle['hook_config'],ensure_ascii=False,indent=2)+"\n\n同一窗口的稳定会话ID不变时，重启会自动发现服务并重连。要换新窗口，请新建连接并选择原存档，延续记忆身份。此配置不是跨设备公网地址。")
+            if c['session_scope']=='connection':
+                setup=setup.replace('默认只接收首个真实完整hook绑定的窗口。尚未绑定时，手动补录不抢占窗口；其他窗口不记录。',
+                    '当前配置采用高级整连接范围，可能记录多个窗口。若只需要一个窗口，请在爱之屋新建单窗口连接；不要把此配置说成仅限一个窗口。')
             return {'connection':c,**bundle,'host_config':code,'agent_setup_text':setup,'api_base_url':'','client_api_key':'',
                     'configuration_ready':Path(bundle['private_path']).is_file(),'requires_apply':False,'supported':True,
                     'instructions':'复制给具备本机MCP/工具配置能力的Agent；自动每轮记录还需要真实宿主钩子。'}

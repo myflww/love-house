@@ -48,7 +48,9 @@ def cleanup_smoke_profile(directory,attempts=8):
 
     A browser child may release its profile after the GUI loop returns. Only
     Windows sharing/lock violations whose exact failing path is beneath this
-    scratch's WebView2 directory may be deferred. ACL/disk/runtime errors fail.
+    scratch's WebView2 directory may be deferred. A vanished descendant in that
+    same profile can be skipped when Chromium concurrently removes a cache tmp.
+    ACL/disk/runtime errors fail.
     There is no call against real user data, nor a blanket ignore_errors flag.
     """
     root=Path(directory).resolve();marker=root/'.love-house-smoke-owner.json'
@@ -58,12 +60,26 @@ def cleanup_smoke_profile(directory,attempts=8):
     if owner!={'schema':'love-house-native-smoke/v1','pid':os.getpid(),'directory':root.name}:
         raise ValueError('Native smoke ownership marker does not match')
     profile=root/'WebView2'
+    vanished=0
+    def profile_race(function,path,exc):
+        nonlocal vanished
+        target=Path(path).resolve()
+        # Use shutil's complete callback path, not OSError.filename (which can
+        # be only a relative cache filename). Never generalise this to ENOENT
+        # elsewhere in the test data or to an entry that still exists.
+        if isinstance(exc,FileNotFoundError) and target.is_relative_to(profile) and not os.path.lexists(path):
+            vanished+=1
+            return
+        raise exc
+    def legacy_profile_race(function,path,exc_info):
+        return profile_race(function,path,exc_info[1])
     for attempt in range(1,attempts+1):
         try:
-            shutil.rmtree(root)
-            return {'status':'removed','attempts':attempt,'isolated':True}
+            options={'onexc':profile_race} if sys.version_info>=(3,12) else {'onerror':legacy_profile_race}
+            shutil.rmtree(root,**options)
+            return {'status':'removed','attempts':attempt,'isolated':True,'vanished_profile_entries':vanished}
         except FileNotFoundError:
-            if not root.exists():return {'status':'removed','attempts':attempt,'isolated':True}
+            if not root.exists():return {'status':'removed','attempts':attempt,'isolated':True,'vanished_profile_entries':vanished}
             raise
         except OSError as exc:
             filename=getattr(exc,'filename',None)
@@ -73,6 +89,7 @@ def cleanup_smoke_profile(directory,attempts=8):
             if attempt==attempts:
                 return {'status':'deferred_profile_lock','attempts':attempt,'isolated':True,
                         'directory':root.name,'winerror':exc.winerror,'file':Path(filename).name,
+                        'vanished_profile_entries':vanished,
                         'retained_for':'OS release of the completed test WebView2 profile'}
             time.sleep(.15*attempt)
 

@@ -172,6 +172,57 @@ class WindowsPackagingTests(unittest.TestCase):
             with self.assertRaises(ValueError):windows.cleanup_smoke_profile(other)
             self.assertTrue(Path(other).is_dir())
 
+    def test_webview2_concurrently_deleted_cache_tmp_is_ignored_only_after_it_vanishes(self):
+        import shutil
+        directory=self.smoke_directory();original=shutil.rmtree
+        missing=directory/'WebView2'/'Sdch Dictionaries-fake-fixture.tmp'
+        def concurrent_remove(path,**kwargs):
+            exc=FileNotFoundError(2,'Already removed by WebView2',missing.name)
+            if 'onexc' in kwargs:kwargs['onexc'](os.unlink,str(missing),exc)
+            else:kwargs['onerror'](os.unlink,str(missing),(type(exc),exc,None))
+            return original(path)
+        try:
+            with patch.object(windows.shutil,'rmtree',side_effect=concurrent_remove):
+                result=windows.cleanup_smoke_profile(directory)
+            self.assertEqual(result['status'],'removed')
+            self.assertEqual(result['vanished_profile_entries'],1)
+            self.assertFalse(directory.exists())
+        finally:
+            if directory.exists():original(directory)
+
+    def test_cleanup_callback_does_not_hide_missing_nonprofile_or_existing_profile_entries(self):
+        import shutil
+        original=shutil.rmtree
+        for relative,exists in [('controller-state.json',False),('WebView2/still-present.tmp',True)]:
+            directory=self.smoke_directory();entry=directory/relative
+            if exists:entry.write_text('FAKE cache still present')
+            def failed_remove(path,**kwargs):
+                exc=FileNotFoundError(2,'FAKE ENOENT',entry.name)
+                if 'onexc' in kwargs:kwargs['onexc'](os.unlink,str(entry),exc)
+                else:kwargs['onerror'](os.unlink,str(entry),(type(exc),exc,None))
+            try:
+                with patch.object(windows.shutil,'rmtree',side_effect=failed_remove),self.assertRaises(FileNotFoundError):
+                    windows.cleanup_smoke_profile(directory)
+                self.assertTrue(directory.exists())
+                if exists:self.assertTrue(entry.exists())
+            finally:original(directory)
+
+    def test_python311_cleanup_uses_same_narrow_filter_through_onerror_adapter(self):
+        import shutil
+        directory=self.smoke_directory();original=shutil.rmtree
+        missing=directory/'WebView2/vanished.tmp'
+        def concurrent_remove(path,**kwargs):
+            self.assertIn('onerror',kwargs);self.assertNotIn('onexc',kwargs)
+            exc=FileNotFoundError(2,'FAKE vanished cache',missing.name)
+            kwargs['onerror'](os.unlink,str(missing),(type(exc),exc,None))
+            return original(path)
+        try:
+            with patch.object(windows.sys,'version_info',(3,11)),patch.object(windows.shutil,'rmtree',side_effect=concurrent_remove):
+                result=windows.cleanup_smoke_profile(directory)
+            self.assertEqual(result['status'],'removed');self.assertEqual(result['vanished_profile_entries'],1)
+        finally:
+            if directory.exists():original(directory)
+
     def test_native_success_is_finalized_after_shutdown_and_explicit_cleanup(self):
         def verified(directory,**kwargs):kwargs['result'].update(ok=True,controller_stopped=True,renderer='edgechromium')
         with tempfile.TemporaryDirectory() as directory:

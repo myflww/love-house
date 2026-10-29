@@ -18,8 +18,8 @@
     },
     {
       "path": ".gitignore",
-      "bytes": 981,
-      "sha256": "4a2bc5197a41e69b9cd828cc742ce0e57a336db080fb5b9878c3a5a7343e9ee9"
+      "bytes": 1146,
+      "sha256": "86a5482dc603c6f71c8580196db313453bfa28c98f23b1953040c9339d8eab43"
     },
     {
       "path": "CHANGELOG.md",
@@ -383,8 +383,8 @@
     },
     {
       "path": "desktop/windows_app.py",
-      "bytes": 19247,
-      "sha256": "dcd3034e35770d9607ec2c4b28c51ae986a8e8319f9d77d11180da157486a87e"
+      "bytes": 20238,
+      "sha256": "871cf9906626dd9ba9e68e1075a7bd44ea356da06d80eeefeb23cfa528a40bfb"
     },
     {
       "path": "docs/API.md",
@@ -883,8 +883,8 @@
     },
     {
       "path": "nkb/service/host.py",
-      "bytes": 54016,
-      "sha256": "0ecbef2346d1c452e96c383c4bedaba61ba53d2c0fd87118b10a443f432f3af1"
+      "bytes": 54436,
+      "sha256": "ca9c34b47d6b4d74c2c984e978bba879ecc8163e9246286802e4e41df5d9fbd3"
     },
     {
       "path": "nkb/service/providers.py",
@@ -1113,8 +1113,8 @@
     },
     {
       "path": "tests/test_agent_session_privacy.py",
-      "bytes": 10988,
-      "sha256": "4a5cd9c983f4268e45a590de0753bd546b038084e52834efd4de36bfb62319be"
+      "bytes": 11628,
+      "sha256": "856c908579d36c5c8e39f64f1cc841b0ffcaa15416d484a51b403b1fe967e7cd"
     },
     {
       "path": "tests/test_agent_window_privacy.py",
@@ -1293,8 +1293,8 @@
     },
     {
       "path": "tests/test_windows_packaging.py",
-      "bytes": 13870,
-      "sha256": "5f046f17eee5d8713576f8ae7749478bac15998da2e559413a1e1611d79c4cbf"
+      "bytes": 16785,
+      "sha256": "8ac9174f3cf1d3d8b0b8d16a98cef4368a5f6bc695af7d6b9c5a163112fa9a13"
     },
     {
       "path": "启动爱之屋.command",

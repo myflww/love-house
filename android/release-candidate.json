@@ -1,0 +1,18 @@
+{
+  "schema": "love-house-android-candidate/v1",
+  "source_commit": "b35ccdfee46c07cf47334cb4f8cfabe1de6a249d",
+  "application_id": "io.github.myflww.lovehouse.preview",
+  "version_name": "0.1.0-preview1",
+  "version_code": 1,
+  "certificate_sha256": "ca4b184194816fe3617feaa841e11b47f5a9a9a00493e8cbc015210c04a3a4cc",
+  "apk": {
+    "blob_sha": "1786d14c53aa4b9d4999f058a0e8a54c6570f2fa",
+    "sha256": "056a4669f6a723f0fbc9097af6628c090c4d3d047313e9754fd0f04cb3a72937",
+    "bytes": 2642266
+  },
+  "test_apk": {
+    "blob_sha": "acd44864474cded4df25daec338b61094d709118",
+    "sha256": "271174ccb7bd55cd0fd734462a62d4f8ce90c2bff774ff1a8d128ada99a91925",
+    "bytes": 902135
+  }
+}

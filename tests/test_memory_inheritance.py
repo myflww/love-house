@@ -38,7 +38,7 @@ class MemoryInheritanceTests(unittest.TestCase):
         self.host.stop(); self.temp.cleanup()
 
     def connection(self, lib):
-        result = self.host.new_connection({'name': '固定库连接', 'host': 'agent', 'library_id': lib})
+        result = self.host.new_connection({'name': '固定库连接', 'host': 'agent', 'library_id': lib, 'session_scope':'connection'})
         cid = result['connection']['id']
         return cid, self.host.connections.get(cid, secret=True)['token']
 

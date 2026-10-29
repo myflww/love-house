@@ -80,9 +80,11 @@ def dependency_notices(target):
 def require_report(command,report):
     report=Path(report);report.unlink(missing_ok=True)
     result=subprocess.run([str(x) for x in command],timeout=150,check=False)
-    if result.returncode or not report.is_file():raise RuntimeError('Windows smoke did not finish successfully')
+    if not report.is_file():raise RuntimeError('Windows smoke created no report (exit code '+str(result.returncode)+')')
     value=json.loads(report.read_text('utf-8'))
-    if value.get('ok') is not True:raise RuntimeError('Windows smoke failed: '+str(value))
+    diagnostic={k:value[k] for k in ('phase','process_complete','failure','cleanup') if k in value}
+    if result.returncode or value.get('ok') is not True or value.get('process_complete') is not True:
+        raise RuntimeError('Windows smoke failed (exit code '+str(result.returncode)+'): '+json.dumps(diagnostic,ensure_ascii=False))
 
 
 def verify_webview2_sdk(app):

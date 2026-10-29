@@ -75,6 +75,15 @@
 
 配置保存一次后，再打开爱之屋和 Agent 宿主会自动寻找本机服务。已经提交的离线记录先保存在待发送队列，恢复后补交。具体接入协议见 [Agent 连接器](nkb/service/AGENT_CONNECTOR.md)。
 
+**默认只记录目标窗口。** Harness 与新的通用 Agent 连接在目标窗口完成首轮后固定真实会话 ID；其他窗口在原文进入待发送队列和存档前被排除，服务端再次核对。原窗口 ID 稳定时，重启继续连接；新窗口请用“连接新窗口”选择原存档。高级“整个连接”范围可能包含多个窗口，需要明确勾选允许。API 单窗口模式必须由客户端发送真实 `X-NKB-Session`，缺少时会拒绝接收，不能把多个窗口用占位 ID 冒充一个窗口。
+
+<details>
+<summary>查看默认单窗口设置</summary>
+
+![默认只记录目标窗口](assets/screenshots/window-privacy.png)
+
+</details>
+
 <details>
 <summary>什么时候需要 API Key？</summary>
 

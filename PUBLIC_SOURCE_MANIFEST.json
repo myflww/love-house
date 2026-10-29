@@ -13,8 +13,8 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "bytes": 6336,
-      "sha256": "fdd793d3e0955eac0f91c3506b77ac325f135050908916a7e491daf4d649acca"
+      "bytes": 6687,
+      "sha256": "f26c19b968486cf26571e474e341b58dfc4d7811ab56b7489012135d2a3bf82d"
     },
     {
       "path": ".gitignore",
@@ -23,8 +23,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 9377,
-      "sha256": "f17a44f48b0893769f72a9555cc55a1570db9f0c551a97a068a11a509f58387d"
+      "bytes": 9692,
+      "sha256": "66fb4774d5f5fe713cc36e7cdd507262008bef9655eed8b89258f19ce45cbeee"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -48,8 +48,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 9949,
-      "sha256": "3d503f7d7e10b20d61539e44499bcea53e1c4ca0bb340bb8ebf5888f2c88d278"
+      "bytes": 10641,
+      "sha256": "e7e1b54a2973f413c6aea1e73b3ace33edca3160bf4eeea032fe83a7ecf642ab"
     },
     {
       "path": "ROADMAP.md",
@@ -242,6 +242,11 @@
       "sha256": "6b6107e24f4e04c823b066cf452b739c0e2821ac7144bf1afc5f08a4e35fb753"
     },
     {
+      "path": "assets/screenshots/window-privacy.png",
+      "bytes": 63287,
+      "sha256": "314084ae2329f22cb1b7627aae4983639c63501a4f6de42657dd76ca7e914a6b"
+    },
+    {
       "path": "assets/ui/button-prompts.txt",
       "bytes": 2104,
       "sha256": "a0f4cdf03fa581687ae45e72c06e7dbef713b1c458190ef4fb639b03b5eb2ee0"
@@ -378,13 +383,13 @@
     },
     {
       "path": "desktop/windows_app.py",
-      "bytes": 14436,
-      "sha256": "4079b1d1cf70d1e7e49ee57cee43826b43492d4fcd353d27ae03d5fccb2f0890"
+      "bytes": 19247,
+      "sha256": "dcd3034e35770d9607ec2c4b28c51ae986a8e8319f9d77d11180da157486a87e"
     },
     {
       "path": "docs/API.md",
-      "bytes": 17670,
-      "sha256": "ebc867977c823e5eb38095c82f620cec05edf4c542f039e32f3003560523f9b8"
+      "bytes": 18387,
+      "sha256": "c2e28bfa60489e564d0b0352af464e8c3e9d3c6a706eaa97b0a93426ffba913d"
     },
     {
       "path": "docs/DeepSeek与Harness接入.md",
@@ -488,8 +493,8 @@
     },
     {
       "path": "extensions/deepseek-harness/configure.py",
-      "bytes": 13708,
-      "sha256": "2c750bc3b9af7bec040cf85bd1e5980ef03cddb695f1a190852f6a58ace19b01"
+      "bytes": 14224,
+      "sha256": "8e8d247a22c40228adbf0f80bc2e48e62eb0304c425b60b4745517cfe57cedcf"
     },
     {
       "path": "extensions/deepseek-harness/dist/THIRD_PARTY_LICENSES.txt",
@@ -808,8 +813,8 @@
     },
     {
       "path": "nkb/service/agent_client.py",
-      "bytes": 25893,
-      "sha256": "1727236a65118cf92bd7dbfec371ad322faa32474325aa90d41950f5e5f82554"
+      "bytes": 32220,
+      "sha256": "ec2277d38cd6f0ff62d9f2fa8b3329e6149758cf9c27eeeab9aa198c4f4edbd1"
     },
     {
       "path": "nkb/service/backups.py",
@@ -818,8 +823,8 @@
     },
     {
       "path": "nkb/service/connections.py",
-      "bytes": 14071,
-      "sha256": "544f5f7f1d402e4321c168e8e0a69c8845862698d8d9d918d6875a777bdf40ab"
+      "bytes": 18208,
+      "sha256": "908f5bb4f429ab2fd4e6d494cd02b70b6923f83b5c65a977d0f62c9bfe17d8a3"
     },
     {
       "path": "nkb/service/controls.py",
@@ -848,8 +853,8 @@
     },
     {
       "path": "nkb/service/harness/configure.py",
-      "bytes": 13708,
-      "sha256": "2c750bc3b9af7bec040cf85bd1e5980ef03cddb695f1a190852f6a58ace19b01"
+      "bytes": 14224,
+      "sha256": "8e8d247a22c40228adbf0f80bc2e48e62eb0304c425b60b4745517cfe57cedcf"
     },
     {
       "path": "nkb/service/harness/dist/THIRD_PARTY_LICENSES.txt",
@@ -878,8 +883,8 @@
     },
     {
       "path": "nkb/service/host.py",
-      "bytes": 49505,
-      "sha256": "68d2890e00eeb0a47cb3b5542cd48b42bbbb766525d1751d4004aedb77c063e9"
+      "bytes": 54016,
+      "sha256": "0ecbef2346d1c452e96c383c4bedaba61ba53d2c0fd87118b10a443f432f3af1"
     },
     {
       "path": "nkb/service/providers.py",
@@ -888,8 +893,8 @@
     },
     {
       "path": "nkb/service/proxy.py",
-      "bytes": 11937,
-      "sha256": "737220ec72a019372491b020ab45934993600c3d18a7f67c58c4d3f785abea48"
+      "bytes": 12176,
+      "sha256": "46a3d33a1f5c458de348d7e1c29bda2d74f48f5975b28c40a87fb2413ae84abb"
     },
     {
       "path": "nkb/service/share_summary.py",
@@ -1003,8 +1008,8 @@
     },
     {
       "path": "nkb/viz/web/connection-ux.js",
-      "bytes": 36453,
-      "sha256": "e0146644f1b828f8173d5518b802d06076da80be47257a8db1ceabbb16bf7ad1"
+      "bytes": 39867,
+      "sha256": "6baa873620fa4477d6bfb388499dc608ab46f5bd4516c18e75960f56449f83b7"
     },
     {
       "path": "nkb/viz/web/index.html",
@@ -1043,13 +1048,13 @@
     },
     {
       "path": "scripts/build_macos.py",
-      "bytes": 32329,
-      "sha256": "357a15e026c864a20251d41e55582fe95f151ff6cd55ea600c22043f929a3017"
+      "bytes": 34958,
+      "sha256": "d62eb58eb451268d4458a03cb506bb15b199eea4cdbbd96cae91296ab101fd01"
     },
     {
       "path": "scripts/build_windows.py",
-      "bytes": 9826,
-      "sha256": "013e1ddb49b6bdd51b961d7b68385699dc5ed072e1863e878a9a6f8cef0b0dab"
+      "bytes": 10079,
+      "sha256": "386282f6ea920b794d7bbb59deb711d92f96a63ec6a54141304677d8ac49c625"
     },
     {
       "path": "scripts/launch.py",
@@ -1073,8 +1078,8 @@
     },
     {
       "path": "tests/js/agent-connect-ui.test.cjs",
-      "bytes": 3760,
-      "sha256": "5b8df10961e1d3c4348bca3e5d53252a64fd7c2eab23ec4f7429b0cc9fc8915c"
+      "bytes": 4238,
+      "sha256": "bcb1c012a27bfd5cc9d2fc13e9b8a5f7f4079022ebd54cd14adf6e74ab1be1e9"
     },
     {
       "path": "tests/js/button-hints.test.cjs",
@@ -1107,14 +1112,34 @@
       "sha256": "c1bc9d5a87929be46510d8e789397c39b3d9bbf47f5e6840348040e28150d74f"
     },
     {
+      "path": "tests/test_agent_session_privacy.py",
+      "bytes": 10988,
+      "sha256": "4a5cd9c983f4268e45a590de0753bd546b038084e52834efd4de36bfb62319be"
+    },
+    {
+      "path": "tests/test_agent_window_privacy.py",
+      "bytes": 12219,
+      "sha256": "cc9247d0147069c6cd2349c125041a0d18fa720931027def2bcdc4af9b5ff265"
+    },
+    {
       "path": "tests/test_ai_http.py",
       "bytes": 6722,
       "sha256": "c582c81a8903031513a76bc450611a12016f2ad8448cc9f3a16340790021093c"
     },
     {
+      "path": "tests/test_api_window_privacy.py",
+      "bytes": 7205,
+      "sha256": "f800e6b43dba46458175658c6a4010cf971114e550df45cd184dd80c7717f2fb"
+    },
+    {
       "path": "tests/test_button_hints.py",
       "bytes": 2037,
       "sha256": "da7dfebf3f544b9f0d51c6de7285cee656e8541a24cde8d65d94ecfbf929a9e8"
+    },
+    {
+      "path": "tests/test_capture_status.py",
+      "bytes": 8019,
+      "sha256": "8cdc4648b555a7c6ed1407ffe8097d6017526d7b9db180064eda59ad45886af7"
     },
     {
       "path": "tests/test_companion.py",
@@ -1147,6 +1172,11 @@
       "sha256": "6bec28497e1ab5f88096fc7e8f2364b5a2a9e59bd92b10dc303f5400e17fc35e"
     },
     {
+      "path": "tests/test_harness_legacy_detection.py",
+      "bytes": 2428,
+      "sha256": "ec0326f82533664b04f523589113aa7e6c283ee66d1d2b3d0a358eca52079715"
+    },
+    {
       "path": "tests/test_http.py",
       "bytes": 13662,
       "sha256": "f0f758c05bbceee3b09c6ec587003d8fc726116dd38a516311bd7986ec535d76"
@@ -1173,8 +1203,8 @@
     },
     {
       "path": "tests/test_memory_inheritance.py",
-      "bytes": 15978,
-      "sha256": "f480bc645e84c64433542b3818673baa62112bc99d2ecb81e4a6b3bd79212c3e"
+      "bytes": 16008,
+      "sha256": "461444e73d44f7d5fb0794a6f416ad1951b343d3dccd3941cc440638bd785571"
     },
     {
       "path": "tests/test_memory_lifecycle.py",
@@ -1193,8 +1223,8 @@
     },
     {
       "path": "tests/test_memory_sharing.py",
-      "bytes": 16084,
-      "sha256": "00cbe8a69fc7a52a652766f441b82710c84752b6c8451cf8920e67affbce8f5b"
+      "bytes": 16114,
+      "sha256": "b6f8c7efc694a08144a555eabb7cf14ca85e43ca6193438b5362770cd81db5c4"
     },
     {
       "path": "tests/test_node_visibility.py",
@@ -1233,8 +1263,8 @@
     },
     {
       "path": "tests/test_product_memory_context.py",
-      "bytes": 3819,
-      "sha256": "029f2ee343afcd2a92617382a77906b45a477e35d965c17bfda63ca9c735b56f"
+      "bytes": 3848,
+      "sha256": "abc77957955bda364c45d3099019c4e5ac8c85fc646ba79c5f13bcaad58d3bcd"
     },
     {
       "path": "tests/test_public_release.py",
@@ -1263,8 +1293,8 @@
     },
     {
       "path": "tests/test_windows_packaging.py",
-      "bytes": 9418,
-      "sha256": "4fb7063c23e222dd34c83a0b3a33912796a9a8804de8b512c5f95aef248d020e"
+      "bytes": 13870,
+      "sha256": "5f046f17eee5d8713576f8ae7749478bac15998da2e559413a1e1611d79c4cbf"
     },
     {
       "path": "启动爱之屋.command",

@@ -29,6 +29,16 @@ class ConnectionStore:
             fields={r['name'] for r in db.execute('PRAGMA table_info(connections)')}
             for field in ('host_seen','configured_at'):
                 if field not in fields:db.execute(f'ALTER TABLE connections ADD COLUMN {field} REAL')
+            receipt_fields={r['name'] for r in db.execute('PRAGMA table_info(receipts)')}
+            for field,kind in (('semantic_type','TEXT'),('is_automatic','INTEGER')):
+                if field not in receipt_fields:db.execute(f'ALTER TABLE receipts ADD COLUMN {field} {kind}')
+            # Classify existing receipts once. Original payloads/hashes/IDs remain
+            # untouched; future status polling does not reparse private texts.
+            for row in db.execute('SELECT id,payload FROM receipts WHERE semantic_type IS NULL OR is_automatic IS NULL'):
+                semantic_type,automatic=self._payload_semantics(row['payload'])
+                db.execute('UPDATE receipts SET semantic_type=?,is_automatic=? WHERE id=?',
+                           (semantic_type,int(automatic),row['id']))
+            db.execute('CREATE INDEX IF NOT EXISTS receipts_capture_state ON receipts(connection_id,status,semantic_type,is_automatic)')
         self.path.chmod(0o600)
     @contextmanager
     def db(self):
@@ -40,10 +50,43 @@ class ConnectionStore:
             with db: yield db
         finally:db.close()
     @staticmethod
-    def public(row):
+    def _payload_semantics(payload):
+        try:
+            event=json.loads(payload) if isinstance(payload,str) else payload
+            if not isinstance(event,dict):return '',False
+            record=event.get('record') if isinstance(event.get('record'),dict) else {}
+            normalized=event.get('normalized') or record.get('normalized') or event
+            if not isinstance(normalized,dict):return '',False
+            kind=normalized.get('type')
+            if kind not in ('turn','tool','persona_import') or normalized.get('status','complete')!='complete':kind=''
+            automatic=record.get('schema') in ('deepseek-harness-event/v1','love-house-agent-hook/v1',
+                                                'neural-api-proxy/v1','neural-api-tool/v1')
+            return kind,bool(automatic)
+        except (ValueError,TypeError,RecursionError):return '',False
+    def _capture(self,cid):
+        with self.db() as db:
+            row=db.execute('''SELECT
+              SUM(CASE WHEN status='saved' AND semantic_type='turn' THEN 1 ELSE 0 END) complete_dialogues_saved,
+              SUM(CASE WHEN status='saved' AND semantic_type='turn' AND is_automatic=1 THEN 1 ELSE 0 END) automatic_dialogues_saved,
+              SUM(CASE WHEN status='saved' AND semantic_type='tool' THEN 1 ELSE 0 END) tool_observations_saved,
+              SUM(CASE WHEN status='saved' AND semantic_type='tool' AND is_automatic=1 THEN 1 ELSE 0 END) automatic_tool_observations_saved,
+              SUM(CASE WHEN status='archived' THEN 1 ELSE 0 END) raw_events_only,
+              SUM(CASE WHEN status IN ('pending','retry') THEN 1 ELSE 0 END) pending_records,
+              MAX(CASE WHEN status='saved' AND semantic_type='turn' THEN applied END) last_dialogue_at
+              FROM receipts WHERE connection_id=?''',(cid,)).fetchone()
+        return {k:(row[k] if k=='last_dialogue_at' else int(row[k] or 0)) for k in row.keys()}
+    def public(self,row):
         result=dict(row);result.pop('token',None)
         result['enabled']=bool(result['enabled']);result['revoked']=bool(result['revoked'])
         result['archive_status']=result['archive_status'] or 'waiting'
+        capture=self._capture(result['id']);result['capture']=capture
+        if not result['revoked']:
+            # A completed tool result proves automatic observation capture, not
+            # that a human/assistant conversation pair has reached the graph.
+            if capture['automatic_dialogues_saved']:result['archive_status']='automatic_connected'
+            elif capture['automatic_tool_observations_saved']:result['archive_status']='observations_only'
+            elif capture['complete_dialogues_saved'] or capture['tool_observations_saved']:result['archive_status']='tools_only'
+            elif result['archive_status'] in ('automatic_connected','observations_only','tools_only'):result['archive_status']='waiting'
         result['last_received_at']=result.pop('last_received',None)
         result['host_seen_at']=result.pop('host_seen',None)
         result['host_online']=bool(result['host_seen_at'] and time.time()-result['host_seen_at']<65 and result['enabled'] and not result['revoked'])
@@ -124,14 +167,15 @@ class ConnectionStore:
         # semantic records need applying to the graph; partial stays an archive.
         normalized=event.get('normalized') or (event.get('record') or {}).get('normalized') or (event if event.get('type') in ('turn','tool','persona_import') else None)
         pending=bool(normalized and normalized.get('status','complete')=='complete')
+        semantic_type,automatic=self._payload_semantics(event)
         with self.db() as db:
             old=db.execute('SELECT * FROM receipts WHERE id=?',(key,)).fetchone()
             if old:
                 if old['status']=='forgotten':return {'accepted':True,'duplicate':True,'receipt_id':key,'status':'forgotten'}
                 if old['payload_hash'] not in (digest,original_digest):raise ValidationError('同一事件ID已用于不同内容')
                 return {'accepted':True,'duplicate':True,'receipt_id':key,'status':old['status']}
-            db.execute('INSERT INTO receipts(id,connection_id,library_id,session_id,kind,status,payload,payload_hash,received) VALUES(?,?,?,?,?,?,?,?,?)',
-                       (key,connection['id'],connection['library_id'],sid,kind,'pending' if pending else 'archived',payload,digest,time.time()))
+            db.execute('INSERT INTO receipts(id,connection_id,library_id,session_id,kind,status,payload,payload_hash,received,semantic_type,is_automatic) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+                       (key,connection['id'],connection['library_id'],sid,kind,'pending' if pending else 'archived',payload,digest,time.time(),semantic_type,int(automatic)))
             db.execute('UPDATE connections SET last_received=?,error=NULL WHERE id=?',(time.time(),connection['id']))
         return {'accepted':True,'duplicate':False,'receipt_id':key,'status':'pending' if pending else 'archived'}
     def pending(self,limit=50):
@@ -148,10 +192,12 @@ class ConnectionStore:
         return item
     def applied(self,rid,node_ids,automatic=True):
         with self.db() as db:
-            row=db.execute('SELECT connection_id FROM receipts WHERE id=?',(rid,)).fetchone()
-            db.execute("UPDATE receipts SET status='saved',applied=?,attempts=attempts+1,error=NULL,node_ids=? WHERE id=?",
-                       (time.time(),json.dumps(node_ids),rid))
-            if automatic:db.execute("UPDATE connections SET archive_status='automatic_connected',error=NULL WHERE id=?",(row['connection_id'],))
+            row=db.execute('SELECT connection_id,semantic_type,is_automatic FROM receipts WHERE id=?',(rid,)).fetchone()
+            automatic=bool(automatic and row['is_automatic'])
+            db.execute("UPDATE receipts SET status='saved',applied=?,attempts=attempts+1,error=NULL,node_ids=?,is_automatic=? WHERE id=?",
+                       (time.time(),json.dumps(node_ids),int(automatic),rid))
+            if automatic and row['semantic_type']=='turn':db.execute("UPDATE connections SET archive_status='automatic_connected',error=NULL WHERE id=?",(row['connection_id'],))
+            elif automatic and row['semantic_type']=='tool':db.execute("UPDATE connections SET archive_status=CASE WHEN archive_status='automatic_connected' THEN archive_status ELSE 'observations_only' END,error=NULL WHERE id=?",(row['connection_id'],))
             else:db.execute("UPDATE connections SET archive_status=CASE WHEN archive_status='automatic_connected' THEN archive_status ELSE 'tools_only' END,error=NULL WHERE id=?",(row['connection_id'],))
     def failed(self,rid,error):
         with self.db() as db:

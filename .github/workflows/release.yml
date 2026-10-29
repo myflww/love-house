@@ -67,7 +67,7 @@ jobs:
           python -m pip install -r desktop/requirements-windows.txt
           python -m pip install -e .
       - name: Windows contracts and real local integration tests
-        run: python -m unittest tests.test_windows_packaging tests.test_credentials_windows tests.test_memory_inheritance tests.test_agent_memory_client tests.test_product_memory_context tests.test_memory_portability_ui -v
+        run: python -m unittest tests.test_windows_packaging tests.test_credentials_windows tests.test_memory_inheritance tests.test_agent_memory_client tests.test_agent_window_privacy tests.test_agent_session_privacy tests.test_api_window_privacy tests.test_capture_status tests.test_memory_sharing tests.test_share_summary tests.test_product_memory_context tests.test_memory_portability_ui -v
       - name: Build GUI, console adapters, native smoke and installer
         run: python scripts/build_windows.py
       - name: Install into disposable folder and verify installed executables
@@ -81,11 +81,13 @@ jobs:
           $report = Join-Path $env:RUNNER_TEMP 'installed-backend.json'
           $process = Start-Process "$target\LoveHouse.exe" -ArgumentList @('--backend-smoke','--report',"`"$report`"") -PassThru -Wait
           if ($process.ExitCode -ne 0 -or -not (Test-Path $report)) { throw 'Installed backend smoke failed' }
-          if (-not (Get-Content $report | ConvertFrom-Json).ok) { throw 'Installed backend report is not success' }
+          $backendResult = Get-Content $report | ConvertFrom-Json
+          if (-not $backendResult.ok -or -not $backendResult.process_complete) { throw 'Installed backend report is not finalized success' }
           $native = Join-Path $env:RUNNER_TEMP 'installed-native.json'
           $process = Start-Process "$target\LoveHouse.exe" -ArgumentList @('--smoke-test','--report',"`"$native`"") -PassThru -Wait
           if ($process.ExitCode -ne 0 -or -not (Test-Path $native)) { throw 'Installed native smoke failed' }
-          if (-not (Get-Content $native | ConvertFrom-Json).ok) { throw 'Installed native report is not success' }
+          $nativeResult = Get-Content $native | ConvertFrom-Json
+          if (-not $nativeResult.ok -or -not $nativeResult.process_complete) { throw 'Installed native report is not finalized success' }
           Copy-Item $report build/windows/reports/installed-backend.json
           Copy-Item $native build/windows/reports/installed-native.json
       - name: Upload tested Windows installers

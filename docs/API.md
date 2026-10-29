@@ -61,6 +61,8 @@ Agent 的 `config` 返回标准 `host_config.mcpServers` 和 `agent_setup_text`�
 
 连接工具新增 `memory_bootstrap`、`memory_list`、`memory_read`，服务端固定连接归属，不接受 `library_id` 等未声明字段。带记忆 Bearer 的请求不能使用桌面管理接口；已知本地凭据也不能当成另一个高级 API 连接的厂商 Key。新窗口用同库历史，`session_id` 是来源标识，不是另一个记忆身份。一次上下文有界，完整读取通过目录和分块进行。
 
+新 Agent 默认 `session_scope:next_session`，只有真实宿主完整 hook 能绑定，心跳和读取不会抢占窗口。绑定前手动/partial/tool 写入返回 `accepted:false,saved:false,reason:awaiting_window_binding`；绑定后其他窗口被拒。SDK 在任何 outbox 原文写入前作本机过滤，固定会话持久保存，离线同样生效。显式 `connection` 为高级整连接范围，界面需要用户确认；API 的单窗口范围没有真实 `X-NKB-Session` 时拒绝请求。连接 public `capture` 区分完整对话、工具观察、原始事件和待索引数，只有完整自动对话入图才为 `automatic_connected`；`observations_only` 不代表已有完整聊天可召回。
+
 分享 JSON 使用 `love-house-memory-share/v1`，文件最多64MiB。为容纳编码开销，只有两个分享导入接口接受至130MiB请求体；其他普通JSON接口保持原有上限。下载需当前预览版本，变化后重新预览。文件含全部未忘记原文、人格、关系与历史状态，可识别凭据/本机路径被隐藏；个人经历仍由分享者检查。可选摘要附带程序记录的覆盖范围，不修改图谱或替代原文，缓存与库及内容版本绑定。
 
 以下保留独立 `Brain` 库的接口文档。底层单库实验服务与桌面多库控制器的职责不同；桌面已停用内置聊天接口，不要求用户迁移聊天窗口。

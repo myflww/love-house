@@ -85,6 +85,9 @@ def forward_chat(handler,host,cid,*,opener=None):
     c=host.connections.get(cid,secret=True)
     if c['host']!='api' or c['revoked']:raise RequestError('此API记忆连接已断开，请将客户端切回原API地址或新建连接',403)
     capturing=bool(c['enabled'])
+    actual_session=handler.headers.get('X-NKB-Session') or handler.headers.get('X-Neural-Session')
+    if capturing and c['session_scope']!='connection' and not actual_session:
+        raise RequestError('单窗口接入必须由客户端提供真实 X-NKB-Session；未记录或转发本次内容',400)
     if not handler.path.endswith('/v1/chat/completions'):raise RequestError('仅支持 /v1/chat/completions',404)
     auth=handler.headers.get('Authorization','')
     if not auth.startswith('Bearer ') or not auth[7:].strip():raise RequestError('请填写此连接的本地凭证或厂商API密钥',401)
@@ -106,7 +109,7 @@ def forward_chat(handler,host,cid,*,opener=None):
     user,refs=plain_content(latest.get('content'))
     if not user and refs:user='[本轮用户发送附件；保存的是引用与哈希，不是附件全文]'
     if not user.strip():raise RequestError('本轮用户消息为空')
-    sid=handler.headers.get('X-NKB-Session') or handler.headers.get('X-Neural-Session') or 'api-default-session'
+    sid=actual_session or 'api-default-session'
     if capturing:host.connections.authorize_session(cid,sid)
     rid=handler.headers.get('X-NKB-Request-ID') or handler.headers.get('Idempotency-Key') or 'api_'+uuid.uuid4().hex
     if len(rid)>200:raise RequestError('请求编号过长')

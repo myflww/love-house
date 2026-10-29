@@ -360,6 +360,37 @@ def smoke_agent(resources):
             assert not list(outbox.glob("*.json"))
             assert api("/api/graph")["nodes"] == []
             print("Bundled Agent MCP: generated command/PYTHONHOME works; no vendor key; manual/partial stays tools_only; complete hook records automatically; offline queue/reconnect preserves fixed library")
+
+            single_library = api("/api/libraries", {"name":"打包默认单窗口隐私库"})["library"]["id"]
+            single = api("/api/connections", {"name":"默认只记所选窗口", "host":"agent", "library_id":single_library})
+            single_cid = single["connection"]["id"]
+            assert single["connection"]["session_scope"] == "next_session"
+            single_config = api(f"/api/connections/{single_cid}/config")
+            assert single_config["connection_config_public"]["window_only"] is True
+            assert single_config["connection_config_public"]["bound_session_id"] is None
+            single_hook = single_config["hook_config"]
+            own = {"session_id":"packaged-window-A", "turn_id":"first-real-turn", "status":"complete",
+                   "user":"PACKAGED-OWN-WINDOW-A", "assistant":"Actual reply from the selected packaged window"}
+            saved = execute(single_hook, json.dumps(own))
+            assert saved["accepted"] and saved["saved"] and not saved["queued"]
+            private = Path(single_config["private_path"])
+            assert json.loads(private.read_text())["bound_session_id"] == own["session_id"]
+            foreign_marker = "PACKAGED-FOREIGN-WINDOW-B-MUST-NEVER-BE-COLLECTED"
+            foreign = {**own, "session_id":"packaged-window-B", "turn_id":"foreign-turn", "user":foreign_marker}
+            ignored = execute(single_hook, json.dumps(foreign))  # A new real client process reloads the saved local claim.
+            assert ignored["status"] == "ignored_scope" and not ignored["accepted"] and not ignored["queued"]
+            assert not ignored["saved"] and not ignored["local_queue_committed"]
+            assert not list((data / "agent-outbox" / single_cid).glob("*.json"))
+            assert all(foreign_marker.encode() not in p.read_bytes() for p in data.rglob("*") if p.is_file())
+            stop(); start()
+            refreshed = api(f"/api/connections/{single_cid}/config")
+            assert refreshed["connection"]["session_scope"] == own["session_id"]
+            assert refreshed["connection_config_public"]["bound_session_id"] == own["session_id"]
+            assert json.loads(private.read_text())["bound_session_id"] == own["session_id"]
+            graph = api("/api/graph", library=single_library)
+            assert len(graph["nodes"]) == 1 and "PACKAGED-OWN-WINDOW-A" in graph["nodes"][0]["text"]
+            assert api("/api/graph")["nodes"] == []
+            print("Bundled default single-window privacy: next_session binds only real hook A; client B ignored before outbox/raw disk; reloaded Controller/config remains A")
         finally:
             try: stop()
             finally: log.close()

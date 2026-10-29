@@ -27,7 +27,7 @@ def _legacy_entries(profile):
             continue
         lines = path.read_text("utf-8").splitlines()
         for index, line in enumerate(lines):
-            match = re.match(r"^(\s*)-\s+id:\s*['\"]?([A-Za-z0-9_.:-]+)['\"]?\s*(?:#.*)?$", line)
+            match = re.match(r"^(\s*)-\s+(?:id|name)\s*:", line)
             if not match:
                 continue
             indent = len(match.group(1))
@@ -38,12 +38,16 @@ def _legacy_entries(profile):
                     break
                 end += 1
             block = "\n".join(lines[index:end])
-            server = re.search(r"serverName:\s*['\"]?([A-Za-z0-9_-]{1,32})", block)
-            if ("@deepseek-ai/dsh-mcp-client" in block and server and
-                    "知识星图.app/Contents/Resources/backend/harness_bridge.py" in block):
-                found.append({"id": match.group(2), "server_name": server.group(1),
+            logical = re.sub(r"\\\r?\n[ \t]*", "", block)  # YAML double-quoted line continuation
+            server = re.search(r"['\"]?serverName['\"]?\s*:\s*['\"]?([A-Za-z0-9_-]{1,32})", block)
+            identity = re.search(r"(?m)^\s*(?:-\s+)?id\s*:\s*['\"]?([A-Za-z0-9_.:-]+)['\"]?\s*(?:#.*)?$", block)
+            if ("@deepseek-ai/dsh-mcp-client" in block and server and identity and
+                    any(name + ".app/Contents/Resources/backend/harness_bridge.py" in logical for name in ("知识星图", "爱之屋"))):
+                binding = re.search(r"--library-id['\"]?\s*\n\s*-\s*['\"]?([a-z0-9][a-z0-9_-]{0,63})", block)
+                target_id = binding.group(1) if binding else "default"
+                found.append({"target_library_id": target_id, "explicit_library_binding": bool(binding), "id": identity.group(1), "server_name": server.group(1),
                               "source_file": str(path), "mode": "manual_mcp",
-                              "target_library": "旧个人库服务；没有本连接library_id绑定，不能推定跟随当前选库"})
+                              "target_library": "固定存档：" + target_id + "；不会跟随画面切库或自动切到新的宿主连接"})
     return found
 
 

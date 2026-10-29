@@ -5,10 +5,12 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import sys
 import tempfile
 import threading
 import time
+import traceback
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlsplit
 from urllib.request import urlopen
@@ -22,6 +24,57 @@ from nkb.service.credentials import KeyStore
 from nkb.storage.jsonfile import JsonFileStorage
 
 WEBVIEW2_URL='https://developer.microsoft.com/microsoft-edge/webview2/'
+SMOKE_PREFIX='love-house-webview2-smoke-'
+
+
+def smoke_failure(exc):
+    """Safe exception diagnostics: code/location, never exception text or keys."""
+    frames=traceback.extract_tb(exc.__traceback__)
+    result={'type':type(exc).__name__,'errno':getattr(exc,'errno',None),'winerror':getattr(exc,'winerror',None)}
+    if getattr(exc,'filename',None):result['file']=Path(exc.filename).name
+    if frames:
+        last=frames[-1];result['at']={'file':Path(last.filename).name,'function':last.name,'line':last.lineno}
+    return result
+
+
+def smoke_report(path,value):
+    if path:
+        target=Path(path);target.parent.mkdir(parents=True,exist_ok=True)
+        atomic_export(target,json.dumps(value,ensure_ascii=False,indent=2).encode('utf-8'))
+
+
+def cleanup_smoke_profile(directory,attempts=8):
+    """Remove only our isolated test scratch, with bounded WebView2-lock retry.
+
+    A browser child may release its profile after the GUI loop returns. Only
+    Windows sharing/lock violations whose exact failing path is beneath this
+    scratch's WebView2 directory may be deferred. ACL/disk/runtime errors fail.
+    There is no call against real user data, nor a blanket ignore_errors flag.
+    """
+    root=Path(directory).resolve();marker=root/'.love-house-smoke-owner.json'
+    if not root.name.startswith(SMOKE_PREFIX) or root.parent!=Path(tempfile.gettempdir()).resolve():
+        raise ValueError('Refusing cleanup outside isolated native smoke scratch')
+    owner=json.loads(marker.read_text('utf-8'))
+    if owner!={'schema':'love-house-native-smoke/v1','pid':os.getpid(),'directory':root.name}:
+        raise ValueError('Native smoke ownership marker does not match')
+    profile=root/'WebView2'
+    for attempt in range(1,attempts+1):
+        try:
+            shutil.rmtree(root)
+            return {'status':'removed','attempts':attempt,'isolated':True}
+        except FileNotFoundError:
+            if not root.exists():return {'status':'removed','attempts':attempt,'isolated':True}
+            raise
+        except OSError as exc:
+            filename=getattr(exc,'filename',None)
+            known_lock=(getattr(exc,'winerror',None) in (32,33) and filename
+                        and Path(filename).resolve().is_relative_to(profile))
+            if not known_lock:raise
+            if attempt==attempts:
+                return {'status':'deferred_profile_lock','attempts':attempt,'isolated':True,
+                        'directory':root.name,'winerror':exc.winerror,'file':Path(filename).name,
+                        'retained_for':'OS release of the completed test WebView2 profile'}
+            time.sleep(.15*attempt)
 
 
 def default_data_dir():
@@ -185,13 +238,16 @@ def backend_smoke(report):
         finally:runtime.stop()
         result={'ok':True,'version':__version__,'controller':'passed','stdio_and_hook':'passed' if getattr(sys,'frozen',False) else 'source-only',
                 'sharing_roundtrip':'passed','restart':'passed','real_model_calls':0,'real_credentials_accessed':False}
-        Path(report).write_text(json.dumps(result,indent=2),encoding='utf-8')
+    result.update(phase='complete',process_complete=True,cleanup={'status':'removed','isolated':True})
+    smoke_report(report,result)
+    return result
 
 
-def run_window(data_dir,*,smoke=False,report=None):
+def run_window(data_dir,*,smoke=False,report=None,result=None):
     import webview
     runtime=ControllerRuntime(data_dir,testing=smoke).start()
-    result={'ok':False,'version':__version__,'renderer':'edgechromium'}
+    if result is None:result={}
+    result.update(ok=False,version=__version__,renderer='edgechromium',phase='window_start',process_complete=False)
     try:
         api=NativeAPI(runtime.url)
         window=webview.create_window('爱之屋',runtime.url,js_api=api,width=1360,height=900,min_size=(900,600),
@@ -215,16 +271,46 @@ def run_window(data_dir,*,smoke=False,report=None):
                     assert ready.wait(45),'WebView2 JS response timed out'
                     value=box['value'];assert value['health']['ok'] and value['health']['version']==__version__
                     assert value['save_bridge'] and value['graph'] and value['webgl'],value
-                    result.update(ok=True,webview=value)
-                except Exception as exc:result.update(error=type(exc).__name__+': '+str(exc)[:500])
+                    result.update(ok=True,webview=value,phase='native_checks_passed')
+                except Exception as exc:result.update(failure=smoke_failure(exc),phase='native_checks_failed')
                 finally:window.destroy()
             window.events.loaded+=verify
         webview.start(gui='edgechromium',debug=False,private_mode=False,storage_path=str(Path(data_dir)/'WebView2'))
         if result.get('error') and not result['ok']:raise RuntimeError('WebView2 unavailable; no legacy renderer fallback')
     finally:
-        runtime.stop()
-        if report:Path(report).write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
+        result['window_phase']=result.get('phase')
+        result['phase']='controller_shutdown'
+        try:runtime.stop();result['controller_stopped']=True
+        except Exception as exc:
+            result.update(ok=False,failure=smoke_failure(exc),phase='controller_shutdown_failed');raise
+        finally:smoke_report(report,result)
     if smoke and not result['ok']:raise RuntimeError('Windows WebView2 smoke failed; see report')
+    return result
+
+
+def native_smoke(report):
+    """Own the native test scratch explicitly; report only after final cleanup."""
+    directory=Path(tempfile.mkdtemp(prefix=SMOKE_PREFIX)).resolve()
+    (directory/'.love-house-smoke-owner.json').write_text(json.dumps({
+        'schema':'love-house-native-smoke/v1','pid':os.getpid(),'directory':directory.name}),encoding='utf-8')
+    result={'ok':False,'version':__version__,'phase':'native_start','process_complete':False}
+    primary=None
+    try:
+        run_window(directory,smoke=True,result=result)
+    except Exception as exc:
+        primary=exc;result['ok']=False;result.setdefault('failure',smoke_failure(exc))
+    finally:
+        result['phase']='profile_cleanup'
+        try:result['cleanup']=cleanup_smoke_profile(directory)
+        except Exception as exc:
+            result.update(ok=False,cleanup={'status':'failed','failure':smoke_failure(exc)},phase='profile_cleanup_failed')
+            if primary is None:primary=exc
+        if primary is None and result.get('ok') and result.get('controller_stopped'):
+            result.update(phase='complete',process_complete=True)
+        smoke_report(report,result)
+    if primary is not None:raise primary
+    if not result.get('process_complete'):raise RuntimeError('Native test did not complete')
+    return result
 
 
 def main():
@@ -232,18 +318,22 @@ def main():
     parser.add_argument('--data-dir',type=Path);parser.add_argument('--backend-smoke',action='store_true')
     parser.add_argument('--smoke-test',action='store_true');parser.add_argument('--report',type=Path)
     args=parser.parse_args()
-    if args.backend_smoke:
-        if not args.report:parser.error('--backend-smoke requires --report')
-        backend_smoke(args.report);return 0
-    if sys.platform!='win32':parser.error('Windows native shell requires Windows 10/11 x64')
+    if (args.backend_smoke or args.smoke_test) and not args.report:parser.error('smoke tests require --report')
+    if not args.backend_smoke and sys.platform!='win32':parser.error('Windows native shell requires Windows 10/11 x64')
     try:
-        if args.smoke_test:
-            if not args.report:parser.error('--smoke-test requires --report')
-            with tempfile.TemporaryDirectory(prefix='love-house-webview2-smoke-') as directory:run_window(directory,smoke=True,report=args.report)
+        if args.backend_smoke:backend_smoke(args.report)
+        elif args.smoke_test:native_smoke(args.report)
         else:run_window(args.data_dir or default_data_dir())
         return 0
-    except Exception:
-        if not args.smoke_test:notify('爱之屋未能打开。若另一窗口已经打开，请切回该窗口。\n本程序需要微软WebView2 Runtime，请从微软官方页面安装后重试：\n'+WEBVIEW2_URL+'\n现有记忆数据已保留。')
+    except Exception as exc:
+        if args.backend_smoke or args.smoke_test:
+            try:
+                previous=json.loads(args.report.read_text('utf-8')) if args.report.exists() else {}
+                previous.update(ok=False,process_complete=False,failure=smoke_failure(exc))
+                if previous.get('phase') in (None,'complete'):previous['phase']='process_finalization_failed'
+                smoke_report(args.report,previous)
+            except Exception:pass  # The nonzero exit remains mandatory even if disk reporting fails.
+        if not (args.smoke_test or args.backend_smoke):notify('爱之屋未能打开。若另一窗口已经打开，请切回该窗口。\n本程序需要微软WebView2 Runtime，请从微软官方页面安装后重试：\n'+WEBVIEW2_URL+'\n现有记忆数据已保留。')
         return 1
 
 

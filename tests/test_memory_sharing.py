@@ -139,7 +139,7 @@ class ShareStoreTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.host = MemoryHost(Path(self.temp.name), key_store=KeyStore(allow_keychain=False))
         self.store = ShareStore(self.host)
-        self.config = self.host.new_connection({'name': '已有鱼', 'host': 'agent', 'library_id': 'default'})
+        self.config = self.host.new_connection({'name': '已有鱼', 'host': 'agent', 'library_id': 'default', 'session_scope':'connection'})
         self.cid = self.config['connection']['id']; token = self.host.connections.get(self.cid, secret=True)['token']
         self.receipt = self.host.accept(self.cid, token, {'session_id': '原窗口', 'event_id': '原轮次',
                             'normalized': {'type': 'turn', 'turn_id': '原轮次', 'status': 'complete', 'user': '属于这个存档的原话。', 'assistant': '这是助手当时的回复。'}})

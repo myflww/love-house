@@ -110,7 +110,7 @@ def _read_json(path,limit):
         raise AgentConnectionError('本机记忆配置或待发送记录不可读，未覆盖原文件','invalid_file') from None
 
 def validate_config(value):
-    allowed={'schema','connection_id','library_id','token','runtime_dir','outbox_dir','enabled','revoked'}
+    allowed={'schema','connection_id','library_id','token','runtime_dir','outbox_dir','enabled','revoked','session_scope','bound_session_id'}
     if not isinstance(value,dict) or value.get('schema')!=SCHEMA or set(value)-allowed:
         raise AgentConnectionError('记忆连接配置版本不支持','invalid_config')
     result=dict(value)
@@ -119,6 +119,15 @@ def validate_config(value):
             raise AgentConnectionError('记忆连接身份无效','invalid_config')
     for key in ('enabled','revoked'):
         if type(result.get(key)) is not bool:raise AgentConnectionError('记忆连接启停状态无效','invalid_config')
+    # v1 files created before single-window capture remain explicitly broad.
+    # Do not silently change a previously authorised connection's meaning.
+    scope=_text(result.get('session_scope','connection'),'session_scope',200)
+    bound=result.get('bound_session_id')
+    if bound is not None:bound=_text(bound,'bound_session_id',200)
+    if scope not in ('connection','next_session'):
+        if bound not in (None,scope):raise AgentConnectionError('本机窗口范围发生冲突，未改绑','scope_conflict')
+        bound=scope
+    result.update(session_scope=scope,bound_session_id=bound)
     token=result.get('token')
     if not isinstance(token,str) or len(token)>4096 or any(ord(c)<33 for c in token):
         raise AgentConnectionError('本地连接凭证格式无效','invalid_config')
@@ -166,9 +175,28 @@ def make_agent_config(root,connection_secret,*,python_path=None,bridge_path=None
     private=root/'agent-connections'/(cid+'.json')
     value=validate_config({'schema':SCHEMA,'connection_id':cid,'library_id':library,
       'token':c.get('token',''),'runtime_dir':str(root/'.runtime'),'outbox_dir':str(root/'agent-outbox'/cid),
-      'enabled':bool(c.get('enabled',True)),'revoked':bool(c.get('revoked',False))})
+      'enabled':bool(c.get('enabled',True)),'revoked':bool(c.get('revoked',False)),
+      'session_scope':c.get('session_scope','connection'),'bound_session_id':c.get('bound_session_id')})
+    scope_conflict=False
+    def preserve_local_claim():
+        nonlocal value,scope_conflict
+        if not private.exists():return
+        previous=validate_config(_read_json(private,MAX_CONFIG))
+        if previous['connection_id']!=cid or previous['library_id']!=library:
+            raise AgentConnectionError('既有本机配置属于另一个记忆身份，未覆盖','invalid_config')
+        local=previous['bound_session_id']
+        if local:
+            if value['session_scope'] not in ('connection','next_session',local):
+                scope_conflict=True;value['session_scope']=previous['session_scope']
+                if value['session_scope']=='connection':value['session_scope']='next_session'
+            value['bound_session_id']=local
+        value=validate_config(value)
+    if persist:
+        # The first real hook claim and app-side enable/revoke/config refresh
+        # serialize on this SAME lock. A server ACK can never erase the claim.
+        with _spool_lock(private.parent):preserve_local_claim();_atomic_json(private,value)
+    else:preserve_local_claim()
     python,bridge,hook,environment=_runtime_paths(python_path=python_path,bridge_path=bridge_path,hook_path=hook_path)
-    if persist:_atomic_json(private,value)
     command={'command':str(python or bridge),'args':(['-s','-u',str(bridge)] if python else [])+['--connection-config',str(private)],'env':environment}
     mcp={'mcpServers':{'love-house-memory-'+cid[-8:]:command}}
     hook_config={'command':str(python or hook),'args':(['-s','-u',str(hook)] if python else [])+['--connection-config',str(private)],
@@ -178,6 +206,8 @@ def make_agent_config(root,connection_secret,*,python_path=None,bridge_path=None
     return {'private_path':str(private),'mcp_config':mcp,'hook_config':hook_config,
       'connection_config_public':{'schema':SCHEMA,'connection_id':cid,'library_id':library,
         'enabled':value['enabled'],'revoked':value['revoked'],'capture_mode':'tools_only_until_host_hook',
+        'session_scope':value['session_scope'],'bound_session_id':value['bound_session_id'],'scope_conflict':scope_conflict,
+        'window_only':value['session_scope']!='connection',
         'model_api_key_required':False,'transport':'local-mcp-stdio','automatic_reconnect':True},
       'persisted':persist,'supported':True,'requires_host_hook_for_automatic_capture':True}
 
@@ -245,6 +275,51 @@ class AgentClient:
         if not self._enabled(c):raise AgentConnectionError('记忆连接已暂停或断开，未新增记录','paused')
         return c
     @staticmethod
+    def _bound(c):
+        return c.get('bound_session_id') or (c['session_scope'] if c['session_scope'] not in ('connection','next_session') else None)
+    def _scope_result(self,code):
+        c=self.config()
+        return {'accepted':False,'saved':False,'archive_committed':False,'local_queue_committed':False,'queued':False,
+                'status':code,'code':code,'connection_id':c['connection_id'],'library_id':c['library_id'],
+                'session_scope':c['session_scope'],'bound_session_id':self._bound(c)}
+    def _preflight_window(self,data,*,hook=False):
+        """Reject foreign/undetermined input before normalizing any role text."""
+        c=self._require_enabled()
+        if c['session_scope']=='connection':return None
+        sid=data.get('session_id') if isinstance(data,dict) else None
+        bound=self._bound(c)
+        if bound:
+            if sid!=bound:return self._scope_result('ignored_scope')
+            return None
+        eligible=(hook and isinstance(data,dict) and data.get('type','turn')=='turn'
+                  and data.get('status','complete')=='complete'
+                  and isinstance(sid,str) and bool(sid.strip()) and len(sid)<=200
+                  and all(isinstance(data.get(k),str) and bool(data[k].strip()) for k in ('user','assistant')))
+        return None if eligible else self._scope_result('awaiting_window_binding')
+    def _scope_gate(self,c,event,*,claim=False):
+        """Called under the config lock before ANY outbox serialization/write."""
+        if c['session_scope']=='connection':return c
+        sid=_text(event.get('session_id'),'session_id',200)
+        bound=self._bound(c)
+        if bound:
+            if sid!=bound:raise AgentConnectionError('本条来源不属于所配置窗口，未采集','ignored_scope')
+            return c
+        record=event.get('record') if isinstance(event.get('record'),dict) else {}
+        normalized=event.get('normalized') if isinstance(event.get('normalized'),dict) else record.get('normalized',{})
+        eligible=(record.get('schema')==HOOK_SCHEMA and isinstance(normalized,dict)
+                  and normalized.get('type')=='turn' and normalized.get('status')=='complete'
+                  and normalized.get('origin')=='agent_host_hook'
+                  and all(isinstance(normalized.get(k),str) and bool(normalized[k].strip())
+                          and len(normalized[k])<=40000 for k in ('user','assistant')))
+        if not claim or not eligible:
+            raise AgentConnectionError('等待所选窗口的第一轮完整宿主对话，未采集原文','awaiting_window_binding')
+        for key in ('user','assistant'):_text(normalized[key],key,40000)
+        _text(normalized.get('turn_id'),'turn_id',200)
+        _text(event.get('event_id'),'event_id',300)
+        c=validate_config({**c,'bound_session_id':sid})
+        _atomic_json(self.path,c)
+        return c
+    @staticmethod
     def _alive(pid):
         if type(pid) is not int or not 0<pid<=2**31-1:return False
         if sys.platform=='win32':
@@ -305,6 +380,9 @@ class AgentClient:
     def heartbeat(self):return self._post('heartbeat',{'adapter_version':'love-house-agent-memory/1','host_version':'generic-local-agent'})
     def tool(self,name,arguments=None):
         if name in ('memory_record_turn','memory_event'):return self.submit_tool_record(name,arguments or {})
+        if name in ('memory_remember','memory_persona_import'):
+            ignored=self._preflight_window(arguments or {})
+            if ignored:return ignored
         return self._post('tool',{'name':name,'arguments':arguments or {}})
     def pending_count(self):
         try:return len(list(Path(self.config()['outbox_dir']).glob('*.json')))
@@ -317,22 +395,24 @@ class AgentClient:
             raise AgentConnectionError('记录必须是可保存的JSON事件','invalid_input') from None
     def _enqueue_impl(self,event):
         if not isinstance(event,dict):raise AgentConnectionError('记录须为JSON对象','invalid_input')
-        c=self._require_enabled();payload=_json(event)
-        if len(payload.encode())>MAX_EVENT:raise AgentConnectionError('单事件过大，未写入队列','input_too_large')
-        identity=_json([c['connection_id'],event.get('session_id'),event.get('event_id')])
-        key=hashlib.sha256(identity.encode()).hexdigest();digest=hashlib.sha256(payload.encode()).hexdigest();path=Path(c['outbox_dir'])/(key+'.json')
-        with self._queue_lock,_spool_lock(path.parent):
-            self._require_enabled()
-            if path.exists():
-                old=_read_json(path,MAX_EVENT+MAX_CONFIG)
-                if old.get('payload_hash')!=digest:raise AgentConnectionError('同一轮次ID已用于不同原文，旧记录未覆盖','event_conflict')
-                return key
-            folder=path.parent;folder.mkdir(parents=True,exist_ok=True,mode=0o700)
-            existing=list(folder.glob('*.json'))
-            if len(existing)>=MAX_QUEUE_EVENTS or sum(p.stat().st_size for p in existing)+len(payload.encode())>MAX_QUEUE_BYTES:
-                raise AgentConnectionError('本地待发送队列已满，未宣称记录成功，请先启动爱之屋','outbox_full')
-            _atomic_json(path,{'schema':'love-house-agent-outbox/v1','connection_id':c['connection_id'],
-                      'library_id':c['library_id'],'payload_hash':digest,'event':event,'created':time.time()})
+        with self._queue_lock,_spool_lock(self.path.parent):
+            c=self._scope_gate(self._require_enabled(),event,claim=True)
+            payload=_json(event)
+            if len(payload.encode())>MAX_EVENT:raise AgentConnectionError('单事件过大，未写入队列','input_too_large')
+            identity=_json([c['connection_id'],event.get('session_id'),event.get('event_id')])
+            key=hashlib.sha256(identity.encode()).hexdigest();digest=hashlib.sha256(payload.encode()).hexdigest();path=Path(c['outbox_dir'])/(key+'.json')
+            with _spool_lock(path.parent):
+                self._require_enabled()
+                if path.exists():
+                    old=_read_json(path,MAX_EVENT+MAX_CONFIG)
+                    if old.get('payload_hash')!=digest:raise AgentConnectionError('同一轮次ID已用于不同原文，旧记录未覆盖','event_conflict')
+                    return key
+                folder=path.parent;folder.mkdir(parents=True,exist_ok=True,mode=0o700)
+                existing=list(folder.glob('*.json'))
+                if len(existing)>=MAX_QUEUE_EVENTS or sum(p.stat().st_size for p in existing)+len(payload.encode())>MAX_QUEUE_BYTES:
+                    raise AgentConnectionError('本地待发送队列已满，未宣称记录成功，请先启动爱之屋','outbox_full')
+                _atomic_json(path,{'schema':'love-house-agent-outbox/v1','connection_id':c['connection_id'],
+                          'library_id':c['library_id'],'payload_hash':digest,'event':event,'created':time.time()})
         return key
     def drain(self,*,limit=50):
         if type(limit) is not int or not 1<=limit<=1000:raise AgentConnectionError('待发送批数无效','invalid_input')
@@ -356,8 +436,11 @@ class AgentClient:
                     event=item.get('event')
                     if not isinstance(event,dict) or hashlib.sha256(_json(event).encode()).hexdigest()!=item.get('payload_hash'):
                         raise AgentConnectionError('待发送记录校验失败，未提交','invalid_outbox')
+                    self._scope_gate(current,event,claim=False)
                     result=self._post('events',event,port=port)
-                    if result.get('accepted') is not True:raise AgentConnectionError('服务未确认原文落盘，待发送记录保留','not_accepted')
+                    if result.get('accepted') is not True:
+                        code=result.get('code',result.get('status'))
+                        raise AgentConnectionError('服务未确认此窗口原文落盘，待发送记录保留',code if code in ('scope_conflict','ignored_scope','awaiting_window_binding') else 'not_accepted')
                     # Compare before unlink so a changed local file cannot be silently discarded.
                     with _spool_lock(folder):
                         if path.exists():
@@ -373,21 +456,35 @@ class AgentClient:
             return {'status':error or 'delivered','accepted':accepted,'pending':self.pending_count()}
         finally:self._drain_lock.release()
     def submit_event(self,event):
-        key=self._enqueue(event);delivery=self.drain();accepted=delivery.get('accepted',{}).get(key)
+        try:key=self._enqueue(event)
+        except AgentConnectionError as exc:
+            if exc.code in ('awaiting_window_binding','ignored_scope'):return self._scope_result(exc.code)
+            raise
+        delivery=self.drain();accepted=delivery.get('accepted',{}).get(key)
         if accepted:
             return {**accepted,'saved':accepted.get('status') in ('saved','stored'),
                     'archive_committed':accepted.get('status')!='forgotten','local_queue_committed':True,'queued':False,'forgotten':accepted.get('status')=='forgotten'}
         return {'accepted':False,'saved':False,'archive_committed':False,'local_queue_committed':True,
                 'queued':True,'status':'queued_offline' if delivery.get('status')=='offline' else 'queued',
                 'reason':delivery.get('status'),'pending':delivery.get('pending',self.pending_count())}
-    def submit_hook(self,data):return self.submit_event(event_from_hook(data))
-    def submit_tool_record(self,name,args):return self.submit_event(event_from_tool(name,args))
+    def submit_hook(self,data):
+        ignored=self._preflight_window(data,hook=True)
+        return ignored if ignored else self.submit_event(event_from_hook(data))
+    def submit_tool_record(self,name,args):
+        ignored=self._preflight_window(args)
+        return ignored if ignored else self.submit_event(event_from_tool(name,args))
     def status(self):
         c=self.config()
         public={'library_id':c['library_id'],'connection_id':c['connection_id'],'capture_mode':'tools_only_until_host_hook',
-                'pending':self.pending_count(),'model_api_key_required':False,'enabled':c['enabled'],'revoked':c['revoked']}
+                'pending':self.pending_count(),'model_api_key_required':False,'enabled':c['enabled'],'revoked':c['revoked'],
+                'session_scope':c['session_scope'],'bound_session_id':self._bound(c),'window_only':c['session_scope']!='connection'}
         if not self._enabled(c):return {**public,'connected':False,'status':'paused'}
-        try:return {**public,**self.tool('memory_status',{}),'connected':True}
+        try:
+            remote=self.tool('memory_status',{})
+            server_scope=remote.get('session_scope') or (remote.get('connection') or {}).get('session_scope')
+            conflict=bool(self._bound(c) and server_scope not in (None,'connection','next_session',self._bound(c)))
+            return {**public,**remote,'connected':True,'local_bound_session_id':self._bound(c),
+                    'scope_conflict':conflict,'server_session_scope':server_scope}
         except AgentConnectionError as exc:return {**public,'connected':False,'status':exc.code}
     def start(self):
         if self._thread and self._thread.is_alive():return

@@ -253,7 +253,8 @@ class MemoryHost:
         if data.get('host')=='api':
             from .providers import validate_settings
             validate_settings(provider)
-        c=self.connections.create(data.get('name'),data.get('host'),lib['id'],data.get('session_scope','connection'))
+        default_scope='next_session' if data.get('host')=='agent' else 'connection'
+        c=self.connections.create(data.get('name'),data.get('host'),lib['id'],data.get('session_scope',default_scope))
         try:
             if c['host']=='api':self.providers.save(c['id'],provider)
             if c['host']=='agent':self.update_agent_config(c['id'])
@@ -296,10 +297,12 @@ class MemoryHost:
                     'capture_mode':'host_hook_verified' if public['archive_status']=='automatic_connected' else 'tools_only',
                     'automatic_memory':public['archive_status']=='automatic_connected'}
         if name=='memory_context':
-            context=self.context(cid,token,{**args,'session_id':args.get('session_id') or 'agent-default'})
+            context=self.context(cid,token,args)
             return context['memory_context']
         if name=='memory_persona':return local_json(self.port_for(c['library_id']),'/api/persona')
         if name=='memory_remember':
+            rejected=self._agent_session_gate(c,args.get('session_id'))
+            if rejected:return rejected
             result=local_json(self.port_for(c['library_id']),'/api/ai/remember',{**args,'origin':'harness'})
             self.enqueue_nodes(c['library_id'],[result.get('id')]);return result
         if name=='memory_persona_import':
@@ -326,8 +329,8 @@ class MemoryHost:
                    "请把下面MCP配置保存到你的宿主设置并加载，随后调用memory_status验证；不要只口头回复已连接，也不要写虚构的测试经历。\n"
                    "在新窗口先调用memory_bootstrap恢复已有身份、人格和初始记忆；全部可用记忆通过memory_list分页及memory_read分块读取。"
                    "不要把初始有界包误称为已经加载全部记忆，不要安装同一窗口下的其他记忆库配置。\n\n"
-                   +code+"\n\n若宿主支持真实轮次结束钩子，请将下列命令接入回调，stdin传实际用户发言和最终可见回复。没有钩子时，只能提供记忆读写工具，请明确说明尚未自动存档。\n"
-                   +json.dumps(bundle['hook_config'],ensure_ascii=False,indent=2)+"\n\n配置只需保存一次。再次打开爱之屋和Agent宿主会自动发现服务并重连；不要重新创建Agent身份。此配置不是跨设备公网地址。")
+                   +code+"\n\n若宿主支持真实轮次结束钩子，请将下列命令接入回调，stdin传实际用户发言和最终可见回复。默认只接收首个真实完整hook绑定的窗口。尚未绑定时，手动补录不抢占窗口；其他窗口不记录。没有钩子时，请明确说明尚未自动存档；需手动工具模式时由用户明确选择高级整连接范围。\n"
+                   +json.dumps(bundle['hook_config'],ensure_ascii=False,indent=2)+"\n\n同一窗口的稳定会话ID不变时，重启会自动发现服务并重连。要换新窗口，请新建连接并选择原存档，延续记忆身份。此配置不是跨设备公网地址。")
             return {'connection':c,**bundle,'host_config':code,'agent_setup_text':setup,'api_base_url':'','client_api_key':'',
                     'configuration_ready':Path(bundle['private_path']).is_file(),'requires_apply':False,'supported':True,
                     'instructions':'复制给具备本机MCP/工具配置能力的Agent；自动每轮记录还需要真实宿主钩子。'}
@@ -356,17 +359,73 @@ class MemoryHost:
                 'requires_apply':c['host']=='harness' and not bool(c.get('configured_at')),
                 'configuration_ready':c['host']=='api' or bool(c.get('configured_at')),
                 'instructions':('将本地API地址和连接凭证填入聊天客户端；请求经过这里才会自动存档。' if c['host']=='api' else '加载宿主自动存档插件后发起一轮新对话；首条完整记录落盘后才显示自动存档。')}
+    def _agent_session_gate(self,connection,sid,*,claim=False,read=False,automatic=False):
+        """Scope before any receipt/raw write. Reads never enroll an Agent window.
+
+        The host supplies the real session id. A pending generic connection can
+        only be enrolled by a complete automatic host turn; model tools, partial
+        streams and observations cannot claim whichever window happens to run
+        first. The matching local client filters before its outbox as well.
+        """
+        current=self.connections.get(connection['id'],secret=True)
+        scope=current['session_scope']
+        def rejection(code,message):
+            return {'accepted':False,'saved':False,'status':code,'code':code,'message':message,
+                    'connection_id':current['id'],'library_id':current['library_id'],
+                    'session_scope':scope,'bound_session_id':None if scope in ('connection','next_session') else scope}
+        if read and scope=='next_session':
+            if sid is not None and (not isinstance(sid,str) or not sid.strip() or len(sid)>200):
+                raise ValidationError('读取记忆需要有效的宿主会话标识')
+            return None
+        if not isinstance(sid,str) or not sid.strip() or len(sid)>200:
+            raise ValidationError('请由宿主提供当前窗口的真实会话ID；不会用占位ID绑定窗口')
+        if scope=='next_session' and not claim:
+            return rejection('awaiting_window_binding','等待目标窗口提交首轮完整对话；本次内容没有存档')
+        if scope not in ('connection','next_session') and scope!=sid:
+            if read:raise ValidationError('此连接只读取已绑定窗口的记忆；当前会话ID不匹配')
+            return rejection('scope_conflict' if automatic else 'ignored_scope','此连接已固定到另一窗口；本次内容没有采集或存档')
+        # BEGIN IMMEDIATE in authorize_session makes competing first turns
+        # choose one window; the loser cannot create even a raw receipt.
+        try:self.connections.authorize_session(current['id'],sid)
+        except ValidationError:
+            if read:raise
+            latest=self.connections.get(current['id'],secret=True)
+            scope=latest['session_scope']
+            return rejection('scope_conflict' if automatic else 'ignored_scope','窗口绑定发生冲突，本次内容没有采集或存档')
+        if scope=='next_session':self.update_agent_config(current['id'])
+        return None
+    @staticmethod
+    def _agent_claimable_turn(event):
+        if not isinstance(event,dict):return False
+        record=event.get('record') if isinstance(event.get('record'),dict) else {}
+        normalized=event.get('normalized') or record.get('normalized')
+        return bool(record.get('schema')=='love-house-agent-hook/v1' and isinstance(normalized,dict)
+                    and normalized.get('type')=='turn' and normalized.get('status')=='complete'
+                    and normalized.get('origin')=='agent_host_hook'
+                    and all(isinstance(normalized.get(role),str) and bool(normalized[role].strip())
+                            and len(normalized[role])<=40000 for role in ('user','assistant')))
     def accept(self,cid,token,event):
         c=self.connections.authenticate(cid,token)
+        if c['host']=='agent':
+            if not isinstance(event,dict):raise ValidationError('事件必须是对象')
+            record=event.get('record') if isinstance(event.get('record'),dict) else {}
+            rejected=self._agent_session_gate(c,event.get('session_id'),claim=self._agent_claimable_turn(event),
+                                               automatic=record.get('schema')=='love-house-agent-hook/v1')
+            if rejected:return rejected
         result=self.connections.receive(c,event)
         self.process_pending()
+        current=self.connections.get(cid)
         return {**result,'status':next((e['status'] for e in self.connections.activity(c['library_id'])['events'] if e['id']==result['receipt_id']),result['status']),
-                'library_id':c['library_id']}
+                'library_id':c['library_id'],'session_scope':current['session_scope'],
+                'bound_session_id':None if current['session_scope'] in ('connection','next_session') else current['session_scope']}
     def context(self,cid,token,data):
         from ..companion import connected_session_id
         c=self.connections.authenticate(cid,token);sid=data.get('session_id')
         if set(data)-{'query','session_id','max_chars'}:raise ValidationError('连接上下文不能选择其他记忆库')
-        self.connections.authorize_session(cid,sid)
+        if c['host']=='agent':
+            self._agent_session_gate(c,sid or ('agent-default' if c['session_scope']=='connection' else None),read=True)
+            sid=sid or ('agent-default' if c['session_scope']=='connection' else 'unbound-memory-read')
+        else:self.connections.authorize_session(cid,sid)
         if not isinstance(data.get('query'),str) or not data['query'].strip():raise ValidationError('查询内容不能为空')
         self.process_pending()
         result=self.structured_context(c['library_id'],{'query':data['query'],'session_id':connected_session_id(cid,sid),

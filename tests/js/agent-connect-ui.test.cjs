@@ -13,7 +13,7 @@ const plain=value=>JSON.parse(JSON.stringify(value));
 const config={mcpServers:{'love-house-memory':{command:'/Applications/Love House.app/python',args:['--connection-config','/private/memory.json'],env:{PYTHONDONTWRITEBYTECODE:'1'}}}};
 test('agent memory connection has no vendor provider payload, even when old model data exists',()=>{
  const provider={get api_key(){throw new Error('must never read vendor key');}};
- assert.deepEqual(plain(payload({name:'My agent',host:'agent',library_id:'lib-a',session_scope:'next_session',provider})),{name:'My agent',host:'agent',library_id:'lib-a',session_scope:'connection'});
+ assert.deepEqual(plain(payload({name:'My agent',host:'agent',library_id:'lib-a',session_scope:'next_session',provider})),{name:'My agent',host:'agent',library_id:'lib-a',session_scope:'next_session'});
  assert(!('provider' in payload({name:'Harness',host:'harness',library_id:'lib-b',session_scope:'next_session',provider})));
  const vendor={base_url:'https://provider.invalid',model:'custom',api_key:'FAKE-only-advanced'};
  assert.deepEqual(plain(payload({name:'Advanced',host:'api',library_id:'lib-c',session_scope:'connection',provider:vendor})).provider,vendor);
@@ -38,3 +38,5 @@ test('copy-for-agent fallback explains tool capability, optional hook, and once-
  assert(text.includes(JSON.stringify(config,null,2)));assert.equal(setup({...cfg,agent_setup_text:'Fixture setup text'}),'Fixture setup text');
  assert.equal(setup({connection:{host:'agent'},host_config:'not JSON'}),'');
 });
+
+test('single-window scope remains visible and all-session scope requires explicit consent',()=>{const scope=load('windowScopeCaption');assert(scope({session_scope:'next_session'}).includes('目标窗口'));assert(scope({session_scope:'session-one'}).includes('仅固定窗口'));assert(scope({session_scope:'connection'}).includes('多个窗口'));assert(source.includes('allowAllConnectionSessions'));assert(source.includes("scope==='connection'&&!broadCheck.checked"));});

@@ -142,5 +142,72 @@ class WindowsPackagingTests(unittest.TestCase):
             (Path(directory)/'Microsoft.Web.WebView2.Core.dll').write_bytes(b'FAKE-unverified-dll')
             with self.assertRaisesRegex(RuntimeError,'changed'):builder.verify_webview2_sdk(directory)
 
+    def smoke_directory(self):
+        directory=Path(tempfile.mkdtemp(prefix=windows.SMOKE_PREFIX)).resolve()
+        (directory/'.love-house-smoke-owner.json').write_text(json.dumps({
+            'schema':'love-house-native-smoke/v1','pid':os.getpid(),'directory':directory.name}))
+        (directory/'WebView2').mkdir()
+        return directory
+
+    def test_only_owned_webview2_sharing_violation_can_defer_cleanup(self):
+        import shutil
+        directory=self.smoke_directory()
+        exc=PermissionError(13,'FAKE sharing violation',str(directory/'WebView2/locked.pma'));exc.winerror=32
+        try:
+            with patch.object(windows.shutil,'rmtree',side_effect=exc) as remove,patch.object(windows.time,'sleep'):
+                result=windows.cleanup_smoke_profile(directory,attempts=3)
+            self.assertEqual(result['status'],'deferred_profile_lock');self.assertEqual(result['winerror'],32)
+            self.assertEqual(remove.call_count,3);self.assertTrue(result['isolated'])
+        finally:shutil.rmtree(directory)
+
+    def test_permission_errors_and_nonprofile_paths_are_not_downgraded_to_success(self):
+        import shutil
+        for filename,code in [('outside-profile.txt',32),('WebView2/denied.txt',5)]:
+            directory=self.smoke_directory();exc=PermissionError(13,'FAKE error',str(directory/filename));exc.winerror=code
+            try:
+                with patch.object(windows.shutil,'rmtree',side_effect=exc),self.assertRaises(PermissionError):
+                    windows.cleanup_smoke_profile(directory,attempts=1)
+            finally:shutil.rmtree(directory)
+        with tempfile.TemporaryDirectory(prefix='unrelated-') as other:
+            with self.assertRaises(ValueError):windows.cleanup_smoke_profile(other)
+            self.assertTrue(Path(other).is_dir())
+
+    def test_native_success_is_finalized_after_shutdown_and_explicit_cleanup(self):
+        def verified(directory,**kwargs):kwargs['result'].update(ok=True,controller_stopped=True,renderer='edgechromium')
+        with tempfile.TemporaryDirectory() as directory:
+            report=Path(directory)/'native.json'
+            with patch.object(windows,'run_window',side_effect=verified):value=windows.native_smoke(report)
+            self.assertTrue(value['ok']);self.assertTrue(value['process_complete'])
+            self.assertEqual(value['phase'],'complete');self.assertEqual(value['cleanup']['status'],'removed')
+            self.assertEqual(json.loads(report.read_text('utf-8')),value)
+
+    def test_native_failure_writes_safe_error_metadata_and_is_not_masked_by_cleanup(self):
+        def broken(directory,**kwargs):raise PermissionError(13,'FAKE message contains FAKE-PRIVATE-KEY',str(Path(directory)/'unknown'))
+        with tempfile.TemporaryDirectory() as directory:
+            report=Path(directory)/'native.json'
+            with patch.object(windows,'run_window',side_effect=broken),self.assertRaises(PermissionError):windows.native_smoke(report)
+            value=json.loads(report.read_text('utf-8'));self.assertFalse(value['ok']);self.assertFalse(value['process_complete'])
+            self.assertEqual(value['failure']['type'],'PermissionError')
+            self.assertNotIn('FAKE-PRIVATE-KEY',report.read_text('utf-8'))
+            self.assertEqual(value['cleanup']['status'],'removed')
+
+    def test_nonzero_exit_is_rejected_even_with_success_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report=Path(directory)/'native.json'
+            def process(*args,**kwargs):
+                report.write_text(json.dumps({'ok':True,'process_complete':True,'phase':'complete'}))
+                return SimpleNamespace(returncode=1)
+            with patch.object(builder.subprocess,'run',side_effect=process),self.assertRaisesRegex(RuntimeError,'exit code 1'):
+                builder.require_report(['FAKE-LoveHouse.exe'],report)
+
+    def test_zero_exit_still_requires_process_finalization_proof(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report=Path(directory)/'native.json'
+            def process(*args,**kwargs):
+                report.write_text(json.dumps({'ok':True,'process_complete':False,'phase':'profile_cleanup'}))
+                return SimpleNamespace(returncode=0)
+            with patch.object(builder.subprocess,'run',side_effect=process),self.assertRaises(RuntimeError):
+                builder.require_report(['FAKE-LoveHouse.exe'],report)
+
 
 if __name__=='__main__':unittest.main()

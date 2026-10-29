@@ -12,7 +12,7 @@ class ProductMemoryContextTests(unittest.TestCase):
  def test_connected_agent_gets_scoped_machine_json_not_repeated_prompt_wrappers(self):
   self.host.keys=KeyStore(allow_keychain=False);self.host.providers.keys=self.host.keys
   lib=self.req('/api/libraries',{'name':'独立机器记忆'})[1]['library']['id']
-  created=self.req('/api/connections',{'name':'记忆工具连接','host':'agent','library_id':lib})[1]
+  created=self.req('/api/connections',{'name':'记忆工具连接','host':'agent','library_id':lib,'session_scope':'connection'})[1]
   cid=created['connection']['id'];token=self.host.connections.get(cid,secret=True)['token']
   self.assertEqual(self.event(cid,token,user='我不喜欢咖啡。',assistant='我会尊重你的偏好。')[0],200)
   result=self.req(f'/api/connections/{cid}/context',{'session_id':'s','query':'咖啡'},token=token)[1]

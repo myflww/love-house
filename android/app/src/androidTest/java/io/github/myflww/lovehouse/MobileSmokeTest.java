@@ -183,7 +183,7 @@ public final class MobileSmokeTest {
     }
 
     private void ready() throws Exception {
-        waitFor("packaged app ready using IndexedDB", "document.documentElement.dataset.appReady==='true' && window.LoveHouseMobile && window.LoveHouseMobile.summary().ready && !document.getElementById('newMemory').disabled");
+        waitFor("packaged app ready using IndexedDB", "document.documentElement && document.documentElement.dataset.appReady==='true' && window.LoveHouseMobile && window.LoveHouseMobile.summary().ready && window.LoveHouseApp && window.LoveHouseApp.store && document.getElementById('newMemory') && !document.getElementById('newMemory').disabled");
         assertEquals(Boolean.TRUE, evaluate("document.getElementById('storageError').hidden"));
     }
 
@@ -227,7 +227,7 @@ public final class MobileSmokeTest {
     }
 
     private JSONObject exportLibrary(String libraryId) throws Exception {
-        evaluateBody("window.__smokeExport=null; import('./store.js').then(async function(module){var store=module.createStore(); await store.init(); return store.exportLibrary(" + quote(libraryId) + ");}).then(function(value){window.__smokeExport={ok:true,value:value};},function(error){window.__smokeExport={ok:false,error:String(error)};}); return true;");
+        evaluateBody("window.__smokeExport=null; window.LoveHouseApp.store.exportLibrary(" + quote(libraryId) + ").then(function(value){window.__smokeExport={ok:true,value:value};},function(error){window.__smokeExport={ok:false,error:String(error)};}); return true;");
         waitFor("portable export completed", "window.__smokeExport!==null");
         JSONObject result = (JSONObject) evaluate("window.__smokeExport");
         assertTrue("Export error: " + result.optString("error"), result.getBoolean("ok"));
@@ -257,7 +257,7 @@ public final class MobileSmokeTest {
             if (Boolean.TRUE.equals(evaluate("Boolean(" + expression + ")"))) return;
             SystemClock.sleep(100);
         } while (SystemClock.uptimeMillis() < end);
-        Object diagnostic = evaluate("({url:location.href,ready:document.documentElement.dataset.appReady||'',storageError:document.getElementById('storageErrorText') ? document.getElementById('storageErrorText').textContent : 'no app document'})");
+        Object diagnostic = evaluate("({url:location.href,ready:document.documentElement ? document.documentElement.dataset.appReady||'' : 'no document element',storageError:document.getElementById('storageErrorText') ? document.getElementById('storageErrorText').textContent : 'no app document'})");
         fail("Timed out waiting for " + description + ": " + diagnostic);
     }
 

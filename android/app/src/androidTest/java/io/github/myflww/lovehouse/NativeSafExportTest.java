@@ -38,7 +38,7 @@ public final class NativeSafExportTest {
         try {
             resolver.delete(SyntheticDocumentProvider.DOCUMENT, null, null);
             scenario = ActivityScenario.launch(MainActivity.class);
-            waitFor("app ready", "document.documentElement.dataset.appReady==='true' && !document.getElementById('newMemory').disabled");
+            waitFor("app ready", "document.documentElement && document.documentElement.dataset.appReady==='true' && window.LoveHouseApp && window.LoveHouseApp.store && document.getElementById('newMemory') && !document.getElementById('newMemory').disabled");
             String name = "Smoke SAF " + UUID.randomUUID();
             StringBuilder text = new StringBuilder("UTF8 合成原文 e\u0301 / é 🙂\n");
             // Larger than a pipe buffer: the native write must stay pending while the

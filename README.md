@@ -58,6 +58,8 @@
 
 安装包是否可下载以对应 Release 资产为准。Windows 构建通过 Windows CI 验证后才发布；不将源码适配描述为已经实测的安装包。当前不提供 macOS Intel 或 Linux 桌面安装包。
 
+本分支的 Windows 修复已增加离线微软运行时修复、启动诊断和单实例保护；实测结果与尚未完成的干净系统验收见 [Windows 验证记录](docs/WINDOWS-VALIDATION.md)。修复包暂用于验收，不覆盖已发布的 0.5.0。
+
 ## 三步连接
 
 ### 1 · 选择它的记忆存档

@@ -1,12 +1,13 @@
 # 变更记录
 
-## 未发布 · Windows 启动诊断
+## 未发布 · Windows 启动与离线依赖修复
 
 - 启动失败不再把“另一个窗口已打开”“缺少微软 WebView2 运行时”“其他错误”合并成一句提示；三类分开说明。
-- 缺少 WebView2 时先只读确认（注册表四个通道、标准安装目录、`WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`、随包 `WebView2Runtime`），只在用户点“是”之后打开微软官方下载页；仍不下载、不静默安装运行时。
+- 使用 x64 WebView2Loader 实际探测运行时，注册表仅作辅助；区分 .NET、打包 DLL、目录权限及异步初始化超时，清理外部 Python/CLR/WebView2 环境污染。
 - 新增 `%LOCALAPPDATA%\LoveHouse\logs\startup.log` 与 `LoveHouse.exe --diagnose`：只写系统版本、WebView2/.NET 版本、失败类型与代码位置，不写异常原文、记忆、密钥或对话，可直接转发。
-- 安装器在安装结束时做同样的只读 WebView2 检查并给出官方入口，不改变“按用户安装、卸载不清记忆”的行为。
-- 新增 `desktop/windows_diagnostics.py` 与 10 项可移植测试；Windows 原生窗口与安装器仍需在真实 Windows 机器上验收。
+- 安装版与便携版携带固定 SHA256 和微软有效数字签名验证的 Evergreen x64 离线组件；明确确认后修复，结束后重新探测。按用户安装、卸载不清记忆。
+- 修复第二实例清理首实例 ready 文件、服务线程未启动时 shutdown 卡死、测试缓存退出竞争和旧 MCP 入口代码页错误；日志目录不可写时回退 TEMP。
+- 已在 Windows 11 x64 上完成实际打包、普通界面、中文路径、重复启动与消费者冒烟验证；干净系统 Runtime 缺失/损坏的实测仍待完成，不发布为已验收的 0.5.1。详见 [Windows 验证记录](docs/WINDOWS-VALIDATION.md)。
 
 ## 0.5.0 · 存档继承、分享与公开非商用发布
 

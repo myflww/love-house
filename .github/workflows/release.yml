@@ -1,6 +1,16 @@
 name: Windows installer release
 
 on:
+  pull_request:
+    paths:
+      - 'nkb/**'
+      - 'desktop/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - '.github/workflows/release.yml'
+      - '.gitattributes'
+      - 'assets/**'
+      - 'pyproject.toml'
   push:
     tags: ['v*']
     branches: [main]
@@ -9,6 +19,7 @@ on:
       - 'desktop/**'
       - 'tests/**'
       - 'scripts/build_windows.py'
+      - 'scripts/fetch_windows_runtime.py'
       - '.github/workflows/release.yml'
       - '.gitattributes'
       - 'assets/**'
@@ -27,6 +38,11 @@ on:
         description: 'Upload successful Windows builds to the public release'
         default: false
         type: boolean
+      consumer_validation_evidence:
+        description: 'URL of completed clean Windows consumer acceptance evidence (required to publish)'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -51,46 +67,57 @@ jobs:
           architecture: x64
           cache: pip
           cache-dependency-path: desktop/requirements-windows.txt
-      - name: Verify release version and native prerequisites
+      - name: Verify release version and build tools
         shell: pwsh
         env:
           REQUESTED_TAG: ${{ inputs.release_tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.5.0' }}
         run: |
           $version = python -c "from nkb._version import __version__; print(__version__)"
           if ($env:REQUESTED_TAG -ne "v$version") { throw "Tag and project version differ" }
-          $runtime = Get-ChildItem 'C:\Program Files (x86)\Microsoft\EdgeWebView\Application\*\msedgewebview2.exe' -ErrorAction SilentlyContinue
-          if (-not $runtime) { $runtime = Get-ChildItem 'C:\Program Files\Microsoft\EdgeWebView\Application\*\msedgewebview2.exe' -ErrorAction SilentlyContinue }
-          if (-not $runtime) { throw 'WebView2 Runtime missing. Install from https://developer.microsoft.com/microsoft-edge/webview2/; no fallback renderer is permitted.' }
           if (-not (Test-Path 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe')) { throw 'Official Inno Setup 6 is required on the runner' }
       - name: Install pinned build inputs
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r desktop/requirements-windows.txt
           python -m pip install -e .
+      - name: Record actual runner prerequisites and fetch verified offline repair component
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build/windows/reports | Out-Null
+          python -c "import json; from desktop.windows_prerequisites import runtime_status, dotnet_status; r=runtime_status(); print(json.dumps({'system_runtime_preinstalled':r['available'],'runtime':r,'dotnet':dotnet_status(),'environment':'github_hosted_runner','clean_consumer_validation':False}))" > build/windows/reports/runner-prerequisites.json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not inspect runner prerequisites' }
+          python scripts/fetch_windows_runtime.py
+          if ($LASTEXITCODE -ne 0) { throw 'Microsoft runtime verification failed' }
       - name: Windows contracts and real local integration tests
-        run: python -m unittest tests.test_windows_packaging tests.test_credentials_windows tests.test_memory_inheritance tests.test_agent_memory_client tests.test_agent_window_privacy tests.test_agent_session_privacy tests.test_api_window_privacy tests.test_capture_status tests.test_memory_sharing tests.test_share_summary tests.test_product_memory_context tests.test_memory_portability_ui -v
+        run: python -m unittest tests.test_windows_prerequisites tests.test_windows_packaging tests.test_credentials_windows tests.test_memory_inheritance tests.test_agent_memory_client tests.test_agent_window_privacy tests.test_agent_session_privacy tests.test_api_window_privacy tests.test_capture_status tests.test_memory_sharing tests.test_share_summary tests.test_product_memory_context tests.test_memory_portability_ui -v
       - name: Build GUI, console adapters, native smoke and installer
         run: python scripts/build_windows.py
       - name: Install into disposable folder and verify installed executables
         shell: pwsh
         run: |
           $setup = Get-ChildItem dist/release/LoveHouse-Setup-*-Windows-x64.exe | Select-Object -First 1
-          $target = Join-Path $env:RUNNER_TEMP 'LoveHouseInstalled'
-          $process = Start-Process $setup.FullName -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$target") -PassThru -Wait
+          $target = Join-Path $env:RUNNER_TEMP '爱之屋 Installed Path'
+          $process = Start-Process $setup.FullName -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=`"$target`"") -WindowStyle Hidden -PassThru
+          if (-not $process.WaitForExit(300000)) { $process.Kill($true); throw 'Installer timed out' }
           if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
           if (-not (Test-Path "$target\bridge\LoveHouseBridge.exe")) { throw 'Console bridge missing from installed app' }
           $report = Join-Path $env:RUNNER_TEMP 'installed-backend.json'
-          $process = Start-Process "$target\LoveHouse.exe" -ArgumentList @('--backend-smoke','--report',"`"$report`"") -PassThru -Wait
+          Remove-Item -LiteralPath $report -ErrorAction SilentlyContinue
+          $process = Start-Process "$target\LoveHouse.exe" -ArgumentList @('--backend-smoke','--report',"`"$report`"") -WindowStyle Hidden -PassThru
+          if (-not $process.WaitForExit(150000)) { $process.Kill($true); throw 'Installed backend smoke timed out' }
           if ($process.ExitCode -ne 0 -or -not (Test-Path $report)) { throw 'Installed backend smoke failed' }
           $backendResult = Get-Content $report | ConvertFrom-Json
-          if (-not $backendResult.ok -or -not $backendResult.process_complete) { throw 'Installed backend report is not finalized success' }
+          if ($backendResult.ok -isnot [bool] -or $backendResult.ok -ne $true -or $backendResult.process_complete -isnot [bool] -or $backendResult.process_complete -ne $true) { throw 'Installed backend report is not finalized success' }
           $native = Join-Path $env:RUNNER_TEMP 'installed-native.json'
-          $process = Start-Process "$target\LoveHouse.exe" -ArgumentList @('--smoke-test','--report',"`"$native`"") -PassThru -Wait
+          Remove-Item -LiteralPath $native -ErrorAction SilentlyContinue
+          $process = Start-Process "$target\LoveHouse.exe" -ArgumentList @('--smoke-test','--report',"`"$native`"") -WindowStyle Hidden -PassThru
+          if (-not $process.WaitForExit(150000)) { $process.Kill($true); throw 'Installed native smoke timed out' }
           if ($process.ExitCode -ne 0 -or -not (Test-Path $native)) { throw 'Installed native smoke failed' }
           $nativeResult = Get-Content $native | ConvertFrom-Json
-          if (-not $nativeResult.ok -or -not $nativeResult.process_complete) { throw 'Installed native report is not finalized success' }
+          if ($nativeResult.ok -isnot [bool] -or $nativeResult.ok -ne $true -or $nativeResult.process_complete -isnot [bool] -or $nativeResult.process_complete -ne $true) { throw 'Installed native report is not finalized success' }
           $diagDir = Join-Path $env:RUNNER_TEMP 'LoveHouseDiagnostics'
-          $process = Start-Process "$target\LoveHouse.exe" -ArgumentList @('--diagnose','--data-dir',"`"$diagDir`"") -PassThru -Wait
+          $process = Start-Process "$target\LoveHouse.exe" -ArgumentList @('--diagnose','--data-dir',"`"$diagDir`"") -WindowStyle Hidden -PassThru
+          if (-not $process.WaitForExit(30000)) { $process.Kill($true); throw 'Installed diagnostics timed out' }
           if ($process.ExitCode -ne 0) { throw 'Installed diagnose mode failed' }
           $diag = Get-ChildItem "$diagDir\logs\diagnostics-*.txt" -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $diag) { throw 'Diagnose mode wrote no runtime report' }
@@ -100,6 +127,46 @@ jobs:
           Copy-Item $diag.FullName build/windows/reports/installed-diagnostics.txt
           Copy-Item $report build/windows/reports/installed-backend.json
           Copy-Item $native build/windows/reports/installed-native.json
+      - name: Verify portable and installed GUI without developer PATH and with polluted environment
+        shell: pwsh
+        run: |
+          $variables = @('PATH','LOCALAPPDATA','TEMP','TMP','PYTHONHOME','PYTHONPATH','PYTHONNET_RUNTIME','PYTHONNET_PYDLL','WEBVIEW2_BROWSER_EXECUTABLE_FOLDER','WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS')
+          $saved = @{}
+          foreach ($name in $variables) { $saved[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
+          $scratch = Join-Path $env:RUNNER_TEMP '爱之屋 Consumer Data'
+          $reports = Join-Path $env:GITHUB_WORKSPACE 'build/windows/reports'
+          New-Item -ItemType Directory -Force $scratch | Out-Null
+          try {
+            $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+            $env:LOCALAPPDATA = Join-Path $scratch '本地 数据'
+            $env:TEMP = Join-Path $scratch '临时 文件'
+            $env:TMP = $env:TEMP
+            New-Item -ItemType Directory -Force $env:LOCALAPPDATA,$env:TEMP | Out-Null
+            $env:PYTHONHOME = 'C:\invalid-lovehouse-python-home'
+            $env:PYTHONPATH = 'C:\invalid-lovehouse-python-path'
+            $env:PYTHONNET_RUNTIME = 'invalid-lovehouse-runtime'
+            $env:PYTHONNET_PYDLL = 'C:\invalid-lovehouse-python.dll'
+            $env:WEBVIEW2_BROWSER_EXECUTABLE_FOLDER = 'C:\invalid-lovehouse-webview'
+            $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--invalid-lovehouse-argument'
+            $apps = @{
+              portable = (Join-Path $env:GITHUB_WORKSPACE 'dist/windows/LoveHouse/LoveHouse.exe')
+              installed = (Join-Path $env:RUNNER_TEMP '爱之屋 Installed Path\LoveHouse.exe')
+            }
+            foreach ($name in $apps.Keys) {
+              $report = Join-Path $reports "$name-consumer.json"
+              Remove-Item -LiteralPath $report -ErrorAction SilentlyContinue
+              $process = Start-Process $apps[$name] -ArgumentList @('--consumer-smoke','--report',"`"$report`"") -WindowStyle Hidden -PassThru
+              if (-not $process.WaitForExit(150000)) {
+                $process.Kill($true)
+                throw "$name consumer GUI timed out"
+              }
+              if ($process.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $report)) { throw "$name consumer GUI failed" }
+              $result = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
+              if ($result.ok -isnot [bool] -or $result.ok -ne $true -or $result.process_complete -isnot [bool] -or $result.process_complete -ne $true) { throw "$name consumer report is not finalized success" }
+            }
+          } finally {
+            foreach ($name in $variables) { [Environment]::SetEnvironmentVariable($name, $saved[$name], 'Process') }
+          }
       - name: Upload tested Windows installers
         uses: actions/upload-artifact@v4
         with:
@@ -120,7 +187,9 @@ jobs:
 
   publish:
     needs: windows
-    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.publish)
+    # Hosted runners may already contain WebView2. Their success alone is not
+    # clean-machine acceptance, so publication requires an explicit request.
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -134,10 +203,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ inputs.release_tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.5.0' }}
+          CONSUMER_VALIDATION_EVIDENCE: ${{ inputs.consumer_validation_evidence }}
         shell: bash
         run: |
+          if [[ "$CONSUMER_VALIDATION_EVIDENCE" != https://* ]]; then
+            echo 'Publishing requires an HTTPS link to completed clean Windows consumer acceptance evidence.' >&2
+            exit 1
+          fi
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            printf '%s\n' '爱之屋公开下载版本。项目原创代码仅限非商用；第三方组件遵守各自许可证。Windows 安装包通过原生 WebView2、MCP、分享导入导出和安装后测试。' > release-notes.txt
+            printf '%s\n\n%s\n' '爱之屋公开下载版本。项目原创代码仅限非商用；第三方组件遵守各自许可证。Windows 构建和安装后测试报告见本次工作流。' "Windows 消费者环境验收记录：$CONSUMER_VALIDATION_EVIDENCE" > release-notes.txt
             gh release create "$RELEASE_TAG" --title "爱之屋 ${RELEASE_TAG#v}" --notes-file release-notes.txt --target "$GITHUB_SHA"
           fi
-          gh release upload "$RELEASE_TAG" windows-release/* --clobber
+          existing=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
+          for asset in windows-release/*; do
+            name=$(basename "$asset")
+            if printf '%s\n' "$existing" | grep -Fxq "$name"; then
+              echo "Refusing to overwrite historical release asset: $name" >&2
+              exit 1
+            fi
+          done
+          gh release upload "$RELEASE_TAG" windows-release/*

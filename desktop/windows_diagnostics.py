@@ -8,14 +8,16 @@
 """
 from __future__ import annotations
 
+import errno
 import json
 import os
 import platform as _platform
 import sys
+import tempfile
 import threading
 import time
 import traceback
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 SCHEMA = "love-house-startup/v1"
 LOG_SCHEMA = "love-house-startup-log/v1"
@@ -43,6 +45,18 @@ class WebView2Unavailable(RuntimeError):
     def __init__(self, facts):
         self.facts = facts if isinstance(facts, dict) else {"available": False}
         super().__init__("Microsoft WebView2 Runtime is unavailable")
+
+
+class DotNetUnavailable(RuntimeError):
+    """Required Microsoft .NET Framework could not be confirmed."""
+
+    def __init__(self, facts=None):
+        self.facts = facts if isinstance(facts, dict) else {"available": False}
+        super().__init__("Microsoft .NET Framework 4.6.2 or later is required")
+
+
+class NativeStartupTimeout(RuntimeError):
+    """WebView2 did not finish initializing within the startup deadline."""
 
 
 def version_tuple(value):
@@ -113,9 +127,10 @@ def file_channels(environ=None):
         except OSError:
             executables = []
         for executable in executables:
-            found.append({"channel": "runtime", "source": "files",
-                          "version": executable.parent.name,
-                          "folder": executable.parent.name})
+            if _usable(executable.parent.name):
+                found.append({"channel": "runtime", "source": "files",
+                              "version": executable.parent.name,
+                              "folder": executable.parent.name})
     return found
 
 
@@ -195,25 +210,86 @@ def system_facts():
 
 def startup_facts(data_dir=None):
     """一次性收集启动判断需要的全部事实。"""
+    try:
+        from .windows_prerequisites import runtime_status, dotnet_status as framework_status
+    except ImportError:
+        from windows_prerequisites import runtime_status, dotnet_status as framework_status
     facts = system_facts()
-    facts["webview2"] = webview2_status()
-    facts["dotnet"] = dotnet_status()
+    facts["webview2"] = runtime_status()
+    facts["webview2_discovery"] = webview2_status()
+    facts["dotnet"] = framework_status()
     if data_dir is not None:
         facts["data_dir"] = str(data_dir)
         facts["log"] = str(startup_log_path(data_dir))
     return facts
 
 
+_WINDOWS_CODE_FILES = frozenset({
+    "windows_app.py", "windows_diagnostics.py", "windows_prerequisites.py",
+    "agent_memory_bridge.py", "agent_memory_hook.py",
+})
+
+
+def _controlled_code_path(filename):
+    """Map source and PyInstaller co_filename values to safe app locations.
+
+    Frozen code objects may retain a relative source filename while __file__
+    points into _MEIPASS. Resolving that filename against cwd loses its origin
+    and can leak a user-chosen working directory. Accept only known entry files
+    or already loaded nkb modules whose bundle mapping agrees.
+    """
+    if not getattr(sys, "frozen", False):
+        root = Path(__file__).resolve().parents[1]
+        source = Path(filename).resolve()
+        return source.relative_to(root).as_posix() if source.is_relative_to(root) and source.suffix == ".py" else None
+    frozen_root = getattr(sys, "_MEIPASS", None)
+    if not frozen_root:
+        return None
+    root = Path(frozen_root).resolve()
+    native = Path(filename)
+    if native.is_absolute():
+        source = native.resolve()
+        if not source.is_relative_to(root):
+            return None
+        filename = source.relative_to(root).as_posix()
+    candidate = PurePosixPath(str(filename).replace("\\", "/"))
+    if candidate.is_absolute() or any(part in ("..", ".") or ":" in part for part in candidate.parts):
+        return None
+    if candidate.name in _WINDOWS_CODE_FILES and candidate.parts in ((candidate.name,), ("desktop", candidate.name)):
+        return "desktop/" + candidate.name
+    if not candidate.parts or candidate.parts[0] != "nkb" or candidate.suffix != ".py":
+        return None
+    components = (*candidate.parts[:-1], candidate.stem)
+    if any(not component.isidentifier() for component in components):
+        return None
+    module_name = ".".join(components[:-1] if components[-1] == "__init__" else components)
+    module = sys.modules.get(module_name)
+    origin = getattr(module, "__file__", None)
+    if origin and Path(origin).resolve() == (root / str(candidate)).resolve():
+        return candidate.as_posix()
+    return None
+
+
 def failure_record(exc):
     """安全异常摘要：只保留类型、错误码和出错位置，不保留异常原文。"""
     frames = traceback.extract_tb(exc.__traceback__)
-    record = {"type": type(exc).__name__, "errno": getattr(exc, "errno", None),
-              "winerror": getattr(exc, "winerror", None)}
-    if getattr(exc, "filename", None):
-        record["file"] = Path(exc.filename).name
-    if frames:
-        last = frames[-1]
-        record["at"] = {"file": Path(last.filename).name, "function": last.name, "line": last.lineno}
+    record = {"type": type(exc).__name__, "kind": classify(exc)}
+    for attribute in ("errno", "winerror"):
+        value = getattr(exc, attribute, None)
+        record[attribute] = value if type(value) is int else None
+    # OSError.filename can be a user supplied document name, or even secret text.
+    # Only positions in this application's controlled Python source are emitted.
+    for frame in reversed(frames):
+        source = _controlled_code_path(frame.filename)
+        if source is not None:
+            record["at"] = {"file": source,
+                            "function": frame.name, "line": frame.lineno}
+            break
+    for attribute in ("hresult", "HResult"):
+        value = getattr(exc, attribute, None)
+        if type(value) is int:
+            record["hresult"] = value & 0xFFFFFFFF
+            break
     return record
 
 
@@ -222,6 +298,20 @@ def classify(exc):
         return "already_running"
     if isinstance(exc, WebView2Unavailable):
         return "webview2_unavailable"
+    if isinstance(exc, DotNetUnavailable):
+        return "dotnet_unavailable"
+    if isinstance(exc, NativeStartupTimeout):
+        return "webview2_initialization_timeout"
+    if isinstance(exc, PermissionError):
+        return "data_directory_unwritable"
+    if isinstance(exc, (ImportError, ModuleNotFoundError)) or getattr(exc, "winerror", None) in (126, 127, 193):
+        return "packaged_dependency_missing"
+    if isinstance(exc, OSError) and getattr(exc, "errno", None) in (errno.ENOSPC, errno.EROFS, errno.EIO):
+        return "storage_failure"
+    # Do not inspect exception messages: CLR errors may contain environment
+    # values, file paths or text from the page being initialized.
+    if type(exc).__module__.startswith(("System", "Python.Runtime", "clr_loader")):
+        return "clr_initialization_failed"
     return "unexpected"
 
 
@@ -256,16 +346,20 @@ class StartupLog:
         for key, value in fields.items():
             record[str(key)[:40]] = _plain(value)
         line = json.dumps(record, ensure_ascii=False, sort_keys=True)
-        try:
-            with self._lock:
-                self.path.parent.mkdir(parents=True, exist_ok=True)
-                if self.path.exists() and self.path.stat().st_size + len(line) > self.max_bytes:
-                    self.path.replace(self.path.with_name(self.path.stem + ".1.log"))
-                with self.path.open("a", encoding="utf-8") as stream:
-                    stream.write(line + "\n")
-        except OSError:
-            return None
-        return record
+        with self._lock:
+            fallback = Path(tempfile.gettempdir()) / "LoveHouse" / "logs" / ("startup-" + str(os.getpid()) + ".log")
+            for target in dict.fromkeys((self.path, fallback)):
+                try:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    if target.exists() and target.stat().st_size + len((line + "\n").encode("utf-8")) > self.max_bytes:
+                        target.replace(target.with_name(target.stem + ".1.log"))
+                    with target.open("a", encoding="utf-8") as stream:
+                        stream.write(line + "\n")
+                    self.path = target
+                    return record
+                except OSError:
+                    continue
+        return None
 
     def tail(self, count=30):
         try:
@@ -278,10 +372,26 @@ def _describe_webview2(status):
     if not status.get("available"):
         if sys.platform != "win32":
             return "非 Windows，不适用"
-        return "未找到（注册表与标准安装目录都没有）"
+        return "不可用（" + str(status.get("code") or "未通过运行时探测") + "）"
     version = status.get("version") or "版本未知"
     channels = sorted({item.get("channel", "?") for item in status.get("channels", [])})
-    return version + "（" + "、".join(channels) + "）"
+    return version + "（" + ("、".join(channels) or str(status.get("source") or "运行时")) + "）"
+
+
+def _display_path(value):
+    """Keep diagnostic paths useful without embedding the account directory."""
+    if value is None:
+        return "None"
+    target = Path(value)
+    bases = [(Path.home(), "%USERPROFILE%"), (Path(tempfile.gettempdir()), "%TEMP%")]
+    if os.environ.get("LOCALAPPDATA"):
+        bases.append((Path(os.environ["LOCALAPPDATA"]), "%LOCALAPPDATA%"))
+    for base, label in sorted(bases, key=lambda item: len(str(item[0])), reverse=True):
+        try:
+            return label + "/" + target.relative_to(base).as_posix()
+        except ValueError:
+            continue
+    return str(target)
 
 
 def diagnostic_report(facts, log_lines=()):
@@ -298,8 +408,8 @@ def diagnostic_report(facts, log_lines=()):
         "架构：" + str(facts.get("machine")),
         "Python：" + str(facts.get("python")),
         "打包运行：" + ("是" if facts.get("frozen") else "否"),
-        "数据目录：" + str(facts.get("data_dir")),
-        "启动日志：" + str(facts.get("log")),
+        "数据目录：" + _display_path(facts.get("data_dir")),
+        "启动日志：" + _display_path(facts.get("log")),
         "",
         "WebView2：" + _describe_webview2(webview2),
         "WebView2 版本：" + str(webview2.get("version") or "无"),

@@ -19,6 +19,7 @@ def load(name,path):
 
 windows=load('love_house_windows_shell','desktop/windows_app.py')
 builder=load('love_house_windows_builder','scripts/build_windows.py')
+runtime_fetcher=load('love_house_runtime_fetcher','scripts/fetch_windows_runtime.py')
 
 
 class WindowsPackagingTests(unittest.TestCase):
@@ -324,8 +325,12 @@ class WindowsPackagingTests(unittest.TestCase):
     def test_main_offers_official_page_when_webview2_is_missing(self):
         with tempfile.TemporaryDirectory() as directory:
             asked=[];opened=[]
+            controller=MagicMock();controller.start.return_value=controller
             with patch.object(windows.sys,'platform','win32'),\
-                 patch.object(windows,'webview2_status',return_value={'available':False}),\
+                 patch.object(windows,'ControllerRuntime',return_value=controller),\
+                 patch.object(windows,'dotnet_status',return_value={'ok':True,'available':True}),\
+                 patch.object(windows,'runtime_status',return_value={'available':False,'code':'runtime_missing'}),\
+                 patch.object(windows,'bundled_installer_status',return_value={'available':False,'verified':False}),\
                  patch.object(windows,'ask_yes_no',side_effect=lambda message:asked.append(message) or True),\
                  patch.object(windows,'open_target',side_effect=opened.append),\
                  patch.object(sys,'argv',['LoveHouse.exe','--data-dir',directory]):
@@ -335,12 +340,12 @@ class WindowsPackagingTests(unittest.TestCase):
             self.assertIn('WebView2',asked[0])
             self.assertEqual(opened,[windows.WEBVIEW2_URL])
             self.assertNotIn('已经在运行',asked[0])
+            controller.start.assert_called_once();controller.stop.assert_called_once()
 
     def test_main_reports_running_instance_separately_from_missing_runtime(self):
         with tempfile.TemporaryDirectory() as directory:
             messages=[]
             with patch.object(windows.sys,'platform','win32'),\
-                 patch.object(windows,'webview2_status',return_value={'available':True,'version':'120.0.2210.144'}),\
                  patch.object(windows,'run_window',side_effect=windows.AlreadyRunning('FAKE lock busy')),\
                  patch.object(windows,'notify',side_effect=lambda message,**keywords:messages.append(message)),\
                  patch.object(sys,'argv',['LoveHouse.exe','--data-dir',directory]):
@@ -353,7 +358,6 @@ class WindowsPackagingTests(unittest.TestCase):
             opened=[]
             def explode(*arguments,**keywords):raise ValueError('FAKE-PRIVATE-KEY')
             with patch.object(windows.sys,'platform','win32'),\
-                 patch.object(windows,'webview2_status',return_value={'available':True}),\
                  patch.object(windows,'run_window',side_effect=explode),\
                  patch.object(windows,'ask_yes_no',return_value=True),\
                  patch.object(windows,'open_target',side_effect=opened.append),\
@@ -376,11 +380,64 @@ class WindowsPackagingTests(unittest.TestCase):
             self.assertNotIn(str(Path.home()),text)
             self.assertEqual(opened,[reports[0].parent])
 
-    def test_installer_explains_missing_runtime_without_bundling_it(self):
+    def test_installer_repairs_only_after_explicit_confirmation_and_checks_again(self):
         installer=(ROOT/'desktop/windows-installer.iss').read_text('utf-8')
-        self.assertIn('WebView2Present',installer);self.assertIn('CurStepChanged',installer)
-        self.assertIn('developer.microsoft.com/microsoft-edge/webview2',installer)
-        self.assertNotIn('Webview2Setup.exe',installer)
+        self.assertIn('RuntimeCommand',installer);self.assertIn('CurStepChanged',installer)
+        self.assertNotIn('RegKeyExists',installer)
+        self.assertIn('MB_YESNO',installer)
+        self.assertEqual(installer.count("RuntimeCommand('--runtime-status')"),2)
+        self.assertIn("RuntimeCommand('--repair-runtime')",installer)
+        self.assertIn('RaiseException',installer)
+
+    def test_gui_bundles_offline_runtime_without_tripling_console_adapter_size(self):
+        common=['Fake',ROOT/'desktop/windows_app.py',Path('out'),Path('build'),Path('icon.ico')]
+        gui=builder.freeze_command(*common,console=False)
+        console=builder.freeze_command(*common,console=True)
+        runtime_asset=str(ROOT/'resources/runtime')+os.pathsep+'resources/runtime'
+        self.assertIn(runtime_asset,gui);self.assertNotIn(runtime_asset,console)
+
+    def test_runtime_fetch_refuses_wrong_hash_before_signature_or_installation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);candidate=root/'download.exe';candidate.write_bytes(b'FAKE incorrect installer')
+            verify=MagicMock(return_value={'verified':True})
+            with patch.object(runtime_fetcher.sys,'platform','win32'),\
+                 patch.dict(sys.modules,{'windows_prerequisites':SimpleNamespace(bundled_installer_status=verify)}),\
+                 self.assertRaisesRegex(RuntimeError,'SHA256'):
+                runtime_fetcher.ensure_runtime(root,installer_path=candidate)
+            verify.assert_not_called()
+            self.assertFalse((root/'resources/runtime'/runtime_fetcher.FILENAME).exists())
+
+    def test_runtime_fetch_refuses_invalid_signature_after_matching_hash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);candidate=root/'download.exe';candidate.write_bytes(b'FAKE installer')
+            verify=MagicMock(return_value={'verified':False,'code':'signature_invalid'})
+            with patch.object(runtime_fetcher.sys,'platform','win32'),\
+                 patch.object(runtime_fetcher,'sha256',return_value=runtime_fetcher.SHA256),\
+                 patch.dict(sys.modules,{'windows_prerequisites':SimpleNamespace(bundled_installer_status=verify)}),\
+                 self.assertRaisesRegex(RuntimeError,'signature_invalid'):
+                runtime_fetcher.ensure_runtime(root,installer_path=candidate)
+            verify.assert_called_once()
+            self.assertFalse((root/'resources/runtime'/runtime_fetcher.FILENAME).exists())
+
+    def test_cached_runtime_is_reverified_and_rejected_without_redownload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);cached=root/'resources/runtime'/runtime_fetcher.FILENAME
+            cached.parent.mkdir(parents=True);cached.write_bytes(b'FAKE tampered cache')
+            verify=MagicMock(return_value={'verified':False,'code':'hash_mismatch'})
+            with patch.object(runtime_fetcher.sys,'platform','win32'),\
+                 patch.dict(sys.modules,{'windows_prerequisites':SimpleNamespace(bundled_installer_status=verify)}),\
+                 patch.object(runtime_fetcher.urllib.request,'urlopen') as download,\
+                 self.assertRaisesRegex(RuntimeError,'hash_mismatch'):
+                runtime_fetcher.ensure_runtime(root)
+            download.assert_not_called()
+            self.assertEqual(cached.read_bytes(),b'FAKE tampered cache')
+
+    def test_release_preserves_historical_assets_and_requires_consumer_evidence(self):
+        workflow=(ROOT/'.github/workflows/release.yml').read_text('utf-8')
+        self.assertNotIn('--clobber',workflow)
+        self.assertIn('inputs.consumer_validation_evidence',workflow)
+        self.assertIn('system_runtime_preinstalled',workflow)
+        self.assertIn('--consumer-smoke',workflow)
 
     def test_native_shell_separates_startup_log_from_memory_data(self):
         with tempfile.TemporaryDirectory() as directory:

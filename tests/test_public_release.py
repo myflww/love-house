@@ -1,4 +1,4 @@
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import importlib.util
 import json
 import tempfile
@@ -61,6 +61,20 @@ class PublicReleaseTests(unittest.TestCase):
         self.assertEqual({f['category'] for f in findings}, {'model-key', 'developer-home-path'})
         self.assertNotIn(value, json.dumps(findings))
         self.assertTrue(all(set(f) == {'path', 'line', 'category'} for f in findings))
+
+    def test_developer_home_paths_are_detected_across_native_source_and_json_separators(self):
+        windows_home = PureWindowsPath('C:/Users/private-builder')
+        native = str(windows_home / 'project' / 'file.py')
+        variants = [native, native.replace('\\', '/'), json.dumps(native), native.lower()]
+        for value in variants:
+            with self.subTest(format=value):
+                findings = release.scan_bytes(Path('nkb/example.py'), value.encode(), home=windows_home)
+                self.assertEqual({item['category'] for item in findings}, {'developer-home-path'})
+                self.assertNotIn('private-builder', json.dumps(findings))
+        posix_home = PurePosixPath('/Users/private-builder')
+        self.assertTrue(release.scan_bytes(Path('README.md'), b'/Users/private-builder/project', home=posix_home))
+        self.assertFalse(release.scan_bytes(Path('README.md'), b'C:/Users/private-builder-other/project', home=windows_home))
+        self.assertFalse(release.scan_bytes(Path('README.md'), b'/Users/private-builder-other/project', home=posix_home))
 
     def test_synthetic_placeholder_is_allowed_but_high_entropy_literal_token_is_not(self):
         safe = b'{"api_key":"FAKE-NOT-A-REAL-KEY-123456789"}'

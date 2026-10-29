@@ -1,6 +1,7 @@
 """Native Windows/WebView2 shell. It never opens an external browser as its UI."""
 from __future__ import annotations
 import argparse
+import errno
 import json
 import os
 from pathlib import Path
@@ -21,8 +22,10 @@ from nkb.service.host import MemoryHost,make_controller
 from nkb.service.credentials import KeyStore
 from nkb.storage.jsonfile import JsonFileStorage
 from windows_diagnostics import (WEBVIEW2_URL,AlreadyRunning,StartupLog,WebView2Unavailable,
+                                 DotNetUnavailable,NativeStartupTimeout,
                                  diagnostic_report,failure_record,runtime_folder,startup_facts,
                                  startup_log_path,system_facts,webview2_status)
+from windows_prerequisites import runtime_status,dotnet_status,repair_runtime,bundled_installer_status
 
 SMOKE_PREFIX='love-house-webview2-smoke-'
 ALREADY_RUNNING_MESSAGE=('爱之屋已经在运行。\n\n请切回已经打开的窗口。如果看不到窗口，'
@@ -33,6 +36,20 @@ WEBVIEW2_MESSAGE=('爱之屋需要微软 WebView2 运行时才能显示界面，
 FAILURE_MESSAGE=('爱之屋未能打开。\n\n错误类型：{kind}\n启动日志：\n{log}\n\n'
                  '现有记忆数据已保留。是否打开日志所在文件夹？')
 smoke_failure=failure_record
+
+
+def sanitize_native_environment():
+    """Keep launcher/other Python apps from selecting a foreign CLR or browser.
+
+    Never log values: they can contain paths, credentials or debug endpoints.
+    Only this child process is changed; the user's system environment is intact.
+    """
+    removed=[]
+    for name in list(os.environ):
+        upper=name.upper()
+        if upper in ('PYTHONHOME','PYTHONPATH','PYWEBVIEW_GUI') or upper.startswith(('PYTHONNET_','WEBVIEW2_')):
+            removed.append(name);os.environ.pop(name,None)
+    return sorted(removed)
 
 
 def smoke_report(path,value):
@@ -81,10 +98,14 @@ def cleanup_smoke_profile(directory,attempts=8):
             raise
         except OSError as exc:
             filename=getattr(exc,'filename',None)
-            known_lock=(getattr(exc,'winerror',None) in (32,33) and filename
-                        and Path(filename).resolve().is_relative_to(profile))
-            if not known_lock:raise
+            beneath_profile=bool(filename and Path(filename).resolve().is_relative_to(profile))
+            known_lock=getattr(exc,'winerror',None) in (32,33) and beneath_profile
+            # Chromium may create a cache file between rmtree's scan and
+            # rmdir. Retry this race only inside the owned WebView2 scratch.
+            profile_write_race=getattr(exc,'winerror',None)==145 and beneath_profile
+            if not (known_lock or profile_write_race):raise
             if attempt==attempts:
+                if not known_lock:raise
                 return {'status':'deferred_profile_lock','attempts':attempt,'isolated':True,
                         'directory':root.name,'winerror':exc.winerror,'file':Path(filename).name,
                         'vanished_profile_entries':vanished,
@@ -110,8 +131,11 @@ class DesktopLock:
             else:
                 import fcntl
                 fcntl.flock(stream.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
-        except OSError:
-            stream.close();raise AlreadyRunning('爱之屋已经打开，请切回原来的窗口。') from None
+        except OSError as exc:
+            stream.close()
+            if exc.errno in (errno.EACCES,errno.EAGAIN) or getattr(exc,'winerror',None) in (32,33,36):
+                raise AlreadyRunning('爱之屋已经打开，请切回原来的窗口。') from None
+            raise
         self.file=stream
     def release(self):
         if self.file:
@@ -152,11 +176,21 @@ class ControllerRuntime:
             return self
         except BaseException:self.stop();raise
     def stop(self):
-        if self.server:
-            self.server.shutdown();self.server.server_close();self.server=None
-        if self.thread:self.thread.join(timeout=5);self.thread=None
-        if self.host:self.host.stop();self.host=None
-        self.ready.unlink(missing_ok=True);self.lock.release()
+        # A failed second instance owns nothing. In particular, its finally
+        # block must never remove the first writer's ready file.
+        if self.lock.file is None:return
+        try:
+            if self.server:
+                # BaseServer.shutdown waits forever if serve_forever never ran.
+                if self.thread and self.thread.is_alive():self.server.shutdown()
+                self.server.server_close();self.server=None
+            if self.thread:
+                if self.thread.ident is not None:self.thread.join(timeout=5)
+                self.thread=None
+            if self.host:self.host.stop();self.host=None
+        finally:
+            try:self.ready.unlink(missing_ok=True)
+            finally:self.lock.release()
 
 
 def valid_export(filename,content):
@@ -233,6 +267,7 @@ def open_target(target):
 def write_diagnostics(data_dir,log):
     """把只含运行时事实的诊断文本写到数据目录，供用户直接转发。"""
     facts=startup_facts(data_dir)
+    facts['log']=str(log.path)
     report=diagnostic_report(facts,log.tail())
     name=time.strftime('diagnostics-%Y%m%d-%H%M%S')+'.txt'
     for folder in (Path(data_dir)/'logs',Path(tempfile.gettempdir())/'LoveHouse'):
@@ -291,19 +326,38 @@ def backend_smoke(report):
     return result
 
 
-def run_window(data_dir,*,smoke=False,report=None,result=None,log=None):
-    import webview
-    folder=runtime_folder()
-    if folder is not None:webview.settings['WEBVIEW2_RUNTIME_PATH']=str(folder)
+def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=False):
+    # Arbitrate the writer before testing the renderer. A second instance must
+    # consistently report already_running even when its environment is broken.
     runtime=ControllerRuntime(data_dir,testing=smoke).start()
     if result is None:result={}
     result.update(ok=False,version=__version__,renderer='edgechromium',phase='window_start',process_complete=False)
-    if log:log.write('window',phase='window_start',smoke=smoke,runtime_path=folder.name if folder else None)
+    finished=threading.Event()
     try:
+        dotnet=dotnet_status()
+        if log:log.write('prerequisites',phase='dotnet_check',dotnet=dotnet)
+        if dotnet.get('ok') is False:raise DotNetUnavailable()
+        facts=runtime_status()
+        if log:log.write('webview2',phase='runtime_check',**facts)
+        if not facts['available']:
+            if facts.get('code') in ('loader_missing','loader_load_failed'):
+                raise ImportError('Packaged WebView2Loader is unavailable')
+            raise WebView2Unavailable(facts)
+        result['runtime']=facts
+        result['system_runtime_preinstalled']=True
+        result['phase']='clr_initialization'
+        import webview
+        if log:log.write('window',phase='window_start',smoke=smoke)
         api=NativeAPI(runtime.url)
         window=webview.create_window('爱之屋',runtime.url,js_api=api,width=1360,height=900,min_size=(900,600),
-                                    background_color='#fffaf0',text_select=True,hidden=smoke)
+                                    background_color='#fffaf0',text_select=True,hidden=smoke and not visible)
         api._window=window
+        def loaded():
+            finished.set()
+            if not smoke:result.update(ok=True,phase='window_ready')
+            if log:log.write('window',phase='window_ready',renderer=result.get('renderer'))
+        window.events.loaded+=loaded
+        window.events.closed+=lambda:finished.set()
         def require_edge(renderer):
             result['renderer']=renderer
             if renderer!='edgechromium':
@@ -313,6 +367,14 @@ def run_window(data_dir,*,smoke=False,report=None,result=None,log=None):
         window.events.initialized+=require_edge
         webview.settings['ALLOW_DOWNLOADS']=False
         webview.settings['OPEN_EXTERNAL_LINKS_IN_BROWSER']=True
+        def watchdog():
+            # pywebview logs (rather than raises) some async initialization
+            # errors. Bound that wait, close the blank window, and let main
+            # produce a safe diagnostic instead of hanging indefinitely.
+            if not finished.wait(60):
+                result.update(ok=False,startup_timeout=True,phase='webview2_initialization_timeout')
+                if log:log.write('failure',phase='webview2_initialization_timeout')
+                window.destroy()
         if smoke:
             def verify():
                 try:
@@ -326,11 +388,16 @@ def run_window(data_dir,*,smoke=False,report=None,result=None,log=None):
                 except Exception as exc:result.update(failure=smoke_failure(exc),phase='native_checks_failed')
                 finally:window.destroy()
             window.events.loaded+=verify
+        guard=threading.Thread(target=watchdog,daemon=True);guard.start()
+        result['phase']='webview2_initialization'
         webview.start(gui='edgechromium',debug=False,private_mode=False,storage_path=str(Path(data_dir)/'WebView2'))
+        finished.set();guard.join(timeout=1)
+        if result.get('startup_timeout'):raise NativeStartupTimeout()
         if log:log.write('window',phase='window_closed',renderer=result.get('renderer'))
         if result.get('error') and not result['ok']:
             raise WebView2Unavailable({'available':False,'renderer':result.get('renderer'),'checked':webview2_status()})
     finally:
+        finished.set()
         result['window_phase']=result.get('phase')
         result['phase']='controller_shutdown'
         try:runtime.stop();result['controller_stopped']=True
@@ -341,9 +408,9 @@ def run_window(data_dir,*,smoke=False,report=None,result=None,log=None):
     return result
 
 
-def native_smoke(report,log=None):
+def native_smoke(report,log=None,*,visible=False):
     """Own the native test scratch explicitly; report only after final cleanup."""
-    directory=Path(tempfile.mkdtemp(prefix=SMOKE_PREFIX)).resolve()
+    directory=Path(tempfile.mkdtemp(prefix=SMOKE_PREFIX+'中文 路径-')).resolve()
     (directory/'.love-house-smoke-owner.json').write_text(json.dumps({
         'schema':'love-house-native-smoke/v1','pid':os.getpid(),'directory':directory.name}),encoding='utf-8')
     result={'ok':False,'version':__version__,'phase':'native_start','process_complete':False}
@@ -351,7 +418,7 @@ def native_smoke(report,log=None):
     scratch_log=StartupLog(Path(directory)/'startup.log')
     primary=None
     try:
-        run_window(directory,smoke=True,result=result,log=scratch_log)
+        run_window(directory,smoke=True,result=result,log=scratch_log,visible=visible)
     except Exception as exc:
         primary=exc;result['ok']=False;result.setdefault('failure',smoke_failure(exc))
     finally:
@@ -372,36 +439,65 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-dir',type=Path);parser.add_argument('--backend-smoke',action='store_true')
     parser.add_argument('--smoke-test',action='store_true');parser.add_argument('--diagnose',action='store_true')
+    parser.add_argument('--consumer-smoke',action='store_true')
+    parser.add_argument('--runtime-status',action='store_true');parser.add_argument('--repair-runtime',action='store_true')
     parser.add_argument('--report',type=Path)
     args=parser.parse_args()
-    if (args.backend_smoke or args.smoke_test) and not args.report:parser.error('smoke tests require --report')
-    native=not (args.backend_smoke or args.smoke_test or args.diagnose)
+    smoke=args.backend_smoke or args.smoke_test or args.consumer_smoke
+    if smoke and not args.report:parser.error('smoke tests require --report')
+    if sum(bool(x) for x in (args.backend_smoke,args.smoke_test,args.consumer_smoke,args.diagnose,args.runtime_status,args.repair_runtime))>1:
+        parser.error('select only one diagnostic or test action')
+    native=not (smoke or args.diagnose or args.runtime_status or args.repair_runtime)
     if native and sys.platform!='win32':parser.error('Windows native shell requires Windows 10/11 x64')
+    removed=sanitize_native_environment()
     data_dir=args.data_dir or default_data_dir()
     log=StartupLog(startup_log_path(data_dir))
     log.write('start',version=__version__,native=native,**system_facts())
+    if removed:log.write('environment_sanitized',variables=removed)
     try:
         if args.backend_smoke:backend_smoke(args.report)
-        elif args.smoke_test:native_smoke(args.report,log=log)
+        elif args.smoke_test or args.consumer_smoke:native_smoke(args.report,log=log,visible=args.consumer_smoke)
+        elif args.runtime_status or args.repair_runtime:
+            if args.repair_runtime:value=repair_runtime(force=True)
+            else:
+                facts=runtime_status();net=dotnet_status()
+                value={'ok':facts['available'] and net.get('ok') is not False,'runtime':facts,'dotnet':net}
+            value.update(process_complete=True,version=__version__)
+            smoke_report(args.report,value)
+            if sys.stdout:print(json.dumps(value,ensure_ascii=False))
+            return 0 if value.get('ok') else 1
         elif args.diagnose:
             target=write_diagnostics(data_dir,log);log.write('diagnostics',file=target.name)
             open_target(target.parent);return 0
         else:
-            facts=webview2_status();log.write('webview2',**facts)
-            if not facts['available']:raise WebView2Unavailable(facts)
             run_window(data_dir,log=log)
         return 0
     except AlreadyRunning:
         log.write('already_running')
-        notify(ALREADY_RUNNING_MESSAGE.format(log=log.path),flags=0x40)
+        if native:notify(ALREADY_RUNNING_MESSAGE.format(log=log.path),flags=0x40)
+        smoke_report(args.report,{'ok':False,'code':'already_running','process_complete':False})
         return 1
     except WebView2Unavailable as exc:
         log.write('webview2_unavailable',renderer=exc.facts.get('renderer'),checked=exc.facts.get('checked'))
-        if ask_yes_no(WEBVIEW2_MESSAGE):open_target(WEBVIEW2_URL)
+        if native:
+            installer=bundled_installer_status()
+            if installer.get('verified'):
+                consent=('爱之屋需要微软 WebView2 运行时。安装包已附带经过微软数字签名验证的离线组件。\n\n'
+                         '是否现在安装或修复？现有记忆数据不受影响。\n微软组件说明：\n'+WEBVIEW2_URL)
+                if ask_yes_no(consent):
+                    fixed=repair_runtime()
+                    log.write('runtime_repair',**fixed)
+                    if fixed.get('ok'):
+                        try:run_window(data_dir,log=log);return 0
+                        except Exception as retry:
+                            record=failure_record(retry);log.write('failure',**record)
+                    notify('运行时修复或启动未完成，请查看启动日志：\n'+str(log.path))
+            elif ask_yes_no(WEBVIEW2_MESSAGE):open_target(WEBVIEW2_URL)
+        smoke_report(args.report,{'ok':False,'code':'webview2_unavailable','process_complete':False})
         return 1
     except Exception as exc:
         record=failure_record(exc);log.write('failure',**record)
-        if args.backend_smoke or args.smoke_test:
+        if smoke or args.runtime_status or args.repair_runtime:
             try:
                 previous=json.loads(args.report.read_text('utf-8')) if args.report.exists() else {}
                 previous.update(ok=False,process_complete=False,failure=record)
@@ -409,7 +505,7 @@ def main():
                 smoke_report(args.report,previous)
             except Exception:pass  # The nonzero exit remains mandatory even if disk reporting fails.
         else:
-            if ask_yes_no(FAILURE_MESSAGE.format(kind=record['type'],log=log.path)):open_target(log.path.parent)
+            if ask_yes_no(FAILURE_MESSAGE.format(kind=record.get('kind',record['type']),log=log.path)):open_target(log.path.parent)
         return 1
 
 

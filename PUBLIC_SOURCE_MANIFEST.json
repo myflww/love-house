@@ -13,8 +13,8 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "bytes": 25797,
-      "sha256": "d146b5a87af7e8003c5cc7e3cb23708bdf438e66006a043772589148abd0bde3"
+      "bytes": 29115,
+      "sha256": "463f96a5ed7150cd47c6bd77e3ec609f223a61b38cff2a144c919fa76b3e6c8e"
     },
     {
       "path": ".gitignore",
@@ -423,8 +423,8 @@
     },
     {
       "path": "docs/下载与系统支持.md",
-      "bytes": 5416,
-      "sha256": "1ed686cd198d83e86e817e1b1f92cb15f3f85aa15532e38c12af84571635e7cb"
+      "bytes": 5469,
+      "sha256": "f672ad9986e233acd1ceb76433622207cd9f14e4e44340f965663ef2c041f78c"
     },
     {
       "path": "docs/发布与许可.md",
@@ -1093,8 +1093,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 11797,
-      "sha256": "5bc01f5ce8b42e0858deb22a2db5f9944a6f806157374076407ce8c815add154"
+      "bytes": 12090,
+      "sha256": "09baf39568b8395e80c54aaa9fbff762f90a76cfb639ce62d8c89092ee76c401"
     },
     {
       "path": "ROADMAP.md",

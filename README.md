@@ -146,6 +146,8 @@ Agent 读取 `love-house-memory-context/v1` 结构化 JSON，包含角色、类�
 
 ## 源码运行
 
+Windows 修复预览的源码对应 [v0.5.1rc1 标签](https://github.com/myflww/love-house/tree/v0.5.1rc1) 与 [PR #1](https://github.com/myflww/love-house/pull/1)。Windows 开发者请检出该标签构建；`main` 当前保留 0.5.0 稳定代码基线，首页下载说明独立更新。
+
 ```bash
 git clone https://github.com/myflww/love-house.git
 cd love-house

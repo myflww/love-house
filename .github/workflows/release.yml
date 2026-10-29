@@ -54,6 +54,9 @@ concurrency:
 
 jobs:
   windows:
+    # The stable main branch may carry this infrastructure before the Windows
+    # prerequisite implementation. Build only the repair branch, PRs or tags.
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/codex/windows-051-fix' || startsWith(github.ref, 'refs/tags/')
     runs-on: windows-latest
     timeout-minutes: 35
     outputs:
@@ -230,15 +233,29 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$RELEASE_TAG" == v0.5.1rc1 ]] || { echo 'Unexpected preview tag' >&2; exit 1; }
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo 'Preview release already exists; use a new preview version instead of overwriting published assets.' >&2
-            exit 1
-          fi
           cp docs/releases/windows-0.5.1rc1.md release-notes.txt
           printf '\n\n公开下载复验和报告：[本次工作流](%s/%s/actions/runs/%s)。\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> release-notes.txt
-          gh release create "$RELEASE_TAG" --title '爱之屋 0.5.1rc1 · Windows 公开预览' --notes-file release-notes.txt --target "$GITHUB_SHA" --draft --prerelease --latest=false
+          jq -n --arg tag "$RELEASE_TAG" --arg sha "$GITHUB_SHA" --rawfile body release-notes.txt \
+            '{tag_name:$tag,target_commitish:$sha,name:"爱之屋 0.5.1rc1 · Windows 公开预览",body:$body,draft:true,prerelease:true,make_latest:"false"}' > release-payload.json
+          # REST tag lookup intentionally excludes pending-tag draft releases.
+          # List authenticated releases and recover only the known empty draft
+          # from the failed first run. Never reuse a published/populated release.
+          gh api --paginate "repos/$GH_REPO/releases?per_page=100" --slurp > releases.json
+          jq --arg tag "$RELEASE_TAG" '[.[][] | select(.tag_name == $tag)]' releases.json > matching-releases.json
+          count=$(jq 'length' matching-releases.json)
+          if [[ "$count" == 1 ]]; then
+            jq -e '.[0] | .id == 428186142 and .draft == true and .prerelease == true and .immutable == false and (.assets | length) == 0 and .target_commitish == "c9beb7bcb5b7fe77ae5ef8eda296c5de5b99ee52"' matching-releases.json >/dev/null
+            release_id=428186142
+            gh api --method PATCH "repos/$GH_REPO/releases/$release_id" --input release-payload.json > preview-release.json
+          elif [[ "$count" == 0 ]]; then
+            gh api --method POST "repos/$GH_REPO/releases" --input release-payload.json > preview-release.json
+          else
+            echo 'Ambiguous preview releases; refusing to create or modify anything.' >&2
+            exit 1
+          fi
+          release_id=$(jq -er '.id | select(type == "number")' preview-release.json)
+          jq -e --arg tag "$RELEASE_TAG" '.tag_name == $tag and .draft == true and .prerelease == true and (.assets | length) == 0' preview-release.json >/dev/null
           echo 'created_preview=true' >> "$GITHUB_OUTPUT"
-          release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq '.id')
           echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
       - name: Attach verified Windows assets
         id: publish
@@ -247,6 +264,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ needs.windows.outputs.release_tag }}
           PREVIEW: ${{ needs.windows.outputs.preview_requested }}
+          RELEASE_ID: ${{ steps.preview.outputs.release_id }}
           CONSUMER_VALIDATION_EVIDENCE: ${{ inputs.consumer_validation_evidence }}
         shell: bash
         run: |
@@ -254,10 +272,25 @@ jobs:
           checksums_sha256=$(sha256sum windows-release/Windows-SHA256SUMS.txt | cut -d ' ' -f1)
           echo "checksums_sha256=$checksums_sha256" >> "$GITHUB_OUTPUT"
           if [[ "$PREVIEW" == true ]]; then
-            [[ "$RELEASE_TAG" == v0.5.1rc1 ]] || { echo 'Unexpected preview tag' >&2; exit 1; }
+            [[ "$RELEASE_TAG" == v0.5.1rc1 && "$RELEASE_ID" =~ ^[0-9]+$ ]] || { echo 'Unexpected preview identity' >&2; exit 1; }
             # Upload completely as a draft before making any asset public.
-            gh release upload "$RELEASE_TAG" windows-release/*
-            gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false
+            gh api "repos/$GH_REPO/releases/$RELEASE_ID" > preview-release.json
+            jq -e --arg tag "$RELEASE_TAG" '.tag_name == $tag and .draft == true and .prerelease == true and (.assets | length) == 0' preview-release.json >/dev/null
+            upload_url=$(jq -er '.upload_url | sub("\\{.*$"; "")' preview-release.json)
+            [[ "$upload_url" == "https://uploads.github.com/repos/$GH_REPO/releases/$RELEASE_ID/assets" ]] || { echo 'Unexpected GitHub upload endpoint' >&2; exit 1; }
+            for asset in windows-release/*; do
+              name=$(basename "$asset")
+              encoded_name=$(jq -rn --arg name "$name" '$name | @uri')
+              expected_digest="sha256:$(sha256sum "$asset" | cut -d ' ' -f1)"
+              expected_size=$(stat -c %s "$asset")
+              curl --disable --fail --silent --show-error --request POST \
+                --header "Authorization: Bearer $GH_TOKEN" --header 'Content-Type: application/octet-stream' \
+                --data-binary "@$asset" "$upload_url?name=$encoded_name" --output uploaded-asset.json
+              jq -e --arg name "$name" --arg digest "$expected_digest" --argjson size "$expected_size" \
+                '.name == $name and .state == "uploaded" and .size == $size and .digest == $digest' uploaded-asset.json >/dev/null
+            done
+            gh api --method PATCH "repos/$GH_REPO/releases/$RELEASE_ID" -F draft=false -F prerelease=true -f make_latest=false > published-preview.json
+            jq -e --arg tag "$RELEASE_TAG" '.tag_name == $tag and .draft == false and .prerelease == true' published-preview.json >/dev/null
           else
             if [[ "$CONSUMER_VALIDATION_EVIDENCE" != https://* ]]; then
               echo 'Stable publication requires an HTTPS link to completed clean Windows consumer acceptance evidence.' >&2
@@ -420,4 +453,5 @@ jobs:
           [[ "$RELEASE_TAG" == v0.5.1rc1 && "$RELEASE_ID" =~ ^[0-9]+$ ]] || { echo 'Refusing to change an unrelated release' >&2; exit 1; }
           release=$(gh api "repos/$GH_REPO/releases/$RELEASE_ID")
           jq -e --arg tag "$RELEASE_TAG" '.tag_name == $tag and .prerelease == true' <<< "$release" >/dev/null
-          gh release edit "$RELEASE_TAG" --draft=true --latest=false
+          gh api --method PATCH "repos/$GH_REPO/releases/$RELEASE_ID" -F draft=true -f make_latest=false > withdrawn-preview.json
+          jq -e --arg tag "$RELEASE_TAG" '.tag_name == $tag and .draft == true and .prerelease == true' withdrawn-preview.json >/dev/null

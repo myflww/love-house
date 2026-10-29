@@ -33,6 +33,26 @@ def transcript(code=0):
 
 
 class SignedAndroidCandidateTests(unittest.TestCase):
+    def test_badging_attributes_allow_extra_fields_and_any_order_without_changing_identity(self):
+        lines = (
+            "package: name='" + release.APP_ID + "' versionCode='1' versionCodeMajor='0' versionName='0.1.0-preview1' compileSdkVersion='36'",
+            "package: versionName='0.1.0-preview1' compileSdkVersion='36' versionCodeMajor='0' name='" + release.APP_ID + "' versionCode='1'",
+        )
+        for line in lines:
+            with self.subTest(line=line):
+                self.assertEqual(release.badging_identity(line + "\nsdkVersion:'26'\ntargetSdkVersion:'36'\n"),
+                                 {'package': release.APP_ID, 'version_code': '1', 'version_name': '0.1.0-preview1',
+                                  'min_sdk': ['26'], 'target_sdk': ['36']})
+
+    def test_badging_missing_duplicate_or_prefix_only_identity_attributes_are_rejected(self):
+        valid = "package: name='" + release.APP_ID + "' versionCode='1' versionName='0.1.0-preview1'"
+        invalid = (valid + " versionCode='2'", valid + " name='another.package'", valid + " versionName='other'",
+                   valid.replace(" versionCode='1'", " versionCodeMajor='1'"),
+                   valid.replace(" versionName='0.1.0-preview1'", ''), valid + '\n' + valid)
+        for text in invalid:
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                release.badging_identity(text)
+
     def test_manifest_has_a_fixed_identity_bounded_blobs_and_explicit_certificate(self):
         value = manifest()
         self.assertEqual(release.validate_manifest(value), value)

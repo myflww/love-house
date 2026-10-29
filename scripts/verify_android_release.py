@@ -118,10 +118,16 @@ def signer_digest(text: str) -> str:
 
 
 def badging_identity(text: str) -> dict:
-    package = re.search(r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']*)'", text, re.M)
-    if not package:
-        raise VerificationError('Android APK package identity is missing')
-    return {'package': package[1], 'version_code': package[2], 'version_name': package[3],
+    package_lines = re.findall(r'^package:[ \t]*([^\r\n]*)\r?$', text, re.M)
+    if len(package_lines) != 1:
+        raise VerificationError('Android APK badging must contain exactly one package line')
+    attributes = {}
+    for name in ('name', 'versionCode', 'versionName'):
+        values = re.findall(r"(?:^|[ \t])" + name + r"='([^']*)'(?=[ \t]|$)", package_lines[0])
+        if len(values) != 1:
+            raise VerificationError('Android APK package identity attributes are missing or repeated')
+        attributes[name] = values[0]
+    return {'package': attributes['name'], 'version_code': attributes['versionCode'], 'version_name': attributes['versionName'],
             'min_sdk': re.findall(r"^sdkVersion:'(\d+)'", text, re.M),
             'target_sdk': re.findall(r"^targetSdkVersion:'(\d+)'", text, re.M)}
 
@@ -151,6 +157,16 @@ def verify_apks(value: dict, output: Path, sdk: Path) -> dict:
             raise VerificationError('APK signer differs from the public certificate fingerprint')
         run([zipalign, '-c', '-P', '16', '4', apk])
         badging = run([aapt, 'dump', 'badging', apk])
+        # These APK bytes already match the public metadata hashes. Limit
+        # diagnostics to their public manifest fields, with a bounded fallback
+        # for unexpected tool formatting; JSON escapes all control characters.
+        metadata_lines = [line for line in badging.splitlines()
+                          if line.startswith(('package:', 'sdkVersion:', 'targetSdkVersion:'))]
+        has_package = any(line.startswith('package:') for line in metadata_lines)
+        diagnostic = '\n'.join(metadata_lines)[:500] if has_package else badging[:300]
+        print(json.dumps({'stage': 'verify_apks', 'apk': name,
+                          'badging_format': 'metadata_lines' if has_package else 'stdout_prefix',
+                          'badging_metadata': diagnostic}), flush=True)
         identity = badging_identity(badging)
         xmltree = run([aapt, 'dump', 'xmltree', apk, 'AndroidManifest.xml'])
         if name == 'apk':

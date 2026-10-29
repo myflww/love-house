@@ -137,4 +137,3 @@ jobs:
             android/app/build/outputs/androidTest-results/
           if-no-files-found: ignore
           retention-days: 14
-

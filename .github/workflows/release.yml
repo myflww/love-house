@@ -9,6 +9,7 @@ on:
       - 'desktop/**'
       - 'scripts/build_windows.py'
       - '.github/workflows/release.yml'
+      - '.gitattributes'
       - 'assets/**'
       - 'pyproject.toml'
       - 'LICENSE'

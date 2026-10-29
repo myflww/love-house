@@ -13,8 +13,8 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "bytes": 6311,
-      "sha256": "250279e25f4eded75c3ca60c29eab9bdd1a18820254debe7726b9396c1b9720f"
+      "bytes": 6336,
+      "sha256": "fdd793d3e0955eac0f91c3506b77ac325f135050908916a7e491daf4d649acca"
     },
     {
       "path": ".gitignore",
@@ -1008,8 +1008,8 @@
     },
     {
       "path": "nkb/viz/web/index.html",
-      "bytes": 1689981,
-      "sha256": "47e45a55b4d0812020aaa2d74c55d5aef391db721c1807c0a4de6abf5c02d8c5"
+      "bytes": 1689994,
+      "sha256": "69d024dcd9922755457bdffcac5240cd3deb58f56d7a6ee076a2eaa1710c8e96"
     },
     {
       "path": "nkb/viz/web/library-manager-ui.js",

@@ -9,6 +9,7 @@ on:
       - 'scripts/prepare_mobile_assets.py'
       - 'scripts/prepare_public_release.py'
       - 'scripts/check_android_test_results.py'
+      - 'scripts/run_android_smoke.sh'
       - 'tests/test_android_packaging.py'
       - '.github/workflows/android.yml'
       - 'LICENSE'
@@ -21,6 +22,7 @@ on:
       - 'scripts/prepare_mobile_assets.py'
       - 'scripts/prepare_public_release.py'
       - 'scripts/check_android_test_results.py'
+      - 'scripts/run_android_smoke.sh'
       - 'tests/test_android_packaging.py'
       - '.github/workflows/android.yml'
   workflow_dispatch:
@@ -92,13 +94,7 @@ jobs:
           force-avd-creation: true
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader -noaudio -no-boot-anim -camera-back none
-          script: |
-            set -euo pipefail
-            gradle -p android --no-daemon --stacktrace :app:connectedDebugAndroidTest
-            python scripts/check_android_test_results.py
-            mkdir -p build/android
-            adb exec-out run-as io.github.myflww.lovehouse.preview cat files/android-smoke.png > build/android/android-smoke.png
-            test -s build/android/android-smoke.png
+          script: bash scripts/run_android_smoke.sh
       - name: Preserve unsigned APK and developer signing tools after tests pass
         run: |
           set -euo pipefail

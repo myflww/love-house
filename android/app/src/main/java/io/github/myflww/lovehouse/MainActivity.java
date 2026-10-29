@@ -1,5 +1,6 @@
 package io.github.myflww.lovehouse;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
@@ -19,6 +20,7 @@ import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -77,7 +79,8 @@ public final class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().setStatusBarColor(Color.rgb(255, 249, 239));
-        getWindow().setNavigationBarColor(Color.rgb(255, 249, 239));
+        getWindow().setNavigationBarColor(Build.VERSION.SDK_INT >= 27
+            ? Color.rgb(255, 249, 239) : Color.rgb(71, 52, 47));
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.rgb(255, 249, 239));
@@ -102,7 +105,7 @@ public final class MainActivity extends Activity {
             root.setFitsSystemWindows(true);
         }
         WebSettings settings = browser.getSettings();
-        settings.setJavaScriptEnabled(true);
+        enableLocalScripts(settings);
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(false);
         // Only user-selected SAF documents are granted; navigation to content:// is blocked.
@@ -160,6 +163,22 @@ public final class MainActivity extends Activity {
             @Override public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse response) {
                 if (request.isForMainFrame()) showLoadFailure();
             }
+            @Override public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                // A dead renderer cannot be reused. Leave the origin's IndexedDB
+                // intact and create a new WebView only when the user reopens it.
+                if (browser == view) browser = null;
+                fileChooser = null;
+                pendingSave = null;
+                root.removeView(view);
+                view.destroy();
+                progress.setVisibility(View.GONE);
+                if (!closed && !isFinishing()) new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("界面需要重新打开")
+                    .setMessage("系统已停止网页界面。已保存的记忆仍保留在此设备，请重新打开爱之屋。")
+                    .setPositiveButton("重新打开", (dialog, which) -> recreate())
+                    .setNegativeButton("关闭", (dialog, which) -> finish()).show();
+                return true;
+            }
         });
         browser.setWebChromeClient(new WebChromeClient() {
             @Override public boolean onConsoleMessage(ConsoleMessage message) { return true; }
@@ -197,6 +216,13 @@ public final class MainActivity extends Activity {
             && uri.getPath().startsWith("/assets/web/");
     }
 
+    @SuppressLint("SetJavaScriptEnabled")
+    private static void enableLocalScripts(WebSettings settings) {
+        // Only the bundled local application executes scripts; navigation,
+        // resource loading and CSP reject remote pages and imported active text.
+        settings.setJavaScriptEnabled(true);
+    }
+
     private static WebResourceResponse blocked() {
         return new WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden",
             Collections.singletonMap("Cache-Control", "no-store"),
@@ -213,7 +239,9 @@ public final class MainActivity extends Activity {
         progress.setVisibility(View.GONE);
         new AlertDialog.Builder(this).setTitle("界面暂时未能打开")
             .setMessage("请确认系统 Android System WebView 可用。当前记忆数据未被清空。")
-            .setPositiveButton("重试", (dialog, which) -> browser.loadUrl(HOME))
+            .setPositiveButton("重试", (dialog, which) -> {
+                if (browser != null) browser.loadUrl(HOME); else recreate();
+            })
             .setNegativeButton("关闭", (dialog, which) -> finish()).show();
     }
 
@@ -239,7 +267,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             main.post(() -> {
-                if (closed || pendingSave != null || !isLocal(Uri.parse(browser.getUrl() == null ? "" : browser.getUrl()))) {
+                if (closed || browser == null || pendingSave != null || !isLocal(Uri.parse(browser.getUrl() == null ? "" : browser.getUrl()))) {
                     fileResult(requestId, false, false, "另一个保存操作尚未结束，或页面已关闭。"); return;
                 }
                 pendingSave = new PendingSave(requestId, filename, mime, data);
@@ -292,6 +320,9 @@ public final class MainActivity extends Activity {
             + result.toString() + "}));", null);
     }
 
+    // API 33+ gestures use the registered OnBackInvokedCallback above. Keep
+    // this legacy callback for Android 8-12 and physical back buttons.
+    @SuppressLint("GestureBackNavigation")
     @Override public void onBackPressed() {
         navigateBack();
     }

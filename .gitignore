@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# 知识库数据：每个人的库都不同，不该进版本控制。
+# 想要"知识也进 git"是合理需求 —— 那就把这个规则删掉，
+# 但请先想清楚节点正文里有没有不该公开的东西。
+brain.json
+*.brain.json
+demo-quickstart.json
+docs-demo.json
+docs-demo.html
+graph.json
+
+# 导出的可视化 / 临时文件
+brain.html
+*.local.html
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.log
+
+# 本机演示与个人记忆
+/data/*.json
+/data/*.html
+/reports/ui-*.png
+node_modules/
+
+# Private rollback copies of the installed app and knowledge data
+/outputs/rollback/
+
+/data/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Ship the prebuilt, reproducible host adapter with source downloads
+!extensions/deepseek-harness/dist/
+!extensions/deepseek-harness/dist/*.js
+!extensions/deepseek-harness/dist/*.js.map
+
+!nkb/service/harness/dist/
+!nkb/service/harness/dist/*.js

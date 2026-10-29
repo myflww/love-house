@@ -1,0 +1,130 @@
+name: Windows installer release
+
+on:
+  push:
+    tags: ['v*']
+    branches: [main]
+    paths:
+      - 'nkb/**'
+      - 'desktop/**'
+      - 'scripts/build_windows.py'
+      - '.github/workflows/release.yml'
+      - 'assets/**'
+      - 'pyproject.toml'
+      - 'LICENSE'
+      - 'NOTICE'
+      - 'THIRD_PARTY_NOTICES.md' 
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag, matching nkb/_version.py'
+        required: true
+        default: 'v0.5.0'
+        type: string
+      publish:
+        description: 'Upload successful Windows builds to the public release'
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+          cache: pip
+          cache-dependency-path: desktop/requirements-windows.txt
+      - name: Verify release version and native prerequisites
+        shell: pwsh
+        env:
+          REQUESTED_TAG: ${{ inputs.release_tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.5.0' }}
+        run: |
+          $version = python -c "from nkb._version import __version__; print(__version__)"
+          if ($env:REQUESTED_TAG -ne "v$version") { throw "Tag and project version differ" }
+          $runtime = Get-ChildItem 'C:\Program Files (x86)\Microsoft\EdgeWebView\Application\*\msedgewebview2.exe' -ErrorAction SilentlyContinue
+          if (-not $runtime) { $runtime = Get-ChildItem 'C:\Program Files\Microsoft\EdgeWebView\Application\*\msedgewebview2.exe' -ErrorAction SilentlyContinue }
+          if (-not $runtime) { throw 'WebView2 Runtime missing. Install from https://developer.microsoft.com/microsoft-edge/webview2/; no fallback renderer is permitted.' }
+          if (-not (Test-Path 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe')) { throw 'Official Inno Setup 6 is required on the runner' }
+      - name: Install pinned build inputs
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r desktop/requirements-windows.txt
+          python -m pip install -e .
+      - name: Windows contracts and real local integration tests
+        run: python -m unittest tests.test_windows_packaging tests.test_credentials_windows tests.test_memory_inheritance tests.test_agent_memory_client tests.test_product_memory_context tests.test_memory_portability_ui -v
+      - name: Build GUI, console adapters, native smoke and installer
+        run: python scripts/build_windows.py
+      - name: Install into disposable folder and verify installed executables
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist/release/LoveHouse-Setup-*-Windows-x64.exe | Select-Object -First 1
+          $target = Join-Path $env:RUNNER_TEMP 'LoveHouseInstalled'
+          $process = Start-Process $setup.FullName -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$target") -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
+          if (-not (Test-Path "$target\bridge\LoveHouseBridge.exe")) { throw 'Console bridge missing from installed app' }
+          $report = Join-Path $env:RUNNER_TEMP 'installed-backend.json'
+          $process = Start-Process "$target\LoveHouse.exe" -ArgumentList @('--backend-smoke','--report',"`"$report`"") -PassThru -Wait
+          if ($process.ExitCode -ne 0 -or -not (Test-Path $report)) { throw 'Installed backend smoke failed' }
+          if (-not (Get-Content $report | ConvertFrom-Json).ok) { throw 'Installed backend report is not success' }
+          $native = Join-Path $env:RUNNER_TEMP 'installed-native.json'
+          $process = Start-Process "$target\LoveHouse.exe" -ArgumentList @('--smoke-test','--report',"`"$native`"") -PassThru -Wait
+          if ($process.ExitCode -ne 0 -or -not (Test-Path $native)) { throw 'Installed native smoke failed' }
+          if (-not (Get-Content $native | ConvertFrom-Json).ok) { throw 'Installed native report is not success' }
+          Copy-Item $report build/windows/reports/installed-backend.json
+          Copy-Item $native build/windows/reports/installed-native.json
+      - name: Upload tested Windows installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: love-house-windows-x64
+          path: |
+            dist/release/*Windows-x64.exe
+            dist/release/*Windows-x64.zip
+            dist/release/Windows-SHA256SUMS.txt
+          if-no-files-found: error
+      - name: Preserve disposable test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-test-evidence
+          path: build/windows/reports/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  publish:
+    needs: windows
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.publish)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: love-house-windows-x64
+          path: windows-release
+      - name: Attach verified Windows assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.5.0' }}
+        shell: bash
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            printf '%s\n' '爱之屋公开下载版本。项目原创代码仅限非商用；第三方组件遵守各自许可证。Windows 安装包通过原生 WebView2、MCP、分享导入导出和安装后测试。' > release-notes.txt
+            gh release create "$RELEASE_TAG" --title "爱之屋 ${RELEASE_TAG#v}" --notes-file release-notes.txt --target "$GITHUB_SHA"
+          fi
+          gh release upload "$RELEASE_TAG" windows-release/* --clobber

@@ -1,0 +1,43 @@
+{
+  "columns" : 5,
+  "crops" : {
+    "files" : {
+      "column" : 1,
+      "rect" : [
+        318,
+        842,
+        215,
+        215
+      ],
+      "row" : 3,
+      "size" : 215
+    },
+    "fit" : {
+      "column" : 0,
+      "rect" : [
+        31,
+        842,
+        227,
+        227
+      ],
+      "row" : 3,
+      "size" : 227
+    },
+    "refresh" : {
+      "column" : 4,
+      "rect" : [
+        1158,
+        339,
+        202,
+        202
+      ],
+      "row" : 1,
+      "size" : 202
+    }
+  },
+  "height" : 1122,
+  "operation" : "crop only, original pixels preserved",
+  "rows" : 4,
+  "source" : "assets\/ui\/pixel-icons-generated.png",
+  "width" : 1402
+}

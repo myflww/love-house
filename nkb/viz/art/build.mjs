@@ -1,0 +1,11 @@
+import {build} from 'esbuild';
+import {readFile,writeFile} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+const dir=path.dirname(fileURLToPath(import.meta.url));
+await build({entryPoints:[path.join(dir,'neural-art.js')],outfile:path.join(dir,'neural-art.bundle.js'),bundle:true,minify:true,format:'iife',target:'es2020',legalComments:'none'});
+const license=await readFile(path.join(dir,'node_modules/three/LICENSE'),'utf8');
+const out=path.join(dir,'neural-art.bundle.js');
+const digitalLicense=await readFile(path.join(dir,'LICENSE.digital-brain'),'utf8');
+await writeFile(out,'/*! Three.js — MIT License\n'+license.replaceAll('*/','* /')+'\n*/\n/*! Digital-Brain, adapted from commit 366cf81dad855ea238dec170fcc65579d6d9ba4b\n'+digitalLicense.replaceAll('*/','* /')+'\n*/\n'+await readFile(out,'utf8'));
+console.log('Built local NeuralArt bundle with Three.js license.');

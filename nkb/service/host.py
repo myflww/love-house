@@ -55,6 +55,8 @@ class MemoryHost:
         from .share_summary import ReadingSummaryService
         self.sharing=ShareStore(self)
         self.share_summaries=ReadingSummaryService(self)
+        from .updates import UpdateChecker
+        self.updates=UpdateChecker(self.root)
         self.worker=threading.Thread(target=self._retry,daemon=True);self.worker.start()
         self.organizer.start()
     def port_for(self,library_id):
@@ -180,6 +182,24 @@ class MemoryHost:
         functions={'bootstrap':memory_bootstrap,'list':memory_catalog,'read':memory_read}
         if action not in functions:raise ValidationError('未知记忆读取方式')
         return functions[action](Brain(self.snapshot(library_id)),library_id,meta['name'],**args)
+    def window_handoff(self,library_id,data):
+        from ..core.brain import Brain
+        from ..companion.handoff import window_handoff
+        if set(data)-{'profile'}:raise ValidationError('记忆包只接受 S/M/L 大小，不接受其他存档参数')
+        meta=self.library(library_id)
+        return window_handoff(Brain(self.snapshot(library_id)),library_id,meta['name'],profile=data.get('profile','M'))
+    def dialogue_import(self,library_id,data,*,apply=False):
+        from ..core.brain import Brain
+        from ..ingest.dialogues import plan_dialogues,import_dialogues
+        allowed={'content','name','format','confirm','expected_fingerprint'} if apply else {'content','name','format'}
+        if set(data)-allowed:raise ValidationError('聊天导入含未声明参数')
+        if self.library(library_id)['is_demo']:raise ValidationError('示例库不能导入聊天记录')
+        args={key:data[key] for key in ('content','name','format') if key in data}
+        args.setdefault('content',None)
+        if apply:
+            return self.transact(library_id,lambda brain:import_dialogues(brain,**args,
+                confirm=data.get('confirm'),expected_fingerprint=data.get('expected_fingerprint')))
+        return plan_dialogues(Brain(self.snapshot(library_id)),**args)
     def enqueue_nodes(self,library_id,node_ids):
         from ..core.brain import Brain
         from ..companion.dedup import canonical_id,is_duplicate
@@ -479,6 +499,7 @@ class MemoryHost:
             self.process_pending()
             self.drain_agent_outboxes()
     def stop(self):
+        self.updates.stop()
         self.stopping.set();self.organizer.stop();self.worker.join(timeout=5)
         with self._lock:
             for server in self._servers.values():server.shutdown();server.server_close()
@@ -560,6 +581,9 @@ def make_controller(host):
                     from ..viz.builder import html_for_serve
                     return self._html(html_for_serve())
                 if path=='/api/health':return self._json({'ok':True,'name':'爱之屋记忆服务','version':__version__,'protocol_version':'0.4.0','mode':'storage'})
+                if path=='/api/updates':
+                    host.updates.start()
+                    return self._json(host.updates.status())
                 if path=='/api/memory/status':
                     lib=host.library(self._chosen())
                     return self._json({'memory_connected':True,'storage':'local','mode':'memory_service',
@@ -622,7 +646,12 @@ def make_controller(host):
                     return self._json(result)
                 if self.headers.get('Authorization') or self.headers.get('X-NKB-Connection-Key'):
                     raise RequestError('记忆连接只接受绑定工具和事件请求',403)
-                data=self._body(limit=130*1024*1024 if path in ('/api/sharing/import-preview','/api/sharing/import') else 1024*1024)
+                data=self._body(limit=130*1024*1024 if path in ('/api/sharing/import-preview','/api/sharing/import') else 25*1024*1024 if path in ('/api/dialogue-import/preview','/api/dialogue-import/apply') else 1024*1024)
+                if path=='/api/memory/handoff':return self._json(host.window_handoff(self._chosen(),data))
+                if path in ('/api/dialogue-import/preview','/api/dialogue-import/apply'):
+                    return self._json(host.dialogue_import(self._chosen(),data,apply=path.endswith('/apply')))
+                if path=='/api/updates/check':return self._json(host.updates.request_check())
+                if path=='/api/updates/settings':return self._json(host.updates.settings(data))
                 if path=='/api/sharing/preview':
                     lib=self._chosen();preview=host.sharing.preview(lib)
                     provider=host.organizer_view(lib)['provider']

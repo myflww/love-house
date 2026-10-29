@@ -125,7 +125,7 @@ def _source_refs(brain, node, atom, stamp):
         # Directly entered/archived material has itself as its source. Explicit
         # confirmation remains separate from what role the original material had.
         ref = {"id": node["id"], "role": _role(node),
-               "source_event_at": _number(node.get("event_at", node.get("created")))}
+               "source_event_at": None if meta.get("source_time_unknown") else _number(node.get("event_at", node.get("created")))}
         receipt = _dict(meta.get("evidence")).get("archive_receipt_id")
         if isinstance(receipt, str) and receipt:
             if receipt in brain.meta.get("memory_tombstones", {}).get("raw_ids", []):
@@ -228,7 +228,7 @@ def _record(brain, node, stamp, library_id):
               "subject": subject, "predicate": predicate, "value": value, "qualifiers": qualifiers,
               "epistemic_status": status, "interpretation": interpretation,
               "domain": domain, "certainty": certainty, "relation_status": relation_status,
-              "source_time": _number((atom or {}).get("event_at", node.get("event_at", node.get("created")))),
+              "source_time": None if meta.get("source_time_unknown") else _number((atom or {}).get("event_at", node.get("event_at", node.get("created")))),
               "recorded_at": _number(node.get("created")),
               "validity": {"active": True, "valid_from": _number(node.get("valid_from", node.get("created"))),
                            "valid_to": _number(node.get("valid_to")), "superseded_by": None},

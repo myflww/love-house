@@ -126,6 +126,8 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         menu.addItem(app)
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "关于爱之屋", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        let update = appMenu.addItem(withTitle: "检查更新…", action: #selector(checkForUpdates), keyEquivalent: "")
+        update.target = self
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "退出爱之屋", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         app.submenu = appMenu
@@ -206,6 +208,10 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         if let url = serviceURL { webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)) }
         else { startServer() }
     }
+
+    @objc private func checkForUpdates() {
+        webView.evaluateJavaScript("window.LoveHouseUpdates?.check()")
+    }
     @objc private func fitGraph() {
         webView.evaluateJavaScript("document.getElementById('clearFocus')?.click(); document.getElementById('fitBtn')?.click();", completionHandler: nil)
     }
@@ -232,6 +238,13 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         do {
             try files.createDirectory(at: dataURL, withIntermediateDirectories: true,
                                       attributes: [.posixPermissions: 0o700])
+            if smokeMode {
+                // Native acceptance never calls GitHub, a model or real user data.
+                let updatePreferences = dataURL.appendingPathComponent("updates.json")
+                if !files.fileExists(atPath: updatePreferences.path) {
+                    try Data("{\"auto_check\":false,\"channel\":\"stable\"}".utf8).write(to: updatePreferences, options: .atomic)
+                }
+            }
             let runtime = dataURL.appendingPathComponent(".runtime", isDirectory: true)
             try files.createDirectory(at: runtime, withIntermediateDirectories: true,
                                       attributes: [.posixPermissions: 0o700])
@@ -439,6 +452,23 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                 let organizerPreview = try await smokeRequest("api/organizer/preview", method: "POST", payload: [:])
                 try requireSmoke(organizerPreview["will_call_model"] as? Bool == false, "Organizer preview attempted a model call")
                 print("Native organizer: real panel opens, starts disabled, preview performs no model call")
+                let newUI = try await webView.callAsyncJavaScript(
+                    "return {importChat:!!document.getElementById('dialogueImportBtn'),handoff:!!document.getElementById('windowHandoffBtn'),updates:!!document.getElementById('checkForUpdates')};",
+                    arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                try requireSmoke(newUI?["importChat"] as? Bool == true && newUI?["handoff"] as? Bool == true && newUI?["updates"] as? Bool == true, "New desktop controls are missing")
+                let updates = try await smokeRequest("api/updates")
+                try requireSmoke(updates["auto_install"] as? Bool == false && (updates["settings"] as? [String: Any])?["auto_check"] as? Bool == false, "Isolated update preferences did not prevent network checks")
+                let rescue = try await smokeRequest("api/libraries", method: "POST", payload: ["name":"原生聊天导入自检库"])
+                let rescueID = (rescue["library"] as? [String: Any])?["id"] as? String ?? ""
+                try requireSmoke(!rescueID.isEmpty, "Historical import test library missing")
+                let oldChat = "[{\"role\":\"user\",\"content\":\"旧窗口的测试约定\"},{\"role\":\"assistant\",\"content\":\"保留这段测试原文\"}]"
+                let chatPreview = try await smokeRequest("api/dialogue-import/preview", method: "POST", payload: ["content": oldChat], libraryID: rescueID)
+                try requireSmoke(chatPreview["read_only"] as? Bool == true && chatPreview["added"] as? Int == 1, "Historical chat preview failed")
+                let chatImport = try await smokeRequest("api/dialogue-import/apply", method: "POST", payload: ["content": oldChat, "confirm": true, "expected_fingerprint": chatPreview["fingerprint"] as? String ?? ""], libraryID: rescueID)
+                try requireSmoke(chatImport["saved"] as? Bool == true && chatImport["added"] as? Int == 1, "Historical chat was not saved")
+                let handoff = try await smokeRequest("api/memory/handoff", method: "POST", payload: ["profile":"S"], libraryID: rescueID)
+                try requireSmoke(handoff["read_only"] as? Bool == true && handoff["automatic_recording"] as? Bool == false && (handoff["text"] as? String ?? "").contains("旧窗口的测试约定"), "Bounded new-window packet failed")
+                print("Native 0.6: historical chat preview/import, scoped handoff and update controls verified; no model or release-network calls")
                 let a = try await smokeRequest("api/libraries", method: "POST", payload: ["name": "原生自检库甲"])
                 let b = try await smokeRequest("api/libraries", method: "POST", payload: ["name": "原生自检库乙"])
                 smokeLibraryA = (a["library"] as? [String: Any])?["id"] as? String ?? ""
@@ -549,9 +579,9 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
             return
         }
         let panel = NSOpenPanel()
-        panel.title = "选择要导入的笔记或记忆分享包"
+        panel.title = "选择聊天记录、笔记或记忆分享包"
         panel.message = "只读取你在此明确选择的文件，不扫描其他文件或文件夹。"
-        panel.prompt = "选择笔记"
+        panel.prompt = "选择文件"
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = parameters.allowsMultipleSelection

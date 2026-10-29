@@ -20,6 +20,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from .. import render
 from ..core.brain import Brain
+from ..core.transaction import rollback_guard
 from ..errors import NotFound, ValidationError
 from ..viz import builder as viz
 from ..ingest.notes import import_notes, plan_notes
@@ -84,6 +85,22 @@ def _unique_object(pairs):
         if key in result:
             raise ValueError("duplicate JSON key")
         result[key] = value
+    return result
+
+
+def _response_snapshot(value):
+    """Detach and validate the response before the corresponding save commits.
+
+    JSON serialization and UTF-8 encoding can fail even after deepcopy succeeds
+    (sets, NaN, unsupported objects or lone surrogates).  A socket failure after
+    a valid committed response remains an acknowledgement/retry issue; this
+    check deliberately does not include network output in the transaction.
+    """
+    result = copy.deepcopy(value)
+    try:
+        json.dumps(result, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except (ValueError, TypeError, OverflowError, UnicodeError, RecursionError):
+        raise ValidationError("返回资料无法编码为完整 JSON，本次改动未保存") from None
     return result
 
 
@@ -530,20 +547,20 @@ def make_handler(brain: Brain):
                 while len(replies) > 16:
                     replies.pop(next(iter(replies)))
                 with operation_lock:
-                    fields = ("nodes", "edges", "meta", "_vec")
-                    before = {k: copy.deepcopy(getattr(brain, k)) for k in fields}
                     try:
-                        record_turn(brain, message, reply, session, request)
-                        brain.nodes[nid]["meta"].update(provider="deepseek", model=model,
-                                                       context_memory_ids=list(context["memory_ids"]))
-                        brain.persist()
+                        with rollback_guard(brain) as guard:
+                            record_turn(brain, message, reply, session, request)
+                            brain.nodes[nid]["meta"].update(provider="deepseek", model=model,
+                                                           context_memory_ids=list(context["memory_ids"]))
+                            response = _response_snapshot({"id": nid, "reply": reply, "saved": True,
+                                "memory_ids": context["memory_ids"], "context": context})
+                            guard.persist()
+                    except ValidationError:
+                        raise
                     except Exception:
-                        for k,v in before.items():
-                            setattr(brain, k, v)
                         return {"reply": reply, "saved": False, "memory_ids": context["memory_ids"],
                                 "context": context, "warning": "回复已收到，但本地保存失败。重试相同请求可补存，不会再次调用模型。"}
-                return {"id": nid, "reply": reply, "saved": True,
-                        "memory_ids": context["memory_ids"], "context": context}
+                return response
 
         def _harness_context(self, data):
             query = _text(data, "query", required=True, limit=40000)
@@ -586,18 +603,12 @@ def make_handler(brain: Brain):
                     # Atomic file replacement protects the old disk state. Keep
                     # the in-memory graph equally consistent if an operation or
                     # persistence fails, so a failed write cannot appear later.
-                    fields = ("nodes", "edges", "meta", "_vec")
-                    before = ({key: copy.deepcopy(getattr(brain, key)) for key in fields}
-                              if mutates else None)
-                    try:
+                    if mutates:
+                        with rollback_guard(brain) as guard:
+                            result = _response_snapshot(self._route_post(parsed.path, data))
+                            guard.persist()
+                    else:
                         result = copy.deepcopy(self._route_post(parsed.path, data))
-                        if mutates:
-                            brain.persist()
-                    except Exception:
-                        if before is not None:
-                            for key, value in before.items():
-                                setattr(brain, key, value)
-                        raise
                 return self._json(result)
             except RequestError as exc:
                 return self._json({"error": str(exc)}, exc.status)
@@ -634,16 +645,10 @@ def make_handler(brain: Brain):
             return copy.deepcopy(brain.to_dict())
     def transaction(callback):
         with operation_lock:
-            fields = ("nodes", "edges", "meta", "_vec", "name", "config", "half_life")
-            before = {key: copy.deepcopy(getattr(brain, key)) for key in fields}
-            try:
-                result = callback(brain)
-                brain.persist()
-                return copy.deepcopy(result)
-            except Exception:
-                for key, value in before.items():
-                    setattr(brain, key, value)
-                raise
+            with rollback_guard(brain) as guard:
+                result = _response_snapshot(callback(brain))
+                guard.persist()
+                return result
     Handler.memory_snapshot = staticmethod(snapshot)
     Handler.memory_transaction = staticmethod(transaction)
     return Handler

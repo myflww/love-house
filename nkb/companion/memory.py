@@ -89,7 +89,8 @@ def turn_id(session_id: str, request_id: str) -> str:
 
 def record_turn(brain: Brain, user: str, assistant: str, session_id: str, request_id: str, *,
                 origin: str = "manual_record", external_session_id: str | None = None,
-                source_event_id: str | None = None, connection_id: str | None = None) -> str:
+                source_event_id: str | None = None, connection_id: str | None = None,
+                _defer_recording_annotation: bool = False) -> str:
     """每轮仅创建一个普通 episode：text 保留用户原文，助手回复单独存放。
 
     request_id 在同一会话、记录保留期间幂等；同ID不同内容明确拒绝。
@@ -119,7 +120,10 @@ def record_turn(brain: Brain, user: str, assistant: str, session_id: str, reques
                                            "turn_hash": content_hash, "speaker": "user",
                                            "assistant_reply": assistant,
                                            "roles": {"text": "user", "assistant_reply": "assistant"}})
-    annotate_turn_recording(brain,nid,**provenance)
+    # Passive ingestion supplies its archive receipt before doing this once.
+    # Direct/manual callers keep the same complete annotation path.
+    if not _defer_recording_annotation:
+        annotate_turn_recording(brain,nid,**provenance)
     return nid
 
 

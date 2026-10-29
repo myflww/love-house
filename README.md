@@ -16,6 +16,10 @@
 
 ---
 
+## 本分支：macOS 0.6.0
+
+新增历史聊天抢救导入、小/中/大记忆包、低风险性能优化与自动版本检测。macOS 本机候选已验证；Windows 与手机版继续使用下方各自已发布版本，其他系统同步说明见 [0.6.0 交接](docs/MACOS-060-HANDOFF.md)，取舍与测量见 [建议复核](docs/KIMI-REVIEW-20261030.md)。本分支源码不代表其他系统已完成 0.6.0 验收。
+
 ## 你的 Agent，有自己的存档
 
 爱之屋是独立的记忆软件。聊天模型由你自己的 Agent 宿主管理，爱之屋负责接收真实对话与操作结果、保存来源、调用你指定的模型整理，并在需要时返回相关记忆。
@@ -178,3 +182,4 @@ python3.12 scripts/build_macos.py --native-smoke
 Created by [myflww](https://github.com/myflww) · 非商用 · 保留署名
 
 </div>
+

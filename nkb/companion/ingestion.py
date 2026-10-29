@@ -8,6 +8,7 @@ import re
 from urllib.parse import urlsplit
 
 from ..errors import ValidationError
+from ..core.transaction import rollback_guard
 from .memory import MAX_TEXT, _text, record_turn, turn_id
 from .persona import import_persona, learn_from_dialogue, persona_state, propose_persona
 
@@ -43,13 +44,8 @@ def _url(value):
 
 
 def ingest_event(brain, event):
-    before = {key: deepcopy(getattr(brain, key)) for key in ("nodes", "edges", "meta", "_vec")}
-    try:
+    with rollback_guard(brain):
         return _ingest_event(brain, event)
-    except Exception:
-        for key, value in before.items():
-            setattr(brain, key, value)
-        raise
 
 
 def _ingest_event(brain, event):
@@ -163,7 +159,8 @@ def _ingest_event(brain, event):
                 "duplicate": True, "session_id": session,"persona_revision": old["meta"].get("persona_revision")}
     if kind == "turn":
         record_turn(brain, user, assistant, session, request, origin=source["origin"],
-                    external_session_id=proof_session,source_event_id=proof_event,connection_id=connection)
+                    external_session_id=proof_session,source_event_id=proof_event,connection_id=connection,
+                    _defer_recording_annotation=True)
         node = brain.nodes[nid]
         node["meta"].update(connection_id=connection, external_session_id=proof_session, external_transport_session_id=external_session,
                             external_turn_id=request, origin=source["origin"], ingest_hash=digest)
@@ -172,7 +169,8 @@ def _ingest_event(brain, event):
         if "evidence" in draft:
             node["meta"]["evidence"] = draft["evidence"]
         from .dedup import annotate_turn_recording,canonical_id
-        dedup=annotate_turn_recording(brain,nid)
+        dedup=annotate_turn_recording(brain,nid,origin=source["origin"],
+             external_session_id=proof_session,source_event_id=proof_event,connection_id=connection)
         canonical=canonical_id(brain,nid)
         lines = user.strip().splitlines()
         match = _IMPORT.fullmatch(lines[0]) if lines else None

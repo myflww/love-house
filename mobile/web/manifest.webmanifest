@@ -1,0 +1,15 @@
+{
+  "id": "./",
+  "name": "爱之屋 · 随身记忆",
+  "short_name": "爱之屋",
+  "description": "在设备本地保存、检索与迁移记忆。无需电脑常开。",
+  "lang": "zh-CN",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fff8ed",
+  "theme_color": "#fff8ed",
+  "icons": [
+    {"src": "assets/love-house-icon.png", "sizes": "1254x1254", "type": "image/png", "purpose": "any"}
+  ]
+}

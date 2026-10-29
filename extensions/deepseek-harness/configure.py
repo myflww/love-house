@@ -39,6 +39,7 @@ def _legacy_entries(profile):
                 end += 1
             block = "\n".join(lines[index:end])
             logical = re.sub(r"\\\r?\n[ \t]*", "", block)  # YAML double-quoted line continuation
+            logical = logical.replace("\\", "/")  # Recognition only; retain raw config and returned paths.
             server = re.search(r"['\"]?serverName['\"]?\s*:\s*['\"]?([A-Za-z0-9_-]{1,32})", block)
             identity = re.search(r"(?m)^\s*(?:-\s+)?id\s*:\s*['\"]?([A-Za-z0-9_.:-]+)['\"]?\s*(?:#.*)?$", block)
             if ("@deepseek-ai/dsh-mcp-client" in block and server and identity and

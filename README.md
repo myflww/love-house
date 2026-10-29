@@ -7,7 +7,7 @@
 你在原来的客户端聊天，爱之屋替它保存、整理和找回记忆。  
 换一个窗口、换一个模型，也可以接着使用同一个存档。
 
-[**下载安装**](https://github.com/myflww/love-house/releases/latest) · [第一次连接](#三步连接) · [存档迁移](#带着记忆去新窗口) · [许可与署名](#使用许可与署名)
+[**按系统下载安装**](#下载) · [第一次连接](#三步连接) · [存档迁移](#带着记忆去新窗口) · [许可与署名](#使用许可与署名)
 
 **公开下载 · 非商业使用 · 保留作者署名**  
 作者：[myflww](https://github.com/myflww) · 许可：[PolyForm Noncommercial 1.0.0](LICENSE)
@@ -46,19 +46,22 @@
 
 ## 下载
 
-请到 [Releases 下载页](https://github.com/myflww/love-house/releases/latest) 选择与你设备对应的文件，并核对随附的 `SHA256SUMS.txt`。
+**macOS 稳定版为 0.5.0；Windows 推荐下载 0.5.1rc1 修复预览。请按系统和芯片选包。**
 
-| 设备 | 选择的安装包 | 说明 |
+| 你的系统 | 版本与下载 | 使用要求与验证状态 |
 |---|---|---|
-| macOS · Apple 芯片 | `LoveHouse-…-macOS-arm64.zip` | 解压后将“爱之屋.app”放进应用目录；macOS 13 或更新版本 |
-| Windows · 64 位 | `LoveHouse-Setup-…-Windows-x64.exe` | 按用户安装，无需自己安装 Python 或 Node；需要系统 WebView2，缺少时启动会说明并给出微软官方安装入口 |
-| 开发者 / 其他平台 | Source code | Python 3.11+ 可运行本地记忆服务；图形桌面包按上表提供 |
+| Windows x64 · Intel / AMD 64 位 | [安装版 EXE](https://github.com/myflww/love-house/releases/download/v0.5.1rc1/LoveHouse-Setup-0.5.1rc1-Windows-x64.exe) · [便携版 ZIP](https://github.com/myflww/love-house/releases/download/v0.5.1rc1/LoveHouse-0.5.1rc1-Windows-x64.zip) | 0.5.1rc1 修复预览；技术最低 Win10 2004/19041 或 Win11。Win11 x64 已实测，Win10 待实机验收 |
+| macOS · Apple Silicon（M 系列） | [0.5.0 稳定版 ZIP](https://github.com/myflww/love-house/releases/download/v0.5.0/LoveHouse-0.5.0-macOS-arm64.zip) | macOS 13.0+；解压后把“爱之屋.app”放入应用程序目录 |
+| macOS Intel / Windows ARM64 / Windows 32 位 | 暂无对应原生桌面包 | 当前不承诺这些架构的兼容性 |
+| Linux / 源码开发 | [源码](https://github.com/myflww/love-house) | 暂无 Linux 桌面包；Python 3.11+ 可运行本地服务 |
 
-当前独立分发包尚未使用商业发行证书：macOS 包采用本地签名、未公证，Windows 包未附发行商代码签名。请核对本仓库来源与 SHA256，保留系统安全保护。
+桌面包不需要自行安装 Python 或 Node。Windows 安装版按当前用户安装；便携版须完整解压后打开 `LoveHouse.exe`。新版携带经过微软签名与 SHA256 验证的离线 WebView2 修复组件，缺失时明确询问后安装。
 
-安装包是否可下载以对应 Release 资产为准。Windows 构建通过 Windows CI 验证后才发布；不将源码适配描述为已经实测的安装包。当前不提供 macOS Intel 或 Linux 桌面安装包。
+Windows 使用 [Windows-SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.5.1rc1/Windows-SHA256SUMS.txt)，macOS 使用 [SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.5.0/SHA256SUMS.txt)。GitHub 的自动 Source code 文件不是桌面安装包；旧 Windows 0.5.0 存在启动兼容反馈，请改用上面的修复预览。
 
-本分支的 Windows 修复已增加离线微软运行时修复、启动诊断和单实例保护；实测结果与尚未完成的干净系统验收见 [Windows 验证记录](docs/WINDOWS-VALIDATION.md)。修复包暂用于验收，不覆盖已发布的 0.5.0。
+Windows 修复预览已完成本机与 CI 的安装、原生窗口及公开下载验证；干净系统缺失或损坏 Runtime 的实测仍待完成，因此尚未标为正式稳定版。macOS 保留现有 0.5.0 稳定包。
+
+完整安装步骤、系统/芯片范围、验证结果和 Agent 接入差异见 [下载与系统支持](docs/下载与系统支持.md)。主程序签名状态：macOS 为本地签名、未公证，Windows 未附发行商代码签名；请核对来源与校验值，保留系统安全保护。
 
 ## 三步连接
 

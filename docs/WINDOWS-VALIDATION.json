@@ -125,5 +125,6 @@
     "restricted_policy_and_restart"
   ],
   "real_model_calls": 0,
-  "real_credentials_accessed": false
+  "real_credentials_accessed": false,
+  "record_scope": "Historical local binary validation before 0.5.1rc1; release-specific checks and hashes come from the public release workflow."
 }

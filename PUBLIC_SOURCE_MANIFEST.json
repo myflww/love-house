@@ -13,8 +13,8 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "bytes": 12742,
-      "sha256": "9ac045d1c170ba5d07ed0be06c3bbbada8666e65ac02d0d2f62c18b9b541b1ba"
+      "bytes": 25797,
+      "sha256": "d146b5a87af7e8003c5cc7e3cb23708bdf438e66006a043772589148abd0bde3"
     },
     {
       "path": ".gitignore",
@@ -353,8 +353,8 @@
     },
     {
       "path": "desktop/windows-installer.iss",
-      "bytes": 3604,
-      "sha256": "06c487a5ac80b6030d5c19aab10037de47ed96746d1229edb214ec10a711bcf8"
+      "bytes": 3607,
+      "sha256": "895deb6460fcddc8ddd9531fb1adb1a4df63f8d86d3a2c55c709e8b1cb32c2e0"
     },
     {
       "path": "desktop/windows_app.py",
@@ -382,6 +382,16 @@
       "sha256": "43b22087da77377b42731c5e3aa19150b5a6dadfa5da0bf6616cdb414ad48cd9"
     },
     {
+      "path": "docs/releases/v0.5.0-platform-notes.md",
+      "bytes": 2995,
+      "sha256": "db53b4d31e55c7634d0080713c7c798d13870a157c6533d13eb1086a59a27f59"
+    },
+    {
+      "path": "docs/releases/windows-0.5.1rc1.md",
+      "bytes": 2228,
+      "sha256": "98d180bd78d08334642ff81d1ac35cbfa3b4eb3e0eef1e25d945cf331f56f69f"
+    },
+    {
       "path": "docs/WINDOWS-HANDOFF-CHANGES.json",
       "bytes": 3107,
       "sha256": "01caeb437f83c823631004eb05877768076c00dbc59e3ae95d4e7dd32930e652"
@@ -403,18 +413,23 @@
     },
     {
       "path": "docs/WINDOWS-VALIDATION.json",
-      "bytes": 3044,
-      "sha256": "4969e17fd900d7d46f95cd5b78f33bdc2df10ba775c95d8a93763ec9eda89df4"
+      "bytes": 3191,
+      "sha256": "6a2374cc45c3cd4c4051d282dfb70b374d6ac2c2e62d125e092440b8be588985"
     },
     {
       "path": "docs/WINDOWS-VALIDATION.md",
-      "bytes": 5071,
-      "sha256": "51b99dea40f5a14ab0658071e2a2d3549b5098389fa74c16b10710c6a5dc1f3f"
+      "bytes": 5327,
+      "sha256": "6e8c79803ab8374aaeac5cbb5d306d246a2cf973d0ea9a3ffaef659f2b1473f2"
+    },
+    {
+      "path": "docs/下载与系统支持.md",
+      "bytes": 5416,
+      "sha256": "1ed686cd198d83e86e817e1b1f92cb15f3f85aa15532e38c12af84571635e7cb"
     },
     {
       "path": "docs/发布与许可.md",
-      "bytes": 5615,
-      "sha256": "ee0a3eda1c88be5e02f3a5e89e191009faa1d7a50a17259ce13a4ed76d9a40bb"
+      "bytes": 5463,
+      "sha256": "79e623f90d6384f136e82d00d871462810bd74daa736c293ad391e9f87e578fa"
     },
     {
       "path": "docs/可视化.md",
@@ -613,8 +628,8 @@
     },
     {
       "path": "nkb/_version.py",
-      "bytes": 22,
-      "sha256": "2c12b8ea17aeb6f9f72a6b02aca218bbc4508a46df9e365a8f6c45ad769e0b34"
+      "bytes": 25,
+      "sha256": "2776bec12bee720e482e4a1707d9d1359023e368ab3152c8b9123718f5cc41ca"
     },
     {
       "path": "nkb/adapters/__init__.py",
@@ -1078,8 +1093,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 10964,
-      "sha256": "abee7840a9e1913932a5b73e612288c97a8030dfe4b6e408582118ed2ef5f8b8"
+      "bytes": 11797,
+      "sha256": "5bc01f5ce8b42e0858deb22a2db5f9944a6f806157374076407ce8c815add154"
     },
     {
       "path": "ROADMAP.md",

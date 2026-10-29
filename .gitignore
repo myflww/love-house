@@ -58,3 +58,12 @@ node_modules/
 *.lovehouse.md
 /爱之屋.html
 /知识星图.html
+
+# Android build caches, local SDK paths and private signing identities.
+android/.gradle/
+android/local.properties
+android/key.properties
+android/keystore.properties
+android/signing.properties
+*.jks
+*.keystore

@@ -1,0 +1,100 @@
+name: Verify the exact signed Android release candidate
+
+on:
+  push:
+    branches: [codex/android-preview]
+    paths:
+      - 'android/release-candidate.json'
+      - 'scripts/verify_android_release.py'
+      - 'tests/test_android_release_verification.py'
+      - '.github/workflows/android-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-signed-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [28, 36]
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check whether a signed candidate is available
+        id: candidate
+        run: |
+          if [[ -f android/release-candidate.json ]]; then
+            echo 'present=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'present=false' >> "$GITHUB_OUTPUT"
+            echo 'No public signed APK candidate has been submitted yet.'
+          fi
+      - uses: actions/setup-python@v5
+        if: steps.candidate.outputs.present == 'true'
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        if: steps.candidate.outputs.present == 'true'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Check release verification boundaries and install SDK tools
+        if: steps.candidate.outputs.present == 'true'
+        run: |
+          python -m unittest tests.test_android_release_verification -v
+          sdkmanager 'platform-tools' 'build-tools;36.0.0'
+          python scripts/verify_android_release.py
+      - name: Enable KVM on the disposable Linux runner
+        if: steps.candidate.outputs.present == 'true'
+        run: |
+          test -e /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install the signed release and run real instrumentation
+        if: steps.candidate.outputs.present == 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          force-avd-creation: true
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader -noaudio -no-boot-anim -camera-back none
+          script: python scripts/verify_android_release.py --run-instrumentation --api-level ${{ matrix.api-level }}
+      - name: Preserve the exact validated release APK and evidence
+        if: steps.candidate.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-signed-candidate-api-${{ matrix.api-level }}
+          path: |
+            build/android-release/LoveHouse-0.1.0-preview1-Android.apk
+            build/android-release/verification.json
+            build/android-release/instrumentation.txt
+            build/android-release/android-smoke.png
+          if-no-files-found: error
+          retention-days: 14
+      - name: Preserve failure diagnostics without publishing the test APK
+        if: failure() && steps.candidate.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-failure-api-${{ matrix.api-level }}
+          path: |
+            build/android-release/instrumentation.txt
+            build/android-release/verification.json
+          if-no-files-found: ignore
+          retention-days: 14

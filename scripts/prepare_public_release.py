@@ -18,16 +18,16 @@ ROOT_FILES = frozenset({
     '启动爱之屋.command', '启动知识星图.command', '启动爱之屋Windows.cmd',
 })
 ROOT_DIRS = frozenset({'.github', 'nkb', 'desktop', 'extensions', 'scripts',
-                      'tests', 'examples', 'assets', 'docs'})
+                      'tests', 'examples', 'assets', 'docs', 'android', 'mobile'})
 EXCLUDED_PARTS = frozenset({'.git', 'node_modules', '__pycache__', '.pytest_cache',
     '.mypy_cache', '.ruff_cache', '.venv', 'venv', 'env', 'reports', 'outputs',
     'references', '.runtime', '.DS_Store'})
 TEXT_SUFFIXES = frozenset({'.py', '.js', '.mjs', '.cjs', '.ts', '.json', '.toml',
     '.md', '.txt', '.html', '.css', '.yaml', '.yml', '.swift', '.plist', '.command',
-    '.svg', '.iss', '.spec', '.ps1', '.cmd', '.bat', '.sh', '.rc', '.manifest'})
+    '.svg', '.iss', '.spec', '.ps1', '.cmd', '.bat', '.sh', '.rc', '.manifest', '.webmanifest'})
 BINARY_SUFFIXES = frozenset({'.png', '.woff2', '.ico'})
 PRIVATE_SUFFIXES = ('.brain.json', '.sqlite3', '.sqlite3-wal', '.sqlite3-shm',
-                    '.pem', '.p12', '.key', '.keychain', '.keychain-db')
+                    '.pem', '.p12', '.pfx', '.key', '.keychain', '.keychain-db', '.jks', '.keystore')
 PRIVATE_NAMES = frozenset({'brain.json', 'graph.json', 'connections.json',
     'libraries.json', 'providers.json', '.env', '.env.local', 'id_rsa',
     'id_ed25519', 'capture.sqlite3', 'organizer.sqlite3'})
@@ -89,6 +89,20 @@ def is_allowed(relative: Path) -> bool:
         return relative.name in ROOT_FILES
     if parts[0] not in ROOT_DIRS:
         return False
+    if parts[0] in {'android', 'mobile'}:
+        if any(part in {'build', '.gradle', '.cxx', '.kotlin', 'captures'} for part in parts):
+            return False
+        if relative.name in {'local.properties', 'key.properties', 'keystore.properties', 'signing.properties'}:
+            return False
+    if parts[:5] == ('android', 'app', 'src', 'main', 'assets'):
+        return False  # Runtime assets come only from the reviewed generated bundle.
+    if parts[:2] == ('mobile', 'web'):
+        return (relative.suffix in {'.html', '.css', '.js', '.mjs', '.svg', '.png', '.woff2', '.webmanifest'}
+                or parts == ('mobile', 'web', 'assets', 'ark-pixel-OFL.txt')
+                or relative.name in {'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md'}
+                or relative.name.startswith('LICENSE.'))
+    if parts[0] == 'android' and relative.suffix in {'.java', '.xml', '.gradle', '.properties', '.pro'}:
+        return True
     if parts[0] == 'docs' and len(parts) > 1 and parts[1] == 'assets':
         return False  # Historical screenshots were never approved public assets.
     if parts[0] == 'extensions' and parts[1] != 'deepseek-harness':
@@ -116,8 +130,13 @@ def scan_bytes(relative: Path, content: bytes, *, home: Path | None = None) -> l
         findings.append({'path': relative.as_posix(), 'line': 0, 'category': 'unsafe-svg'})
     patterns = list(SECRET_PATTERNS)
     home = home or Path.home()
-    if str(home) not in ('/', '.', ''):
-        patterns.append(('developer-home-path', re.compile(re.escape(str(home)) + r'(?:/|\\)')))
+    # Scan native, POSIX and escaped Windows spellings consistently on every OS.
+    normalized_home = str(home).replace('\\', '/').rstrip('/')
+    if normalized_home not in ('', '.') and not re.fullmatch(r'[A-Za-z]:', normalized_home):
+        separator = r'(?:/|\\+)'
+        home_pattern = separator.join(re.escape(part) for part in normalized_home.split('/'))
+        flags = re.I if re.match(r'^[A-Za-z]:/', normalized_home) or normalized_home.startswith('//') else 0
+        patterns.append(('developer-home-path', re.compile(home_pattern + r'(?=$|[/\\\s\'"<>])', flags)))
     for category, pattern in patterns:
         for match in pattern.finditer(text):
             if category in {'model-key', 'github-token'} and EXAMPLE_VALUE.search(match.group()):

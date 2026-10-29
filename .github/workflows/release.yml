@@ -7,6 +7,7 @@ on:
     paths:
       - 'nkb/**'
       - 'desktop/**'
+      - 'tests/**'
       - 'scripts/build_windows.py'
       - '.github/workflows/release.yml'
       - '.gitattributes'

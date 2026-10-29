@@ -1,3 +1,4 @@
+from contextlib import closing
 """Automatic tool observation is not proof of a completed dialogue capture."""
 import hashlib
 import json
@@ -84,7 +85,7 @@ class CaptureStatusMigrationTests(unittest.TestCase):
             path=Path(directory)/'capture.sqlite3';payload=json.dumps({'record':{'schema':'deepseek-harness-event/v1',
                  'normalized':{'type':'tool','turn_id':'old-one','text':'旧原文\n保持逐字','outcome':'observed'}}},ensure_ascii=False,indent=2)
             digest=hashlib.sha256(payload.encode()).hexdigest()
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 db.execute('CREATE TABLE connections(id TEXT PRIMARY KEY,name TEXT,host TEXT,library_id TEXT,session_scope TEXT,token TEXT,enabled INTEGER,revoked INTEGER,created REAL,last_received REAL,archive_status TEXT,error TEXT)')
                 db.execute('INSERT INTO connections VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',('old','旧连接','harness','default','connection','FAKE-token',1,0,1,2,'automatic_connected',None))
                 db.execute('CREATE TABLE receipts(id TEXT PRIMARY KEY,connection_id TEXT,library_id TEXT,session_id TEXT,kind TEXT,status TEXT,payload TEXT,payload_hash TEXT,received REAL,attempts INTEGER DEFAULT 0,error TEXT,applied REAL,node_ids TEXT)')
@@ -93,7 +94,7 @@ class CaptureStatusMigrationTests(unittest.TestCase):
             self.assertEqual(state['archive_status'],'observations_only')
             self.assertEqual(state['capture']['automatic_dialogues_saved'],0)
             self.assertEqual(state['capture']['automatic_tool_observations_saved'],1)
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 self.assertEqual(db.execute('SELECT payload,payload_hash FROM receipts').fetchone(),(payload,digest))
             store=ConnectionStore(directory)
             self.assertEqual(store.get('old')['capture'],state['capture'])

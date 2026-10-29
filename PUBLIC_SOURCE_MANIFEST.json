@@ -13,8 +13,8 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "bytes": 6687,
-      "sha256": "f26c19b968486cf26571e474e341b58dfc4d7811ab56b7489012135d2a3bf82d"
+      "bytes": 6706,
+      "sha256": "4cbf2f15392cd7922963734384f3f2bd35f299d03b6332ad6b2e6db2ebb33287"
     },
     {
       "path": ".gitignore",
@@ -1138,8 +1138,8 @@
     },
     {
       "path": "tests/test_capture_status.py",
-      "bytes": 8019,
-      "sha256": "8cdc4648b555a7c6ed1407ffe8097d6017526d7b9db180064eda59ad45886af7"
+      "bytes": 8076,
+      "sha256": "96d2bd759e79909255dd85d2598ffaf6459268ab14b082fb9abaf804d335d9ef"
     },
     {
       "path": "tests/test_companion.py",

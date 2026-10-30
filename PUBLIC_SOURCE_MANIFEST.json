@@ -7,6 +7,11 @@
       "sha256": "887b0d98edef2513bd4fc917a36c635e8f3f81657a8bb2a8d450e43456e947c0"
     },
     {
+      "path": ".github/CODEOWNERS",
+      "bytes": 180,
+      "sha256": "9d58ff7b9658851da8e244f8f7acff46f18dd6e7386815bc57f4671f1c717926"
+    },
+    {
       "path": ".github/workflows/android-release.yml",
       "bytes": 5760,
       "sha256": "94a90d42be7d6453e866f11d68ac47b9af1f1874517e5c3d673f5dd73bff17f9"
@@ -58,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 13662,
-      "sha256": "5dc092801358e2b6d1f653af52969504d82c0f87450a3d4f41db7dfc22aefab9"
+      "bytes": 13893,
+      "sha256": "c3d71e8c1f9fb17283d7fdb66c7eded42cde26b1f470b544e21235fd8e6896c8"
     },
     {
       "path": "ROADMAP.md",
@@ -402,6 +407,11 @@
       "sha256": "c2e28bfa60489e564d0b0352af464e8c3e9d3c6a706eaa97b0a93426ffba913d"
     },
     {
+      "path": "docs/Agent身份与全活动记忆.md",
+      "bytes": 6423,
+      "sha256": "23664fe833ceb67aecb8f35d723444bc928f8c421ac01437ada0e2f4f99cbf7a"
+    },
+    {
       "path": "docs/DeepSeek与Harness接入.md",
       "bytes": 4290,
       "sha256": "43b22087da77377b42731c5e3aa19150b5a6dadfa5da0bf6616cdb414ad48cd9"
@@ -418,13 +428,13 @@
     },
     {
       "path": "docs/MACOS-070-HANDOFF.md",
-      "bytes": 3237,
-      "sha256": "295aee14f24801110b7fdcd948ce8092d124518ded232ab727fd39fa498bae36"
+      "bytes": 3477,
+      "sha256": "cb963b65becdc098181f21ece48fef7ff13b8ca128f880056a713dacbe39e772"
     },
     {
       "path": "docs/QQ-AstrBot-云端接入方案.md",
-      "bytes": 4016,
-      "sha256": "13b3ba4177bec0c15ff7c0ace35a5a151a82005d412487bb3625a60918cd2f4b"
+      "bytes": 4660,
+      "sha256": "230aa000a6cb561ee2afbb3818d97cbc2438f6fc5069dfb2c2653d55aa8a2399"
     },
     {
       "path": "docs/下载与系统支持.md",
@@ -468,8 +478,8 @@
     },
     {
       "path": "docs/爱之屋-目标与验收.md",
-      "bytes": 3560,
-      "sha256": "2c97ceadecb663591584f6060f2d838525e6f79426a74a1e000d1fceb9641f7f"
+      "bytes": 3989,
+      "sha256": "9910bea5bd9417735ebf53120f0a3e4b2f3bdef38a2353d705b6528e970e702b"
     },
     {
       "path": "docs/能力核对与验收.md",
@@ -1173,8 +1183,8 @@
     },
     {
       "path": "scripts/prepare_public_release.py",
-      "bytes": 13044,
-      "sha256": "056f48108217b2533c9ab8c197b19279f5739ce680c405a0afa897977d63da3b"
+      "bytes": 13117,
+      "sha256": "c02a399ac20f36b9ac71b7146ede6aad046a6ab16883f456128209af84192c9e"
     },
     {
       "path": "scripts/sync_harness_assets.py",
@@ -1423,8 +1433,8 @@
     },
     {
       "path": "tests/test_public_release.py",
-      "bytes": 7716,
-      "sha256": "459500a68cf1cd1f1433d3cb97d14d2e928f805c4b70ae05865b5b0771799c80"
+      "bytes": 7739,
+      "sha256": "1d7bced4072bf8fc524a11e0f2a248571582d5897abb5009a0eacfb78680ed8b"
     },
     {
       "path": "tests/test_recording_dedup.py",

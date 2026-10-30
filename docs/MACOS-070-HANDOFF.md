@@ -2,6 +2,8 @@
 
 本次承接 0.6.0 的聊天导入、记忆包和版本检测，并落实用户最新定位：个人记忆不因固定条数或统一天数消失，AI 整理服从程序底层规则。
 
+后续接入以 [Agent 身份与全活动记忆](Agent身份与全活动记忆.md) 为准：一条鱼可有多个平台/工具来源，不能按 QQ 会话机械拆库；现有多连接固定库是基础，尚未发布全平台采集器。
+
 分支：`codex/adaptive-memory-retention`。先读 [自适应记忆与整理规则](自适应记忆与整理规则.md)。这是 macOS 先行更新，Windows 与移动端需要在各自最新分支上合并共享改动，并完成原生验证。不要覆盖已发布 Windows 修复或 Android 工程。
 
 新增核心：`companion/retention.py`、`service/usage.py`、`organizer/rules.py`。`config.py` 和 `core/brain.py` 支持个人策略的 `max_nodes=None`，导入、整理、生命周期的旧数值比较均须兼容。普通 CLI 仍保留显式数值容量测试。

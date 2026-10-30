@@ -22,7 +22,7 @@ class PublicReleaseTests(unittest.TestCase):
             p = root / name; p.parent.mkdir(parents=True, exist_ok=True); p.write_text(value)
 
     def test_allowlist_keeps_required_source_and_upstream_terms_but_excludes_user_outputs(self):
-        allowed = ['nkb/core/brain.py', 'nkb/service/harness/dist/configure.js',
+        allowed = ['.github/CODEOWNERS', 'nkb/core/brain.py', 'nkb/service/harness/dist/configure.js',
                    'extensions/deepseek-harness/dist/index.js', 'assets/fonts/ark-pixel-OFL.txt',
                    'assets/ui/toolbar-icons/fit.png', 'NOTICE', 'nkb/viz/art/LICENSE.three']
         denied = ['reports/installed-before.json', 'outputs/rollback/capture.sqlite3',
@@ -114,3 +114,4 @@ class PublicReleaseTests(unittest.TestCase):
 
 
 if __name__ == '__main__': unittest.main()
+

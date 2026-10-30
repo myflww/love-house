@@ -27,6 +27,7 @@ class WindowsPackagingTests(unittest.TestCase):
         command=builder.freeze_command('LoveHouse',ROOT/'desktop/windows_app.py',Path('out'),Path('build'),Path('icon.ico'),console=False)
         self.assertIn('--windowed',command);self.assertNotIn('--console',command)
         self.assertIn('webview.platforms.winforms',command)
+        self.assertIn('plistlib',command);self.assertIn('zipfile',command)
         bridge=builder.freeze_command('LoveHouseBridge',ROOT/'desktop/agent_memory_bridge.py',Path('out'),Path('build'),Path('icon.ico'),console=True)
         self.assertIn('--console',bridge);self.assertNotIn('--windowed',bridge)
         for source,destination in builder.data_files():
@@ -34,6 +35,39 @@ class WindowsPackagingTests(unittest.TestCase):
             self.assertNotIn('data/',str(source.relative_to(ROOT)))
             self.assertNotIn('reports',str(source.relative_to(ROOT)))
             self.assertNotIn('node_modules',str(source.relative_to(ROOT)))
+
+    def test_latest_source_downloads_are_explicit_and_include_the_sdk_integrity_input(self):
+        files=builder.data_files()
+        plugin={(source.name,destination) for source,destination in files if 'astrbot-love-house' in source.parts}
+        allowed={'__init__.py','main.py','bridge.py','source_client.py','metadata.yaml',
+                 '_conf_schema.json','README.md','LICENSE','package.py'}
+        self.assertEqual(plugin,{(name,'extensions/astrbot-love-house') for name in allowed})
+        self.assertIn((ROOT/'nkb/service/source_client.py','nkb/service'),files)
+
+    def test_native_testing_disables_background_update_network_and_publishes_instance_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime=windows.ControllerRuntime(Path(directory)/'data',testing=True).start()
+            try:
+                self.assertFalse(runtime.host.updates.status()['settings']['auto_check'])
+                ready=json.loads(runtime.ready.read_text('utf-8'))
+                self.assertEqual(ready['controller_instance_id'],runtime.host.instance_id)
+                self.assertEqual(runtime.host.retention_view('default')['mode'],'adaptive')
+                self.assertIsNone(runtime.host.snapshot('default')['config']['max_nodes'])
+            finally:runtime.stop()
+
+    def test_smoke_accepts_background_delivery_only_after_exact_bound_roles_exist(self):
+        host=MagicMock()
+        correct={'text':'actual user','meta':{'source':'conversation_turn','assistant_reply':'actual assistant'}}
+        host.snapshot.side_effect=[{'nodes':{}},{'nodes':{'saved':correct}}]
+        with patch.object(windows.time,'sleep'):
+            windows.require_smoke_turn_saved(host,'fixed-library','actual user','actual assistant')
+        self.assertEqual(host.snapshot.call_args_list,[unittest.mock.call('fixed-library'),unittest.mock.call('fixed-library')])
+        for node in ({**correct,'text':'different user'},
+                     {'text':'actual user','meta':{'source':'conversation_turn','assistant_reply':'wrong assistant'}},
+                     {'text':'actual user','meta':{'source':'harness_recorded','assistant_reply':'actual assistant'}}):
+            host.snapshot.side_effect=None;host.snapshot.return_value={'nodes':{'unproven':node}}
+            with patch.object(windows.time,'monotonic',side_effect=[0,11]),self.assertRaises(AssertionError):
+                windows.require_smoke_turn_saved(host,'fixed-library','actual user','actual assistant')
 
     def test_frozen_windows_config_uses_console_exes_and_no_pythonhome_or_token(self):
         from nkb.service.agent_client import make_agent_config

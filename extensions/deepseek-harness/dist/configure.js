@@ -7349,7 +7349,7 @@ import { createHash, randomUUID } from "node:crypto";
 // src/runtime.ts
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-var SUPPORTED_HOSTS = ["0.2.1-rc.3"];
+var SUPPORTED_HOSTS = ["0.2.1-rc.3", "0.2.1-rc.5"];
 var expandHome = (path) => path.startsWith("~/") ? join(homedir(), path.slice(2)) : resolve(path);
 var claimsKey = Symbol.for("neural-knowledge.session-claims.v1");
 var sessionClaims = globalThis[claimsKey] ??= /* @__PURE__ */ new Map();

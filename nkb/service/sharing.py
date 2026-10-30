@@ -376,6 +376,8 @@ class ShareStore:
         brain["meta"]["shared_import"] = {"format": FORMAT, "at": time.time(), "original_name": value["name"], "connections_rebound": False}
         def apply(target):
             loaded = Brain(brain)
+            from ..organizer.experiences import rebind_experiences_after_import
+            rebind_experiences_after_import(loaded,library_id)
             for field in ("nodes", "edges", "meta", "_vec", "name", "config", "half_life"): setattr(target, field, deepcopy(getattr(loaded, field)))
             return {"node_count": len(target.nodes)}
         try:

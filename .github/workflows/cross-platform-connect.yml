@@ -1,0 +1,57 @@
+name: cross-platform real Harness connection
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-host:
+    name: real Harness CLI (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      DSH_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+          cache: npm
+          cache-dependency-path: examples/harness-cli-qa/package-lock.json
+      - name: Install hash-locked official Harness CLI (no install scripts)
+        working-directory: examples/harness-cli-qa
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Fixed identity, source SDK and latest memory feature regression
+        run: >-
+          python -m unittest
+          tests.test_agent_memory_client tests.test_agent_harness_capture
+          tests.test_agent_source_service tests.test_agent_sources
+          tests.test_cloud_service_bootstrap tests.test_retention_service
+          tests.test_dialogue_import_http tests.test_window_handoff
+          tests.test_experience_delivery
+      - name: Real host turns through local synthetic model, both connection modes
+        run: >-
+          python scripts/verify_harness_connection.py
+          --node "$(command -v node)"
+          --cli examples/harness-cli-qa/node_modules/@deepseek-ai/dsh/lib/bin.js
+          --report-dir "outputs/qa/connection-${{ runner.os }}"
+      - name: Preserve synthetic evidence, including explicit failure reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-harness-${{ runner.os }}
+          path: outputs/qa/connection-${{ runner.os }}/
+          if-no-files-found: warn
+          retention-days: 14

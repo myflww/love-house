@@ -4,6 +4,9 @@ import android.accessibilityservice.AccessibilityServiceInfo;
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.app.UiAutomation;
+import android.graphics.Rect;
+import android.view.InputDevice;
+import android.view.MotionEvent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
@@ -197,7 +200,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
                     for (int depth = 0; node != null && depth < 5; depth++) {
                         node.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.getId());
                         if (!"android.webkit.WebView".contentEquals(node.getClassName() == null ? "" : node.getClassName())
-                                && supportsClick(node) && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                                && supportsClick(node) && tapNode(node)) {
                             node.recycle(); return;
                         }
                         AccessibilityNodeInfo parent = node.getParent();
@@ -217,6 +220,25 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
             if (action.getId() == AccessibilityNodeInfo.ACTION_CLICK) return true;
         }
         return false;
+    }
+
+    private boolean tapNode(AccessibilityNodeInfo node) {
+        // Modern WebView can acknowledge ACTION_CLICK without dispatching the
+        // trusted pointer activation used by the page. Exercise a real touch.
+        SystemClock.sleep(120);
+        node.refresh();
+        Rect bounds = new Rect();
+        node.getBoundsInScreen(bounds);
+        if (!node.isVisibleToUser() || bounds.isEmpty() || bounds.centerX() < 0 || bounds.centerY() < 0) return false;
+        long time = SystemClock.uptimeMillis();
+        MotionEvent down = MotionEvent.obtain(time, time, MotionEvent.ACTION_DOWN,
+            bounds.centerX(), bounds.centerY(), 0);
+        MotionEvent up = MotionEvent.obtain(time, time + 40, MotionEvent.ACTION_UP,
+            bounds.centerX(), bounds.centerY(), 0);
+        down.setSource(InputDevice.SOURCE_TOUCHSCREEN);
+        up.setSource(InputDevice.SOURCE_TOUCHSCREEN);
+        try { return automation.injectInputEvent(down, true) && automation.injectInputEvent(up, true); }
+        finally { down.recycle(); up.recycle(); }
     }
 
     private static int clickScore(AccessibilityNodeInfo node) {

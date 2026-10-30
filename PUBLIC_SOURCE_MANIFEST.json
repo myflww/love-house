@@ -62,6 +62,11 @@
       "sha256": "870ba75bb35ac1797aae182ef24dfbd48ab8d9bde4ea8da9113d89bde92bedb4"
     },
     {
+      "path": ".github/workflows/workbuddy-public-download-080rc2.yml",
+      "bytes": 12298,
+      "sha256": "44b799934748ecb9579d1b76adf0244267b4e4ea73f9c2f00c03cc517535add1"
+    },
+    {
       "path": ".gitignore",
       "bytes": 1356,
       "sha256": "c27841c2555fb07cb4421d51b9be0bc5234e62319080236e272c6d0b560c9f95"

@@ -493,8 +493,8 @@
     },
     {
       "path": "docs/真实养鱼验收-20261030.md",
-      "bytes": 3335,
-      "sha256": "387983610279364b760c347ec9862a2c223bcf730a77870b5857bab5440e0ab2"
+      "bytes": 4096,
+      "sha256": "cd9ff3b45aa3f5fa99a402a3265be8785a3f80d2912cb4b4be4460cff1adda42"
     },
     {
       "path": "docs/能力核对与验收.md",
@@ -903,8 +903,8 @@
     },
     {
       "path": "nkb/organizer/rules.py",
-      "bytes": 8517,
-      "sha256": "7c4f0321d678282971b20d97f74fce13e3a302c861d70f3151452fc3204c06c7"
+      "bytes": 11065,
+      "sha256": "6ae290514c9005676f7f0c46256fc50764c1a8d41aaf7292ff3131e3182ffcd0"
     },
     {
       "path": "nkb/organizer/state.py",
@@ -1458,8 +1458,8 @@
     },
     {
       "path": "tests/test_experience_memory.py",
-      "bytes": 24818,
-      "sha256": "5bed1a0a0664cc405dec676b09e67a6906c8b2552a15d648932049e88fe9a83f"
+      "bytes": 24764,
+      "sha256": "6569ac64f593f301749970f2de52fb64525cb9a14b410f1f665df63e22e4e0ee"
     },
     {
       "path": "tests/test_experience_ui.py",
@@ -1681,14 +1681,5 @@
       "bytes": 56,
       "sha256": "01a620523701c6620526a0becb9b268b5e7e10584401427cf6f2005722da879b"
     }
-  ],
-  "excluded": [
-    "user memories",
-    "credentials",
-    "reports",
-    "reference clones",
-    "rollback copies",
-    "historical screenshots",
-    "source maps"
   ]
 }

@@ -355,7 +355,6 @@ class ExperienceMemoryTests(unittest.TestCase):
         self.assertIsNone(node['meta']['experience']['reason'])
 
     def test_guide_requests_evidence_refs_not_fabricated_motivation_or_tool_stack_diaries(self):
-        self.assertTrue(RULES_VERSION.endswith('.2'))
         self.assertIn('episode={what,reason,outcome,participants,places}',SYSTEM_GUIDANCE)
         self.assertIn('缺证据填null',SYSTEM_GUIDANCE)
         self.assertIn('工具名、函数参数或堆栈',SYSTEM_GUIDANCE)

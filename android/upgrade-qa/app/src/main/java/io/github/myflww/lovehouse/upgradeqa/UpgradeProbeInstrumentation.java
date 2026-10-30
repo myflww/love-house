@@ -6,6 +6,7 @@ import android.app.Instrumentation;
 import android.app.UiAutomation;
 import android.graphics.Rect;
 import android.view.InputDevice;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -15,6 +16,7 @@ import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -23,6 +25,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Developer-only UI probe across a real, persistent old-App -> new-App install.
@@ -37,6 +40,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
     private static final String REPLY = "升级前的合成回复：我记得这个约定❤️。";
     private static final String TAGS = "升级验收,只供测试";
     private static final long TIMEOUT = 45000;
+    private static final long NAVIGATION_TIMEOUT = 20000;
     private Bundle arguments;
     private UiAutomation automation;
     private String stage = "arguments";
@@ -119,7 +123,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
     private void seed() throws Exception {
         stage = "seed_editor_click";
         require(!presentText(TITLE, false));
-        clickText("记一段", false);
+        clickUntil("记一段", false, () -> presentText("保存到本机", true));
         stage = "seed_editor_fields";
         // Modern WebViews can expose the real controls before a separate
         // accessibility heading. Four actual inputs are the editor signal.
@@ -136,28 +140,40 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
                 value.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, values[index]);
                 require(field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, value));
             } finally { recycle(fields); }
+            final int fieldIndex = index;
+            waitFor(() -> {
+                List<AccessibilityNodeInfo> current = editorFields();
+                try {
+                    CharSequence entered = current.get(fieldIndex).getText();
+                    return entered != null && values[fieldIndex].contentEquals(entered);
+                }
+                finally { recycle(current); }
+            });
         }
         stage = "seed_commit";
-        clickText("保存到本机", true);
-        waitFor(() -> !presentText("记下一段原话", true) && presentText(TITLE, false));
-        stage = "seed_read_back";
-        openAndCheckRecord();
+        hideKeyboardIfVisible();
+        clickUntil("保存到本机", true, () -> !presentText("记下一段原话", true)
+            && !presentText("保存到本机", true) && presentText(TITLE, false));
+        openAndCheckRecord("seed");
     }
 
     private void verify() throws Exception {
         stage = "upgrade_card_preserved";
         waitFor(() -> presentText(TITLE, false));
-        stage = "upgrade_read_original";
-        openAndCheckRecord();
+        openAndCheckRecord("upgrade");
     }
 
-    private void openAndCheckRecord() throws Exception {
-        clickText(TITLE, false);
-        waitFor(() -> presentText("完整记忆", true));
+    private void openAndCheckRecord(String phase) throws Exception {
+        stage = phase + "_detail_open";
+        clickUntil(TITLE, false, () -> presentText("完整记忆", true));
+        stage = phase + "_original_text";
         waitFor(() -> presentText(TEXT, true));
-        require(presentText(REPLY, true));
-        require(presentText("#升级验收", false));
-        require(presentText("#只供测试", false));
+        stage = phase + "_assistant_reply";
+        waitFor(() -> presentText(REPLY, true));
+        stage = phase + "_tag_upgrade";
+        waitFor(() -> presentText("#升级验收", false));
+        stage = phase + "_tag_test";
+        waitFor(() -> presentText("#只供测试", false));
     }
 
     /** Locate the actual four HTML form fields, excluding the background search box. */
@@ -194,6 +210,29 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
     private void clickText(String text, boolean exact) throws Exception {
         long end = SystemClock.uptimeMillis() + TIMEOUT;
         do {
+            if (tryClickText(text, exact)) return;
+            SystemClock.sleep(100);
+        } while (SystemClock.uptimeMillis() < end);
+        throw new AssertionError();
+    }
+
+    /** A successful injected tap alone never proves that navigation completed. */
+    private void clickUntil(String text, boolean exact, Check completed) throws Exception {
+        long end = SystemClock.uptimeMillis() + NAVIGATION_TIMEOUT;
+        do {
+            if (completed.done()) return;
+            hideKeyboardIfVisible();
+            tryClickText(text, exact);
+            long next = Math.min(end, SystemClock.uptimeMillis() + 1200);
+            do {
+                if (completed.done()) return;
+                SystemClock.sleep(100);
+            } while (SystemClock.uptimeMillis() < next);
+        } while (SystemClock.uptimeMillis() < end);
+        throw new AssertionError();
+    }
+
+    private boolean tryClickText(String text, boolean exact) throws Exception {
             List<AccessibilityNodeInfo> candidates = collect(value -> value.isEnabled() && matches(value, text, exact));
             // Do not retry an aggregated WebView/container label forever.
             // Prefer direct short button labels, then try every other match.
@@ -205,7 +244,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
                         node.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.getId());
                         if (!"android.webkit.WebView".contentEquals(node.getClassName() == null ? "" : node.getClassName())
                                 && supportsClick(node) && tapNode(node)) {
-                            node.recycle(); return;
+                            node.recycle(); return true;
                         }
                         AccessibilityNodeInfo parent = node.getParent();
                         node.recycle(); node = parent;
@@ -213,9 +252,26 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
                     if (node != null) node.recycle();
                 }
             } finally { recycle(candidates); }
-            SystemClock.sleep(100);
-        } while (SystemClock.uptimeMillis() < end);
-        throw new AssertionError();
+        return false;
+    }
+
+    /** Close only an observed IME, so Back cannot dismiss the app or its dialog. */
+    private void hideKeyboardIfVisible() throws Exception {
+        boolean keyboard = false;
+        for (AccessibilityWindowInfo window : automation.getWindows()) {
+            if (window.getType() == AccessibilityWindowInfo.TYPE_INPUT_METHOD) keyboard = true;
+            window.recycle();
+        }
+        if (!keyboard) return;
+        long time = SystemClock.uptimeMillis();
+        automation.injectInputEvent(new KeyEvent(time, time, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK, 0), true);
+        automation.injectInputEvent(new KeyEvent(time, time + 40, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK, 0), true);
+        idleBriefly();
+    }
+
+    private void idleBriefly() throws Exception {
+        try { automation.waitForIdle(150, 2000); }
+        catch (TimeoutException busy) { /* The next observed UI condition still must pass. */ }
     }
 
     private static boolean supportsClick(AccessibilityNodeInfo node) {
@@ -226,13 +282,18 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
         return false;
     }
 
-    private boolean tapNode(AccessibilityNodeInfo node) {
+    private boolean tapNode(AccessibilityNodeInfo node) throws Exception {
         // Modern WebView can acknowledge ACTION_CLICK without dispatching the
         // trusted pointer activation used by the page. Exercise a real touch.
-        SystemClock.sleep(120);
-        node.refresh();
+        idleBriefly();
+        if (!node.refresh()) return false;
         Rect bounds = new Rect();
         node.getBoundsInScreen(bounds);
+        SystemClock.sleep(180);
+        if (!node.refresh()) return false;
+        Rect refreshed = new Rect();
+        node.getBoundsInScreen(refreshed);
+        if (!bounds.equals(refreshed)) return false;
         if (!node.isVisibleToUser() || bounds.isEmpty() || bounds.centerX() < 0 || bounds.centerY() < 0) return false;
         long time = SystemClock.uptimeMillis();
         MotionEvent down = MotionEvent.obtain(time, time, MotionEvent.ACTION_DOWN,
@@ -270,6 +331,12 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
                     .append(":visible=").append(node.isVisibleToUser()).append(":enabled=").append(node.isEnabled());
             }
             report.putString("editor_control_types", types.toString());
+            report.putBoolean("detail_heading_seen", presentText("完整记忆", true));
+            report.putBoolean("synthetic_title_seen", presentText(TITLE, false));
+            report.putBoolean("synthetic_original_seen", presentText(TEXT, true));
+            report.putBoolean("synthetic_reply_seen", presentText(REPLY, true));
+            report.putBoolean("synthetic_tag_upgrade_seen", presentText("#升级验收", false));
+            report.putBoolean("synthetic_tag_test_seen", presentText("#只供测试", false));
             recycle(matches);
         } catch (Throwable ignored) { report.putString("diagnostics", "unavailable"); }
     }

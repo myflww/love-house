@@ -248,8 +248,8 @@
     },
     {
       "path": "android/upgrade-qa/app/src/main/java/io/github/myflww/lovehouse/upgradeqa/UpgradeProbeInstrumentation.java",
-      "bytes": 17104,
-      "sha256": "87fc2a63477951aee64d9e180993c6e0eb20b4f29b69d49ee80ef0f69d8a1eb1"
+      "bytes": 20547,
+      "sha256": "1afaa4ac4487a2d6ed8de5c694236d7436ef0f7eaf37b6a82b162959d4a20197"
     },
     {
       "path": "android/upgrade-qa/build.gradle",

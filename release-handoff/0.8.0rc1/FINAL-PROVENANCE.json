@@ -1,0 +1,86 @@
+{
+  "schema": "love-house-final-windows-delivery/v1",
+  "repository": "myflww/love-house",
+  "head_commit": "382c5ee45f66016af7117c2ad5a9c16cc2a75f9e",
+  "checkout_merge_commit": "730cfb01d70d2eda62104c5ad8e46eac1e355069",
+  "workflow_run_id": 41021442101,
+  "windows_job_id": 123949455810,
+  "workflow_url": "https://github.com/myflww/love-house/actions/runs/41021442101",
+  "windows_job_conclusion": "success",
+  "downloaded_final_windows_artifact_once": true,
+  "outer_artifacts": [
+    {
+      "artifact_id": 12962400907,
+      "file": "Windows-CI-artifact-382c5ee.zip",
+      "bytes": 519653945,
+      "sha256": "0cd0871d516f03a83ff42cbb83de91239f95662490a6c9fbccc41510fd70906b",
+      "github_digest_matched": true
+    },
+    {
+      "artifact_id": 12961608750,
+      "file": "Windows-test-evidence-382c5ee.zip",
+      "bytes": 4371,
+      "sha256": "2c7ca808de1f23a314782cbbf5dc2475652bdaf276eea330c52c184f44225212",
+      "github_digest_matched": true
+    }
+  ],
+  "release_assets": [
+    {
+      "file": "LoveHouse-Setup-0.8.0rc1-Windows-x64.exe",
+      "bytes": 255123516,
+      "sha256": "313ad4c15da5dd70b79d2da682f7a8c02c8c130cebb72a806dbeaef1e320819b",
+      "internal_checksum_matched": true
+    },
+    {
+      "file": "LoveHouse-0.8.0rc1-Windows-x64.zip",
+      "bytes": 265123708,
+      "sha256": "97e35675311edb4db6d51833663155213c97beb224a09c8e0c1f235901c17342",
+      "internal_checksum_matched": true
+    }
+  ],
+  "test_evidence": [
+    {
+      "file": "evidence/installed-consumer.json",
+      "bytes": 1027,
+      "sha256": "1f50d85e015336142063b5625f58d6396491b65699a0b3d535c6269c09008e10"
+    },
+    {
+      "file": "evidence/backend.json",
+      "bytes": 406,
+      "sha256": "07e31e9e89585cf8d149efd01277d0cc9ac9e3052b35687613040fa801e1f9c9"
+    },
+    {
+      "file": "evidence/installed-backend.json",
+      "bytes": 406,
+      "sha256": "07e31e9e89585cf8d149efd01277d0cc9ac9e3052b35687613040fa801e1f9c9"
+    },
+    {
+      "file": "evidence/installed-diagnostics.txt",
+      "bytes": 871,
+      "sha256": "8c6f727ffeeba53e3d4f3d31e67d94cdb92a05d98f044a72ad9140e644bc23ad"
+    },
+    {
+      "file": "evidence/installed-native.json",
+      "bytes": 1027,
+      "sha256": "aee6c9bda0dd273b055320967fa26e924338904c227723300cd3ba060e49858b"
+    },
+    {
+      "file": "evidence/portable-consumer.json",
+      "bytes": 1027,
+      "sha256": "a0d9675218a32b6a81c2271d9520ac690c6885c2001b7abb08ff2863526af070"
+    },
+    {
+      "file": "evidence/native.json",
+      "bytes": 1027,
+      "sha256": "793594d477d70085c63503d01a40cb78ad5b105e495c928bc151eed32ab24de0"
+    },
+    {
+      "file": "evidence/runner-prerequisites.json",
+      "bytes": 404,
+      "sha256": "9c8b7b5a15d32983a76162d6bd270171b7d3d1d468391635d298692cba88e107"
+    }
+  ],
+  "internal_checksum_file": "Windows-SHA256SUMS.txt",
+  "local_execution_or_testing_performed": false,
+  "previous_220_assets_are_not_final": true
+}

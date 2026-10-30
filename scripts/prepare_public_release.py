@@ -89,6 +89,8 @@ def is_allowed(relative: Path) -> bool:
         return relative.name in ROOT_FILES
     if parts[0] not in ROOT_DIRS:
         return False
+    if relative.as_posix() == '.github/CODEOWNERS':
+        return True
     if parts[0] == 'docs' and len(parts) > 1 and parts[1] == 'assets':
         return False  # Historical screenshots were never approved public assets.
     if parts[0] == 'extensions' and parts[1] != 'deepseek-harness':
@@ -256,3 +258,4 @@ def main() -> int:
 
 if __name__ == '__main__':
     sys.exit(main())
+

@@ -74,7 +74,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
                 readUtf8(input, 32768);
             }
             stage = "app_ready";
-            waitFor(() -> enabledText("记一段", false));
+            waitFor(() -> enabledText("记一段", false) && presentText("默认记忆库", false));
             if (mode.equals("seed")) seed(); else verify();
             report.putBoolean("ok", true);
             report.putInt("api_level", Build.VERSION.SDK_INT);
@@ -89,6 +89,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
             report.putBoolean("ok", false);
             report.putString("error", "Upgrade UI check failed at " + stage);
             report.putString("exception", failure.getClass().getSimpleName());
+            addDiagnostics(report);
             finish(1, report);
         }
     }
@@ -109,10 +110,13 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
     }
 
     private void seed() throws Exception {
-        stage = "seed_editor";
+        stage = "seed_editor_click";
         require(!presentText(TITLE, false));
         clickText("记一段", false);
-        waitFor(() -> presentText("记下一段原话", true));
+        stage = "seed_editor_fields";
+        // Modern WebViews can expose the real controls before a separate
+        // accessibility heading. Four actual inputs are the editor signal.
+        recycle(editorFields());
         String[] values = {TITLE, TEXT, REPLY, TAGS};
         for (int index = 0; index < values.length; index++) {
             stage = "seed_field_" + index;
@@ -158,7 +162,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
             if (fields.size() == 4) return fields;
             // Some old WebViews also expose the inert background search field.
             // Source DOM order is search, title, original text, reply, tags.
-            if (fields.size() == 5 && presentText("记下一段原话", true)) {
+            if (fields.size() == 5 && presentText("保存到本机", false)) {
                 fields.remove(0).recycle();
                 return fields;
             }
@@ -183,21 +187,65 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
     private void clickText(String text, boolean exact) throws Exception {
         long end = SystemClock.uptimeMillis() + TIMEOUT;
         do {
-            AccessibilityNodeInfo node = find(value -> value.isEnabled() && matches(value, text, exact));
-            if (node != null) {
-                for (int depth = 0; node != null && depth < 5; depth++) {
-                    node.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.getId());
-                    if (node.isClickable() && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                        node.recycle(); return;
+            List<AccessibilityNodeInfo> candidates = collect(value -> value.isEnabled() && matches(value, text, exact));
+            // Do not retry an aggregated WebView/container label forever.
+            // Prefer direct short button labels, then try every other match.
+            candidates.sort((left, right) -> Integer.compare(clickScore(left), clickScore(right)));
+            try {
+                for (AccessibilityNodeInfo candidate : candidates) {
+                    AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain(candidate);
+                    for (int depth = 0; node != null && depth < 5; depth++) {
+                        node.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.getId());
+                        if (!"android.webkit.WebView".contentEquals(node.getClassName() == null ? "" : node.getClassName())
+                                && supportsClick(node) && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                            node.recycle(); return;
+                        }
+                        AccessibilityNodeInfo parent = node.getParent();
+                        node.recycle(); node = parent;
                     }
-                    AccessibilityNodeInfo parent = node.getParent();
-                    node.recycle(); node = parent;
+                    if (node != null) node.recycle();
                 }
-                if (node != null) node.recycle();
-            }
+            } finally { recycle(candidates); }
             SystemClock.sleep(100);
         } while (SystemClock.uptimeMillis() < end);
         throw new AssertionError();
+    }
+
+    private static boolean supportsClick(AccessibilityNodeInfo node) {
+        if (node.isClickable()) return true;
+        for (AccessibilityNodeInfo.AccessibilityAction action : node.getActionList()) {
+            if (action.getId() == AccessibilityNodeInfo.ACTION_CLICK) return true;
+        }
+        return false;
+    }
+
+    private static int clickScore(AccessibilityNodeInfo node) {
+        String type = node.getClassName() == null ? "" : node.getClassName().toString();
+        int length = (node.getText() == null ? 0 : node.getText().length())
+            + (node.getContentDescription() == null ? 0 : node.getContentDescription().length());
+        return (type.endsWith("Button") ? 0 : 10000) + (supportsClick(node) ? 0 : 1000) + Math.min(length, 999);
+    }
+
+    private void addDiagnostics(Bundle report) {
+        if (automation == null) return;
+        try {
+            List<AccessibilityNodeInfo> fields = collect(node -> node.isEditable()
+                || "android.widget.EditText".contentEquals(node.getClassName() == null ? "" : node.getClassName()));
+            report.putInt("editable_count", fields.size());
+            recycle(fields);
+            List<AccessibilityNodeInfo> matches = collect(node -> matches(node, "记一段", false)
+                || matches(node, "保存到本机", false) || matches(node, "记下一段原话", false));
+            report.putInt("editor_control_match_count", matches.size());
+            StringBuilder types = new StringBuilder();
+            for (int i = 0; i < Math.min(matches.size(), 12); i++) {
+                AccessibilityNodeInfo node = matches.get(i);
+                if (i != 0) types.append(';');
+                types.append(node.getClassName()).append(":click=").append(supportsClick(node))
+                    .append(":visible=").append(node.isVisibleToUser()).append(":enabled=").append(node.isEnabled());
+            }
+            report.putString("editor_control_types", types.toString());
+            recycle(matches);
+        } catch (Throwable ignored) { report.putString("diagnostics", "unavailable"); }
     }
 
     private boolean matches(AccessibilityNodeInfo node, String expected, boolean exact) {

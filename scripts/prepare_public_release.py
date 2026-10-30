@@ -18,7 +18,7 @@ ROOT_FILES = frozenset({
     '启动爱之屋.command', '启动知识星图.command', '启动爱之屋Windows.cmd',
 })
 ROOT_DIRS = frozenset({'.github', 'nkb', 'desktop', 'extensions', 'scripts',
-                      'tests', 'examples', 'assets', 'docs', 'android', 'mobile'})
+                      'tests', 'examples', 'assets', 'docs', 'android', 'mobile', 'ios-smoke'})
 EXCLUDED_PARTS = frozenset({'.git', 'node_modules', '__pycache__', '.pytest_cache',
     '.mypy_cache', '.ruff_cache', '.venv', 'venv', 'env', 'reports', 'outputs',
     'references', '.runtime', '.DS_Store'})

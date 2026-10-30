@@ -69,7 +69,7 @@ jobs:
       - name: Check safe packaging and create local WebView assets
         run: |
           python -m unittest tests.test_android_packaging tests.test_public_release -v
-          node --test mobile/tests/store.test.mjs
+          node --test mobile/tests/*.test.mjs
           python -m unittest discover -s mobile/tests -p 'test_*.py' -v
           python scripts/prepare_mobile_assets.py
       - name: Install the pinned Android SDK components

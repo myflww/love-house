@@ -86,6 +86,21 @@ public final class MobileSmokeTest {
         assertEquals("android", ((JSONObject) evaluate("window.LoveHouseMobile.summary()")).getString("platform"));
     }
 
+    @Test public void agentConnectionOpensOnlyTheChosenHttpsServiceWithoutLocalHostDetection() throws Exception {
+        ready();
+        click("homeConnectAgent");
+        waitFor("generic Agent connection page", "!document.getElementById('view-connect').hidden");
+        fill("memoryServiceAddress", "https://my-memory.example:9443");
+        assertEquals("https://my-memory.example:9443/mobile", evaluate("document.getElementById('openMemoryService').href"));
+        assertEquals("false", evaluate("document.getElementById('openMemoryService').getAttribute('aria-disabled')"));
+        fill("memoryServiceAddress", "https://" + "user" + ":" + "FAKE-secret" + "@my-memory.example/?token=FAKE");
+        assertEquals("true", evaluate("document.getElementById('openMemoryService').getAttribute('aria-disabled')"));
+        assertEquals(Boolean.FALSE, evaluate("document.getElementById('openMemoryService').hasAttribute('href')"));
+        assertEquals(Boolean.FALSE, evaluate("document.getElementById('view-connect').textContent.includes('Harness')"));
+        fill("memoryServiceAddress", "http://127.0.0.1:9140");
+        assertEquals(Boolean.FALSE, evaluate("document.getElementById('openMemoryService').hasAttribute('href')"));
+    }
+
     @Test public void uiCanCreateEditSearchAndOpenTheStarMap() throws Exception {
         ready();
         createLibrary("Smoke UI " + UUID.randomUUID());

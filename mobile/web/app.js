@@ -1,4 +1,5 @@
 import { createStore } from './store.js';
+import { memoryServiceUrl } from './service-link.js';
 
 const $ = (id) => document.getElementById(id);
 const store = createStore();
@@ -150,7 +151,7 @@ function showDialog(id) {
 function closeDialog(id) { if ($(id).open) $(id).close(); }
 
 function showView(view) {
-  if (!['memory', 'map', 'backup', 'settings'].includes(view)) return;
+  if (!['memory', 'map', 'backup', 'settings', 'connect'].includes(view)) return;
   state.view = view;
   for (const section of document.querySelectorAll('.view')) section.hidden = section.id !== 'view-' + view;
   for (const button of document.querySelectorAll('[data-view]')) {
@@ -484,3 +485,12 @@ async function start() {
 
 window.LoveHouseReady = start();
 window.LoveHouseApp = { store, ready: window.LoveHouseReady, refresh };
+
+// Service navigation carries only an origin. Authentication happens on the selected service.
+$('homeConnectAgent').addEventListener('click',()=>showView('connect'));
+$('memoryServiceAddress').addEventListener('input',()=>{
+ const link=$('openMemoryService');
+ try{const url=memoryServiceUrl($('memoryServiceAddress').value.trim());link.href=url;link.classList.remove('disabled-link');link.setAttribute('aria-disabled','false');$('memoryServiceError').textContent='在这台服务上选择存档并复制给 Agent。管理凭据只在服务自己的页面填写。';}
+ catch(error){link.removeAttribute('href');link.classList.add('disabled-link');link.setAttribute('aria-disabled','true');$('memoryServiceError').textContent=error.message;}
+});
+$('openMemoryService').addEventListener('click',event=>{if($('openMemoryService').getAttribute('aria-disabled')==='true')event.preventDefault();});

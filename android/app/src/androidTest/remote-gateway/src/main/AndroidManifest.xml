@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Independent instrumentation fixture. This is never merged into the mobile application. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application
+        android:allowBackup="false"
+        android:label="Love House Remote Gateway QA Only"
+        android:testOnly="true"
+        android:usesCleartextTraffic="false"
+        android:networkSecurityConfig="@xml/remote_qa_network_security">
+        <activity
+            android:name=".RemoteGatewayActivity"
+            android:exported="false" />
+    </application>
+</manifest>

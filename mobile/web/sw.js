@@ -1,6 +1,6 @@
 /* Cache only shipped application files. Memories stay in IndexedDB, never HTTP. */
 const CACHE_PREFIX = 'love-house-mobile-static-';
-const CACHE = CACHE_PREFIX + '0.8.0rc1-r1';
+const CACHE = CACHE_PREFIX + '0.8.0rc2-r1';
 const FILES = [
   './', './index.html', './styles.css', './app.js', './store.js', './service-link.js', './register-sw.js',
   './manifest.webmanifest', './assets/love-house-icon.png', './assets/ark-pixel.woff2',

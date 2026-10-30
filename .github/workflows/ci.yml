@@ -7,6 +7,23 @@ on:
   workflow_dispatch:
 
 jobs:
+  javascript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install locked graph test dependencies without lifecycle scripts
+        working-directory: nkb/viz/art
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Browser logic and mobile persistence regression
+        run: |
+          node --test tests/js/*.test.cjs tests/js/*.test.mjs mobile/tests/*.test.mjs
+          python -m unittest discover -s mobile/tests -p 'test_*.py' -v
   test:
     name: test (py${{ matrix.python-version }})
     runs-on: ubuntu-latest

@@ -306,7 +306,7 @@ def backend_smoke(report):
             from nkb.service.host import local_json
             latest={'retention':local_json(runtime.server.server_port,'/api/retention'),
                     'rules':local_json(runtime.server.server_port,'/api/organizer/rules'),
-                    'sources':local_json(runtime.server.server_port,'/api/agent/sources'),
+                    'sources':local_json(runtime.server.server_port,'/api/agent/sources',headers={'X-LoveHouse-Management':runtime.host.management_token}),
                     'experiences':local_json(runtime.server.server_port,'/api/experiences'),
                     'updates':local_json(runtime.server.server_port,'/api/updates'),
                     'handoff':local_json(runtime.server.server_port,'/api/memory/handoff',{'profile':'S'})}

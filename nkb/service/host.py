@@ -3,6 +3,8 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import hmac
+import secrets
 import threading
 import time
 import uuid
@@ -20,8 +22,8 @@ from .credentials import KeyStore,KeyStoreError
 from .providers import ProviderStore
 
 
-def local_json(port,path,body=None,timeout=20):
-    headers={'Content-Type':'application/json'}
+def local_json(port,path,body=None,timeout=20,*,headers=None):
+    headers={'Content-Type':'application/json',**(headers or {})}
     req=urllib.request.Request(f'http://127.0.0.1:{port}{path}',
        data=json.dumps(body,ensure_ascii=False).encode() if body is not None else None,headers=headers)
     with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req,timeout=timeout) as response:
@@ -35,6 +37,7 @@ class MemoryHost:
     def __init__(self,root,*,with_demo=False,adapter_options=None,key_store=None,organizer_transport=None):
         self.root=Path(root).expanduser().resolve()
         self.instance_id=uuid.uuid4().hex
+        self.management_token=secrets.token_urlsafe(40)
         self.manager=LibraryManager(self.root)
         self.adapter_options=dict(adapter_options or {})
         if with_demo and not self.manager.demo_suppressed:
@@ -427,9 +430,13 @@ class MemoryHost:
         from .agent_client import AgentClient
         for connection in self.connections.list():
             if connection['host']!='agent' or not connection['enabled'] or connection['revoked']:continue
-            folder=self.root/'agent-outbox'/connection['id']
-            if not folder.exists() or not any(folder.glob('*.json')):continue
-            try:AgentClient(self.root/'agent-connections'/(connection['id']+'.json'),timeout=3).drain(limit=30)
+            try:
+                from .agent_client import make_agent_config
+                descriptor=make_agent_config(self.root,self.connections.get(connection['id'],secret=True),persist=False)
+                client=AgentClient(descriptor['private_path'],timeout=3)
+                folder=Path(client.config()['outbox_dir'])
+                if not folder.exists() or not any(folder.glob('*.json')):continue
+                client.drain(limit=30)
             except Exception:pass
     def agent_tool(self,cid,token,data):
         c=self.connections.authenticate(cid,token)
@@ -446,9 +453,11 @@ class MemoryHost:
         if name=='memory_status':
             lib=self.library(c['library_id']);public=self.connections.get(cid)
             return {'connected':True,'library_id':lib['id'],'library_name':lib['name'],'node_count':lib['node_count'],
-                    'model_api_key_required':False,'read_only':True,'connection':public,
-                    'capture_mode':'host_hook_verified' if public['archive_status']=='automatic_connected' else 'tools_only',
-                    'automatic_memory':public['archive_status']=='automatic_connected'}
+                    'model_api_key_required':False,'read_only':public['read_only'],'connection':public,
+                    **{k:public[k] for k in ('can_read','can_write','memory_only','capture_mode','automatic_memory','binding_state')},
+                    'capture':public['capture'],'binding_actor':'source_adapter',
+                    'next_action':'configure_host_turn_end_hook' if public['binding_state']=='awaiting_source_turn' else 'memory_bootstrap',
+                    'capture_notice':'仅在宿主实际调用时记录；收到事件不证明宿主已安装或持续执行自动钩子。'}
         if name=='memory_context':
             context=self.context(cid,token,args)
             return context['memory_context']
@@ -474,7 +483,7 @@ class MemoryHost:
         if c['host'] not in ('harness','agent') or c['revoked']:
             raise ValidationError('此连接不能安装Harness自动上报')
         return {'connection':c,'config':{'connectionId':cid,'connectionToken':secret['token'],
-                'libraryId':c['library_id'],'sessionScope':c['session_scope'],
+                'libraryId':c['library_id'],'sessionScope':self.connections.adapter_scope(c),
                 'connectionHost':c['host'],'runtimeDir':str(self.root/'.runtime')},
                 'host_options':{**self.adapter_options,**self.connections.host_options(cid)}}
     def agent_harness_capture(self,cid):
@@ -492,6 +501,9 @@ class MemoryHost:
                 'requires_harness_reload':True,'preserves_connection':True,
                 'instructions':'如果这个Agent运行在DeepSeek Harness，安装宿主自动上报插件并重载Harness；沿用当前连接和存档。首轮完整真实对话落盘后才显示已自动存档。'}
     def connection_config(self,cid):
+        with self.connections.binding_lock:
+            return self._connection_config(cid)
+    def _connection_config(self,cid):
         source=self.sources.for_connection(cid)
         if source:
             descriptor=self.sources.configuration(source['id'],base_url=f'http://127.0.0.1:{self.controller_port}')
@@ -507,8 +519,15 @@ class MemoryHost:
             return {'connection':c,'host_config':'','api_base_url':'','configuration_ready':False,
                     'requires_apply':False,'supported':False,'instructions':'连接已断开，原记忆保留；需要时新建连接。'}
         if c['host']=='agent':
-            from .agent_client import make_agent_config
+            from .agent_client import make_agent_config,configure_workbuddy
             bundle=make_agent_config(self.root,secret,persist=False)
+            if not Path(bundle['private_path']).is_file():
+                # A rebind may commit its new token before a disk failure.
+                # Reopening this management view safely retries materializing
+                # that exact generation; it never rotates again or revives an
+                # old window's credential/config path.
+                bundle=make_agent_config(self.root,secret,persist=True)
+            workbuddy=configure_workbuddy(self.root,secret,apply=False)
             code=json.dumps(bundle['mcp_config'],ensure_ascii=False,indent=2)
             setup=("这是同一台电脑上的爱之屋长期记忆连接，不需要模型厂商API Key。\n"
                    "此连接固定属于记忆库："+self.library(c['library_id'])['name']+"（"+c['library_id']+"）。\n"
@@ -516,18 +535,20 @@ class MemoryHost:
                    "在新窗口先调用memory_bootstrap恢复已有身份、人格和初始记忆；全部可用记忆通过memory_list分页及memory_read分块读取。"
                    "不要把初始有界包误称为已经加载全部记忆，不要安装同一窗口下的其他记忆库配置。\n\n"
                    +code+"\n\n若宿主支持真实轮次结束钩子，请将下列命令接入回调，stdin传实际用户发言和最终可见回复。默认只接收首个真实完整hook绑定的窗口。尚未绑定时，手动补录不抢占窗口；其他窗口不记录。没有钩子时，请明确说明尚未自动存档；需手动工具模式时由用户明确选择高级整连接范围。\n"
-                   +json.dumps(bundle['hook_config'],ensure_ascii=False,indent=2)+"\n\n同一窗口的稳定会话ID不变时，重启会自动发现服务并重连。要换新窗口，请新建连接并选择原存档，延续记忆身份。此配置不是跨设备公网地址。")
-            if c['session_scope']=='connection':
+                   +json.dumps(bundle['hook_config'],ensure_ascii=False,indent=2)+"\n\n同一窗口的稳定会话ID不变时，重启会自动发现服务并重连。要换新窗口，可在爱之屋重新绑定；旧记忆保留，旧窗口凭据失效，须重新安装此连接配置。此配置不是跨设备公网地址。")
+            if c['session_scope'] in ('connection','any'):
                 setup=setup.replace('默认只接收首个真实完整hook绑定的窗口。尚未绑定时，手动补录不抢占窗口；其他窗口不记录。',
                     '当前配置采用高级整连接范围，可能记录多个窗口。若只需要一个窗口，请在爱之屋新建单窗口连接；不要把此配置说成仅限一个窗口。')
             setup+='\n\n如果当前Agent运行在官方DeepSeek Harness，请回到爱之屋的此连接页点击“安装 Harness 自动上报”。只配置MCP不会自动产生每轮记录；此操作沿用本连接、存档和窗口范围，不创建新身份。'
+            setup+='\n\n连接配置完整路径：'+bundle['private_path']+'\nWorkBuddy：'+str(workbuddy['config_path'])+'\n'+'\n'.join(workbuddy['next_steps'])
             return {'connection':c,**bundle,'host_config':code,'agent_setup_text':setup,'api_base_url':'','client_api_key':'',
                     'configuration_ready':Path(bundle['private_path']).is_file(),'requires_apply':False,'supported':True,
+                    'workbuddy_setup':workbuddy,
                     'auto_capture':{'harness':self.agent_harness_capture(cid)},
                     'instructions':'DeepSeek Harness请安装同一连接的宿主自动上报；其他宿主需要其真实轮次结束钩子。'}
         base=f'http://127.0.0.1:{self.controller_port}'
         config={'connectionId':cid,'connectionToken':secret['token'],'libraryId':c['library_id'],
-                'sessionScope':c['session_scope'],'runtimeDir':str(self.root/'.runtime')}
+                'sessionScope':self.connections.adapter_scope(c),'runtimeDir':str(self.root/'.runtime')}
         plugin=harness_resources()/'dist/index.js'
         # A local absolute path is resolved on this installation, never published as a user's path.
         overlay=("- insert:\n    - id: neural-memory-autocapture-"+cid[-8:]+"\n"
@@ -561,19 +582,23 @@ class MemoryHost:
         """
         current=self.connections.get(connection['id'],secret=True)
         scope=current['session_scope']
+        bound=current.get('bound_session_id')
         def rejection(code,message):
             return {'accepted':False,'saved':False,'status':code,'code':code,'message':message,
                     'connection_id':current['id'],'library_id':current['library_id'],
-                    'session_scope':scope,'bound_session_id':None if scope in ('connection','next_session') else scope}
-        if read and scope=='next_session':
+                    'session_scope':scope,'session_scope_policy':scope,'bound_session_id':bound,
+                    'binding_actor':'source_adapter','manual_record_claims_window':False,
+                    'next_action':'configure_host_turn_end_hook' if code=='awaiting_window_binding' else 'rebind_connection',
+                    'next_action_message':('在爱之屋连接页核对宿主钩子支持；由目标窗口的来源适配器提交首轮真实完整对话进行绑定。MCP手动补录不会占用窗口。宿主未提供回调时请保留手动模式，不宣称自动存档。' if code=='awaiting_window_binding' else '回到爱之屋连接页，确认重新绑定并在新窗口安装更新后的配置；旧记忆保留。')}
+        if read and scope=='next_session' and not bound:
             if sid is not None and (not isinstance(sid,str) or not sid.strip() or len(sid)>200):
                 raise ValidationError('读取记忆需要有效的宿主会话标识')
             return None
         if not isinstance(sid,str) or not sid.strip() or len(sid)>200:
             raise ValidationError('请由宿主提供当前窗口的真实会话ID；不会用占位ID绑定窗口')
-        if scope=='next_session' and not claim:
+        if scope=='next_session' and not bound and not claim:
             return rejection('awaiting_window_binding','等待目标窗口提交首轮完整对话；本次内容没有存档')
-        if scope not in ('connection','next_session') and scope!=sid:
+        if bound and bound!=sid:
             if read:raise ValidationError('此连接只读取已绑定窗口的记忆；当前会话ID不匹配')
             return rejection('scope_conflict' if automatic else 'ignored_scope','此连接已固定到另一窗口；本次内容没有采集或存档')
         # BEGIN IMMEDIATE in authorize_session makes competing first turns
@@ -583,8 +608,9 @@ class MemoryHost:
             if read:raise
             latest=self.connections.get(current['id'],secret=True)
             scope=latest['session_scope']
+            bound=latest.get('bound_session_id')
             return rejection('scope_conflict' if automatic else 'ignored_scope','窗口绑定发生冲突，本次内容没有采集或存档')
-        if scope=='next_session':self.update_agent_config(current['id'])
+        if scope=='next_session' and not bound:self.update_agent_config(current['id'])
         return None
     @staticmethod
     def _agent_claimable_turn(event,*,harness_installed=False):
@@ -603,6 +629,9 @@ class MemoryHost:
                     and all(isinstance(normalized.get(role),str) and bool(normalized[role].strip())
                             and len(normalized[role])<=40000 for role in ('user','assistant')))
     def accept(self,cid,token,event):
+        with self.connections.binding_lock:
+            return self._accept(cid,token,event)
+    def _accept(self,cid,token,event):
         c=self.connections.authenticate(cid,token)
         self.sources.check_source_event(c,event)
         if c['host']=='agent':
@@ -616,7 +645,13 @@ class MemoryHost:
         current=self.connections.get(cid)
         return {**result,'status':next((e['status'] for e in self.connections.activity(c['library_id'])['events'] if e['id']==result['receipt_id']),result['status']),
                 'library_id':c['library_id'],'session_scope':current['session_scope'],
-                'bound_session_id':None if current['session_scope'] in ('connection','next_session') else current['session_scope']}
+                'session_scope_policy':current['session_scope_policy'],'bound_session_id':current['bound_session_id']}
+    def rebind_connection(self,cid,data):
+        with self.connections.binding_lock:
+            if self.sources.for_connection(cid):raise ValidationError('固定Agent活动来源不能改作单窗口连接')
+            self.connections.rebind(cid,data)
+            self.update_agent_config(cid)
+            return self.connection_config(cid)
     def context(self,cid,token,data):
         from ..companion import connected_session_id
         c=self.connections.authenticate(cid,token)
@@ -624,8 +659,8 @@ class MemoryHost:
         sid=data.get('session_id')
         if set(data)-{'query','session_id','max_chars'}:raise ValidationError('连接上下文不能选择其他记忆库')
         if c['host']=='agent':
-            self._agent_session_gate(c,sid or ('agent-default' if c['session_scope']=='connection' else None),read=True)
-            sid=sid or ('agent-default' if c['session_scope']=='connection' else 'unbound-memory-read')
+            self._agent_session_gate(c,sid or ('agent-default' if c['session_scope']=='any' else None),read=True)
+            sid=sid or ('agent-default' if c['session_scope']=='any' else 'unbound-memory-read')
         else:self.connections.authorize_session(cid,sid)
         if not isinstance(data.get('query'),str) or not data['query'].strip():raise ValidationError('查询内容不能为空')
         self.process_pending()
@@ -634,7 +669,7 @@ class MemoryHost:
         # Queue opaque use IDs only after authenticated, scoped context retrieval.
         # Bootstrap/catalog/export/preview never count as rehearsal. The material
         # itself remains read-only; use effects join the next actual graph save.
-        if c['session_scope']!='next_session':
+        if c['session_scope']=='any' or c.get('bound_session_id'):
             self.queue_memory_use(c['library_id'],[r['id'] for r in result.get('memory_context',{}).get('records',[])])
         backlog=sum(1 for r in self.connections.pending() if r['library_id']==c['library_id'])
         return {**result,'library_id':c['library_id'],'connection_id':cid,'archive_pending':backlog}
@@ -716,6 +751,22 @@ def make_controller(host):
     from ..core.brain import Brain
     Base=make_handler(Brain.new())
     class Controller(Base):
+        def end_headers(self):
+            if getattr(self,'_issue_management_cookie',False):
+                self.send_header('Set-Cookie','LoveHouseUI='+host.management_token+'; Path=/; HttpOnly; SameSite=Strict')
+            return super().end_headers()
+        def _require_management(self):
+            # This closes anonymous API enumeration, not the local OS process
+            # trust boundary: opening this local UI is itself a local capability.
+            from http.cookies import SimpleCookie,CookieError
+            token=self.headers.get('X-LoveHouse-Management','')
+            if not token:
+                try:
+                    jar=SimpleCookie();jar.load(self.headers.get('Cookie',''))
+                    token=jar['LoveHouseUI'].value if 'LoveHouseUI' in jar else ''
+                except CookieError:token=''
+            if not token or not hmac.compare_digest(token,host.management_token):
+                raise RequestError('请先在本机打开爱之屋界面；此管理接口需要界面会话',401)
         def _guard_connection_surface(self,path):
             # A memory bearer is a per-connection capability, not a desktop
             # management credential. Local desktop requests without a bearer
@@ -784,7 +835,10 @@ def make_controller(host):
                     raise RequestError('记忆连接只接受绑定工具和事件请求',403)
                 if path in ('/','/index.html'):
                     from ..viz.builder import html_for_serve
+                    self._issue_management_cookie=True
                     return self._html(html_for_serve())
+                if path in ('/api/connections','/api/memory/status','/api/agent/sources','/api/activity') or path.startswith('/api/connections/') or path.startswith('/api/activity/'):
+                    self._require_management()
                 if path=='/api/health':return self._json({'ok':True,'name':'爱之屋记忆服务','version':__version__,'protocol_version':'0.4.0','mode':'storage','controller_instance_id':host.instance_id})
                 if path=='/api/updates':
                     host.updates.start()
@@ -875,7 +929,16 @@ def make_controller(host):
                     return self._json(result)
                 if self.headers.get('Authorization') or self.headers.get('X-NKB-Connection-Key'):
                     raise RequestError('记忆连接只接受绑定工具和事件请求',403)
+                if path=='/api/connections' or path.startswith('/api/connections/'):
+                    self._require_management()
                 data=self._body(limit=130*1024*1024 if path in ('/api/sharing/import-preview','/api/sharing/import') else 25*1024*1024 if path in ('/api/dialogue-import/preview','/api/dialogue-import/apply') else 1024*1024)
+                if len(parts)==5 and parts[:2]==['api','connections'] and parts[3:]==['workbuddy','configure']:
+                    cid=parts[2];connection=host.connections.get(cid,secret=True)
+                    if connection['host']!='agent' or connection['revoked'] or host.sources.for_connection(cid):raise ValidationError('此连接不支持WorkBuddy配置')
+                    if set(data)-{'apply'} or type(data.get('apply',False)) is not bool:raise ValidationError('安装参数不正确')
+                    from .agent_client import configure_workbuddy
+                    result=configure_workbuddy(host.root,connection,apply=data.get('apply',False))
+                    return self._json(result)
                 if path=='/api/memory/handoff':return self._json(host.window_handoff(self._chosen(),data))
                 if path in ('/api/dialogue-import/preview','/api/dialogue-import/apply'):
                     return self._json(host.dialogue_import(self._chosen(),data,apply=path.endswith('/apply')))
@@ -968,6 +1031,7 @@ def make_controller(host):
                 if path=='/api/adapters/harness/detect':return self._json(self._adapter('detect',data=data))
                 if len(parts)==4 and parts[:2]==['api','connections']:
                     cid,action=parts[2:]
+                    if action=='rebind':return self._json(host.rebind_connection(cid,data))
                     if action in ('enabled','disconnect'):
                         config=host.connection_config(cid)
                         harness_config=host.harness_connection_config(cid) if config['connection']['host']=='agent' and config['connection'].get('configured_at') else config

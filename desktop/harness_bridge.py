@@ -269,21 +269,18 @@ class Bridge:
                 # The tool returns one machine packet, not packet/messages/history copies.
                 result=result["memory_context"]
             if name == "memory_status":
-                service=self._request(port,"/api/memory/status")
-                selected={"id":service["library_id"],"is_demo":service["is_demo"]}
-                if selected['id']!=self.library_id:raise BridgeError("绑定记忆身份不一致")
-                try:
-                    service=self._request(port,"/api/memory/status")
-                    sources=service.get("connections",[])
-                except BridgeError:
-                    sources=[]
-                automatic=any(c.get("enabled") and not c.get("revoked")
-                              and c.get("archive_status")=="automatic_connected"
-                              and (c.get("host")!="harness" or c.get("host_online")) for c in sources)
-                result = {"library_id": self.library_id, "is_demo": bool(selected.get("is_demo")),
+                # This fixed-library legacy tool is not a management session.
+                # Verify its identity through the scoped read API; never obtain
+                # a UI cookie or enumerate the library's other connections.
+                catalog=self._request(port,"/api/memory/list",{"limit":1})
+                identity=catalog.get("identity")
+                if not isinstance(identity,dict) or identity.get("library_id")!=self.library_id:
+                    raise BridgeError("绑定记忆身份不一致")
+                result = {"library_id": self.library_id, "is_demo": bool(identity.get("is_demo")),
                           "stats": result, "capture_mode": "tools_only", "tool_bridge_automatic": False,
-                          "automatic_memory": automatic,"passive_sources":sources,
-                          "archive_status": "automatic_connected" if automatic else "tools_only",
+                          "automatic_memory": False,"passive_sources":[],
+                          "passive_source_status": "not_verified_by_legacy_bridge",
+                          "archive_status": "tools_only",
                           "storage": "local", "api_key_required": False}
             return {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}],
                     "structuredContent": result}

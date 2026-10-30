@@ -35,7 +35,7 @@ class AgentHarnessCaptureTests(unittest.TestCase):
     def tearDown(self):
         self.server.shutdown();self.server.server_close();self.thread.join();self.host.stop();self.temp.cleanup()
     def req(self,path,data,token=None):
-        headers={'Content-Type':'application/json'}
+        headers={'Content-Type':'application/json','X-LoveHouse-Management':self.host.management_token}
         if token:headers['Authorization']='Bearer '+token
         request=Request(f'http://127.0.0.1:{self.server.server_port}'+path,data=json.dumps(data).encode(),headers=headers)
         try:
@@ -99,7 +99,8 @@ await adapter.flush();await adapter.dispose();
 """.replace('__PLUGIN__',(ROOT/'extensions/deepseek-harness/dist/index.js').as_uri())
         result=subprocess.run([shutil.which('node'),'--input-type=module','-e',script,installed['connection_file'],str(self.root/'node-outbox')],capture_output=True,text=True,timeout=15)
         self.assertEqual(result.returncode,0,result.stderr)
-        current=self.host.connections.get(self.cid);self.assertEqual(current['session_scope'],'node-host-window')
+        current=self.host.connections.get(self.cid);self.assertEqual(current['session_scope'],'next_session')
+        self.assertEqual(current['bound_session_id'],'node-host-window')
         self.assertEqual(current['archive_status'],'automatic_connected');self.assertEqual(current['capture']['complete_dialogues_saved'],1)
         nodes=self.host.snapshot('default')['nodes'];self.assertEqual(len(nodes),1)
         self.assertIn('宿主自动提供的真实原话',json.dumps(nodes,ensure_ascii=False))

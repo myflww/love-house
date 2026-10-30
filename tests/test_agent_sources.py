@@ -38,7 +38,7 @@ class RegistryTests(unittest.TestCase):
         self.assertNotEqual(ca['token'],cb['token'])
         self.assertNotIn(ca['token'],json.dumps(self.registry.list('one')))
         self.assertNotIn('private_path',json.dumps(self.registry.list('one')))
-        self.assertEqual(self.connections.get(ca['connection_id'])['session_scope'],'connection')
+        self.assertEqual(self.connections.get(ca['connection_id'])['session_scope'],'any')
         self.assertFalse(a['source']['full_activity_coverage_verified'])
         if os.name!='nt':
             self.assertEqual(stat.S_IMODE(Path(a['private_path']).stat().st_mode),0o600)

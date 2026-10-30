@@ -15,6 +15,7 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, ProxyHandler, HTTPRedirectHandler, build_opener
@@ -110,7 +111,7 @@ def _read_json(path,limit):
         raise AgentConnectionError('本机记忆配置或待发送记录不可读，未覆盖原文件','invalid_file') from None
 
 def validate_config(value):
-    allowed={'schema','connection_id','library_id','token','runtime_dir','outbox_dir','enabled','revoked','session_scope','bound_session_id'}
+    allowed={'schema','connection_id','library_id','token','runtime_dir','outbox_dir','enabled','revoked','session_scope','session_scope_policy','bound_session_id','binding_revision'}
     if not isinstance(value,dict) or value.get('schema')!=SCHEMA or set(value)-allowed:
         raise AgentConnectionError('记忆连接配置版本不支持','invalid_config')
     result=dict(value)
@@ -121,13 +122,17 @@ def validate_config(value):
         if type(result.get(key)) is not bool:raise AgentConnectionError('记忆连接启停状态无效','invalid_config')
     # v1 files created before single-window capture remain explicitly broad.
     # Do not silently change a previously authorised connection's meaning.
-    scope=_text(result.get('session_scope','connection'),'session_scope',200)
+    scope=_text(result.get('session_scope_policy',result.get('session_scope','connection')),'session_scope',200)
     bound=result.get('bound_session_id')
     if bound is not None:bound=_text(bound,'bound_session_id',200)
-    if scope not in ('connection','next_session'):
+    if scope=='connection':scope='any'
+    elif scope not in ('any','fixed','next_session'):
         if bound not in (None,scope):raise AgentConnectionError('本机窗口范围发生冲突，未改绑','scope_conflict')
-        bound=scope
-    result.update(session_scope=scope,bound_session_id=bound)
+        bound=scope;scope='fixed'
+    if scope=='fixed' and not bound:raise AgentConnectionError('固定窗口尚未配置会话ID','invalid_config')
+    revision=result.get('binding_revision',0)
+    if type(revision) is not int or not 0<=revision<=2147483647:raise AgentConnectionError('窗口绑定版本无效','invalid_config')
+    result.update(session_scope=scope,session_scope_policy=scope,bound_session_id=bound,binding_revision=revision)
     token=result.get('token')
     if not isinstance(token,str) or len(token)>4096 or any(ord(c)<33 for c in token):
         raise AgentConnectionError('本地连接凭证格式无效','invalid_config')
@@ -172,29 +177,50 @@ def make_agent_config(root,connection_secret,*,python_path=None,bridge_path=None
     if not isinstance(c,dict):raise AgentConnectionError('连接配置须为对象','invalid_config')
     cid=c.get('id',c.get('connection_id'));library=c.get('library_id')
     if not isinstance(cid,str) or not _ID.fullmatch(cid):raise AgentConnectionError('连接编号无效','invalid_config')
-    private=root/'agent-connections'/(cid+'.json')
+    revision=c.get('binding_revision',0)
+    if type(revision) is not int or not 0<=revision<=2147483647:raise AgentConnectionError('窗口绑定版本无效','invalid_config')
+    private=root/'agent-connections'/(cid+(('.binding-'+str(revision)) if revision else '')+'.json')
     value=validate_config({'schema':SCHEMA,'connection_id':cid,'library_id':library,
-      'token':c.get('token',''),'runtime_dir':str(root/'.runtime'),'outbox_dir':str(root/'agent-outbox'/cid),
+      'token':c.get('token',''),'runtime_dir':str(root/'.runtime'),'outbox_dir':str(root/'agent-outbox'/cid/(('binding-'+str(c['binding_revision'])) if c.get('binding_revision',0) else '')),
       'enabled':bool(c.get('enabled',True)),'revoked':bool(c.get('revoked',False)),
-      'session_scope':c.get('session_scope','connection'),'bound_session_id':c.get('bound_session_id')})
+      'session_scope':c.get('session_scope','connection'),'session_scope_policy':c.get('session_scope_policy',c.get('session_scope','connection')),
+      'binding_revision':c.get('binding_revision',0),'bound_session_id':c.get('bound_session_id')})
     scope_conflict=False
     def preserve_local_claim():
         nonlocal value,scope_conflict
-        if not private.exists():return
-        previous=validate_config(_read_json(private,MAX_CONFIG))
-        if previous['connection_id']!=cid or previous['library_id']!=library:
-            raise AgentConnectionError('既有本机配置属于另一个记忆身份，未覆盖','invalid_config')
+        candidates=[root/'agent-connections'/(cid+'.json'),*private.parent.glob(cid+'.binding-*.json')]
+        previous=None
+        for candidate in set(candidates):
+            if not candidate.exists():continue
+            item=validate_config(_read_json(candidate,MAX_CONFIG))
+            if item['connection_id']!=cid or item['library_id']!=library:
+                raise AgentConnectionError('既有本机配置属于另一个记忆身份，未覆盖','invalid_config')
+            if previous is None or item['binding_revision']>previous['binding_revision']:previous=item
+        if previous is None:return
+        if previous['binding_revision']>value['binding_revision']:
+            raise AgentConnectionError('连接绑定版本已更新；请刷新连接配置，未恢复旧凭据','scope_conflict')
+        if previous['binding_revision']<value['binding_revision']:return
         local=previous['bound_session_id']
         if local:
-            if value['session_scope'] not in ('connection','next_session',local):
-                scope_conflict=True;value['session_scope']=previous['session_scope']
-                if value['session_scope']=='connection':value['session_scope']='next_session'
+            if value['bound_session_id'] not in (None,local):
+                scope_conflict=True
+            value['session_scope']=previous['session_scope'] if previous['session_scope']!='any' else 'next_session'
+            value['session_scope_policy']=value['session_scope']
             value['bound_session_id']=local
         value=validate_config(value)
     if persist:
         # The first real hook claim and app-side enable/revoke/config refresh
         # serialize on this SAME lock. A server ACK can never erase the claim.
-        with _spool_lock(private.parent):preserve_local_claim();_atomic_json(private,value)
+        with _spool_lock(private.parent):
+            preserve_local_claim()
+            # Old host processes retain their old config path. Never let them
+            # read the new credential and claim the newly selected window.
+            for old_path in [private.parent/(cid+'.json'),*private.parent.glob(cid+'.binding-*.json')]:
+                if old_path==private or not old_path.exists():continue
+                old=validate_config(_read_json(old_path,MAX_CONFIG))
+                if old['binding_revision']<revision:
+                    _atomic_json(old_path,{**old,'enabled':False,'revoked':True,'token':''})
+            _atomic_json(private,value)
     else:preserve_local_claim()
     python,bridge,hook,environment=_runtime_paths(python_path=python_path,bridge_path=bridge_path,hook_path=hook_path)
     command={'command':str(python or bridge),'args':(['-s','-u',str(bridge)] if python else [])+['--connection-config',str(private)],'env':environment}
@@ -203,13 +229,102 @@ def make_agent_config(root,connection_secret,*,python_path=None,bridge_path=None
       'env':environment,'stdin_format':'JSON','event_schema':HOOK_SCHEMA,
       'example':{'session_id':'宿主提供的稳定会话ID','turn_id':'宿主提供的真实轮次ID','status':'complete','user':'真实用户原话','assistant':'真实助手回复'},
       'requires_host_turn_end_hook':True,'copies_model_credentials':False}
+    hook_config['matcher']='.*'
+    validate_hook_matcher(hook_config['matcher'])
     return {'private_path':str(private),'mcp_config':mcp,'hook_config':hook_config,
       'connection_config_public':{'schema':SCHEMA,'connection_id':cid,'library_id':library,
         'enabled':value['enabled'],'revoked':value['revoked'],'capture_mode':'tools_only_until_host_hook',
-        'session_scope':value['session_scope'],'bound_session_id':value['bound_session_id'],'scope_conflict':scope_conflict,
-        'window_only':value['session_scope']!='connection',
+        'session_scope':value['session_scope'],'session_scope_policy':value['session_scope_policy'],'binding_revision':value['binding_revision'],
+        'bound_session_id':value['bound_session_id'],'scope_conflict':scope_conflict,
+        'window_only':value['session_scope']!='any',
         'model_api_key_required':False,'transport':'local-mcp-stdio','automatic_reconnect':True},
       'persisted':persist,'supported':True,'requires_host_hook_for_automatic_capture':True}
+
+def validate_hook_matcher(matcher):
+    """Use a real match-all regex; host wildcard extensions are not portable."""
+    if not isinstance(matcher,str) or len(matcher)>512:
+        raise AgentConnectionError('Hook matcher须为长度不超过512的正则表达式','invalid_matcher')
+    try:re.compile(matcher)
+    except re.error:
+        raise AgentConnectionError('Hook matcher正则无效；匹配全部请使用 .*，不要使用裸 *','invalid_matcher') from None
+    return matcher
+
+def connection_config_diagnostic(path,code='invalid_file'):
+    """Public startup diagnostics contain paths and actions, never file contents."""
+    selected=Path(path).expanduser().absolute()
+    expected_dir=(Path(os.environ.get('LOCALAPPDATA',Path.home()/'AppData/Local'))/'LoveHouse/agent-connections'
+                  if sys.platform=='win32' else Path.home()/'Library/Application Support/LoveHouse/agent-connections'
+                  if sys.platform=='darwin' else Path.home()/'.local/share/LoveHouse/agent-connections')
+    missing=not selected.is_file()
+    return {'schema':'love-house-connection-diagnostic/v1','status':'error',
+      'code':'connection_config_not_found' if missing else code,'config_path':str(selected),
+      'expected_directory':str(expected_dir),'next_action':'copy_connection_config_path',
+      'message':'连接配置不存在；程序安装目录与用户数据目录不同。' if missing else '连接配置不可读或版本不支持；原文件未覆盖。',
+      'repair':'打开爱之屋 → 连接 → 此Agent连接 → 复制连接配置完整路径；用生成的MCP片段替换手写路径，信任连接器后重试。'}
+
+def configure_workbuddy(root,connection_secret,*,apply=False,home=None):
+    """Merge only this MCP entry. Never create WorkBuddy/CodeBuddy hooks settings."""
+    if type(apply) is not bool:raise AgentConnectionError('apply须为布尔值','invalid_input')
+    bundle=make_agent_config(root,connection_secret,persist=False)
+    home=Path(home).expanduser().resolve() if home is not None else Path.home().resolve()
+    folder=home/'.workbuddy';target=folder/'mcp.json'
+    plan={'supported':True,'host':'workbuddy','config_path':str(target),'private_path':bundle['private_path'],
+      'mcp_config':bundle['mcp_config'],'applied':False,'readback_verified':False,
+      'hook_supported':False,'hook_support_status':'desktop_user_hooks_unverified','requires_trust':True,
+      'restart_if_tools_missing':True,'expected_tool_count':10,'tools_loaded':None,
+      'next_steps':['打开 WorkBuddy → 连接器 → 自定义连接器，确认并信任此爱之屋连接器。',
+                    '在目标会话调用 memory_status 验证工具已加载；如看不到工具，完全退出并重启 WorkBuddy 后新建会话重试。',
+                    '这里只安装 MCP 工具；WorkBuddy 桌面用户 Hook 尚未验证。不会修改 settings.json，也不能据此宣称每轮自动存档。']}
+    plan['configure_endpoint']='/api/connections/'+str(connection_secret.get('id',connection_secret.get('connection_id')))+'/workbuddy/configure'
+    if not apply:
+        plan['config_exists']=target.is_file()
+        if target.is_file() and not target.is_symlink() and not folder.is_symlink():
+            try:
+                actual=_read_json(target,1024*1024)
+                name,entry=next(iter(bundle['mcp_config']['mcpServers'].items()))
+                plan['readback_verified']=isinstance(actual.get('mcpServers'),dict) and actual['mcpServers'].get(name)==entry
+            except AgentConnectionError:plan['configuration_error']='invalid_file'
+        return plan
+    if not bundle['connection_config_public']['enabled'] or bundle['connection_config_public']['revoked']:
+        raise AgentConnectionError('连接已暂停或断开，未安装宿主配置','paused')
+    if folder.is_symlink() or target.is_symlink():
+        raise AgentConnectionError('WorkBuddy配置使用符号链接，请在宿主中手动合并生成的MCP配置','unsafe_config_path')
+    folder.mkdir(parents=True,exist_ok=True,mode=0o700)
+    with _spool_lock(folder):
+        existed=target.exists()
+        try:raw=target.read_bytes() if existed else b''
+        except OSError:raise AgentConnectionError('WorkBuddy配置不可读，原文件未修改','invalid_file') from None
+        if len(raw)>1024*1024:raise AgentConnectionError('WorkBuddy配置超过1MiB，请在宿主中手动配置','invalid_file')
+        try:old=json.loads(raw.decode('utf-8-sig'),parse_constant=_constant,object_pairs_hook=_unique) if existed else {}
+        except (ValueError,UnicodeError,RecursionError):raise AgentConnectionError('WorkBuddy配置JSON无效，原文件未修改','invalid_file') from None
+        if not isinstance(old,dict) or not isinstance(old.get('mcpServers',{}),dict):
+            raise AgentConnectionError('WorkBuddy mcpServers须为对象，原文件未修改','invalid_file')
+        expected=json.loads(_json(old));servers=expected.setdefault('mcpServers',{})
+        name,entry=next(iter(bundle['mcp_config']['mcpServers'].items()))
+        previous=servers.get(name)
+        if previous is not None and previous!=entry:
+            args=previous.get('args') if isinstance(previous,dict) else None
+            owned=False
+            if isinstance(args,list) and len(args)>=2 and args[-2]=='--connection-config' and isinstance(args[-1],str):
+                previous_path=Path(args[-1]);current_path=Path(bundle['private_path'])
+                cid=bundle['connection_config_public']['connection_id']
+                owned=(previous_path.parent==current_path.parent and re.fullmatch(re.escape(cid)+r'(?:\.binding-\d+)?\.json',previous_path.name) is not None)
+            if not owned:
+                raise AgentConnectionError('同名MCP服务属于不同配置，未覆盖；请在WorkBuddy中核对','mcp_name_conflict')
+        servers[name]=entry
+        if (target.read_bytes() if target.exists() else b'')!=raw:
+            raise AgentConnectionError('WorkBuddy配置刚被修改，请重试；原文件未覆盖','config_changed')
+        backup=None
+        if existed:
+            backup=folder/('mcp.json.lovehouse-'+uuid.uuid4().hex+'.bak')
+            with backup.open('xb') as stream:stream.write(raw);stream.flush();os.fsync(stream.fileno())
+            backup.chmod(0o600)
+        make_agent_config(root,connection_secret,persist=True)
+        _atomic_json(target,expected)
+        verified=_read_json(target,1024*1024)==expected
+        if not verified:raise AgentConnectionError('WorkBuddy配置回读不一致，请检查备份并重新配置','readback_failed')
+    return {**plan,'applied':True,'readback_verified':True,'backup_path':str(backup) if backup else None,
+      'message':'MCP配置已写入并回读；仍需在WorkBuddy信任连接器并调用memory_status验证。'}
 
 def _safe_url(value):
     value=_text(value,'source_url',4000)
@@ -276,16 +391,19 @@ class AgentClient:
         return c
     @staticmethod
     def _bound(c):
-        return c.get('bound_session_id') or (c['session_scope'] if c['session_scope'] not in ('connection','next_session') else None)
+        return c.get('bound_session_id')
     def _scope_result(self,code):
         c=self.config()
         return {'accepted':False,'saved':False,'archive_committed':False,'local_queue_committed':False,'queued':False,
                 'status':code,'code':code,'connection_id':c['connection_id'],'library_id':c['library_id'],
-                'session_scope':c['session_scope'],'bound_session_id':self._bound(c)}
+                'session_scope':c['session_scope'],'session_scope_policy':c['session_scope_policy'],
+                'bound_session_id':self._bound(c),'binding_revision':c['binding_revision'],
+                'next_action':'wait_for_source_adapter_binding' if code=='awaiting_window_binding' else 'use_bound_window',
+                'message':'等待所选来源适配器的首轮完整对话绑定窗口；MCP手动补录不会占用窗口。' if code=='awaiting_window_binding' else '此记录属于其他窗口；请在已绑定窗口使用此连接。'}
     def _preflight_window(self,data,*,hook=False):
         """Reject foreign/undetermined input before normalizing any role text."""
         c=self._require_enabled()
-        if c['session_scope']=='connection':return None
+        if c['session_scope']=='any':return None
         sid=data.get('session_id') if isinstance(data,dict) else None
         bound=self._bound(c)
         if bound:
@@ -298,7 +416,7 @@ class AgentClient:
         return None if eligible else self._scope_result('awaiting_window_binding')
     def _scope_gate(self,c,event,*,claim=False):
         """Called under the config lock before ANY outbox serialization/write."""
-        if c['session_scope']=='connection':return c
+        if c['session_scope']=='any':return c
         sid=_text(event.get('session_id'),'session_id',200)
         bound=self._bound(c)
         if bound:
@@ -477,12 +595,16 @@ class AgentClient:
         c=self.config()
         public={'library_id':c['library_id'],'connection_id':c['connection_id'],'capture_mode':'tools_only_until_host_hook',
                 'pending':self.pending_count(),'model_api_key_required':False,'enabled':c['enabled'],'revoked':c['revoked'],
-                'session_scope':c['session_scope'],'bound_session_id':self._bound(c),'window_only':c['session_scope']!='connection'}
+                'session_scope':c['session_scope'],'session_scope_policy':c['session_scope_policy'],
+                'binding_revision':c['binding_revision'],'bound_session_id':self._bound(c),'window_only':c['session_scope']!='any'}
         if not self._enabled(c):return {**public,'connected':False,'status':'paused'}
         try:
             remote=self.tool('memory_status',{})
-            server_scope=remote.get('session_scope') or (remote.get('connection') or {}).get('session_scope')
-            conflict=bool(self._bound(c) and server_scope not in (None,'connection','next_session',self._bound(c)))
+            connection=remote.get('connection') or {}
+            server_scope=remote.get('session_scope') or connection.get('session_scope')
+            server_bound=remote.get('bound_session_id') or connection.get('bound_session_id')
+            if not server_bound and server_scope not in (None,'any','fixed','connection','next_session'):server_bound=server_scope
+            conflict=bool(self._bound(c) and server_bound and server_bound!=self._bound(c))
             return {**public,**remote,'connected':True,'local_bound_session_id':self._bound(c),
                     'scope_conflict':conflict,'server_session_scope':server_scope}
         except AgentConnectionError as exc:return {**public,'connected':False,'status':exc.code}

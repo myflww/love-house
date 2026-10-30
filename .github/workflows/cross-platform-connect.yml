@@ -1,6 +1,8 @@
 name: cross-platform real Harness connection
 
 on:
+  push:
+    branches: [codex/workbuddy-connect-080rc2]
   pull_request:
   workflow_dispatch:
 

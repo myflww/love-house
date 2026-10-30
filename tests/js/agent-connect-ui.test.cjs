@@ -28,7 +28,7 @@ test('copy exports only valid MCP config, never the surrounding provider or loca
 test('agent status never calls MCP tools automatic capture or treats offline restart as lost configuration',()=>{
  assert.equal(state({host:'agent',enabled:true,host_online:true,archive_status:'tools_only'}),'记忆工具已连接');
  assert.equal(state({host:'agent',enabled:true,host_online:false,archive_status:'tools_only'}),'已配置 · 等待 Agent 上线');
- assert.equal(state({host:'agent',enabled:true,host_online:true,archive_status:'automatic_connected'}),'已收到自动存档');
+ assert.equal(state({host:'agent',enabled:true,host_online:true,archive_status:'automatic_connected'}),'已收到宿主记录');
  assert.equal(state({host:'agent',enabled:false,host_online:true,archive_status:'automatic_connected'}),'已暂停');
  assert.equal(state({host:'api',enabled:true,archive_status:'automatic_connected'}),'已收到对话');
 });
@@ -44,7 +44,7 @@ test('single-window scope remains visible and all-session scope requires explici
 test('Windows can select Harness and busy state is the only platform-independent lock',()=>{
  const controls=new Map();const by=id=>{if(!controls.has(id))controls.set(id,{});return controls.get(id);};
  const choices={harness:{},agent:{},api:{}};
- const ctx={remoteHost:false,navigator:{platform:'Win32',userAgent:'Windows NT 10.0'},MEMORY:{busy:false,config:null},writeBusy:false,S:{libraryChanging:false},choices,by,canManageMemory:()=>true,wizardStep:1,hostSelect:{value:'harness'},newLib:{checked:false},newLibName:{},startButton:{},close:{},back:{},next:{},agentSetupText:()=>'',agentMcpText:()=>''};
+ const ctx={remoteHost:false,navigator:{platform:'Win32',userAgent:'Windows NT 10.0'},MEMORY:{busy:false,config:null},writeBusy:false,S:{libraryChanging:false},choices,by,canManageMemory:()=>true,wizardStep:1,hostSelect:{value:'harness'},newLib:{checked:false},newLibName:{},startButton:{},close:{},back:{},next:{},agentSetupText:()=>'',agentMcpText:()=>'',connectionConfigPath:()=>''};
  const match=source.match(/function sync\([^]*?\nfunction go/);assert(match);vm.runInNewContext(match[0].replace(/\nfunction go$/,'')+';sync();',ctx);
  assert.equal(choices.harness.disabled,false);
  ctx.MEMORY.busy=true;vm.runInNewContext('sync()',ctx);assert.equal(choices.harness.disabled,true);
@@ -69,4 +69,53 @@ test('a remote mobile session uses a generic Agent even when an old link request
  const values=new Map();const by=id=>{if(!values.has(id))values.set(id,{});return values.get(id);};
  const ctx={remoteHost:true,MEMORY:{busy:false,libraries:[]},canManageMemory:()=>true,refreshLibraries:async()=>{},hostSelect:{value:'harness'},advancedPaths:{},connectionHostChanged:()=>{},by,S:{isDemo:false,libraryId:'same-library'},newLib:{},newLibName:{},go:()=>{},dialog:{showModal:()=>{}},choices:{agent:{focus:()=>{}}}};
  const fn=vm.runInNewContext(source.match(/async function openWizard[^\n]+/)[0]+';openWizard',ctx);await fn('harness');assert.equal(ctx.hostSelect.value,'agent');assert.equal(by('connectionLibrary').value,'same-library');
+});
+
+
+test('binding policy stays stable while the separate bound window controls display and permissions',()=>{
+ const scope=load('windowScopeCaption'),capabilities=load('connectionCapabilities');
+ const bound={session_scope:'next_session',session_scope_policy:'next_session',bound_session_id:'window-abcdefgh',can_read:true,can_write:true};
+ assert(scope(bound).includes('abcdefgh'));assert(!scope(bound).includes('等待'));
+ assert(capabilities(bound).includes('可写'));assert(!capabilities(bound).includes('绑定后'));
+ const awaiting={...bound,bound_session_id:null,can_write:false};
+ assert(scope(awaiting).includes('首次来源上报'));assert(capabilities(awaiting).includes('绑定后可写'));
+ assert.equal(state({host:'agent',enabled:true,host_online:true,...awaiting}),'工具已连接 · 等待窗口绑定');
+});
+
+test('single manually reachable hook and legacy automatic state never claim continuous capture',()=>{
+ const receipt=load('hookReceiptCaption'),saved=load('savedDialogue');
+ const advice=vm.runInNewContext(source.match(/function savedDialogue\([^]*?\n\}/)[0]+'\n'+source.match(/function agentConnectionAdvice\([^]*?\n\}/)[0]+';agentConnectionAdvice');
+ const c={host:'agent',enabled:true,host_online:true,archive_status:'host_reported',capture:{hook_event_count:1,complete_dialogues_saved:1},bound_session_id:'fixed'};
+ assert(receipt(c).includes('1 次'));assert(receipt(c).includes('仅在宿主调用'));
+ assert(saved(c));assert(advice(c,{}).includes('不能保证'));
+ assert(!state(c).includes('自动'));assert(!state({...c,archive_status:'automatic_connected'}).includes('自动'));
+ assert(advice({...c,bound_session_id:null,session_scope_policy:'next_session',can_write:false},{}).includes('MCP 手动补录不会认领窗口'));
+});
+
+test('copying a connection path uses only the service supplied actual path',()=>{
+ const path=load('connectionConfigPath'),actual='C:\\Users\\fixture\\AppData\\Local\\LoveHouse\\agent-connections\\connection.json';
+ assert.equal(path({connection:{host:'agent'},private_path:actual}),actual);
+ assert.equal(path({connection:{host:'agent'},mcp_config:config}),'');
+ assert.equal(path({connection:{revoked:true},private_path:actual}),'');
+});
+
+test('rebind confirmation preserves expected window, rotates through the exact connection API and does not run on cancel',async()=>{
+ const calls=[],messages=[],item={id:'target/id',name:'Original',library_id:'fish-a',host:'agent',bound_session_id:'original-window'};
+ const ctx={S:{libraryEpoch:2},MEMORY:{busy:false},canManageMemory:()=>true,window:{confirm:()=>false},updateWriteState(){},api:async(...args)=>{calls.push(plain(args));return {connection:{...item,bound_session_id:null},private_path:'NEW'};},showConnectionConfig:r=>messages.push(r),refreshConnections:async()=>{},toast:(...args)=>messages.push(args)};
+ const fn=vm.runInNewContext(source.match(/async function rebindConnection\([^]*?\n\}/)[0]+';rebindConnection',ctx);
+ await fn(item);assert.deepEqual(calls,[]);
+ ctx.window.confirm=()=>true;await fn({...item,host:'harness'});assert.deepEqual(calls,[]);await fn({...item,host:'api'});assert.deepEqual(calls,[]);await fn(item);assert.equal(calls.length,1);
+ assert.deepEqual(calls[0],['connections/target%2Fid/rebind',{confirm:true,expected_bound_session_id:'original-window'},{scope:false}]);
+ assert.equal(ctx.MEMORY.busy,false);assert.equal(messages[0].connection.library_id,'fish-a');
+ ctx.window.confirm=()=>{ctx.S.libraryEpoch++;return true;};await fn(item);assert.equal(calls.length,1);
+});
+
+test('WorkBuddy install verifies its plan and readback before claiming config installation',async()=>{
+ const code=source.match(/workbuddyNow\.onclick=async\(\)=>\{[^]*?\n\};/)[0],calls=[],notices=[];
+ const ctx={remoteHost:false,canManageMemory:()=>true,MEMORY:{busy:false,config:{connection:{id:'conn-fixture'}}},S:{libraryEpoch:1},workbuddyNow:{},guideNotice:{textContent:''},updateWriteState(){},refreshConnections:async()=>{},showConnectionConfig:r=>notices.push(r),api:async(route,body)=>{calls.push([route,body]);return body?.apply===false?{supported:true}:body?.apply===true?{applied:true,readback_verified:true}:{connection:{id:'conn-fixture'}};}};
+ vm.runInNewContext(code,ctx);await ctx.workbuddyNow.onclick();
+ assert.deepEqual(calls.slice(0,2).map(c=>plain(c)),[['connections/conn-fixture/workbuddy/configure',{apply:false}],['connections/conn-fixture/workbuddy/configure',{apply:true}]]);
+ assert(ctx.guideNotice.textContent.includes('信任'));assert(ctx.guideNotice.textContent.includes('未启用自动上报'));
+ calls.length=0;ctx.api=async(route,body)=>{calls.push([route,body]);return {supported:true,applied:true,readback_verified:false};};await ctx.workbuddyNow.onclick();
+ assert(ctx.guideNotice.textContent.includes('未完成'));assert.equal(notices.length,1);
 });

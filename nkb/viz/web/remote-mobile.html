@@ -21,7 +21,7 @@
         <label for="adminToken">服务管理凭据</label>
         <input id="adminToken" type="password" required autocomplete="off" spellcheck="false">
         <p class="fine">使用你在自己的电脑或服务器上生成的管理凭据。这里无需填写聊天模型的 API Key。</p>
-        <button id="loginButton" class="primary" type="submit" disabled disabled>打开记忆库</button>
+        <button id="loginButton" class="primary" type="submit" disabled>打开记忆库</button>
       </form>
     </section>
     <div id="workspace" hidden>
@@ -47,13 +47,15 @@
         <ol class="steps">
           <li>复制下方说明，交给拥有工具或宿主配置能力的 Agent 窗口。</li>
           <li>让它保存配置、加载记忆工具，并调用 <code>memory_status</code> 和 <code>memory_bootstrap</code> 核对存档。</li>
-          <li>宿主支持轮次结束回调时，由它配置自动上报；完成一轮对话后检查记录。</li>
+          <li>由来源适配器首次上报绑定目标窗口，再核对原文。MCP 手动补录不会认领窗口；仅在宿主调用时记录。</li>
         </ol>
         <div class="actions"><button id="copyAgent" class="primary" type="button">复制给 Agent</button><button id="copyMcp" type="button">只复制 MCP 配置</button></div>
         <details><summary>查看配置与安装说明</summary><label for="agentSetup">给 Agent 的说明</label><textarea id="agentSetup" readonly rows="9" spellcheck="false"></textarea><label for="mcpConfig">标准 HTTPS MCP 配置</label><textarea id="mcpConfig" readonly rows="8" spellcheck="false"></textarea><label for="hookConfig">宿主自动上报接口</label><textarea id="hookConfig" readonly rows="7" spellcheck="false"></textarea></details>
         <p class="fine">这份记忆访问凭据只交给你信任的 Agent。普通网页若没有工具或宿主配置能力，仅粘贴文字不会建立连接。</p>
-        <div class="connection-state"><strong id="captureState">等待 Agent 加载</strong><p id="captureDetails"></p></div>
+        <details><summary>WorkBuddy 接入检查</summary><p>在“连接器 → 自定义连接器”中信任记忆连接器，然后重启 WorkBuddy。在目标窗口调用 memory_status 与 memory_bootstrap，核对工具是否加载、存档是否正确。</p><p>WorkBuddy 桌面版是否读取用户 settings.json 中的 hooks 尚未确认。写入文件、工具连通或手动发送一次 Hook 事件，都不能证明每轮自动存档已启用。只有真实轮次回调才能持续提交；正则 matcher 请用合法表达式（如 .*），不能用 *。</p></details>
+        <div class="connection-state"><strong id="captureState">等待 Agent 加载</strong><p id="captureDetails"></p><p id="captureDiagnostics" class="fine"></p></div>
         <button id="checkConnection" type="button">检查 Agent 连接与记录</button>
+        <button id="rebindConnection" type="button" hidden>重新绑定窗口 · 保留记忆</button>
       </section>
       <section class="card"><h2>同一份记忆，随时查看</h2><p>经历、记忆规律、整理准则、导入与分享都由这台服务的 0.8 版本提供。手机不会另存一份不同身份的副本。</p><a class="button" href="/app/">打开完整记忆界面</a><p id="browserNote" class="fine" hidden>当前浏览器可以配置 Agent。完整记忆界面需要近期版本的浏览器；如无法打开，请更新浏览器后访问这台服务。</p></section>
       <button id="logout" class="quiet" type="button">退出服务管理</button>

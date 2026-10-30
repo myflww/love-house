@@ -5,6 +5,7 @@ import json
 import secrets
 import sqlite3
 import time
+import threading
 import uuid
 from pathlib import Path
 from contextlib import contextmanager
@@ -13,6 +14,7 @@ from ..errors import ValidationError
 class ConnectionStore:
     """Connection bindings and a durable receipt/outbox journal, independent of graph decay."""
     def __init__(self,root):
+        self.binding_lock=threading.RLock()
         self.path=Path(root)/'capture.sqlite3'
         self.path.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
         with self.db() as db:
@@ -30,8 +32,16 @@ class ConnectionStore:
             for field in ('host_seen','configured_at'):
                 if field not in fields:db.execute(f'ALTER TABLE connections ADD COLUMN {field} REAL')
             if 'host_options' not in fields:db.execute('ALTER TABLE connections ADD COLUMN host_options TEXT')
+            for field,kind in (('session_scope_policy','TEXT'),('bound_session_id','TEXT'),('binding_revision','INTEGER NOT NULL DEFAULT 0')):
+                if field not in fields:db.execute(f'ALTER TABLE connections ADD COLUMN {field} {kind}')
+            # Upgrade the old overloaded field without changing a chosen window.
+            db.execute("""UPDATE connections SET
+                bound_session_id=CASE WHEN session_scope NOT IN ('connection','any','next_session','fixed') THEN session_scope ELSE bound_session_id END,
+                session_scope_policy=CASE WHEN session_scope IN ('connection','any') THEN 'any' WHEN session_scope='next_session' THEN 'next_session' ELSE 'fixed' END
+                WHERE session_scope_policy IS NULL""")
+            db.execute('UPDATE connections SET session_scope=session_scope_policy')
             receipt_fields={r['name'] for r in db.execute('PRAGMA table_info(receipts)')}
-            for field,kind in (('semantic_type','TEXT'),('is_automatic','INTEGER')):
+            for field,kind in (('semantic_type','TEXT'),('is_automatic','INTEGER'),('source_schema','TEXT'),('binding_revision','INTEGER NOT NULL DEFAULT 0')):
                 if field not in receipt_fields:db.execute(f'ALTER TABLE receipts ADD COLUMN {field} {kind}')
             # Classify existing receipts once. Original payloads/hashes/IDs remain
             # untouched; future status polling does not reparse private texts.
@@ -39,6 +49,12 @@ class ConnectionStore:
                 semantic_type,automatic=self._payload_semantics(row['payload'])
                 db.execute('UPDATE receipts SET semantic_type=?,is_automatic=? WHERE id=?',
                            (semantic_type,int(automatic),row['id']))
+            for row in db.execute('SELECT id,payload FROM receipts WHERE source_schema IS NULL'):
+                try:
+                    payload=json.loads(row['payload']);record=payload.get('record') or {}
+                    schema=record.get('schema','') if isinstance(record,dict) else ''
+                except (ValueError,TypeError,AttributeError):schema=''
+                db.execute('UPDATE receipts SET source_schema=? WHERE id=?',(schema,row['id']))
             db.execute('CREATE INDEX IF NOT EXISTS receipts_capture_state ON receipts(connection_id,status,semantic_type,is_automatic)')
         self.path.chmod(0o600)
     @contextmanager
@@ -64,31 +80,52 @@ class ConnectionStore:
                                                 'neural-api-proxy/v1','neural-api-tool/v1')
             return kind,bool(automatic)
         except (ValueError,TypeError,RecursionError):return '',False
-    def _capture(self,cid):
+    def _capture(self,cid,revision=0):
+        # Event schema is an assertion by the sender, not proof of an installed
+        # adapter. In generic Agent mode only a server-confirmed Harness setup
+        # from before receipt can make Harness records eligible for automation.
+        eligible="""((source_schema='deepseek-harness-event/v1' AND
+            (connections.host='harness' OR (connections.host='agent' AND
+             connections.configured_at IS NOT NULL AND connections.configured_at<=receipts.received))) OR
+            (connections.host='api' AND source_schema IN ('neural-api-proxy/v1','neural-api-tool/v1')))"""
         with self.db() as db:
-            row=db.execute('''SELECT
+            row=db.execute(f'''SELECT
               SUM(CASE WHEN status='saved' AND semantic_type='turn' THEN 1 ELSE 0 END) complete_dialogues_saved,
-              SUM(CASE WHEN status='saved' AND semantic_type='turn' AND is_automatic=1 THEN 1 ELSE 0 END) automatic_dialogues_saved,
+              SUM(CASE WHEN status='saved' AND semantic_type='turn' AND is_automatic=1 AND {eligible} THEN 1 ELSE 0 END) automatic_dialogues_saved,
               SUM(CASE WHEN status='saved' AND semantic_type='tool' THEN 1 ELSE 0 END) tool_observations_saved,
-              SUM(CASE WHEN status='saved' AND semantic_type='tool' AND is_automatic=1 THEN 1 ELSE 0 END) automatic_tool_observations_saved,
+              SUM(CASE WHEN status='saved' AND semantic_type='tool' AND is_automatic=1 AND {eligible} THEN 1 ELSE 0 END) automatic_tool_observations_saved,
               SUM(CASE WHEN status='archived' THEN 1 ELSE 0 END) raw_events_only,
               SUM(CASE WHEN status IN ('pending','retry') THEN 1 ELSE 0 END) pending_records,
-              MAX(CASE WHEN status='saved' AND semantic_type='turn' THEN applied END) last_dialogue_at
-              FROM receipts WHERE connection_id=?''',(cid,)).fetchone()
-        return {k:(row[k] if k=='last_dialogue_at' else int(row[k] or 0)) for k in row.keys()}
+              MAX(CASE WHEN status='saved' AND semantic_type='turn' THEN applied END) last_dialogue_at,
+              SUM(CASE WHEN source_schema='love-house-agent-hook/v1' AND status!='forgotten' THEN 1 ELSE 0 END) hook_event_count,
+              SUM(CASE WHEN source_schema='love-house-agent-hook/v1' AND status='saved' AND semantic_type='turn' THEN 1 ELSE 0 END) hook_dialogues_saved,
+              MAX(CASE WHEN source_schema='love-house-agent-hook/v1' AND status!='forgotten' THEN received END) last_hook_at
+              FROM receipts JOIN connections ON connections.id=receipts.connection_id
+              WHERE connection_id=? AND receipts.binding_revision=?''',(cid,revision)).fetchone()
+        result={k:(row[k] if k in ('last_dialogue_at','last_hook_at') else int(row[k] or 0)) for k in row.keys()}
+        # Caller-controlled events cannot attest that a host installed/enabled hooks.
+        result['auto_streak']=0
+        return result
     def public(self,row):
         result=dict(row);result.pop('token',None)
         result.pop('host_options',None)
         result['enabled']=bool(result['enabled']);result['revoked']=bool(result['revoked'])
         result['archive_status']=result['archive_status'] or 'waiting'
-        capture=self._capture(result['id']);result['capture']=capture
+        capture=self._capture(result['id'],result.get('binding_revision',0));result['capture']=capture
         if not result['revoked']:
             # A completed tool result proves automatic observation capture, not
             # that a human/assistant conversation pair has reached the graph.
             if capture['automatic_dialogues_saved']:result['archive_status']='automatic_connected'
+            elif capture['hook_dialogues_saved']:result['archive_status']='host_reported'
             elif capture['automatic_tool_observations_saved']:result['archive_status']='observations_only'
             elif capture['complete_dialogues_saved'] or capture['tool_observations_saved']:result['archive_status']='tools_only'
-            elif result['archive_status'] in ('automatic_connected','observations_only','tools_only'):result['archive_status']='waiting'
+            elif result['archive_status'] in ('automatic_connected','host_reported','observations_only','tools_only'):result['archive_status']='waiting'
+        active=result['enabled'] and not result['revoked']
+        result.update(can_read=active,can_write=bool(active and (result['host']!='agent' or result['session_scope']=='any' or result.get('bound_session_id'))),
+                      memory_only=result['host']=='agent',automatic_memory=bool(active and result['archive_status']=='automatic_connected'))
+        result['read_only']=not result['can_write']
+        result['capture_mode']=('host_hook_received' if capture['hook_event_count'] else 'tools_only') if not result['automatic_memory'] else 'adapter_events_received'
+        result['binding_state']='bound' if result.get('bound_session_id') else 'all_sessions' if result['session_scope']=='any' else 'awaiting_source_turn'
         result['last_received_at']=result.pop('last_received',None)
         result['host_seen_at']=result.pop('host_seen',None)
         result['host_online']=bool(result['host_seen_at'] and time.time()-result['host_seen_at']<65 and result['enabled'] and not result['revoked'])
@@ -98,9 +135,12 @@ class ConnectionStore:
         if host not in ('harness','api','agent'):raise ValidationError('连接方式须为harness、agent或api')
         if not isinstance(session_scope,str) or not session_scope.strip() or len(session_scope)>200:raise ValidationError('会话范围不合法')
         cid='conn_'+uuid.uuid4().hex;token=secrets.token_urlsafe(32)
+        policy='any' if session_scope in ('connection','any') else 'next_session' if session_scope=='next_session' else 'fixed'
+        bound=session_scope if policy=='fixed' else None
+        if bound=='fixed':raise ValidationError('固定窗口必须指定真实会话标识')
         with self.db() as db:
-            db.execute('INSERT INTO connections(id,name,host,library_id,session_scope,token,enabled,revoked,created,last_received,archive_status,error) VALUES(?,?,?,?,?,?,1,0,?,NULL,?,NULL)',
-                       (cid,name.strip(),host,library_id,session_scope,token,time.time(),'waiting'))
+            db.execute('INSERT INTO connections(id,name,host,library_id,session_scope,token,enabled,revoked,created,last_received,archive_status,error,session_scope_policy,bound_session_id) VALUES(?,?,?,?,?,?,1,0,?,NULL,?,NULL,?,?)',
+                       (cid,name.strip(),host,library_id,policy,token,time.time(),'waiting',policy,bound))
         return self.get(cid)
     def heartbeat(self,cid,data):
         for key in ('host_version','adapter_version','bound_session_id'):
@@ -132,15 +172,32 @@ class ConnectionStore:
         return r
     def authorize_session(self,cid,sid):
         if not isinstance(sid,str) or not sid or len(sid)>200:raise ValidationError('缺少稳定会话标识')
-        with self.db() as db:
+        with self.binding_lock,self.db() as db:
             db.execute('BEGIN IMMEDIATE')
-            row=db.execute('SELECT session_scope FROM connections WHERE id=?',(cid,)).fetchone()
+            row=db.execute('SELECT session_scope,bound_session_id FROM connections WHERE id=?',(cid,)).fetchone()
             if row is None:raise ValidationError('连接不存在')
             scope=row['session_scope']
-            if scope=='next_session':
-                db.execute('UPDATE connections SET session_scope=? WHERE id=?',(sid,cid))
-            elif scope!='connection' and scope!=sid:
+            if scope=='any':return
+            if row['bound_session_id']:
+                if row['bound_session_id']!=sid:raise ValidationError('此连接绑定了另一对话窗口，未保存当前会话')
+            elif scope=='next_session':
+                db.execute('UPDATE connections SET bound_session_id=? WHERE id=?',(sid,cid))
+            else:
                 raise ValidationError('此连接绑定了另一对话窗口，未保存当前会话')
+    @staticmethod
+    def adapter_scope(connection):
+        """Legacy host plugins receive the effective scope, never a policy as an ID."""
+        return connection.get('bound_session_id') or ('connection' if connection['session_scope']=='any' else 'next_session')
+    def rebind(self,cid,data):
+        if not isinstance(data,dict) or set(data)-{'confirm','expected_bound_session_id'} or data.get('confirm') is not True or 'expected_bound_session_id' not in data:
+            raise ValidationError('请确认重新绑定并提供当前窗口标识；已有记忆会保留，旧连接配置将失效')
+        with self.binding_lock,self.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row=db.execute('SELECT * FROM connections WHERE id=?',(cid,)).fetchone()
+            if row is None or row['host']!='agent' or row['revoked']:raise ValidationError('仅可重新绑定未断开的通用Agent连接')
+            if row['bound_session_id']!=data['expected_bound_session_id']:raise ValidationError('窗口绑定已变更，请刷新后重新确认')
+            db.execute("UPDATE connections SET session_scope='next_session',session_scope_policy='next_session',bound_session_id=NULL,binding_revision=binding_revision+1,token=?,host_seen=NULL,configured_at=NULL,last_received=NULL,archive_status='waiting',error=NULL WHERE id=?",(secrets.token_urlsafe(32),cid))
+        return self.get(cid)
     def toggle(self,cid,enabled,disconnect=False):
         if type(enabled) is not bool:raise ValidationError('enabled必须是布尔值')
         self.get(cid)
@@ -153,6 +210,15 @@ class ConnectionStore:
             if status:db.execute('UPDATE connections SET archive_status=?,error=? WHERE id=?',(status,error,cid))
             else:db.execute('UPDATE connections SET error=? WHERE id=?',(error,cid))
     def receive(self,connection,event):
+        with self.binding_lock:
+            self.authenticate(connection['id'],connection['token'])
+            return self._receive(connection,event)
+    @staticmethod
+    def _receipt_key(cid,sid,event_id,revision=0):
+        parts=[cid,sid,str(event_id)]
+        if revision:parts.append(revision)
+        return hashlib.sha256(json.dumps(parts,ensure_ascii=False).encode()).hexdigest()
+    def _receive(self,connection,event):
         if not isinstance(event,dict):raise ValidationError('事件必须是对象')
         original=json.dumps(event,ensure_ascii=False,sort_keys=True,allow_nan=False)
         original_digest=hashlib.sha256(original.encode()).hexdigest()
@@ -170,7 +236,7 @@ class ConnectionStore:
         payload=json.dumps(event,ensure_ascii=False,sort_keys=True,allow_nan=False)
         if len(payload.encode())>32*1024*1024:raise ValidationError('单事件超过32MiB，请按真实消息拆分')
         self.authorize_session(connection['id'],sid)
-        key=hashlib.sha256(json.dumps([connection['id'],sid,str(event_id)],ensure_ascii=False).encode()).hexdigest()
+        key=self._receipt_key(connection['id'],sid,event_id,connection.get('binding_revision',0))
         digest=hashlib.sha256(payload.encode()).hexdigest();kind=str(event.get('event_type',event.get('type','event')))[:80]
         # Raw host events are already fully archived. Only normalized complete
         # semantic records need applying to the graph; partial stays an archive.
@@ -183,15 +249,16 @@ class ConnectionStore:
                 if old['status']=='forgotten':return {'accepted':True,'duplicate':True,'receipt_id':key,'status':'forgotten'}
                 if old['payload_hash'] not in (digest,original_digest):raise ValidationError('同一事件ID已用于不同内容')
                 return {'accepted':True,'duplicate':True,'receipt_id':key,'status':old['status']}
-            db.execute('INSERT INTO receipts(id,connection_id,library_id,session_id,kind,status,payload,payload_hash,received,semantic_type,is_automatic) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
-                       (key,connection['id'],connection['library_id'],sid,kind,'pending' if pending else 'archived',payload,digest,time.time(),semantic_type,int(automatic)))
+            schema=(event.get('record') or {}).get('schema','') if isinstance(event.get('record'),dict) else ''
+            db.execute('INSERT INTO receipts(id,connection_id,library_id,session_id,kind,status,payload,payload_hash,received,semantic_type,is_automatic,source_schema,binding_revision) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                       (key,connection['id'],connection['library_id'],sid,kind,'pending' if pending else 'archived',payload,digest,time.time(),semantic_type,int(automatic),schema,connection.get('binding_revision',0)))
             db.execute('UPDATE connections SET last_received=?,error=NULL WHERE id=?',(time.time(),connection['id']))
         return {'accepted':True,'duplicate':False,'receipt_id':key,'status':'pending' if pending else 'archived'}
     def pending(self,limit=50):
         with self.db() as db:rows=db.execute("SELECT * FROM receipts WHERE status IN ('pending','retry') ORDER BY received LIMIT ?",(limit,)).fetchall()
         return [dict(r) for r in rows]
     def receipt(self,cid,sid,event_id):
-        key=hashlib.sha256(json.dumps([cid,sid,str(event_id)],ensure_ascii=False).encode()).hexdigest()
+        key=self._receipt_key(cid,sid,event_id,self.get(cid).get('binding_revision',0))
         with self.db() as db:r=db.execute('SELECT * FROM receipts WHERE id=?',(key,)).fetchone()
         return dict(r) if r else None
     def read_archive(self,receipt_id,library_id):
@@ -201,11 +268,12 @@ class ConnectionStore:
         return item
     def applied(self,rid,node_ids,automatic=True):
         with self.db() as db:
-            row=db.execute('SELECT connection_id,semantic_type,is_automatic FROM receipts WHERE id=?',(rid,)).fetchone()
+            row=db.execute('SELECT connection_id,semantic_type,is_automatic,source_schema FROM receipts WHERE id=?',(rid,)).fetchone()
             automatic=bool(automatic and row['is_automatic'])
             db.execute("UPDATE receipts SET status='saved',applied=?,attempts=attempts+1,error=NULL,node_ids=?,is_automatic=? WHERE id=?",
                        (time.time(),json.dumps(node_ids),int(automatic),rid))
-            if automatic and row['semantic_type']=='turn':db.execute("UPDATE connections SET archive_status='automatic_connected',error=NULL WHERE id=?",(row['connection_id'],))
+            if automatic and row['semantic_type']=='turn' and row['source_schema']=='love-house-agent-hook/v1':db.execute("UPDATE connections SET archive_status='host_reported',error=NULL WHERE id=?",(row['connection_id'],))
+            elif automatic and row['semantic_type']=='turn':db.execute("UPDATE connections SET archive_status='automatic_connected',error=NULL WHERE id=?",(row['connection_id'],))
             elif automatic and row['semantic_type']=='tool':db.execute("UPDATE connections SET archive_status=CASE WHEN archive_status='automatic_connected' THEN archive_status ELSE 'observations_only' END,error=NULL WHERE id=?",(row['connection_id'],))
             else:db.execute("UPDATE connections SET archive_status=CASE WHEN archive_status='automatic_connected' THEN archive_status ELSE 'tools_only' END,error=NULL WHERE id=?",(row['connection_id'],))
     def failed(self,rid,error):

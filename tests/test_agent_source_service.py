@@ -42,7 +42,7 @@ class AgentSourceServiceTests(unittest.TestCase):
         self.server.shutdown();self.server.server_close();self.thread.join();self.host.stop();self.temp.cleanup()
 
     def api(self,path,body=None,lib='default',token=None):
-        headers={'X-NKB-Library':lib}
+        headers={'X-NKB-Library':lib,'X-LoveHouse-Management':self.host.management_token}
         if token:headers['Authorization']='Bearer '+token
         if body is not None:headers['Content-Type']='application/json'
         request=Request(self.base+path,data=None if body is None else json.dumps(body,ensure_ascii=False).encode(),headers=headers)

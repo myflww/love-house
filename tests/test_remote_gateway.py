@@ -115,6 +115,33 @@ class RemoteGatewayTests(unittest.TestCase):
         status,readback,_=self.req('/api/remote/admin/connections/'+cid+'/config',cookie=self.cookie)
         self.assertEqual(status,200);self.assertEqual(readback['mcp_config'],config['mcp_config'])
 
+    def test_remote_rebind_requires_admin_csrf_and_rotates_connection_without_erasing_history(self):
+        _,cid,token=self.create()
+        hook={'session_id':'remote-fixture-window-a','turn_id':'one','status':'complete',
+              'user':'远程合成测试原话','assistant':'远程合成测试回复'}
+        route='/api/remote/connections/'+cid+'/events'
+        code,saved,_=self.req(route,hook,token=token)
+        self.assertEqual(code,200,saved);self.assertTrue(saved['accepted'])
+        before=self.host.snapshot('default')
+        management='/api/remote/admin/connections/'+cid+'/rebind'
+        body={'confirm':True,'expected_bound_session_id':'remote-fixture-window-a'}
+        self.assertEqual(self.req(management,body,token=token)[0],403)
+        self.assertEqual(self.req(management,body,cookie=self.cookie)[0],403)
+        code,result,_=self.req(management,body,cookie=self.cookie,csrf=self.csrf)
+        self.assertEqual(code,200,result)
+        self.assertEqual(result['connection']['binding_revision'],1)
+        self.assertIsNone(result['connection']['bound_session_id'])
+        self.assertEqual(self.host.snapshot('default'),before)
+        self.assertNotIn('private_path',result)
+        new_token=result['remote_config']['headers']['Authorization'][7:]
+        self.assertNotEqual(new_token,token)
+        self.assertEqual(self.req(route,hook,token=token)[0],401)
+        hook={**hook,'session_id':'remote-fixture-window-b','turn_id':'two'}
+        code,saved,_=self.req(route,hook,token=new_token)
+        self.assertEqual(code,200,saved);self.assertTrue(saved['accepted'])
+        self.assertEqual(self.host.connections.get(cid)['bound_session_id'],'remote-fixture-window-b')
+        self.assertEqual(len(self.host.snapshot('default')['nodes']),2)
+
     def test_legacy_and_stateless_modern_mcp_and_header_validation(self):
         _,cid,token=self.create()
         status,data,headers=self.rpc(cid,token,'initialize',{'protocolVersion':'2025-11-25','capabilities':{},'clientInfo':{'name':'test','version':'1'}})
@@ -141,9 +168,12 @@ class RemoteGatewayTests(unittest.TestCase):
         hook={'session_id':'real-host-window','turn_id':'actual-one','status':'complete','user':'真实用户原话','assistant':'真实助手最终回复'}
         code,saved,_=self.req('/api/remote/connections/'+cid+'/events',hook,token=token,headers={'Mcp-Session-Id':'fake-transport-id'})
         self.assertEqual(code,200,saved);self.assertEqual(saved['status'],'saved')
-        self.assertEqual(self.host.connections.get(cid)['session_scope'],'real-host-window')
+        self.assertEqual(self.host.connections.get(cid)['session_scope'],'next_session')
+        self.assertEqual(self.host.connections.get(cid)['bound_session_id'],'real-host-window')
         code,status,_=self.req('/api/remote/connections/'+cid+'/status',token=token)
-        self.assertEqual(code,200,status);self.assertTrue(status['automatic_memory'])
+        self.assertEqual(code,200,status);self.assertFalse(status['automatic_memory'])
+        self.assertEqual(status['capture_mode'],'host_hook_received')
+        self.assertEqual(status['capture']['hook_event_count'],1)
         other={**hook,'session_id':'another-real-window','turn_id':'outside'}
         code,rejected,_=self.req('/api/remote/connections/'+cid+'/events',other,token=token)
         self.assertEqual(code,200,rejected);self.assertFalse(rejected['accepted']);self.assertEqual(rejected['code'],'scope_conflict')

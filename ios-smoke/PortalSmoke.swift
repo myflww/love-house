@@ -108,7 +108,7 @@ final class PortalController: UIViewController, WKNavigationDelegate {
                 """)
             report["mcp"] = transport
             _ = try await js("document.getElementById('checkConnection').click();return true;")
-            try await wait("document.getElementById('captureState').textContent==='记忆工具已连接'")
+            try await wait("document.getElementById('captureState').textContent==='等待目标窗口绑定'")
             report["tool_connection_did_not_claim_automatic_capture"] = true
             let hook = try await js("""
                 const target=window.__qaHook;const data={session_id:'ios-simulator-real-fixture-window',turn_id:'ios-fixture-turn-1',status:'complete',user:'Synthetic iOS host user: remember the blue compass.',assistant:'Synthetic iOS host assistant: the blue compass is recorded.'};
@@ -116,13 +116,14 @@ final class PortalController: UIViewController, WKNavigationDelegate {
                 const foreign=await fetch(target.url,{method:'POST',headers:target.headers,body:JSON.stringify({...data,session_id:'outside-ios-fixture-window',turn_id:'outside'})});const rejected=await foreign.json();if(rejected.accepted!==false||rejected.code!=='scope_conflict')throw Error('Other-window hook was not rejected');
                 const listing=await window.__qaRpc(5,'tools/call',{name:'memory_list',arguments:{}});const entries=listing.structuredContent.entries;if(entries.length!==1)throw Error('Unexpected saved memory count');
                 const read=await window.__qaRpc(6,'tools/call',{name:'memory_read',arguments:{memory_id:entries[0].id}});if(read.structuredContent.text!==data.user)throw Error('Original user wording did not survive remote memory read');
+                const status=await window.__qaRpc(7,'tools/call',{name:'memory_status',arguments:{}});if(status.structuredContent.automatic_memory!==false||status.structuredContent.connection.bound_session_id!==data.session_id||status.structuredContent.connection.session_scope_policy!=='next_session'||status.structuredContent.connection.archive_status!=='host_reported')throw Error('Single hook was incorrectly described as automatic capture');
                 const denied=await fetch('/api/remote/admin/libraries',{headers:{Authorization:window.__qaServer.headers.Authorization}});if(denied.status!==403)throw Error('Agent capability reached administrator API');
                 return {saved:true,foreign_window_excluded:true,original_text_readback:true,agent_admin_isolation:true};
                 """)
             report["host_hook"] = hook
             _ = try await js("document.getElementById('checkConnection').click();return true;")
-            try await wait("document.getElementById('captureState').textContent==='已验证收到自动记录'")
-            report["automatic_archive_ui_verified"] = true
+            try await wait("document.getElementById('captureState').textContent==='已收到宿主记录'")
+            report["conditional_host_receipt_ui_verified"] = true
             _ = try await js("document.getElementById('captureState').scrollIntoView({block:'center'});return true;")
             finish(true)
         } catch {

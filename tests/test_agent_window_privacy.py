@@ -121,9 +121,9 @@ class AgentWindowPrivacyTests(unittest.TestCase):
         self.assertNotIn(b'server-other-window',self.all_disk_bytes())
 
     def test_old_configs_without_scope_remain_explicit_connection_compatible(self):
-        old=json.loads(self.path.read_text());old.pop('session_scope');old.pop('bound_session_id')
+        old=json.loads(self.path.read_text());old.pop('session_scope');old.pop('bound_session_id');old.pop('session_scope_policy',None)
         self.path.write_text(json.dumps(old))
-        self.assertEqual(validate_config(old)['session_scope'],'connection')
+        self.assertEqual(validate_config(old)['session_scope'],'any')
         self.assertTrue(self.client.submit_hook(self.hook('old-window-A'))['queued'])
         self.assertTrue(self.client.submit_hook(self.hook('old-window-B','two'))['queued'])
         self.assertEqual(self.client.pending_count(),2)
@@ -155,7 +155,8 @@ class RealControllerWindowPrivacyTests(unittest.TestCase):
         self.boot()
         self.host.drain_agent_outboxes()
         self.assertEqual(self.client.pending_count(),0)
-        self.assertEqual(self.host.connections.get(self.cid)['session_scope'],'chosen-real-window')
+        self.assertEqual(self.host.connections.get(self.cid)['session_scope'],'next_session')
+        self.assertEqual(self.host.connections.get(self.cid)['bound_session_id'],'chosen-real-window')
         self.assertEqual(self.client.config()['bound_session_id'],'chosen-real-window')
         result=self.client.submit_hook({**own,'session_id':'another-global-window','turn_id':'two','user':'FOREIGN-NEVER-ON-DISK'})
         self.assertEqual(result['status'],'ignored_scope')

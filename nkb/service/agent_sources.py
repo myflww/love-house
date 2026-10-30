@@ -110,8 +110,8 @@ class AgentSourceRegistry:
         connection = {"token": secrets.token_urlsafe(32), "enabled": True, "revoked": False}
         try:
             with self.connections.db() as db:
-                db.execute("INSERT INTO connections(id,name,host,library_id,session_scope,token,enabled,revoked,created,last_received,archive_status,error) VALUES(?,?,?,?,?,?,1,0,?,NULL,'waiting',NULL)",
-                           (cid, row["name"], "agent", library_id, "connection", connection["token"], created))
+                db.execute("INSERT INTO connections(id,name,host,library_id,session_scope,token,enabled,revoked,created,last_received,archive_status,error,session_scope_policy) VALUES(?,?,?,?,?,?,1,0,?,NULL,'waiting',NULL,'any')",
+                           (cid, row["name"], "agent", library_id, "any", connection["token"], created))
                 db.execute("INSERT INTO agent_sources VALUES(?,?,?,?,?,?,?,?,?)", tuple(row[k] for k in (
                     "id", "connection_id", "library_id", "name", "adapter", "runtime_agent_id", "platforms", "base_url", "created")))
                 _write_private_json(private, self._private(row, connection))

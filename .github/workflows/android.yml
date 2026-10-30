@@ -2,7 +2,7 @@ name: Android offline APK verification
 
 on:
   push:
-    branches: [codex/android-preview]
+    branches: [codex/android-preview, codex/workbuddy-connect-080rc2]
     paths:
       - 'android/**'
       - 'mobile/**'

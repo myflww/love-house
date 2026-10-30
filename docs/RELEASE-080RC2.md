@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | Windows 10（2004+）/ Windows 11 x64 | `LoveHouse-Setup-0.8.0rc2-Windows-x64.exe`；`LoveHouse-0.8.0rc2-Windows-x64.zip` | 安装版与便携版；无需自行安装 Python / Node |
 | Android 8.0+ | `LoveHouse-0.8.0rc2-Android.apk` | 原持久私钥签名，包名不变，versionCode 3；先备份后直接覆盖安装，不要卸载旧版 |
-| iPhone | [Safari 主屏幕版](https://love-house-mobile-myflww.sharp-rice-0090.chatgpt.site) | 网页应用；分享 → 添加到主屏幕，没有 IPA 包 |
+| iPhone | [Safari 主屏幕版](https://love-house-mobile-myflww.haixiac34.chatgpt.site) | 网页应用；分享 → 添加到主屏幕，没有 IPA 包 |
 | macOS Apple Silicon | [现有 0.5.0 稳定包](https://github.com/myflww/love-house/releases/tag/v0.5.0) | 本次仅提供更新交接书，新版 `.app` 尚未完成 macOS 本机验收 |
 
 源码归档不是安装包。Windows 未附商业发行商代码签名；Android 发行签名与 Windows 代码签名是两件事。核对本次发布的 SHA-256 文件及来源。
@@ -32,5 +32,7 @@ Windows 验证包含后端、原生窗口、安装后运行、中文空格路径
 模拟器与 CI 不能代表所有实体设备。本次没有新增 Windows 10、Android 手机、iPhone 或 macOS WorkBuddy 真机验收承诺；WorkBuddy 桌面端是否连续触发用户 Hook 仍取决于对应宿主版本，工具在线不代表每轮内容已保存。
 
 本机离线手机记忆可以独立使用。连接电脑 / 服务器的同份记忆需要该服务在线，且手机不会读取电脑或其他 App 的窗口内容。
+
+手机网页平台已将旧 `sharp-rice-0090` 网址重定向到上面的 `haixiac34` 入口。本机记忆不会跨网址自动迁移；如果旧主屏幕应用仍可离线打开，先导出 JSON，再在新入口导入，迁移前保留旧应用及网站数据。Android APK 本机库不受网页地址变化影响。
 
 详见同页附件 `WORKBUDDY-CONNECTION.md` 与 `MACOS-080RC2-WORKBUDDY-HANDOFF.md`，或分支中的同名文档。原创代码继续遵守 PolyForm Noncommercial 1.0.0，保留 myflww 署名及所有第三方许可。

@@ -63,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 13980,
-      "sha256": "cea35b99acd931decb8d2f2545dc6eb2ee6bfa5161ebbb2ee3db8fde8b34c482"
+      "bytes": 13974,
+      "sha256": "c87ad47796d5c6e87d35fe6e0349c29b306eb3ffac049e8a4cb1b4f54fe78518"
     },
     {
       "path": "ROADMAP.md",
@@ -418,8 +418,8 @@
     },
     {
       "path": "docs/RELEASE-080RC2.md",
-      "bytes": 3593,
-      "sha256": "25041b661f5556a821dc30eb68cd42cf567e780455421f69077b4b2836f1b9da"
+      "bytes": 3908,
+      "sha256": "f4220e86d09b404bfbafcf2b9e8374a881d21171572c3580e97d28459d06963b"
     },
     {
       "path": "docs/WORKBUDDY-CONNECTION.md",
@@ -458,8 +458,8 @@
     },
     {
       "path": "docs/手机版安装与使用.md",
-      "bytes": 5152,
-      "sha256": "9a4276945b8367877b96aa6aac24fd0c2a31b358dbb9a196974d37bec55f5ed1"
+      "bytes": 5503,
+      "sha256": "3386c2b76f5f365475496c4c2ee2934ca0108f7276c9a6bd12014bfc706440ac"
     },
     {
       "path": "docs/架构.md",

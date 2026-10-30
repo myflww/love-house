@@ -182,7 +182,7 @@ def make_gateway_handler(gateway):
             raw=(b'' if value is None else value if isinstance(value,bytes) else json.dumps(value,ensure_ascii=False,allow_nan=False).encode())
             self.send_response(status);self.send_header('Content-Type',content_type);self.send_header('Content-Length',str(len(raw)))
             self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff')
-            self.send_header('Referrer-Policy','no-referrer');self.send_header('X-Frame-Options','DENY')
+            self.send_header('Referrer-Policy','same-origin');self.send_header('X-Frame-Options','DENY')
             script_policy="'self' 'unsafe-inline'" if app_policy else "'self'"
             self.send_header('Content-Security-Policy',"default-src 'self'; script-src "+script_policy+"; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'")
             if headers:

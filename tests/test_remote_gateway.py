@@ -92,6 +92,17 @@ class RemoteGatewayTests(unittest.TestCase):
         self.assertEqual(self.req('/api/remote/admin/logout',{},cookie=self.cookie,csrf=self.csrf)[0],200)
         self.assertEqual(self.req('/api/remote/admin/session',cookie=self.cookie)[0],401)
 
+    def test_same_origin_referrer_policy_keeps_legacy_browser_origin_without_accepting_null(self):
+        code,html,headers=self.req('/mobile')
+        self.assertEqual(code,200)
+        self.assertEqual(headers['Referrer-Policy'],'same-origin')
+        self.assertIn(b'<meta name="referrer" content="same-origin">',html)
+        self.assertEqual(self.req('/api/remote/admin/login',{'admin_token':'A'*48},origin='null')[0],403)
+        self.login()
+        self.assertEqual(self.req('/api/remote/admin/connections',{'name':'must reject','library_id':'default'},
+            cookie=self.cookie,csrf=self.csrf,origin='null')[0],403)
+        self.assertEqual(self.host.connections.list(),[])
+
     def test_remote_configuration_has_only_https_urls_and_header_auth_no_local_commands(self):
         config,cid,token=self.create()
         server=next(iter(config['mcp_config']['mcpServers'].values()))

@@ -94,6 +94,10 @@ public final class RemoteGatewayTest {
     @Test public void realHttpsPortalCreatesAgentThenMcpAndHostHookSaveExactOriginalWords() throws Exception {
         launch(origin());
         waitFor("real portal JavaScript loaded", "document.getElementById('serviceOrigin') && document.getElementById('serviceOrigin').textContent===location.origin && !document.getElementById('loginButton').disabled");
+        evaluateBody("window.__qaPolicy=null;fetch('/api/remote/health',{cache:'no-store',redirect:'error'}).then(response=>window.__qaPolicy={status:response.status,policy:response.headers.get('Referrer-Policy')},()=>window.__qaPolicy={status:0,policy:'failed'});return true;");
+        waitFor("actual HTTPS referrer policy", "window.__qaPolicy!==null");
+        JSONObject policy=(JSONObject)evaluate("window.__qaPolicy");assertEquals(200,policy.getInt("status"));assertEquals("same-origin",policy.getString("policy"));
+        assertEquals("same-origin",evaluate("document.querySelector('meta[name=referrer]').getAttribute('content')"));
         fill("adminToken", ADMIN);click("loginButton");
         waitFor("cookie authenticated real libraries", "!document.getElementById('workspace').hidden && document.getElementById('librarySelect').options.length>0");
         assertEquals("", evaluate("document.getElementById('adminToken').value"));
@@ -142,6 +146,7 @@ public final class RemoteGatewayTest {
         AtomicReference<Integer> sslErrors = new AtomicReference<>(-1);
         scenario.onActivity(activity -> sslErrors.set(activity.sslErrors));assertEquals(Integer.valueOf(0), sslErrors.get());
         JSONObject report=baseReport();report.put("ok", true);report.put("trusted_https_loaded", true);report.put("portal_login", true);
+        report.put("same_origin_referrer_policy", true);
         report.put("http_only_cookie_hidden", true);report.put("configuration", config);report.put("mcp_and_hook", result.getJSONObject("value"));
         report.put("automatic_archive_ui_verified", true);report.put("ssl_errors", 0);
         writeReport("android-remote-gateway.json", report);

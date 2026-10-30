@@ -2,16 +2,16 @@ name: iOS Simulator real HTTPS Agent portal
 
 on:
   pull_request:
-    paths: ['ios-smoke/**', '.github/workflows/ios-portal.yml']
+    paths: ['ios-smoke/**', '.github/workflows/ios-portal.yml', 'nkb/service/**', 'nkb/viz/web/remote-mobile.*', 'nkb/viz/web/remote-bootstrap.js', 'nkb/companion/**', 'nkb/core/**', 'nkb/flow/**', 'nkb/libraries/**', 'nkb/organizer/**', 'nkb/adapters/**', 'nkb/_version.py', 'nkb/config.py', 'nkb/errors.py', 'pyproject.toml']
   push:
     branches: ['codex/**']
-    paths: ['ios-smoke/**', '.github/workflows/ios-portal.yml']
+    paths: ['ios-smoke/**', '.github/workflows/ios-portal.yml', 'nkb/service/**', 'nkb/viz/web/remote-mobile.*', 'nkb/viz/web/remote-bootstrap.js', 'nkb/companion/**', 'nkb/core/**', 'nkb/flow/**', 'nkb/libraries/**', 'nkb/organizer/**', 'nkb/adapters/**', 'nkb/_version.py', 'nkb/config.py', 'nkb/errors.py', 'pyproject.toml']
   workflow_dispatch:
     inputs:
       backend_ref:
-        description: 'Real RemoteGateway backend ref to verify (not a mock server)'
-        required: true
-        default: 'codex/windows-harness-autocapture-fix'
+        description: 'Optional real backend ref override; defaults to this PR head or exact commit'
+        required: false
+        default: ''
         type: string
 
 permissions:
@@ -29,7 +29,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.backend_ref || 'codex/windows-harness-autocapture-fix' }}
+          ref: ${{ inputs.backend_ref || github.event.pull_request.head.sha || github.sha }}
           path: tested-backend
           persist-credentials: false
       - uses: actions/setup-python@v5

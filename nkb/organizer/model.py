@@ -3,6 +3,7 @@ import json
 import socket
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 
 from ..errors import ValidationError
 from .config import endpoint
@@ -33,6 +34,18 @@ def transport(request, *, timeout):
     return json.loads(raw)
 
 
+def _non_thinking_json_task(url, model):
+    """Use DeepSeek's documented toggle only at its supported public endpoint.
+
+    A compatible gateway or a model name containing 'deepseek' is not proof
+    that the provider accepts this extension to the chat-completions schema.
+    """
+    parsed = urlsplit(url)
+    return (parsed.scheme == "https" and parsed.hostname == "api.deepseek.com"
+            and parsed.port in (None, 443)
+            and model in {"deepseek-flash", "deepseek-v4-pro", "deepseek-chat"})
+
+
 def call_model(profile, credential, payload, send=transport):
     # A runtime dict allows the root KeyStore to resolve a reused provider; none is persisted.
     resolved = {**profile, **({k: credential[k] for k in ("base_url", "model") if k in credential}
@@ -47,10 +60,15 @@ def call_model(profile, credential, payload, send=transport):
         raise OrganizerError("整理模型名称未配置", "missing_model")
     url = endpoint(resolved["base_url"])
     policy = SYSTEM_GUIDANCE
-    body = json.dumps({"model": resolved["model"], "messages": [{"role": "system", "content": policy},
+    request_data = {"model": resolved["model"], "messages": [{"role": "system", "content": policy},
                            {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
                        "stream": False, "max_tokens": 4096,
-                       "response_format": {"type": "json_object"}}, ensure_ascii=False, allow_nan=False).encode()
+                       "response_format": {"type": "json_object"}}
+    if _non_thinking_json_task(url, resolved["model"]):
+        # The organizer asks for bounded JSON, so reserve its existing token
+        # budget for the result instead of an optional reasoning transcript.
+        request_data["thinking"] = {"type": "disabled"}
+    body = json.dumps(request_data, ensure_ascii=False, allow_nan=False).encode()
     request = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json", "Authorization": "Bearer " + key}, method="POST")
     try:
         response = send(request, timeout=45)

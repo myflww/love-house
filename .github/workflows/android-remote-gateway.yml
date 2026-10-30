@@ -4,21 +4,40 @@ on:
   workflow_dispatch:
     inputs:
       backend_ref:
-        description: Exact desktop backend ref with RemoteGateway and MemoryHost
-        required: true
-        default: codex/windows-harness-autocapture-fix
+        description: Optional explicit backend override; default is this PR's exact head commit
+        required: false
   push:
-    branches: [codex/android-preview]
+    branches: [main, codex/android-preview]
     paths:
       - 'android/app/src/androidTest/remote-gateway/**'
       - 'scripts/*android_remote*'
       - 'ios-smoke/fixture_server.py'
+      - 'nkb/service/**'
+      - 'nkb/service/httpd.py'
+      - 'nkb/adapters/http.py'
+      - 'nkb/companion/**'
+      - 'nkb/core/**'
+      - 'nkb/libraries/**'
+      - 'nkb/storage/**'
+      - 'nkb/viz/web/remote-mobile.*'
+      - 'nkb/_version.py'
+      - 'pyproject.toml'
       - '.github/workflows/android-remote-gateway.yml'
   pull_request:
     paths:
       - 'android/app/src/androidTest/remote-gateway/**'
       - 'scripts/*android_remote*'
       - 'ios-smoke/fixture_server.py'
+      - 'nkb/service/**'
+      - 'nkb/service/httpd.py'
+      - 'nkb/adapters/http.py'
+      - 'nkb/companion/**'
+      - 'nkb/core/**'
+      - 'nkb/libraries/**'
+      - 'nkb/storage/**'
+      - 'nkb/viz/web/remote-mobile.*'
+      - 'nkb/_version.py'
+      - 'pyproject.toml'
       - '.github/workflows/android-remote-gateway.yml'
 
 permissions:
@@ -42,13 +61,15 @@ jobs:
       ANDROID_REMOTE_API_LEVEL: ${{ matrix.api-level }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Configure the isolated fixture directory after runner allocation
         run: printf 'ANDROID_REMOTE_FIXTURE_ROOT=%s/love-house-android-remote\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - name: Check out the actual desktop memory backend separately
         uses: actions/checkout@v4
         with:
           repository: myflww/love-house
-          ref: ${{ inputs.backend_ref || 'codex/windows-harness-autocapture-fix' }}
+          ref: ${{ inputs.backend_ref || github.event.pull_request.head.sha || github.sha }}
           path: backend
       - uses: actions/setup-python@v5
         with:
@@ -72,6 +93,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build/android-remote
+          git rev-parse HEAD > build/android-remote/frontend-commit.txt
           git -C backend rev-parse HEAD > build/android-remote/backend-commit.txt
           PYTHONPATH="$GITHUB_WORKSPACE/backend" python scripts/android_remote_fixture_server.py --root "$ANDROID_REMOTE_FIXTURE_ROOT" > "$RUNNER_TEMP/android-remote-server.log" 2>&1 &
           echo "$!" > "$RUNNER_TEMP/android-remote-server.pid"

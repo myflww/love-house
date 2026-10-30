@@ -21,7 +21,7 @@ def check(directory, api_level):
         require(report.get('tls_bypass') is False and report.get('production_app_modified') is False,'TLS or production boundary was weakened')
     require(negative.get('tls_rejected') is True,'Untrusted-domain CA was not rejected')
     require(negative.get('http_reached_after_tls_error') is False,'TLS rejection still reached an HTTP response')
-    for key in ('trusted_https_loaded','portal_login','http_only_cookie_hidden','automatic_archive_ui_verified'):
+    for key in ('trusted_https_loaded','same_origin_referrer_policy','portal_login','http_only_cookie_hidden','automatic_archive_ui_verified'):
         require(positive.get(key) is True,'Missing native portal proof: '+key)
     require(positive.get('ssl_errors')==0,'Trusted HTTPS had a native SSL error')
     config=positive.get('configuration',{})

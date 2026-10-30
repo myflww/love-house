@@ -4,22 +4,176 @@ import { createRequire as __nkCreateRequire } from "node:module"; const require 
 // src/proxy.ts
 import http2 from "node:http";
 import https2 from "node:https";
-import { createHash as createHash2 } from "node:crypto";
-import { readFileSync as readFileSync2 } from "node:fs";
+import { createHash as createHash3 } from "node:crypto";
+import { readFileSync as readFileSync3 } from "node:fs";
 import { resolve as resolve2 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // src/runtime.ts
-import { createHash, randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, readdirSync, statSync, openSync, closeSync, fsyncSync } from "node:fs";
+import { createHash as createHash2, randomUUID } from "node:crypto";
+import { mkdirSync, readFileSync as readFileSync2, writeFileSync, renameSync, unlinkSync, readdirSync, statSync as statSync2, openSync as openSync2, closeSync as closeSync2, fsyncSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join as join2, resolve } from "node:path";
 import http from "node:http";
 import https from "node:https";
+
+// src/host-contract.ts
+import { createHash } from "node:crypto";
+import { openSync, closeSync, readSync, readFileSync, statSync, existsSync, lstatSync, realpathSync } from "node:fs";
+import { isAbsolute, join, relative, sep } from "node:path";
+
+// host-contract-fingerprints.json
+var host_contract_fingerprints_default = {
+  schema: "love-house-harness-fingerprints/v1",
+  reference_versions: [
+    "0.2.1-rc.3",
+    "0.2.1-rc.5"
+  ],
+  metadata_keys: [
+    "name",
+    "type",
+    "main",
+    "module",
+    "exports",
+    "imports",
+    "dependencies",
+    "peerDependencies",
+    "peerDependenciesMeta",
+    "engines"
+  ],
+  cordis_version: "4.0.5",
+  packages: {
+    "@deepseek-ai/dsh-agent": {
+      metadata_sha256: "ce85d3e3fbd71e4466f065fb455c24cc9ee31a4273b828290e09ec3ea00c628e",
+      files: {
+        "lib/index.js": "7b59cf82c2784c25bdce4e3e24e5e5303b02b9f1003efacf50255492d17baf8b",
+        "lib/types/archive-admission.js": "d42fbc10fbf357f1343d4c57eab55d3c7a6bd53fe20a29469cf0b1b67e55c4dd",
+        "lib/types/consumed-work.js": "e20ac9e88d81db3f5e25908a50ad4532cd1d93f410ad5ec4933ef9aa24da5c2d",
+        "lib/types/dispatch.js": "f29567a8eb2f04aaf34523e597d52e46f0fb5bed273db4bf7fa25bc38e2877da",
+        "lib/types/index.js": "cc5de4b13b26bc1c5383c7c9300a074f267b69fe129a0bf74d1fd4ab695f1c52",
+        "lib/types/model-selection.js": "47f758ea21ebf7544b4633d2ef8cbe5afafddf3b4aaf9892276cda9e98af11e7",
+        "lib/types/projection.js": "43ab89acd14b20b3c2a85c8307f236b38dfa27671dd31b703554777270abc534",
+        "lib/types/runtime-types.js": "72347f43fb79c35cff8565b6428c6d7b96a78267cf8994ea3ffd0830a83a21d2",
+        "lib/types/types.js": "f4ef7228255d5f64ba546ed2a2b6be63601b77c7b58ac3a58a74f4e8f970cb30"
+      }
+    },
+    "@deepseek-ai/dsh-session": {
+      metadata_sha256: "2bf36cb064c7fc1cfda7b0c4a95ee597d76d90df11a551f99cf502e901576510",
+      files: {
+        "lib/index.js": "2f5dd07cb5c744a29abbb8003a8a4cefd9e582c6e2538074ca299a0ddd02a3bf",
+        "lib/types/fork.js": "72ca7ae2cce506eb607e565f2e6b15fc6e3c2663de8403f79e37fc3a469e34cf",
+        "lib/types/index.js": "59cced30c7ee65813c62f4858c2fc15c8c636df96507b60c15543468178b72f2",
+        "lib/types/known-event-types.js": "f2adf39f26ecf7cc84bceaef1dcf8210395a13aa02e16828df1038a27a404edd",
+        "lib/types/preparation.js": "78dea29f5e11a4d220945a572b3eb26cb66460e6a368a423bf597c3ef05a5faa",
+        "lib/types/repair.js": "ee2e02d4e924bf01af621c38c27e030b89eaa8e0abfdf801a6220eca95aa2038",
+        "lib/types/request-header.js": "3f73ee59af794df50df159a9c45c606f0fbce364c482b371831d1e8f26b87aea",
+        "lib/types/seq-ranges.js": "68a127c76affa98edeeb50e302eb43f154f4d24f7d04cb95ba8b323e88f3d09e",
+        "lib/types/surface.js": "ebe8920a22fca8d987cbacab94c9db92f71df44863f58370a1be559155be734e",
+        "lib/types/tool-history.js": "2d2c4f4cbb6717aa2f487af52ce6a81e2002ce2c768cb5a4210c867ec49a0e95",
+        "lib/types/types.js": "91723a2522999e2c8b6c455796ad699794a6f0abfcb44d9cb883edb13142ff9b"
+      }
+    },
+    "@deepseek-ai/dsh-llm": {
+      metadata_sha256: "8fff27b373cb28baeab6681a1c5aac6a0dd1056e1a46f5feb3cd0582dfc1f792",
+      files: {
+        "lib/index.js": "d18d8ae4c8d961e628708c1e4698e09716a0ebb80e55a672e0bde1029bec1155",
+        "lib/typert.host.js": "22d86e67e013714b9b70eb119f85b825d73a52e30d6ebd5d7894dc4a2965076a",
+        "lib/typert.remote-client.js": "fea6401fe00567f6f25bd58057e30167bb38a7c09f00dcd626116e1bc6c1fde6",
+        "lib/types/adapter-failure.js": "f1213f11f11e0f20aae26c09a5e0cf3d72512c1f1519e1b3f107edf64af43c28",
+        "lib/types/api-key.js": "254b774234c0bd38dd759765c0fd1e60788651a22106f5559ec2760a39935f2d",
+        "lib/types/assembler.js": "35a4754ab854055942b9142934c595c3e6358a717947daa2d8d89847aef988f7",
+        "lib/types/assistant-stream.js": "7e0cc96a4d60aed34381b552f9cb4549d70df36dbd28c0630da4cd93fa44b7a1",
+        "lib/types/attribution.js": "62f546a0434b4ab70860db3d7c768f515b5f4895f41b3b1399afc9d0d02c7add",
+        "lib/types/brand.js": "6b70219e0478d3307d865309523e7e7be3f169b06c04f4eef0d49b54aaef72a2",
+        "lib/types/call-config.js": "170f3ce7c7136b93087e2f5d50faa8b69815894ec3ebdf26c36d57e4c7a17a03",
+        "lib/types/content.js": "79802e2e6bece64114c8f6857943c2cd23742bd2c20b067cd06298d397f9b85e",
+        "lib/types/error.js": "103b72873eafc3512d717593f802bbf09230c52b7fcd31aa6ec10b5fd147e1cb",
+        "lib/types/index.js": "03b16dc51a3e6712823d57afaf74a7663d628aefd05ae7768d2cea89d05f7197",
+        "lib/types/message.js": "c87812f77a2afd284f271af071575edcadfde3daa7b6554d77b96810ce4688e0",
+        "lib/types/retry-policy.js": "f0a8fe075ac24c56ed2aa5d5e359a85539f5ffa237af54b68d3f4fc5124b5d83",
+        "lib/types/types.js": "14106d660103de2db746964fbb5be90c5eb2a7ff736779e2501e9faff956cbf5"
+      }
+    },
+    "@deepseek-ai/dsh-scope": {
+      metadata_sha256: "6c325e4ef3a868e9008645d7fd1c9c7849334df2d938db92013ff6e07fd63998",
+      files: {
+        "lib/index.js": "2829df71d76e08941457d4dd173eac60783e55354921137c8b75e8b5c0d2ecca"
+      }
+    }
+  },
+  contract_id: "sha256:3ac4fe40018cc65182d062453f64f7b2b8b61a150fe7f1429e19cb9903203e66"
+};
+
+// src/host-contract.ts
+var sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+function canonical(value) {
+  if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
+  if (value && typeof value === "object") return "{" + Object.keys(value).sort().map((key) => JSON.stringify(key) + ":" + canonical(value[key])).join(",") + "}";
+  return JSON.stringify(value);
+}
+function normalizedMetadata(metadata) {
+  const normalize = (value) => typeof value === "string" ? value === metadata.version ? "$HOST_VERSION" : value : Array.isArray(value) ? value.map(normalize) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, normalize(item)])) : value;
+  return normalize(Object.fromEntries(host_contract_fingerprints_default.metadata_keys.filter((key) => key in metadata).map((key) => [key, metadata[key]])));
+}
+function resourceRead(resources, name) {
+  const loose = join(resources, "app", name);
+  if (existsSync(loose)) {
+    const root = realpathSync(resources), path = realpathSync(loose), child = relative(root, path);
+    if (child === ".." || child.startsWith(".." + sep) || isAbsolute(child) || statSync(path).size > 4 * 1024 * 1024) throw new Error("Resource escapes installation or exceeds limit");
+    return readFileSync(path);
+  }
+  const archive = join(resources, "app.asar");
+  if (lstatSync(archive).isSymbolicLink()) throw new Error("Linked archive is not a contract source");
+  const archivedEntry = join(archive, name);
+  if (existsSync(archivedEntry)) {
+    if (statSync(archivedEntry).size > 4 * 1024 * 1024) throw new Error("Contract resource exceeds limit");
+    return readFileSync(archivedEntry);
+  }
+  const fd = openSync(archive, "r");
+  try {
+    const prefix = Buffer.alloc(16);
+    if (readSync(fd, prefix, 0, 16, 0) !== 16) throw new Error("Invalid ASAR header");
+    const headerSize = prefix.readUInt32LE(4), payloadSize = prefix.readUInt32LE(8), jsonSize = prefix.readUInt32LE(12);
+    if (prefix.readUInt32LE(0) !== 4 || headerSize < 8 || headerSize > 32 * 1024 * 1024 || payloadSize + 4 !== headerSize || jsonSize < 1 || jsonSize > headerSize - 8) throw new Error("Invalid ASAR bounds");
+    const header = Buffer.alloc(jsonSize);
+    if (readSync(fd, header, 0, jsonSize, 16) !== jsonSize) throw new Error("Truncated ASAR header");
+    let entry = JSON.parse(header.toString("utf8"));
+    for (const part of name.split("/")) entry = entry?.files?.[part];
+    const size = entry?.size, offset = Number(entry?.offset), position = 8 + headerSize + offset;
+    if (!entry || entry.link || entry.unpacked || !Number.isSafeInteger(size) || size < 1 || size > 4 * 1024 * 1024 || !Number.isSafeInteger(offset) || offset < 0 || position + size > statSync(archive).size) throw new Error("Missing or invalid ASAR contract file");
+    const body = Buffer.alloc(size);
+    if (readSync(fd, body, 0, size, position) !== size) throw new Error("Truncated ASAR file");
+    return body;
+  } finally {
+    closeSync(fd);
+  }
+}
+function verifiedHostVersion(descriptor, version) {
+  if (!descriptor || typeof descriptor !== "object" || Array.isArray(descriptor)) return null;
+  const value = descriptor;
+  if (value.schema !== "love-house-harness-contract/v1" || value.host_version !== version || value.contract_id !== host_contract_fingerprints_default.contract_id || typeof value.resources_path !== "string" || !isAbsolute(value.resources_path)) return null;
+  try {
+    let actualVersion;
+    for (const [name, expected] of Object.entries(host_contract_fingerprints_default.packages)) {
+      const prefix = "dsh/node_modules/" + name + "/";
+      const metadata = JSON.parse(resourceRead(value.resources_path, prefix + "package.json").toString("utf8"));
+      if (metadata.name !== name || typeof metadata.version !== "string" || !metadata.version || sha256(canonical(normalizedMetadata(metadata))) !== expected.metadata_sha256) return null;
+      actualVersion ??= metadata.version;
+      if (metadata.version !== actualVersion) return null;
+      for (const [file, hash2] of Object.entries(expected.files)) if (sha256(resourceRead(value.resources_path, prefix + file)) !== hash2) return null;
+    }
+    const cordis = JSON.parse(resourceRead(value.resources_path, "dsh/node_modules/@deepseek-ai/cordis/package.json").toString("utf8"));
+    return cordis.name === "@deepseek-ai/cordis" && cordis.version === host_contract_fingerprints_default.cordis_version ? actualVersion ?? null : null;
+  } catch {
+    return null;
+  }
+}
+
+// src/runtime.ts
 var SOURCE_KIND = "neural-knowledge-context";
 var SUPPORTED_HOSTS = ["0.2.1-rc.3", "0.2.1-rc.5"];
-var expandHome = (path) => path.startsWith("~/") ? join(homedir(), path.slice(2)) : resolve(path);
-var hash = (value) => createHash("sha256").update(value).digest("hex");
+var expandHome = (path) => path.startsWith("~/") ? join2(homedir(), path.slice(2)) : resolve(path);
+var hash = (value) => createHash2("sha256").update(value).digest("hex");
 var object = (value) => !!value && typeof value === "object" && !Array.isArray(value);
 var credential = (key) => /^(authorization|apikey|password|cookie|setcookie|accesstoken|refreshtoken|clientsecret|connectiontoken|deepseekapikey)$/i.test(key.replace(/[_\- ]/g, ""));
 function sanitize(value, paths = [], path = "$") {
@@ -54,12 +208,12 @@ function sanitize(value, paths = [], path = "$") {
 }
 function atomicJson(path, value) {
   const temporary = `${path}.${randomUUID()}.tmp`;
-  const fd = openSync(temporary, "wx", 384);
+  const fd = openSync2(temporary, "wx", 384);
   try {
     writeFileSync(fd, JSON.stringify(value));
     fsyncSync(fd);
   } finally {
-    closeSync(fd);
+    closeSync2(fd);
   }
   renameSync(temporary, path);
 }
@@ -131,8 +285,8 @@ var Controller = class {
     try {
       files = readdirSync(directory).filter((name) => name.endsWith(".json")).flatMap((name) => {
         try {
-          const path = join(directory, name);
-          return [{ path, time: statSync(path).mtimeMs }];
+          const path = join2(directory, name);
+          return [{ path, time: statSync2(path).mtimeMs }];
         } catch {
           return [];
         }
@@ -141,8 +295,8 @@ var Controller = class {
     }
     for (const { path } of files) {
       try {
-        if (statSync(path).size > 16384) continue;
-        const ready = JSON.parse(readFileSync(path, "utf8"));
+        if (statSync2(path).size > 16384) continue;
+        const ready = JSON.parse(readFileSync2(path, "utf8"));
         if (!/^0\.4\./.test(ready.service_version ?? "") || !Number.isInteger(ready.controller_port) || ready.controller_port < 1 || ready.controller_port > 65535) continue;
         const base = `http://127.0.0.1:${ready.controller_port}`;
         if ((await requestJson(base, "/api/health", void 0, void 0, this.timeout, this.signal)).ok === true) return base;
@@ -173,13 +327,16 @@ var HostAdapter = class {
   }, options) {
     this.config = config;
     this.warn = warn;
-    if (!SUPPORTED_HOSTS.includes(config.host_version) && !(options?.apiProxy && config.host_version === "api-proxy")) throw new Error("Unsupported Harness version; use an explicitly configured API proxy or validate this host contract first");
-    this.connection = validateConnection(JSON.parse(readFileSync(expandHome(config.connection_file), "utf8")));
-    this.stateDir = join(expandHome(config.state_dir ?? "~/Library/Application Support/NeuralKnowledge/harness-outbox"), hash(this.connection.connection_id).slice(0, 24));
+    const actualVersion = config.host_contract ? verifiedHostVersion(config.host_contract, config.host_version) : null;
+    const compatible = config.host_contract ? !!actualVersion : SUPPORTED_HOSTS.includes(config.host_version);
+    if (!compatible && !(options?.apiProxy && config.host_version === "api-proxy")) throw new Error("Harness contract could not be verified; regenerate the connection from the installed SDK metadata or validate changed interfaces");
+    if (actualVersion) this.config = { ...config, host_version: actualVersion };
+    this.connection = validateConnection(JSON.parse(readFileSync2(expandHome(config.connection_file), "utf8")));
+    this.stateDir = join2(expandHome(config.state_dir ?? "~/Library/Application Support/NeuralKnowledge/harness-outbox"), hash(this.connection.connection_id).slice(0, 24));
     mkdirSync(this.stateDir, { recursive: true, mode: 448 });
-    const identity = join(this.stateDir, "identity.json");
+    const identity = join2(this.stateDir, "identity.json");
     try {
-      const stored = JSON.parse(readFileSync(identity, "utf8"));
+      const stored = JSON.parse(readFileSync2(identity, "utf8"));
       this.hostId = stored.host_id;
       this.boundSession = stored.bound_session;
     } catch {
@@ -190,8 +347,8 @@ var HostAdapter = class {
     if (this.boundSession) sessionClaims.set(this.boundSession, this.connection.connection_id);
     for (const file of readdirSync(this.stateDir).filter((name) => name.endsWith(".event.json"))) {
       try {
-        const path = join(this.stateDir, file);
-        const event = JSON.parse(readFileSync(path, "utf8"));
+        const path = join2(this.stateDir, file);
+        const event = JSON.parse(readFileSync2(path, "utf8"));
         this.pending.set(event.event_id, path);
       } catch {
         this.warn("Neural Knowledge outbox contains an unreadable record; retained for recovery");
@@ -215,6 +372,8 @@ var HostAdapter = class {
   pumping;
   timer;
   disposed = false;
+  closing = false;
+  closePromise;
   failures = 0;
   lastError;
   boundSession;
@@ -229,7 +388,7 @@ var HostAdapter = class {
   }
   isEnabled() {
     try {
-      const current = JSON.parse(readFileSync(expandHome(this.config.connection_file), "utf8"));
+      const current = JSON.parse(readFileSync2(expandHome(this.config.connection_file), "utf8"));
       const enabled = current.connection_id === this.connection.connection_id && current.library_id === this.connection.library_id && current.enabled !== false;
       if (!enabled) {
         this.turns.clear();
@@ -256,7 +415,7 @@ var HostAdapter = class {
     if (claimed && claimed !== this.connection.connection_id) return false;
     this.boundSession = sid;
     sessionClaims.set(sid, this.connection.connection_id);
-    atomicJson(join(this.stateDir, "identity.json"), { host_id: this.hostId, bound_session: sid });
+    atomicJson(join2(this.stateDir, "identity.json"), { host_id: this.hostId, bound_session: sid });
     const start = this.waitingStarts.get(sid);
     this.waitingStarts.clear();
     if (start) this.capture(start.session, start.event);
@@ -267,7 +426,7 @@ var HostAdapter = class {
     return this.connection.connection_host === "agent" && this.connection.session_scope === "next_session" && !this.boundSession && session.header?.origin !== "subagent";
   }
   status() {
-    atomicJson(join(this.stateDir, "status.json"), {
+    atomicJson(join2(this.stateDir, "status.json"), {
       library_id: this.connection.library_id,
       connection_id: this.connection.connection_id,
       queued: this.pending.size,
@@ -276,9 +435,9 @@ var HostAdapter = class {
     });
   }
   enqueue(event) {
-    if (this.disposed || !this.isEnabled()) return;
+    if (this.disposed || this.closing || !this.isEnabled()) return;
     const name = `${hash(event.session_id).slice(0, 16)}-${String(event.seq).padStart(16, "0")}-${event.event_id}.event.json`;
-    const file = join(this.stateDir, name);
+    const file = join2(this.stateDir, name);
     if (!this.pending.has(event.event_id)) {
       atomicJson(file, event);
       this.pending.set(event.event_id, file);
@@ -287,7 +446,7 @@ var HostAdapter = class {
     this.schedule(0);
   }
   schedule(delay) {
-    if (this.disposed || this.timer) return;
+    if (this.disposed || this.closing || this.timer) return;
     this.timer = setTimeout(() => {
       this.timer = void 0;
       void this.flush().catch(() => this.warn("Neural Knowledge durable outbox is unavailable; host records were not acknowledged"));
@@ -300,7 +459,7 @@ var HostAdapter = class {
       for (const [id, file] of [...this.pending].sort((a, b) => a[1].localeCompare(b[1]))) {
         if (this.disposed || !this.isEnabled()) break;
         try {
-          const event = JSON.parse(readFileSync(file, "utf8"));
+          const event = JSON.parse(readFileSync2(file, "utf8"));
           const result = await this.controller.send("events", event);
           if (result.accepted !== true) throw new Error("Controller did not acknowledge journal persistence");
           unlinkSync(file);
@@ -322,7 +481,7 @@ var HostAdapter = class {
     return this.pumping;
   }
   capture(session, event) {
-    if (this.disposed || !this.isEnabled()) return;
+    if (this.disposed || this.closing || !this.isEnabled()) return;
     const input = event;
     const data = input.data ?? {};
     const message = input.type === "user/message" ? data : data.message;
@@ -411,7 +570,7 @@ var HostAdapter = class {
   }
   async beforeStep(payload, next) {
     const decision = await next();
-    if (decision.kind !== "enter" || this.disposed || !this.isEnabled() || payload.signal.aborted || this.injected.get(String(payload.agent.session.id)) === payload.turn) return decision;
+    if (decision.kind !== "enter" || this.disposed || this.closing || !this.isEnabled() || payload.signal.aborted || this.injected.get(String(payload.agent.session.id)) === payload.turn) return decision;
     const human = decision.messages.filter((message) => message.source.kind === "user");
     if (!human.length || decision.messages.some((message) => message.source.kind === SOURCE_KIND)) return decision;
     if (this.connection.connection_host === "agent" && payload.agent.session.header?.origin === "subagent") return decision;
@@ -419,7 +578,7 @@ var HostAdapter = class {
     const query = human.map((message) => textOf(message)).join("\n").slice(-4e4) || "[\u7528\u6237\u8F93\u5165\u5305\u542B\u9644\u4EF6\u5F15\u7528\uFF1B\u6CA1\u6709\u53EF\u91C7\u96C6\u7684\u6587\u5B57]";
     try {
       const context = await this.controller.send("context", { session_id: String(payload.agent.session.id), query });
-      if (payload.signal.aborted || !this.isEnabled() || typeof context.packet !== "string" || !context.packet.trim()) return decision;
+      if (payload.signal.aborted || this.closing || !this.isEnabled() || typeof context.packet !== "string" || !context.packet.trim()) return decision;
       const text = `[\u5BBF\u4E3B\u8BB0\u5FC6\u8FDE\u63A5\u7ED1\u5B9A\u5E93 ${this.connection.library_id}\u3002\u672C\u4F1A\u8BDD\u4F7F\u7528\u5BBF\u4E3B\u81EA\u52A8\u91C7\u96C6\uFF0C\u4ECD\u4EE5\u6301\u4E45\u56DE\u6267\u786E\u8BA4\u5B58\u6863\uFF1B\u65E0\u9700\u518D\u6B21\u8C03\u7528\u65E7\u624B\u52A8record\u5DE5\u5177\u3002\u82E5\u4E3B\u52A8\u8C03\u7528\u65E7\u5DE5\u5177\uFF0C\u5148memory_status\u6838\u5B9E\u76EE\u6807\u5E93\uFF0C\u4E0D\u5F97\u6DF7\u5165\u5176\u4ED6\u5E93\u3002]
 ${context.packet}`;
       const injected = Object.freeze({
@@ -436,11 +595,35 @@ ${context.packet}`;
     }
   }
   async dispose() {
-    this.disposed = true;
-    if (this.timer) clearTimeout(this.timer);
+    if (this.closePromise) return this.closePromise;
+    this.closing = true;
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = void 0;
+    }
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
-    this.abort.abort();
-    if (this.pumping) await this.pumping;
+    this.closePromise = (async () => {
+      let deadline;
+      const budget = Math.max(1, Math.min(5e3, this.config.timeout_ms ?? 2500));
+      const drain = async () => {
+        do {
+          const before = this.pending.size;
+          await this.flush();
+          if (!this.pending.size || this.pending.size >= before) break;
+        } while (true);
+      };
+      try {
+        await Promise.race([drain(), new Promise((resolve3) => {
+          deadline = setTimeout(resolve3, budget);
+        })]);
+      } finally {
+        if (deadline) clearTimeout(deadline);
+        this.disposed = true;
+        this.abort.abort();
+        if (this.pumping) await this.pumping;
+      }
+    })();
+    return this.closePromise;
   }
 };
 
@@ -475,7 +658,7 @@ function createProxy(config) {
       }
       const original = sanitize(body);
       const sid = typeof request.headers["x-neural-session-id"] === "string" ? request.headers["x-neural-session-id"] : config.session_id;
-      const requestId = typeof request.headers["x-neural-request-id"] === "string" ? request.headers["x-neural-request-id"] : createHash2("sha256").update(JSON.stringify(original)).digest("hex");
+      const requestId = typeof request.headers["x-neural-request-id"] === "string" ? request.headers["x-neural-request-id"] : createHash3("sha256").update(JSON.stringify(original)).digest("hex");
       const userMessage = [...body.messages].reverse().find((m) => m.role === "user");
       const user = typeof userMessage?.content === "string" ? userMessage.content : (userMessage?.content ?? []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
       try {
@@ -498,7 +681,7 @@ function createProxy(config) {
         response.writeHead(result.statusCode ?? 502, { "content-type": result.headers["content-type"] ?? "application/json", "cache-control": "no-store" });
         const received = [];
         let bytes = 0;
-        const digest = createHash2("sha256");
+        const digest = createHash3("sha256");
         result.on("data", (chunk) => {
           response.write(chunk);
           digest.update(chunk);
@@ -547,7 +730,7 @@ function createProxy(config) {
           };
           delivery.enqueue({
             session_id: sid,
-            event_id: createHash2("sha256").update(`${delivery.hostId}:${sid}:${requestId}`).digest("hex"),
+            event_id: createHash3("sha256").update(`${delivery.hostId}:${sid}:${requestId}`).digest("hex"),
             event_type: "proxy/completion",
             seq: 0,
             time: 0,
@@ -572,7 +755,7 @@ function createProxy(config) {
 async function main() {
   const index = process.argv.indexOf("--config");
   if (index < 0 || !process.argv[index + 1]) throw new Error("Use --config private-proxy.json");
-  const config = JSON.parse(readFileSync2(expandHome(process.argv[index + 1]), "utf8"));
+  const config = JSON.parse(readFileSync3(expandHome(process.argv[index + 1]), "utf8"));
   const proxy = createProxy(config);
   const port = await proxy.listen();
   process.stdout.write(JSON.stringify({ base_url: `http://127.0.0.1:${port}/v1`, mode: "api-proxy", full_host_capture: false }) + "\n");

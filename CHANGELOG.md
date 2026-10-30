@@ -1,3 +1,11 @@
+## 0.8.0rc1 · Windows 最新功能同步候选（未发布）
+
+- 同步 macOS 当前 0.8.0 的共享记忆内核、界面和服务：无固定条数驱逐的自适应记忆、真实使用巩固、模型整理准则、聊天导入、分档记忆包及平台更新检测。
+- 同一 Agent 可登记多个活动来源；QQ/AstrBot 实验适配及可追溯经历页面随共享实现提供，未宣称所有平台都已完成宿主验收。
+- 保留 Windows 单写者、Unicode stdio、系统凭据、运行时检测与离线修复、消费者启动及安装验证流程；不以 macOS 的旧 Windows 草稿覆盖现有实现。
+- 原生自检增加最新功能 API 与界面控件验证；成品显式包含受审 AstrBot 插件源与同源 SDK，自动版本网络检查在自检中关闭。
+- Harness 识别与原 MCP 连接补装自动上报修复一并保留。所有真实连接结论以对应系统、官方宿主的实际完整回合保存结果为准。
+
 ## 0.5.1rc2 — Windows Harness connection repair (unreleased)
 
 - Enable the DeepSeek Harness connection wizard on Windows and inspect the installed runtime version from official Electron package metadata. Support standard user/system install locations, registry locations, custom executable paths, and a custom Harness profile.

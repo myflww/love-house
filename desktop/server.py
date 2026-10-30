@@ -44,11 +44,12 @@ def bind_controller(host, data_dir):
     raise RuntimeError("无法启动本机记忆服务")
 
 
-def main():
+def main(host_initializer=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", type=Path, required=True)
     parser.add_argument("--ready-file", type=Path, required=True)
     parser.add_argument("--parent-pid", type=int)
+    parser.add_argument("--no-demo", action="store_true", help="Do not register the optional visual example")
     parser.add_argument("--library", help=argparse.SUPPRESS)  # Legacy launch flag; never changes bindings.
     args = parser.parse_args()
     args.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -67,8 +68,10 @@ def main():
     stopping = threading.Event()
     try:
         host = MemoryHost(args.data_dir, with_demo=False)
+        if host_initializer is not None:
+            host_initializer(host)
         example = args.data_dir / "framework-example.brain.json"
-        if not host.manager.demo_suppressed:
+        if not args.no_demo and not host.manager.demo_suppressed:
             if not example.exists():
                 atlas_brain(example).save()
                 example.chmod(0o600)
@@ -93,6 +96,7 @@ def main():
         thread = threading.Thread(target=serve)
         thread.start()
         ready = {"pid": os.getpid(), "port": server.server_port,
+                 "controller_instance_id":host.instance_id,
                  "controller_port": server.server_port, "personal_port": server.server_port,
                  "service_version": SERVICE_VERSION, "library": "default",
                  "name": "爱之屋记忆服务", "personal_name": "爱之屋记忆服务",

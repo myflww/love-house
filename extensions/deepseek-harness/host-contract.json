@@ -83,5 +83,37 @@
     ],
     "real_model_called": false,
     "result": "passed"
+  },
+  "profile_detection_validation": {
+    "checked_on": "2026-10-30",
+    "official_host_version": "0.2.1-rc.3",
+    "official_api": "@deepseek-ai/dsh-app-boot.initProfile",
+    "actual_test": "Called the installed official Electron bundled API in an isolated temporary directory, then ran Python detect/apply on that generated profile",
+    "official_generated_files": [
+      "cordis.patch.yml",
+      "package.json",
+      "pnpm-workspace.yaml"
+    ],
+    "accepted_manifest": "private:true and dsh.profile.bundles is an array of nonempty strings",
+    "plugin_apply": "passed",
+    "manifest_preserved": true,
+    "cordis_root_not_created": true,
+    "ordinary_npm_projects_rejected": true,
+    "real_model_called": false
+  },
+  "future_version_policy": {
+    "strategy": "Static exact-runtime contract fingerprints, not a version-only allowlist",
+    "fingerprints_file": "host-contract-fingerprints.json",
+    "runtime_files_checked": 37,
+    "metadata": "module entrypoints, dependency contracts, package types and engines; only same-release exact SDK versions normalized",
+    "trusted_baseline": [
+      "0.2.1-rc.3",
+      "0.2.1-rc.5"
+    ],
+    "runtime_recheck": true,
+    "upgrades_with_identical_code": "Reconnect automatically and report installed SDK version",
+    "changed_contract": "Reject automatic configuration/loading and report differing SDK files or metadata",
+    "installed_code_executed_for_detection": false,
+    "real_official_electron_smoke": "Passed against installed official rc.3 ASAR with isolated disabled connection; no model or credentials accessed"
   }
 }

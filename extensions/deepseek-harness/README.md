@@ -35,7 +35,15 @@ set_enabled(connection_config, enabled=False, remove=False, app_path=None)
 `resources/app` 内的官方 package 元数据读取；不会启动宿主、解包/修改 asar，或读取 credentials。
 默认 profile 是 `$DSH_HOME/profiles/desktop`（设置 `DSH_HOME` 时）或 `~/.dsh/profiles/desktop`，
 自定义 profile 需明确指定。检测和计划均只读；应用成功才把两个路径保存到当前连接，重启和暂停复用此绑定。
-发现程序与版本不代表已经自动存档，未验证的宿主版本仍需契约验证；插件收到真实完整轮次回执后才算接通。
+识别已有 `cordis.yml` 的旧 profile，也识别官方 `initProfile` 生成的私有 `package.json`
+（含 `dsh.profile.bundles` 字符串数组）；后者尚未启动时可以没有由宿主生成的 `cordis.yml`。
+配置器保留 manifest，仅写自己的 patch 和插件文件，不替宿主创建 root config，也不把普通 npm 项目当成 profile。
+发现程序与版本不代表已经自动存档；插件收到真实完整轮次回执后才算接通。
+未来版本不只靠版本白名单：Python 会只读比对已安装 `dsh-agent/session/llm/scope` 的 37 个运行 JS
+文件及模块入口、依赖等元数据，仅把同版 SDK 精确版本归一化；Cordis 核心仍须符合已验证版本。
+与 `host-contract-fingerprints.json` 的已验证指纹完全一致时，生成绑定资源目录的契约 descriptor 后自动兼容。
+插件每次启动会再次检查实际文件；宿主后续升级但指纹不变时自动重连并报告实际版本，接口代码或依赖变化则拒绝自动配置/加载，
+检测结果会列出不匹配的包或文件。只读取固定的官方 SDK 元数据和代码字节，检测过程不导入或执行安装目录里的 JS。
 独立 Node `dist/configure.js` CLI 的自动探测目前仍限 macOS；Windows 请使用桌面向导/Python 配置器。
 
 每个连接有独立 hash 条目、标记块、Overlay、私有连接文件和 outbox。安装 A、安装 B、重新配置 A 不会删除 B。

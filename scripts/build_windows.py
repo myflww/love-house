@@ -35,6 +35,12 @@ def run(arguments,**kwargs):
 def data_files():
     """Explicit safe assets; never include reports, fixtures, memories or node_modules."""
     files=[(ROOT/'nkb/viz/web','nkb/viz/web'),(ROOT/'nkb/service/harness','nkb/service/harness')]
+    # The download endpoint builds a source-only AstrBot ZIP and compares the
+    # vendored SDK byte-for-byte; frozen modules alone cannot supply those bytes.
+    for name in ('__init__.py','main.py','bridge.py','source_client.py','metadata.yaml',
+                 '_conf_schema.json','README.md','LICENSE','package.py'):
+        files.append((ROOT/'extensions/astrbot-love-house'/name,'extensions/astrbot-love-house'))
+    files.append((ROOT/'nkb/service/source_client.py','nkb/service'))
     for name in ('neural-art.bundle.js','LICENSE.digital-brain','LICENSE.three','LICENSE.orbit','LICENSE.postprocessing'):
         item=ROOT/'nkb/viz/art'/name
         if item.exists():files.append((item,'nkb/viz/art'))
@@ -46,6 +52,9 @@ def freeze_command(name,entry,dist,work,icon,*,console):
           '--console' if console else '--windowed','--distpath',str(dist),'--workpath',str(work/name),
           '--specpath',str(work/'specs'),'--paths',str(ROOT),'--paths',str(ROOT/'desktop'),
           '--collect-submodules','nkb','--icon',str(icon)]
+    # These standalone helpers are loaded from reviewed .py data with importlib.
+    # PyInstaller cannot discover their otherwise-unused standard-library imports.
+    args.extend(['--hidden-import','plistlib','--hidden-import','zipfile'])
     for source,destination in data_files():args.extend(['--add-data',str(source)+os.pathsep+destination])
     if not console:
         args.extend(['--collect-all','webview','--collect-all','pythonnet','--collect-all','clr_loader',

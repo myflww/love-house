@@ -7,6 +7,7 @@ import https from 'node:https';
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session';
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent';
 import type { UserMessage, MessageId } from '@deepseek-ai/dsh-llm';
+import { verifiedHostVersion, type HostContractDescriptor } from './host-contract.ts';
 
 export const SOURCE_KIND = 'neural-knowledge-context';
 export const SUPPORTED_HOSTS = ['0.2.1-rc.3', '0.2.1-rc.5'];
@@ -20,6 +21,7 @@ export interface ConnectionConfig {
 }
 export interface AdapterConfig {
   connection_file: string; host_version: string; state_dir?: string;
+  host_contract?: HostContractDescriptor;
   retry_ms?: number; timeout_ms?: number;
 }
 export interface Envelope {
@@ -146,11 +148,14 @@ export class HostAdapter {
   readonly controller: Controller; readonly abort = new AbortController();
   private turns = new Map<string, Turn>(); private injected = new Map<string, number>();
   private pending = new Map<string, string>(); private pumping?: Promise<void>; private timer?: NodeJS.Timeout;
-  private disposed = false; private failures = 0; private lastError?: string;
+  private disposed = false; private closing = false; private closePromise?: Promise<void>; private failures = 0; private lastError?: string;
   private boundSession?: string; private waitingStarts = new Map<string, { session: Pick<Session, 'id' | 'header'>; event: SessionEvent }>();
   private heartbeatTimer?: NodeJS.Timeout;
   constructor(readonly config: AdapterConfig, readonly warn: (message: string) => void = () => {}, options?: { apiProxy: true }) {
-    if (!SUPPORTED_HOSTS.includes(config.host_version) && !(options?.apiProxy && config.host_version === 'api-proxy')) throw new Error('Unsupported Harness version; use an explicitly configured API proxy or validate this host contract first');
+    const actualVersion = config.host_contract ? verifiedHostVersion(config.host_contract, config.host_version) : null;
+    const compatible = config.host_contract ? !!actualVersion : SUPPORTED_HOSTS.includes(config.host_version);
+    if (!compatible && !(options?.apiProxy && config.host_version === 'api-proxy')) throw new Error('Harness contract could not be verified; regenerate the connection from the installed SDK metadata or validate changed interfaces');
+    if (actualVersion) this.config = { ...config, host_version: actualVersion };
     this.connection = validateConnection(JSON.parse(readFileSync(expandHome(config.connection_file), 'utf8')));
     this.stateDir = join(expandHome(config.state_dir ?? '~/Library/Application Support/NeuralKnowledge/harness-outbox'), hash(this.connection.connection_id).slice(0, 24));
     mkdirSync(this.stateDir, { recursive: true, mode: 0o700 });
@@ -205,14 +210,14 @@ export class HostAdapter {
       queued: this.pending.size, last_error: this.lastError ?? null, delivery: 'accepted means private journal persisted; graph projection may still be pending' });
   }
   enqueue(event: Envelope) {
-    if (this.disposed || !this.isEnabled()) return;
+    if (this.disposed || this.closing || !this.isEnabled()) return;
     const name = `${hash(event.session_id).slice(0, 16)}-${String(event.seq).padStart(16, '0')}-${event.event_id}.event.json`;
     const file = join(this.stateDir, name);
     if (!this.pending.has(event.event_id)) { atomicJson(file, event); this.pending.set(event.event_id, file); }
     this.status(); this.schedule(0);
   }
   private schedule(delay: number) {
-    if (this.disposed || this.timer) return;
+    if (this.disposed || this.closing || this.timer) return;
     this.timer = setTimeout(() => { this.timer = undefined; void this.flush().catch(() => this.warn('Neural Knowledge durable outbox is unavailable; host records were not acknowledged')); }, delay); this.timer.unref();
   }
   async flush(): Promise<void> {
@@ -236,7 +241,7 @@ export class HostAdapter {
     return this.pumping;
   }
   capture(session: Pick<Session, 'id' | 'header'>, event: SessionEvent) {
-    if (this.disposed || !this.isEnabled()) return;
+    if (this.disposed || this.closing || !this.isEnabled()) return;
     const input = event as unknown as JsonObject; const data = input.data ?? {};
     const message = input.type === 'user/message' ? data : data.message;
     if (message?.source?.kind === SOURCE_KIND) return;
@@ -298,7 +303,7 @@ export class HostAdapter {
   }
   async beforeStep(payload: { agent: Agent; messages: UserMessage[]; turn: number; step: number; signal: AbortSignal }, next: () => Promise<PreStepDecision>): Promise<PreStepDecision> {
     const decision = await next();
-    if (decision.kind !== 'enter' || this.disposed || !this.isEnabled() || payload.signal.aborted || this.injected.get(String(payload.agent.session.id)) === payload.turn) return decision;
+    if (decision.kind !== 'enter' || this.disposed || this.closing || !this.isEnabled() || payload.signal.aborted || this.injected.get(String(payload.agent.session.id)) === payload.turn) return decision;
     const human = decision.messages.filter(message => message.source.kind === 'user');
     if (!human.length || decision.messages.some(message => message.source.kind === SOURCE_KIND)) return decision;
     if (this.connection.connection_host === 'agent' && payload.agent.session.header?.origin === 'subagent') return decision;
@@ -306,7 +311,7 @@ export class HostAdapter {
     const query = human.map(message => textOf(message as unknown as JsonObject)).join('\n').slice(-40000) || '[用户输入包含附件引用；没有可采集的文字]';
     try {
       const context = await this.controller.send('context', { session_id: String(payload.agent.session.id), query });
-      if (payload.signal.aborted || !this.isEnabled() || typeof context.packet !== 'string' || !context.packet.trim()) return decision;
+      if (payload.signal.aborted || this.closing || !this.isEnabled() || typeof context.packet !== 'string' || !context.packet.trim()) return decision;
       const text = `[宿主记忆连接绑定库 ${this.connection.library_id}。本会话使用宿主自动采集，仍以持久回执确认存档；无需再次调用旧手动record工具。若主动调用旧工具，先memory_status核实目标库，不得混入其他库。]\n${context.packet}`;
       const injected: UserMessage = Object.freeze({ id: `neural-context-${hash(`${this.connection.connection_id}:${payload.agent.session.id}:${payload.turn}:${payload.step}:${text}`)}` as MessageId,
         role: 'user', content: Object.freeze([{ type: 'text' as const, text }]),
@@ -316,8 +321,33 @@ export class HostAdapter {
     } catch { this.warn('Neural Knowledge context unavailable; the host turn continues without injected memory'); return decision; }
   }
   async dispose() {
-    this.disposed = true; if (this.timer) clearTimeout(this.timer); if (this.heartbeatTimer) clearInterval(this.heartbeatTimer); this.abort.abort();
-    if (this.pumping) await this.pumping;
+    if (this.closePromise) return this.closePromise;
+    this.closing = true;
+    if (this.timer) { clearTimeout(this.timer); this.timer = undefined; }
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.closePromise = (async () => {
+      // A fast headless turn can finish while the first snapshot is in flight.
+      // Drain the later snapshot too before aborting, with one bounded shutdown
+      // budget. Unacknowledged files remain durable for the next host load.
+      let deadline: ReturnType<typeof setTimeout> | undefined;
+      const budget = Math.max(1, Math.min(5000, this.config.timeout_ms ?? 2500));
+      const drain = async () => {
+        do {
+          const before = this.pending.size;
+          await this.flush();
+          if (!this.pending.size || this.pending.size >= before) break;
+        } while (true);
+      };
+      try {
+        await Promise.race([drain(), new Promise<void>(resolve => { deadline = setTimeout(resolve, budget); })]);
+      } finally {
+        if (deadline) clearTimeout(deadline);
+        this.disposed = true;
+        this.abort.abort();
+        if (this.pumping) await this.pumping;
+      }
+    })();
+    return this.closePromise;
   }
 }
 

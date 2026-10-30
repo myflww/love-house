@@ -110,6 +110,10 @@ def _source_refs(brain, node, atom, stamp):
             return [], False, 0
         ref = {"id": canonical, "source_node_id": source["id"], "role": role,
                "source_event_at": _number(item.get("source_event_at", source.get("event_at", source.get("created"))))}
+        party=_dict(source.get('meta',{}).get('evidence'))
+        if party.get('participant_scope')=='external_participant':
+            ref['participant_scope']='external_participant'
+            ref['participant_id']=str(party.get('participant_id') or 'unspecified_platform_peer')[:200]
         receipt = _dict(source.get("meta", {}).get("evidence")).get("archive_receipt_id") or item.get("receipt_id")
         outcome=source.get("meta",{}).get("outcome")
         if outcome in ("observed","success","failed"):ref["outcome"]=outcome
@@ -125,7 +129,11 @@ def _source_refs(brain, node, atom, stamp):
         # Directly entered/archived material has itself as its source. Explicit
         # confirmation remains separate from what role the original material had.
         ref = {"id": node["id"], "role": _role(node),
-               "source_event_at": _number(node.get("event_at", node.get("created")))}
+               "source_event_at": None if meta.get("source_time_unknown") else _number(node.get("event_at", node.get("created")))}
+        party=_dict(meta.get('evidence'))
+        if party.get('participant_scope')=='external_participant':
+            ref['participant_scope']='external_participant'
+            ref['participant_id']=str(party.get('participant_id') or 'unspecified_platform_peer')[:200]
         receipt = _dict(meta.get("evidence")).get("archive_receipt_id")
         if isinstance(receipt, str) and receipt:
             if receipt in brain.meta.get("memory_tombstones", {}).get("raw_ids", []):
@@ -201,6 +209,9 @@ def _record(brain, node, stamp, library_id):
     if origin == "conversation_turn":
         layer, subject, predicate = "dialogue", "user", "said"
         status, interpretation = "historical_user_statement", "historical_evidence"
+        if any(ref.get('participant_scope')=='external_participant' for ref in refs):
+            subject='platform_participant'
+            status='historical_participant_statement'
     elif origin == "harness_recorded":
         layer, subject, predicate = "suggestion", "agent", "suggested"
         status, interpretation = "agent_suggestion", "unverified_material"
@@ -222,13 +233,16 @@ def _record(brain, node, stamp, library_id):
         status, interpretation = "historical_assistant_statement", "historical_evidence"
     else:
         status, interpretation = "unverified_import", "unverified_material"
+    if origin=='organizer' and any(ref.get('participant_scope')=='external_participant' for ref in refs):
+        if subject=='user':subject='platform_participant'
+        status,interpretation='participant_attributed_material','historical_evidence'
     if meta.get("demo") or brain.meta.get("demo"):
         status, interpretation, domain = "demonstration_material", "unverified_material", "unknown"
     record = {"id": node["id"], "canonical_id": _canonical(brain, node), "layer": layer,
               "subject": subject, "predicate": predicate, "value": value, "qualifiers": qualifiers,
               "epistemic_status": status, "interpretation": interpretation,
               "domain": domain, "certainty": certainty, "relation_status": relation_status,
-              "source_time": _number((atom or {}).get("event_at", node.get("event_at", node.get("created")))),
+              "source_time": None if meta.get("source_time_unknown") else _number((atom or {}).get("event_at", node.get("event_at", node.get("created")))),
               "recorded_at": _number(node.get("created")),
               "validity": {"active": True, "valid_from": _number(node.get("valid_from", node.get("created"))),
                            "valid_to": _number(node.get("valid_to")), "superseded_by": None},
@@ -244,6 +258,12 @@ def _record(brain, node, stamp, library_id):
         record["display"]["text_ref"] = "value"
     if origin == "conversation_turn" and isinstance(meta.get("assistant_reply"), str):
         record["assistant_statement"] = {"role": "assistant", "value": meta["assistant_reply"], "is_user_fact": False}
+    if isinstance(meta.get('experience'),dict):
+        from ..organizer.experiences import project_experience
+        episode=project_experience(brain,node,library_id)
+        if episode is not None:
+            record['experience']=episode
+            record['layer']='experience'
     source_url=_url(meta.get("source_url"))
     if source_url:record["source"]["url"]=source_url
     if meta.get("outcome"):

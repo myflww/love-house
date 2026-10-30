@@ -154,6 +154,7 @@ class ControllerRuntime:
         self.lock.acquire()
         try:
             self.host=MemoryHost(self.root,key_store=KeyStore(allow_source_build=False,allow_keychain=not self.testing))
+            if self.testing:self.host.updates.settings({'auto_check':False})
             example=self.root/'framework-example.brain.json'
             if not self.host.manager.demo_suppressed:
                 if not example.exists():atlas_brain(example).save()
@@ -169,7 +170,7 @@ class ControllerRuntime:
             self.server.daemon_threads=False;self.host.controller_port=self.server.server_port
             self.url='http://127.0.0.1:'+str(self.server.server_port)+'/'
             self.thread=threading.Thread(target=self.server.serve_forever,kwargs={'poll_interval':.1},daemon=True);self.thread.start()
-            state={'pid':os.getpid(),'controller_port':self.server.server_port,'port':self.server.server_port,
+            state={'pid':os.getpid(),'controller_instance_id':self.host.instance_id,'controller_port':self.server.server_port,'port':self.server.server_port,
                    'personal_port':self.server.server_port,'service_version':'0.4.0','name':'爱之屋记忆服务'}
             JsonFileStorage(self.ready).save(state)
             JsonFileStorage(self.root/'controller-state.json').save({'controller_port':self.server.server_port,'service_version':'0.4.0'})
@@ -286,6 +287,21 @@ def backend_smoke(report):
         root=Path(directory);runtime=ControllerRuntime(root/'data',testing=True).start()
         try:
             cfg=runtime.host.new_connection({'host':'agent','name':'FAKE Windows Agent','library_id':'default'})
+            from nkb.service.host import local_json
+            latest={'retention':local_json(runtime.server.server_port,'/api/retention'),
+                    'rules':local_json(runtime.server.server_port,'/api/organizer/rules'),
+                    'sources':local_json(runtime.server.server_port,'/api/agent/sources'),
+                    'experiences':local_json(runtime.server.server_port,'/api/experiences'),
+                    'updates':local_json(runtime.server.server_port,'/api/updates'),
+                    'handoff':local_json(runtime.server.server_port,'/api/memory/handoff',{'profile':'S'})}
+            assert latest['retention']['mode']=='adaptive'
+            assert runtime.host.snapshot('default')['config']['max_nodes'] is None
+            assert latest['rules']['read_only'] and latest['rules']['guidance']
+            assert latest['sources']['agent_id']=='default' and latest['experiences']['read_only']
+            assert latest['updates']['current_version']==__version__ and not latest['updates']['settings']['auto_check']
+            assert latest['handoff']['read_only']
+            plugin=runtime.host.astrbot_package()
+            assert plugin.startswith(b'PK'), 'Reviewed AstrBot source package missing'
             client=AgentClient(cfg['private_path'])
             assert client.status()['connected']
             assert client.submit_hook({'session_id':'fake-window','turn_id':'one','user':'假数据：我不喜欢被曲解。','assistant':'这是完整的助手原话。','status':'complete'})['saved']
@@ -320,7 +336,7 @@ def backend_smoke(report):
             assert runtime.server.server_port==port and runtime.host.snapshot('default')==expected
         finally:runtime.stop()
         result={'ok':True,'version':__version__,'controller':'passed','stdio_and_hook':'passed' if getattr(sys,'frozen',False) else 'source-only',
-                'sharing_roundtrip':'passed','restart':'passed','real_model_calls':0,'real_credentials_accessed':False}
+                'sharing_roundtrip':'passed','restart':'passed','latest_feature_apis':'passed','astrbot_source_package':'passed','real_model_calls':0,'real_credentials_accessed':False}
     result.update(phase='complete',process_complete=True,cleanup={'status':'removed','isolated':True})
     smoke_report(report,result)
     return result
@@ -380,10 +396,10 @@ def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=F
                 try:
                     ready=threading.Event();box={}
                     def received(value):box['value']=value;ready.set()
-                    window.evaluate_js("(async()=>{const h=await(await fetch('/api/health')).json();const l=await(await fetch('/api/libraries')).json();const gl=document.createElement('canvas').getContext('webgl2');return {health:h,library_count:l.libraries.length,title:document.title,save_bridge:typeof window.pywebview.api.save_memory_file==='function',graph:!!document.querySelector('canvas'),webgl:!!gl};})()",received)
+                    window.evaluate_js("(async()=>{const h=await(await fetch('/api/health')).json();const l=await(await fetch('/api/libraries')).json();const gl=document.createElement('canvas').getContext('webgl2');return {health:h,library_count:l.libraries.length,title:document.title,save_bridge:typeof window.pywebview.api.save_memory_file==='function',graph:!!document.querySelector('canvas'),webgl:!!gl,latest_controls:['memoryRetentionDialog','organizerRulesBtn','dialogueImportDialog','windowHandoffBtn','checkForUpdates','agentSourcesDialog','experienceTimelineDialog'].every(id=>!!document.getElementById(id))};})()",received)
                     assert ready.wait(45),'WebView2 JS response timed out'
                     value=box['value'];assert value['health']['ok'] and value['health']['version']==__version__
-                    assert value['save_bridge'] and value['graph'] and value['webgl'],value
+                    assert value['save_bridge'] and value['graph'] and value['webgl'] and value['latest_controls'],value
                     result.update(ok=True,webview=value,phase='native_checks_passed')
                 except Exception as exc:result.update(failure=smoke_failure(exc),phase='native_checks_failed')
                 finally:window.destroy()

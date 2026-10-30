@@ -1,5 +1,6 @@
 """Isolated Windows installation metadata fixtures; no real profile or application is run."""
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import struct
@@ -18,7 +19,7 @@ def asar_fixture(path, entries):
     """Chromium pickle header with relative file offsets, like Electron ASAR."""
     header, bodies, offset = {"files": {}}, [], 0
     for name, value in entries.items():
-        body = json.dumps(value).encode()
+        body = value if isinstance(value, bytes) else json.dumps(value).encode()
         node = header
         parts = name.split("/")
         for part in parts[:-1]:
@@ -129,6 +130,95 @@ class WindowsHarnessDetectionTests(unittest.TestCase):
         self.assertTrue(detected['detected'])
         self.assertTrue(detected['supported'])
         self.assertEqual(detected['version'],'0.2.1-rc.5')
+
+    def test_official_manifest_profile_without_cordis_root_can_install_owned_patch(self):
+        profile = self.root / 'official initProfile shape'
+        profile.mkdir()
+        manifest = {'name': 'dsh-profile-desktop', 'private': True, 'dependencies': {},
+                    'dsh': {'profile': {'bundles': ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app']}}}
+        (profile / 'package.json').write_text(json.dumps(manifest))
+        original_manifest = (profile / 'package.json').read_bytes()
+        (profile / 'cordis.patch.yml').write_text('# user layer\n[]\n')
+        app = self.app(version='0.2.1-rc.5')
+        detected = configure.detect(app, profile)
+        self.assertTrue(detected['profile_exists'])
+        self.assertEqual(detected['profile_format'], 'dsh-profile-manifest')
+        result = configure.configure({'config': {'connection_id': 'fixture-manifest',
+            'connection_token': 'fixture-secret', 'library_id': 'default'},
+            'host_options': {'app_path': str(app), 'profile_dir': str(profile)}}, apply=True)
+        self.assertTrue(result['applied'])
+        self.assertEqual((profile / 'package.json').read_bytes(), original_manifest)
+        self.assertFalse((profile / 'cordis.yml').exists())
+        self.assertIn('NEURAL-KNOWLEDGE-HOST', (profile / 'cordis.patch.yml').read_text())
+        self.assertEqual(Path(result['backup']).read_text(), '# user layer\n[]\n')
+
+    def test_unrelated_or_malformed_package_cannot_become_a_profile(self):
+        profile = self.root / 'unrelated-project'
+        profile.mkdir()
+        app = self.app()
+        for manifest in ([], None, 42, {'name': 'ordinary-npm-project', 'private': True},
+                         {'private': True, 'dsh': {'profile': {'bundles': [42]}}},
+                         {'dsh': {'profile': {'bundles': ['@deepseek-ai/dsh-base']}}}):
+            with self.subTest(manifest=manifest):
+                (profile / 'package.json').write_text(json.dumps(manifest))
+                self.assertFalse(configure.detect(app, profile)['profile_exists'])
+                with self.assertRaisesRegex(ValueError, 'profile不存在'):
+                    configure.configure({'config': {'connection_id': 'fixture-not-profile',
+                        'connection_token': 'fixture-secret', 'library_id': 'default'},
+                        'host_options': {'app_path': str(app), 'profile_dir': str(profile)}}, apply=True)
+                self.assertFalse((profile / '.neural-knowledge').exists())
+
+    def contract_fixture(self):
+        version = '99.1.0-future-fixture'
+        app = self.root / 'future official app'
+        keys = ['name', 'type', 'exports']
+        packages, entries = {}, {}
+        for short in ('dsh-agent', 'dsh-session', 'dsh-llm', 'dsh-scope'):
+            name = '@deepseek-ai/' + short
+            metadata = {'name': name, 'version': version, 'type': 'module', 'exports': './lib/index.js'}
+            # This source is deliberately never imported or executed by detection.
+            code = b'throw new Error("do not execute the installed host while detecting");\n'
+            packages[name] = {'metadata_sha256': hashlib.sha256(configure._canonical({key: metadata[key] for key in keys})).hexdigest(),
+                              'files': {'lib/index.js': hashlib.sha256(code).hexdigest()}}
+            entries['dsh/node_modules/' + name + '/package.json'] = metadata
+            entries['dsh/node_modules/' + name + '/lib/index.js'] = code
+        entries['dsh/node_modules/@deepseek-ai/cordis/package.json'] = {'name': '@deepseek-ai/cordis', 'version': '4.0.5'}
+        expected = {'contract_id': 'fixture-reviewed-contract', 'metadata_keys': keys, 'packages': packages,
+                    'cordis_version': '4.0.5', 'reference_versions': ['0.2.1-rc.3', '0.2.1-rc.5']}
+        manifest = self.root / 'fixture-fingerprints.json'
+        manifest.write_text(json.dumps(expected))
+        asar_fixture(app / 'resources/app.asar', entries)
+        return app, entries, manifest, version
+
+    def test_future_version_matches_reviewed_installed_contract_without_executing_it(self):
+        app, entries, manifest, version = self.contract_fixture()
+        with patch.object(configure, 'FINGERPRINT_FILE', manifest):
+            detected = configure.detect(app, self.profile)
+            self.assertTrue(detected['supported'])
+            self.assertEqual(detected['compatibility']['status'], 'fingerprint_match')
+            self.assertEqual(detected['version'], version)
+            plan = configure.configure({'config': {'connectionId': 'future-fixture', 'connectionToken': 'fake', 'libraryId': 'default'},
+                'host_options': {'app_path': str(app), 'profile_dir': str(self.profile)}}, apply=False)
+        descriptor = plan['plugin_config']['host_contract']
+        self.assertEqual(descriptor['host_version'], version)
+        self.assertEqual(descriptor['resources_path'], str(app / 'resources'))
+        self.assertFalse((self.profile / '.neural-knowledge').exists())
+
+    def test_future_changed_runtime_or_module_entry_is_rejected_with_specific_diagnostic(self):
+        for changed in ('code', 'entrypoint'):
+            with self.subTest(changed=changed):
+                app, entries, manifest, _ = self.contract_fixture()
+                prefix = 'dsh/node_modules/@deepseek-ai/dsh-session/'
+                if changed == 'code':
+                    entries[prefix + 'lib/index.js'] += b'// changed contract\n'
+                else:
+                    entries[prefix + 'package.json']['exports'] = './unreviewed-loader.js'
+                asar_fixture(app / 'resources/app.asar', entries)
+                with patch.object(configure, 'FINGERPRINT_FILE', manifest):
+                    detected = configure.detect(app, self.profile)
+                self.assertFalse(detected['supported'])
+                self.assertEqual(detected['compatibility']['status'], 'contract_changed')
+                self.assertIn('@deepseek-ai/dsh-session', ' '.join(detected['compatibility']['diagnostics']))
 
     def test_python_distribution_receives_the_same_detector(self):
         self.assertEqual((ROOT / "extensions/deepseek-harness/configure.py").read_bytes(),

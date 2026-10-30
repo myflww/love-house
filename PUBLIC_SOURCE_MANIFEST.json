@@ -47,6 +47,11 @@
       "sha256": "a10ea653004ed096c9eea1cc2b64beff64dd74e3939b2f054cc794f38a83304b"
     },
     {
+      "path": ".github/workflows/publish-workbuddy-080rc2.yml",
+      "bytes": 1455,
+      "sha256": "454a24169edd376e8c7c7b622c81429f161ab006756669c360c223b3bb143ac1"
+    },
+    {
       "path": ".github/workflows/release.yml",
       "bytes": 29378,
       "sha256": "7a9ed23091ad44c2e73f68007d83870b8c4737c5585234fd60874f884c66a737"
@@ -643,8 +648,8 @@
     },
     {
       "path": "docs/MACOS-080RC2-WORKBUDDY-HANDOFF.md",
-      "bytes": 5188,
-      "sha256": "a2239a22f7ee90c978dddbad033123a71e11072f58b15156e7d9f8cf0f00d9e1"
+      "bytes": 5529,
+      "sha256": "f5cb6fd68136d358a6b14010d7fcb7e00f39a7abaa5ceae7b9586eb65a747ff7"
     },
     {
       "path": "docs/PRIVATE-REMOTE-MEMORY.md",
@@ -1767,6 +1772,11 @@
       "sha256": "06ac19a7f520840abe5ddd72a5ea6e9f7f346fb5fcf378aca096a5566cce364a"
     },
     {
+      "path": "scripts/publish_workbuddy_080rc2.py",
+      "bytes": 27812,
+      "sha256": "9428b301900e84c0a39d823f82a18456ca37d99dcb9294df041ea499f6cb9663"
+    },
+    {
       "path": "scripts/run_android_remote_gateway.sh",
       "bytes": 2378,
       "sha256": "5a6e5194c2c7e67677d0b76e2fc8998099bd28884870a6744e111269c46e3c30"
@@ -1810,6 +1820,11 @@
       "path": "scripts/verify_signed_080rc2.py",
       "bytes": 20681,
       "sha256": "9b706b8e11612139aa2502ee1e0ef4e61257fcd51248b679082d0601da3158b5"
+    },
+    {
+      "path": "scripts/workbuddy-080rc2-publication.json",
+      "bytes": 3112,
+      "sha256": "3ca371d49cba75f4f786c24cca6f6d160eaf0d08205aa037002f39fdd6c21970"
     },
     {
       "path": "tests/js/agent-connect-ui.test.cjs",
@@ -2160,6 +2175,11 @@
       "path": "tests/test_public_release.py",
       "bytes": 9392,
       "sha256": "f413643fa8201ac324d9056b77ee401de5ee39752c65dd09b41d4a573506bf97"
+    },
+    {
+      "path": "tests/test_publish_workbuddy_080rc2.py",
+      "bytes": 15091,
+      "sha256": "d1a7cfc5e603d189a66a4f8400bb34d65763a603090ea262012b6beb91c45f9e"
     },
     {
       "path": "tests/test_recording_dedup.py",

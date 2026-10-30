@@ -1,0 +1,19 @@
+{
+  "schema": "love-house-signed-080rc2/v1",
+  "source_commit": "ab373b9f6d5b1763b14eb5903a66fb20775eda73",
+  "handoff_commit": "ab373b9f6d5b1763b14eb5903a66fb20775eda73",
+  "application_id": "io.github.myflww.lovehouse.preview",
+  "version_name": "0.8.0rc2",
+  "version_code": 3,
+  "certificate_sha256": "ca4b184194816fe3617feaa841e11b47f5a9a9a00493e8cbc015210c04a3a4cc",
+  "apk": {
+    "blob_sha": "50b481672da27b72d4b197dfcbf9f349eda3ebeb",
+    "sha256": "79a23dfa571cd6d10668e882c3b923e22e24b7658a935b46253d7fbee804915a",
+    "bytes": 2646434
+  },
+  "test_apk": {
+    "blob_sha": "77d18d7adb904239d3087072ff3f927a5d216ad1",
+    "sha256": "8d80a049d68fb6b7ecbd726be5d774701cdba5d6bc234a22a2845d420c785fd2",
+    "bytes": 906231
+  }
+}

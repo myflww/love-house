@@ -7,6 +7,11 @@
       "sha256": "887b0d98edef2513bd4fc917a36c635e8f3f81657a8bb2a8d450e43456e947c0"
     },
     {
+      "path": ".github/workflows/android-original-signing-080rc2.yml",
+      "bytes": 3532,
+      "sha256": "be029760135098f82adeb959924349e462a323aeb5177f31cea932c8d67f9f9d"
+    },
+    {
       "path": ".github/workflows/android-release.yml",
       "bytes": 5760,
       "sha256": "94a90d42be7d6453e866f11d68ac47b9af1f1874517e5c3d673f5dd73bff17f9"
@@ -225,6 +230,41 @@
       "path": "android/settings.gradle",
       "bytes": 334,
       "sha256": "a7d49bc0227dcaf26ee1154684e3328d6cc5fbc6744e6bb3789f74eca6151b64"
+    },
+    {
+      "path": "android/upgrade-qa/README.md",
+      "bytes": 1206,
+      "sha256": "20671b39e38439621015af931c077d97d6152765fbf0ceb2a737f0fae1495a71"
+    },
+    {
+      "path": "android/upgrade-qa/app/build.gradle",
+      "bytes": 456,
+      "sha256": "1d38ce74c4b0910c0f4794a653f7b32cb3b945e708c5db664db1feb53a405aca"
+    },
+    {
+      "path": "android/upgrade-qa/app/src/main/AndroidManifest.xml",
+      "bytes": 634,
+      "sha256": "c8f47dcd554acbfbb000c11e0e74455cab885ab6368bc95b153aabcbc378e0e4"
+    },
+    {
+      "path": "android/upgrade-qa/app/src/main/java/io/github/myflww/lovehouse/upgradeqa/UpgradeProbeInstrumentation.java",
+      "bytes": 17104,
+      "sha256": "87fc2a63477951aee64d9e180993c6e0eb20b4f29b69d49ee80ef0f69d8a1eb1"
+    },
+    {
+      "path": "android/upgrade-qa/build.gradle",
+      "bytes": 74,
+      "sha256": "6844d442e0ae87ec0b784c8afe5598878784c4fa41aced1e9389a9b3bfb25666"
+    },
+    {
+      "path": "android/upgrade-qa/gradle.properties",
+      "bytes": 77,
+      "sha256": "65c8508e4db1e61f18f29d3ded79431d70397238316774859a627f2d29e02bb4"
+    },
+    {
+      "path": "android/upgrade-qa/settings.gradle",
+      "bytes": 290,
+      "sha256": "89563315429dd5f054c163373405d011a8f133da67e644fa3b82e0bba0c3f27c"
     },
     {
       "path": "assets/branding/icon-prompt.txt",
@@ -1652,6 +1692,11 @@
       "sha256": "8d9edc7c63472f07f286debc1dc32007b5eafff8d52bb272e18af8b9d0d48c57"
     },
     {
+      "path": "scripts/android-080rc2-signing-candidate.json",
+      "bytes": 736,
+      "sha256": "9e1e6415c6f0ecd3f4282afe50d512eec146730d6dcbe974d4338f936db1cf79"
+    },
+    {
       "path": "scripts/android_remote_fixture_server.py",
       "bytes": 2221,
       "sha256": "70bcb8866f1bde192dd7f7e7463d7a9ec1f0f6f45f71a66a2f9fc7ab30bf8ac7"
@@ -1760,6 +1805,11 @@
       "path": "scripts/verify_harness_connection.py",
       "bytes": 12500,
       "sha256": "41f6978b685a65a4b4ed6f1d6da46397824037fe6033c25c969d42ef7cb5b0cf"
+    },
+    {
+      "path": "scripts/verify_signed_080rc2.py",
+      "bytes": 20331,
+      "sha256": "362e6e3968fa77ebe26abf9f9e3b66ff58fd5a18686b964232ca24ac00708ac7"
     },
     {
       "path": "tests/js/agent-connect-ui.test.cjs",
@@ -2165,6 +2215,11 @@
       "path": "tests/test_usage_journal.py",
       "bytes": 9254,
       "sha256": "81f0d741690ebaa10cf4b35d9319125b02f99afb2528626d9aa2f97253381bd9"
+    },
+    {
+      "path": "tests/test_verify_signed_080rc2.py",
+      "bytes": 8109,
+      "sha256": "40543ea10735c624564c4e419764f3e71a05fd8beaaad2bbdeafa334eb63e0ba"
     },
     {
       "path": "tests/test_viewport_policy.py",

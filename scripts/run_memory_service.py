@@ -68,6 +68,7 @@ def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-dir',type=Path,required=True,help='Private persistent directory for this memory service')
     parser.add_argument('--with-demo',action='store_true',help='Also register the independent visual example')
+    parser.add_argument('--diagnose-startup',action='store_true',help='Print fixed startup phases and delayed thread stacks; no memory or credential values')
     parser.add_argument('--organizer-key-env-name',help='Explicit process environment variable NAME containing the organizer key; never pass the key itself')
     parser.add_argument('--organizer-base-url',help='Explicit model vendor HTTPS endpoint for this organizer')
     parser.add_argument('--organizer-model',help='Organizer model identifier')
@@ -84,8 +85,24 @@ def main(argv=None):
     from desktop.server import main as serve
     sys.argv=[str(ROOT/'desktop/server.py'),'--data-dir',str(data),'--ready-file',str(data/'.runtime/app.json')]
     if not args.with_demo:sys.argv.append('--no-demo')
-    try:serve(host_initializer=initializer)
+    from nkb.service.credentials import KeyStore
+    # A headless source service has no desktop keychain UI. Credentials are
+    # supplied explicitly by its process manager and never trigger Swift builds
+    # or prompts against the login keychain on a fresh macOS host.
+    keys=KeyStore(allow_source_build=False,allow_keychain=False)
+    def phase(name):
+        import json
+        print(json.dumps({'startup_phase':name}),file=sys.stderr,flush=True)
+        if name=='ready_written':
+            import faulthandler
+            faulthandler.cancel_dump_traceback_later()
+    if args.diagnose_startup:
+        import faulthandler
+        faulthandler.dump_traceback_later(10,repeat=True)
+    try:serve(host_initializer=initializer,key_store=keys,on_phase=phase if args.diagnose_startup else None)
     except ServiceBootstrapError as error:parser.exit(1,'爱之屋：'+str(error)+'\n')
+    finally:
+        if args.diagnose_startup:faulthandler.cancel_dump_traceback_later()
 
 
 if __name__=='__main__':main()

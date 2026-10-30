@@ -181,7 +181,7 @@ class HeadlessSourceCLITests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory(prefix='love-house-headless-source-test-');self.root=Path(self.temp.name)
         self.data=self.root/'private-data';self.log_path=self.root/'process.log';self.log=self.log_path.open('wb')
-        self.process=subprocess.Popen([sys.executable,str(ROOT/'scripts/run_memory_service.py'),'--data-dir',str(self.data)],
+        self.process=subprocess.Popen([sys.executable,str(ROOT/'scripts/run_memory_service.py'),'--data-dir',str(self.data),'--diagnose-startup'],
                                       cwd=self.root,stdout=self.log,stderr=subprocess.STDOUT,env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1'})
         ready=self.data/'.runtime/app.json';deadline=time.monotonic()+15
         while not ready.exists() and self.process.poll() is None and time.monotonic()<deadline:time.sleep(.03)

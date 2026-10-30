@@ -172,7 +172,7 @@ class CloudServiceProcessTests(unittest.TestCase):
         self.temp.cleanup()
 
     def command(self, *, inject):
-        command = [sys.executable, str(ROOT / 'scripts/run_memory_service.py'), '--data-dir', str(self.data)]
+        command = [sys.executable, str(ROOT / 'scripts/run_memory_service.py'), '--data-dir', str(self.data), '--diagnose-startup']
         if inject:
             command += ['--organizer-key-env-name', ENV_NAME, '--organizer-base-url', self.base_url,
                         '--organizer-model', 'synthetic-cloud-model']

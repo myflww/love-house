@@ -1,0 +1,47 @@
+name: iOS Simulator real HTTPS Agent portal
+
+on:
+  pull_request:
+    paths: ['ios-smoke/**', '.github/workflows/ios-portal.yml', 'nkb/service/**', 'nkb/viz/web/remote-mobile.*', 'nkb/viz/web/remote-bootstrap.js', 'nkb/companion/**', 'nkb/core/**', 'nkb/flow/**', 'nkb/libraries/**', 'nkb/organizer/**', 'nkb/adapters/**', 'nkb/_version.py', 'nkb/config.py', 'nkb/errors.py', 'pyproject.toml']
+  push:
+    branches: ['codex/**']
+    paths: ['ios-smoke/**', '.github/workflows/ios-portal.yml', 'nkb/service/**', 'nkb/viz/web/remote-mobile.*', 'nkb/viz/web/remote-bootstrap.js', 'nkb/companion/**', 'nkb/core/**', 'nkb/flow/**', 'nkb/libraries/**', 'nkb/organizer/**', 'nkb/adapters/**', 'nkb/_version.py', 'nkb/config.py', 'nkb/errors.py', 'pyproject.toml']
+  workflow_dispatch:
+    inputs:
+      backend_ref:
+        description: 'Optional real backend ref override; defaults to this PR head or exact commit'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+concurrency:
+  group: ios-portal-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.backend_ref || github.event.pull_request.head.sha || github.sha }}
+          path: tested-backend
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify a real simulator engine with native trust and the actual gateway
+        run: bash ios-smoke/run_ios_portal_smoke.sh "$GITHUB_WORKSPACE/tested-backend" "$GITHUB_WORKSPACE/build/ios-portal"
+      - name: Preserve synthetic native iOS evidence (no CA private key or memory database)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-native-wkwebview-portal-evidence
+          path: build/ios-portal/reports/
+          if-no-files-found: error
+          retention-days: 14

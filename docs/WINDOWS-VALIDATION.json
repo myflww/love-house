@@ -1,0 +1,130 @@
+{
+  "schema": "love-house-windows-validation/v1",
+  "date": "2026-10-30",
+  "timezone": "Asia/Shanghai",
+  "base_commit": "22750fb408370de4abed6988aa178f01eebc5bb2",
+  "status": "preview_clean_runtime_acceptance_pending",
+  "product_version": "0.5.0",
+  "protocol_version": "0.4.0",
+  "system": {
+    "windows_build": 26200,
+    "architecture": "x64",
+    "dotnet_release": 533509,
+    "runtime_version": "156.0.4314.50",
+    "system_runtime_preinstalled": true,
+    "elevated": false
+  },
+  "tests": {
+    "full": {
+      "ran": 526,
+      "skipped": 4,
+      "result": "passed"
+    },
+    "desktop": {
+      "ran": 19,
+      "skipped": 12,
+      "result": "passed"
+    },
+    "final_windows": {
+      "ran": 69,
+      "skipped": 0,
+      "result": "passed"
+    }
+  },
+  "ordinary_entry": {
+    "native_window_visible": true,
+    "chinese_space_localappdata": true,
+    "duplicate_exit": 1,
+    "first_ready_preserved": true,
+    "first_health_ok": true
+  },
+  "portable": {
+    "ok": true,
+    "version": "0.5.0",
+    "phase": "complete",
+    "process_complete": true,
+    "renderer": "edgechromium",
+    "runtime": {
+      "available": true,
+      "version": "156.0.4314.50",
+      "source": "loader",
+      "code": "ok",
+      "registry_versions": [
+        {
+          "hive": "HKLM",
+          "view": 512,
+          "version": "156.0.4314.50"
+        }
+      ],
+      "hresult": 0
+    },
+    "system_runtime_preinstalled": true,
+    "webview": {
+      "health": {
+        "ok": true,
+        "name": "爱之屋记忆服务",
+        "version": "0.5.0",
+        "protocol_version": "0.4.0",
+        "mode": "storage"
+      },
+      "library_count": 2,
+      "title": "爱之屋 · 记忆库",
+      "save_bridge": true,
+      "graph": true,
+      "webgl": true
+    },
+    "window_phase": "native_checks_passed",
+    "controller_stopped": true,
+    "cleanup": {
+      "status": "removed",
+      "attempts": 2,
+      "isolated": true,
+      "vanished_profile_entries": 0
+    }
+  },
+  "installed": {
+    "backend": {
+      "exit_code": 0,
+      "ok": true,
+      "process_complete": true
+    },
+    "native": {
+      "exit_code": 0,
+      "ok": true,
+      "process_complete": true
+    },
+    "consumer": {
+      "exit_code": 0,
+      "ok": true,
+      "process_complete": true
+    },
+    "runtime": {
+      "exit_code": 0,
+      "ok": true,
+      "process_complete": true
+    }
+  },
+  "uninstall": {
+    "exit_code": 0,
+    "isolated_memory_retained": true
+  },
+  "assets": {
+    "LoveHouse-0.5.0-Windows-x64.zip": {
+      "bytes": 261032328,
+      "sha256": "f7ce2c609ffb6bc4adcf5c29f79bf97c190579d1b2576ea1fd12585241121c18"
+    },
+    "LoveHouse-Setup-0.5.0-Windows-x64.exe": {
+      "bytes": 252857089,
+      "sha256": "7388aa97a378b295012bf4d5214a443ee3618353288e6f9a8051146bbe0c066d"
+    }
+  },
+  "pending": [
+    "clean_windows_10_runtime_missing",
+    "clean_windows_11_runtime_missing",
+    "actual_runtime_corruption_repair",
+    "restricted_policy_and_restart"
+  ],
+  "real_model_calls": 0,
+  "real_credentials_accessed": false,
+  "record_scope": "Historical local binary validation before 0.5.1rc1; release-specific checks and hashes come from the public release workflow."
+}

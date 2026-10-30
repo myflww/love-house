@@ -1,4 +1,4 @@
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import importlib.util
 import json
 import tempfile
@@ -11,6 +11,26 @@ spec.loader.exec_module(release)
 
 
 class PublicReleaseTests(unittest.TestCase):
+    def test_astrbot_plugin_exports_only_reviewed_source_not_runtime_configuration(self):
+        for name in ('main.py','bridge.py','source_client.py','metadata.yaml','_conf_schema.json','README.md','LICENSE','package.py','__init__.py'):
+            self.assertTrue(release.is_allowed(Path('extensions/astrbot-love-house')/name),name)
+        for name in ('settings.json','private-source.json','data/events.json','outbox/event.json','capture.sqlite3'):
+            self.assertFalse(release.is_allowed(Path('extensions/astrbot-love-house')/name),name)
+
+    def test_developer_home_paths_are_detected_across_native_source_and_json_separators(self):
+        windows_home = PureWindowsPath('C:/Users/private-builder')
+        native = str(windows_home / 'project' / 'file.py')
+        variants = [native, native.replace('\\', '/'), json.dumps(native), native.lower()]
+        for value in variants:
+            with self.subTest(format=value):
+                findings = release.scan_bytes(Path('nkb/example.py'), value.encode(), home=windows_home)
+                self.assertEqual({item['category'] for item in findings}, {'developer-home-path'})
+                self.assertNotIn('private-builder', json.dumps(findings))
+        posix_home = PurePosixPath('/Users/private-builder')
+        self.assertTrue(release.scan_bytes(Path('README.md'), b'/Users/private-builder/project', home=posix_home))
+        self.assertFalse(release.scan_bytes(Path('README.md'), b'C:/Users/private-builder-other/project', home=windows_home))
+        self.assertFalse(release.scan_bytes(Path('README.md'), b'/Users/private-builder-other/project', home=posix_home))
+
     def seed(self, root):
         for name, value in {
             'LICENSE': '# PolyForm Noncommercial License 1.0.0\n',

@@ -1,0 +1,58 @@
+name: Verify public Windows and mobile preview downloads
+
+on:
+  push:
+    branches: [codex/mobile-agent-080]
+    paths: ['.github/workflows/verify-public-windows-mobile-preview.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-download:
+    if: github.repository == 'myflww/love-house' && github.ref == 'refs/heads/codex/mobile-agent-080'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download public release bytes without a token and check every digest
+        run: |
+          python - <<'PY'
+          import hashlib,json,pathlib,tempfile,urllib.request
+          assets = {
+              'LoveHouse-Setup-0.8.0rc1-Windows-x64.exe': (255123516, '313ad4c15da5dd70b79d2da682f7a8c02c8c130cebb72a806dbeaef1e320819b'),
+              'LoveHouse-0.8.0rc1-Windows-x64.zip': (265123708, '97e35675311edb4db6d51833663155213c97beb224a09c8e0c1f235901c17342'),
+              'LoveHouse-0.8.0rc1-Original-Key-Portable-382c5ee.zip': (4708467, '321f26138739efe006ac40ac921fcb9768dcfc6c6657ce3f891a5edddb9b7051'),
+              'FINAL-PROVENANCE.json': (2916, '17785de83485fa7cb2c916a88c2f2160846298318d48b49380373aabf6a498db'),
+              'Windows-test-evidence-382c5ee.zip': (4371, '2c7ca808de1f23a314782cbbf5dc2475652bdaf276eea330c52c184f44225212'),
+              'Windows-SHA256SUMS.txt': (210, '60ba1d458817489da189ecb2e487091bd05b11157cf00e9a51a2fcc4f9e1bb12'),
+              'Preview-SHA256SUMS.txt': (604, '67ba7349d334a3af0a76d2bb0ab4336c4c95d891249e0805eb0605333852048d'),
+              'WINDOWS-MOBILE-080RC1.md': (4872, '224e69ae547357f47f23b0ee6deb467fc25282697178ce302905c37e80b329ad'),
+          }
+          report = {'schema':'love-house-anonymous-download/v1','tag':'v0.8.0rc1','authenticated':False,'assets':[]}
+          for name,(size,expected) in assets.items():
+              url = 'https://github.com/myflww/love-house/releases/download/v0.8.0rc1/' + name
+              # No token, cookies or custom authentication opener are used.
+              digest=hashlib.sha256(); received=0
+              with urllib.request.urlopen(url,timeout=60) as response:
+                  assert response.status == 200, (name,response.status)
+                  while block := response.read(1024*1024):
+                      received+=len(block);digest.update(block)
+              assert received == size and digest.hexdigest() == expected, (name,received,digest.hexdigest())
+              report['assets'].append({'name':name,'bytes':received,'sha256':digest.hexdigest(),'ok':True})
+              print('Verified public download:',name)
+          report['ok']=True
+          pathlib.Path('public-download-verification.json').write_text(json.dumps(report,indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public-windows-mobile-080rc1-verification
+          path: public-download-verification.json
+          if-no-files-found: error
+          retention-days: 90

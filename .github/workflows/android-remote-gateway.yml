@@ -1,0 +1,151 @@
+name: Android real HTTPS memory portal
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend_ref:
+        description: Optional explicit backend override; default is this PR's exact head commit
+        required: false
+  push:
+    branches: [main, codex/android-preview]
+    paths:
+      - 'android/app/src/androidTest/remote-gateway/**'
+      - 'scripts/*android_remote*'
+      - 'ios-smoke/fixture_server.py'
+      - 'nkb/service/**'
+      - 'nkb/service/httpd.py'
+      - 'nkb/adapters/http.py'
+      - 'nkb/companion/**'
+      - 'nkb/core/**'
+      - 'nkb/libraries/**'
+      - 'nkb/storage/**'
+      - 'nkb/viz/web/remote-mobile.*'
+      - 'nkb/_version.py'
+      - 'pyproject.toml'
+      - '.github/workflows/android-remote-gateway.yml'
+  pull_request:
+    paths:
+      - 'android/app/src/androidTest/remote-gateway/**'
+      - 'scripts/*android_remote*'
+      - 'ios-smoke/fixture_server.py'
+      - 'nkb/service/**'
+      - 'nkb/service/httpd.py'
+      - 'nkb/adapters/http.py'
+      - 'nkb/companion/**'
+      - 'nkb/core/**'
+      - 'nkb/libraries/**'
+      - 'nkb/storage/**'
+      - 'nkb/viz/web/remote-mobile.*'
+      - 'nkb/_version.py'
+      - 'pyproject.toml'
+      - '.github/workflows/android-remote-gateway.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-remote-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-webview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [28, 36]
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+      ANDROID_REMOTE_API_LEVEL: ${{ matrix.api-level }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Configure the isolated fixture directory after runner allocation
+        run: printf 'ANDROID_REMOTE_FIXTURE_ROOT=%s/love-house-android-remote\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Check out the actual desktop memory backend separately
+        uses: actions/checkout@v4
+        with:
+          repository: myflww/love-house
+          ref: ${{ inputs.backend_ref || github.event.pull_request.head.sha || github.sha }}
+          path: backend
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '12266719'
+          packages: 'platform-tools'
+          log-accepted-android-sdk-licenses: 'false'
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '8.13'
+      - name: Start real isolated MemoryHost and TLS gateway; prepare test-only public CA
+        run: |
+          set -euo pipefail
+          mkdir -p build/android-remote
+          git rev-parse HEAD > build/android-remote/frontend-commit.txt
+          git -C backend rev-parse HEAD > build/android-remote/backend-commit.txt
+          PYTHONPATH="$GITHUB_WORKSPACE/backend" python scripts/android_remote_fixture_server.py --root "$ANDROID_REMOTE_FIXTURE_ROOT" > "$RUNNER_TEMP/android-remote-server.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/android-remote-server.pid"
+          for attempt in $(seq 1 120); do
+            if test -f "$ANDROID_REMOTE_FIXTURE_ROOT/ready.json"; then break; fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/android-remote-server.pid")" 2>/dev/null; then cat "$RUNNER_TEMP/android-remote-server.log"; exit 1; fi
+            sleep .25
+          done
+          test -f "$ANDROID_REMOTE_FIXTURE_ROOT/ready.json"
+          python scripts/prepare_android_remote_fixture.py --fixture-ready "$ANDROID_REMOTE_FIXTURE_ROOT/ready.json" --output build/android-remote/fixture.json
+      - name: Build only the independent instrumentation host and verify production boundaries
+        run: |
+          set -euo pipefail
+          if grep -R -n '\.proceed(' android/app/src/androidTest/remote-gateway/src; then exit 1; fi
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+          gradle -p android/app/src/androidTest/remote-gateway --no-daemon --stacktrace assembleDebug assembleDebugAndroidTest
+          python scripts/prepare_mobile_assets.py
+          gradle -p android --no-daemon --stacktrace :app:assembleRelease
+          apk='android/app/build/outputs/apk/release/app-release-unsigned.apk'
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump permissions "$apk" > build/android-remote/production-permissions.txt
+          if grep -F 'android.permission.INTERNET' build/android-remote/production-permissions.txt; then exit 1; fi
+          unzip -Z1 "$apk" > build/android-remote/production-apk-entries.txt
+          if grep -E 'remote_test_ca|remote_qa_network_security|remoteqa/RemoteGateway' build/android-remote/production-apk-entries.txt; then exit 1; fi
+      - name: Enable KVM on the disposable runner
+        run: |
+          test -e /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run actual Android WebView portal, MCP, hook and certificate checks
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          force-avd-creation: true
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/run_android_remote_gateway.sh
+      - name: Stop only the synthetic backend process
+        if: always()
+        run: |
+          if test -f "$RUNNER_TEMP/android-remote-server.pid"; then kill "$(cat "$RUNNER_TEMP/android-remote-server.pid")" 2>/dev/null || true; fi
+      - name: Preserve actual native engine evidence, never fixture private keys or APKs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-real-remote-api-${{ matrix.api-level }}
+          path: |
+            build/android-remote/
+            android/app/src/androidTest/remote-gateway/build/outputs/androidTest-results/
+            android/app/src/androidTest/remote-gateway/build/reports/
+          if-no-files-found: error
+          retention-days: 14

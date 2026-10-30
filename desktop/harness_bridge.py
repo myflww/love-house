@@ -340,6 +340,11 @@ def default_app_path():
 
 
 def main():
+    # MCP stdio is UTF-8 JSON regardless of the user's Windows code page or a
+    # host-provided PYTHONIOENCODING. Keep stdout protocol-only and LF-delimited.
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="strict", newline="\n")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime-dir", type=Path, default=RUNTIME)
     parser.add_argument("--library-id", default="default")

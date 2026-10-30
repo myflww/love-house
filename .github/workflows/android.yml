@@ -69,7 +69,7 @@ jobs:
       - name: Check safe packaging and create local WebView assets
         run: |
           python -m unittest tests.test_android_packaging tests.test_public_release -v
-          node --test mobile/tests/store.test.mjs
+          node --test mobile/tests/*.test.mjs
           python -m unittest discover -s mobile/tests -p 'test_*.py' -v
           python scripts/prepare_mobile_assets.py
       - name: Install the pinned Android SDK components
@@ -109,7 +109,17 @@ jobs:
             exit 1
           fi
           mkdir -p build/android/signing-tools
-          cp "$apk" build/android/LoveHouse-0.1.0-preview1-Android-unsigned.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" > build/android/apk-badging.txt
+          python - <<'PYAPK'
+          import json,pathlib,re
+          text=pathlib.Path('build/android/apk-badging.txt').read_text()
+          line=next(line for line in text.splitlines() if line.startswith('package:'))
+          values={key:re.search(key+r"='([^']+)'",line).group(1) for key in ('name','versionName','versionCode')}
+          if values['name']!='io.github.myflww.lovehouse.preview' or not re.fullmatch(r'[0-9A-Za-z.-]+',values['versionName']):raise SystemExit('Invalid APK identity')
+          pathlib.Path('build/android/apk-identity.json').write_text(json.dumps(values))
+          PYAPK
+          version=$(python -c "import json; print(json.load(open('build/android/apk-identity.json'))['versionName'])")
+          cp "$apk" "build/android/LoveHouse-$version-Android-unsigned.apk"
           # Developer-only test harness: the persistent local key can re-sign
           # this alongside the final APK to verify that exact release build.
           cp "$test_apk" build/android/LoveHouse-Android-instrumentation-test.apk
@@ -119,8 +129,8 @@ jobs:
           fi
           cp LICENSE NOTICE THIRD_PARTY_NOTICES.md build/android/
           printf '%s\n' 'This is a developer artifact, not an installable public release.' 'The APK is unsigned. Keep private signing keys outside Git and sign the verified APK with a persistent key.' 'apksigner.jar is an Android SDK Build-Tools developer utility; preserve its upstream licence notices.' > build/android/README-UNSIGNED.txt
-          (cd build/android && sha256sum LoveHouse-0.1.0-preview1-Android-unsigned.apk signing-tools/apksigner.jar) > build/android/SHA256SUMS.txt
-          python -c "import json,os,pathlib; pathlib.Path('build/android/verification.json').write_text(json.dumps({'schema':'love-house-android-build/v1','source_commit':os.environ['GITHUB_SHA'],'api_level':int('${{ matrix.api-level }}'),'instrumentation':'passed','artifact':'unsigned_not_for_distribution','version_name':'0.1.0-preview1','version_code':1,'min_sdk':26,'target_sdk':36,'no_native_libraries':True},indent=2)+'\n',encoding='utf-8')"
+          (cd build/android && sha256sum "LoveHouse-$version-Android-unsigned.apk" signing-tools/apksigner.jar) > build/android/SHA256SUMS.txt
+          python -c "import json,os,pathlib; pathlib.Path('build/android/verification.json').write_text(json.dumps({'schema':'love-house-android-build/v1','source_commit':os.environ['GITHUB_SHA'],'api_level':int('${{ matrix.api-level }}'),'instrumentation':'passed','artifact':'unsigned_not_for_distribution','version_name':json.loads(pathlib.Path('build/android/apk-identity.json').read_text())['versionName'],'version_code':int(json.loads(pathlib.Path('build/android/apk-identity.json').read_text())['versionCode']),'min_sdk':26,'target_sdk':36,'no_native_libraries':True},indent=2)+'\n',encoding='utf-8')"
       - uses: actions/upload-artifact@v4
         with:
           name: android-unsigned-api-${{ matrix.api-level }}

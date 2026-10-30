@@ -14,12 +14,16 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.SystemClock;
+import android.os.ParcelFileDescriptor;
+import android.util.Base64;
 import android.webkit.WebSettings;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -84,6 +88,21 @@ public final class MobileSmokeTest {
         });
         assertEquals("indexeddb", ((JSONObject) evaluate("window.LoveHouseMobile.summary()")).getString("storage"));
         assertEquals("android", ((JSONObject) evaluate("window.LoveHouseMobile.summary()")).getString("platform"));
+    }
+
+    @Test public void agentConnectionOpensOnlyTheChosenHttpsServiceWithoutLocalHostDetection() throws Exception {
+        ready();
+        click("homeConnectAgent");
+        waitFor("generic Agent connection page", "!document.getElementById('view-connect').hidden");
+        fill("memoryServiceAddress", "https://my-memory.example:9443");
+        assertEquals("https://my-memory.example:9443/mobile", evaluate("document.getElementById('openMemoryService').href"));
+        assertEquals("false", evaluate("document.getElementById('openMemoryService').getAttribute('aria-disabled')"));
+        fill("memoryServiceAddress", "https://" + "user" + ":" + "FAKE-secret" + "@my-memory.example/?token=FAKE");
+        assertEquals("true", evaluate("document.getElementById('openMemoryService').getAttribute('aria-disabled')"));
+        assertEquals(Boolean.FALSE, evaluate("document.getElementById('openMemoryService').hasAttribute('href')"));
+        assertEquals(Boolean.FALSE, evaluate("document.getElementById('view-connect').textContent.includes('Harness')"));
+        fill("memoryServiceAddress", "http://127.0.0.1:9140");
+        assertEquals(Boolean.FALSE, evaluate("document.getElementById('openMemoryService').hasAttribute('href')"));
     }
 
     @Test public void uiCanCreateEditSearchAndOpenTheStarMap() throws Exception {
@@ -267,10 +286,42 @@ public final class MobileSmokeTest {
         assertNotNull("Device screenshot unavailable", image);
         Context target = InstrumentationRegistry.getInstrumentation().getTargetContext();
         File output = new File(target.getFilesDir(), "android-smoke.png");
-        try (FileOutputStream stream = new FileOutputStream(output)) {
-            assertTrue(image.compress(Bitmap.CompressFormat.PNG, 100, stream));
+        ByteArrayOutputStream encoded = new ByteArrayOutputStream();
+        try {
+            assertTrue(image.compress(Bitmap.CompressFormat.PNG, 100, encoded));
         } finally { image.recycle(); }
+        byte[] bytes = encoded.toByteArray();
+        byte[] signature = {(byte)0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};
+        assertTrue("Native encoder did not produce a PNG", bytes.length > 33 && Arrays.equals(signature, Arrays.copyOf(bytes, 8)));
+        try (FileOutputStream stream = new FileOutputStream(output)) { stream.write(bytes); }
         assertTrue("Screenshot was not saved to target app files", output.isFile() && output.length() > 0);
+        // AGP can uninstall the target APK after the suite. Export only this
+        // synthetic screenshot while instrumentation still owns it, using the
+        // test framework's shell rather than adding app/storage permissions.
+        String directory = "/data/local/tmp/love-house-offline-qa";
+        screenshotShell("mkdir -p " + directory);
+        screenshotShell("printf '' > " + directory + "/android-smoke.base64");
+        String text = Base64.encodeToString(bytes, Base64.NO_WRAP);
+        for (int offset = 0; offset < text.length(); offset += 4096) {
+            String chunk = text.substring(offset, Math.min(text.length(), offset + 4096));
+            screenshotShell("printf '%s' '" + chunk + "' >> " + directory + "/android-smoke.base64");
+        }
+        screenshotShell("base64 -d " + directory + "/android-smoke.base64 > " + directory + "/android-smoke.png");
+        screenshotShell("rm " + directory + "/android-smoke.base64");
+    }
+
+    private void screenshotShell(String command) throws Exception {
+        // Runtime.exec(String) does not parse shell syntax. The sh -c program
+        // is one whitespace-free token containing generated Base64 only.
+        String payload = Base64.encodeToString((command + " && printf '__OFFLINE_QA_EXPORT_OK__'").getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+        String program = "echo${IFS}" + payload + "|base64${IFS}-d|sh";
+        ParcelFileDescriptor descriptor = InstrumentationRegistry.getInstrumentation().getUiAutomation().executeShellCommand("sh -c " + program);
+        ByteArrayOutputStream result = new ByteArrayOutputStream();
+        try (ParcelFileDescriptor.AutoCloseInputStream stream = new ParcelFileDescriptor.AutoCloseInputStream(descriptor)) {
+            byte[] buffer = new byte[1024];int count;
+            while ((count = stream.read(buffer)) != -1) result.write(buffer, 0, count);
+        }
+        assertTrue("Synthetic screenshot export failed before target cleanup", new String(result.toByteArray(), StandardCharsets.UTF_8).endsWith("__OFFLINE_QA_EXPORT_OK__"));
     }
 
     private static String quote(String value) { return JSONObject.quote(value); }

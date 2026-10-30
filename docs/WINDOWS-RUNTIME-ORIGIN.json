@@ -1,0 +1,11 @@
+{
+  "official_entry": "https://go.microsoft.com/fwlink/p/?LinkId=2124701",
+  "resolved_url": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/f699d81e-69ce-4b09-aa07-23ff2713045b/MicrosoftEdgeWebView2RuntimeInstallerX64.exe",
+  "bytes": 214884560,
+  "sha256": "1c401b327fbc7bb9731b4e350a2194f083cbc3ede46508d52e1cae6610a39bea",
+  "authenticode_verified": false,
+  "executed": false,
+  "included_in_handoff": false,
+  "distribution_document": "https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution",
+  "note": "Windows machine must verify Valid Microsoft Corporation Authenticode before executing or bundling. A SHA obtained over HTTPS alone is not signature verification."
+}

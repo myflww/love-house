@@ -56,7 +56,7 @@ class BridgeProtocolTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             messages=[{"jsonrpc":"2.0","id":1,"method":"initialize"},
                       {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"memory_status","arguments":{}}}]
-            result=subprocess.run([sys.executable,str(DESKTOP/"harness_bridge.py"),"--runtime-dir",directory,"--library-id","default"],input="\n".join(json.dumps(m) for m in messages)+"\n{\n",capture_output=True,text=True,timeout=10)
+            result=subprocess.run([sys.executable,str(DESKTOP/"harness_bridge.py"),"--runtime-dir",directory,"--library-id","default"],input="\n".join(json.dumps(m) for m in messages)+"\n{\n",capture_output=True,text=True,encoding="utf-8",timeout=10)
             self.assertEqual(result.returncode,0,result.stderr)
             rows=[json.loads(line) for line in result.stdout.splitlines()]
             self.assertEqual([r["id"] for r in rows],[1,2,None]);self.assertTrue(rows[1]["result"]["isError"])

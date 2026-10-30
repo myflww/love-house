@@ -2,8 +2,8 @@
 """Build Windows x64 native GUI, independent stdio adapters and per-user installer.
 
 Must run on Windows x64 with the pinned desktop build dependencies installed.
-Does not download or silently install a WebView2 runtime, Python or Node on a
-user's machine. Publication is a separate CI step after smoke success.
+Bundles a verified Microsoft Evergreen installer for offline prerequisite repair.
+Publication is a separate, explicitly requested step after consumer validation.
 """
 from __future__ import annotations
 import argparse
@@ -35,6 +35,12 @@ def run(arguments,**kwargs):
 def data_files():
     """Explicit safe assets; never include reports, fixtures, memories or node_modules."""
     files=[(ROOT/'nkb/viz/web','nkb/viz/web'),(ROOT/'nkb/service/harness','nkb/service/harness')]
+    # The download endpoint builds a source-only AstrBot ZIP and compares the
+    # vendored SDK byte-for-byte; frozen modules alone cannot supply those bytes.
+    for name in ('__init__.py','main.py','bridge.py','source_client.py','metadata.yaml',
+                 '_conf_schema.json','README.md','LICENSE','package.py'):
+        files.append((ROOT/'extensions/astrbot-love-house'/name,'extensions/astrbot-love-house'))
+    files.append((ROOT/'nkb/service/source_client.py','nkb/service'))
     for name in ('neural-art.bundle.js','LICENSE.digital-brain','LICENSE.three','LICENSE.orbit','LICENSE.postprocessing'):
         item=ROOT/'nkb/viz/art'/name
         if item.exists():files.append((item,'nkb/viz/art'))
@@ -46,10 +52,14 @@ def freeze_command(name,entry,dist,work,icon,*,console):
           '--console' if console else '--windowed','--distpath',str(dist),'--workpath',str(work/name),
           '--specpath',str(work/'specs'),'--paths',str(ROOT),'--paths',str(ROOT/'desktop'),
           '--collect-submodules','nkb','--icon',str(icon)]
+    # These standalone helpers are loaded from reviewed .py data with importlib.
+    # PyInstaller cannot discover their otherwise-unused standard-library imports.
+    args.extend(['--hidden-import','plistlib','--hidden-import','zipfile'])
     for source,destination in data_files():args.extend(['--add-data',str(source)+os.pathsep+destination])
     if not console:
         args.extend(['--collect-all','webview','--collect-all','pythonnet','--collect-all','clr_loader',
                      '--hidden-import','webview.platforms.winforms','--hidden-import','clr'])
+        args.extend(['--add-data',str(ROOT/'resources/runtime')+os.pathsep+'resources/runtime'])
     args.append(str(entry));return args
 
 
@@ -107,10 +117,13 @@ def verify_webview2_sdk(app):
     shutil.copytree(source,Path(app)/'THIRD-PARTY-LICENSES'/source.name,dirs_exist_ok=True)
 
 
-def build(*,installer=True):
+def build(*,installer=True,iscc=None):
     if sys.platform!='win32' or platform.machine().lower() not in ('amd64','x86_64'):
         raise SystemExit('Build on Windows x64; cross-compiling on macOS is not supported.')
     from PIL import Image
+    from fetch_windows_runtime import ensure_runtime
+    # Fail before freezing if the pinned Microsoft installer cannot be verified.
+    ensure_runtime(ROOT)
     output=ROOT/'dist/windows';output.mkdir(parents=True,exist_ok=True)
     work=ROOT/'build/windows';work.mkdir(parents=True,exist_ok=True)
     icon=work/'LoveHouse.ico'
@@ -132,9 +145,19 @@ def build(*,installer=True):
     (app/'WINDOWS-README.txt').write_text(
         'Love House / 爱之屋 '+version()+'\n\nWindows 10 (2004+) / Windows 11 x64.\n'
         'This is a native WebView2 desktop app. Python and Node are bundled/not required.\n'
-        'Microsoft WebView2 Runtime is required. If missing, install it from Microsoft:\n'
+        'Microsoft WebView2 Runtime is required. Setup checks its actual loader\n'
+        'and offers to install the included, verified Microsoft Evergreen runtime\n'
+        'when it is absent. An offline x64 installer is included in the bundle.\n'
+        'The Microsoft component is governed by Microsoft licence terms:\n'
         'https://developer.microsoft.com/microsoft-edge/webview2/\n'
-        'No runtime is silently downloaded or installed by Love House.\n\n'
+        'Portable users: explicitly run LoveHouse.exe --repair-runtime to repair\n'
+        'it. No administrator access, Python or Node installation is required.\n'
+        'The repair checks Microsoft Authenticode and the pinned SHA256, then\n'
+        'checks runtime availability again after installation.\n\n'
+        'If the window does not open, run LoveHouse.exe --diagnose (or the same\n'
+        'command in the installed folder). It writes a runtime-only report to\n'
+        '%LOCALAPPDATA%\\LoveHouse\\logs and opens the folder; the startup log\n'
+        '(startup.log) never contains memories, keys or conversation text.\n\n'
         'Memories: %LOCALAPPDATA%\\LoveHouse. Uninstall keeps memories.\n'
         'Connect using Other Agent / Copy memory connection configuration (MCP).\n'
         'Windows DeepSeek Harness automatic configuration has not been verified/supported.\n'
@@ -149,8 +172,11 @@ def build(*,installer=True):
     archive=release/('LoveHouse-'+version()+'-Windows-x64')
     shutil.make_archive(str(archive),'zip',output,'LoveHouse')
     if installer:
-        compiler=shutil.which('ISCC') or str(Path(os.environ.get('ProgramFiles(x86)','C:/Program Files (x86)'))/'Inno Setup 6/ISCC.exe')
-        if not Path(compiler).is_file():raise RuntimeError('Install Inno Setup 6 from its official distribution before building the installer')
+        candidates=[iscc,shutil.which('ISCC')]
+        for base in (os.environ.get('ProgramFiles(x86)'),os.environ.get('ProgramFiles'),os.environ.get('LOCALAPPDATA','')+'/Programs'):
+            if base:candidates.append(Path(base)/'Inno Setup 6/ISCC.exe')
+        compiler=next((Path(value) for value in candidates if value and Path(value).is_file()),None)
+        if compiler is None:raise RuntimeError('Install official Inno Setup 6, or pass --iscc with its ISCC.exe path')
         run([compiler,'/DAppVersion='+version(),'/DBundleDir='+str(app),'/DOutputDirPath='+str(release),ROOT/'desktop/windows-installer.iss'])
     checksums={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in release.glob('*Windows-x64*') if p.is_file()}
     (release/'Windows-SHA256SUMS.txt').write_text(''.join(value+'  '+name+'\n' for name,value in checksums.items()),encoding='utf-8')
@@ -159,4 +185,5 @@ def build(*,installer=True):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--no-installer',action='store_true')
-    args=parser.parse_args();build(installer=not args.no_installer)
+    parser.add_argument('--iscc',type=Path,help='Path to an official Inno Setup 6 compiler.')
+    args=parser.parse_args();build(installer=not args.no_installer,iscc=args.iscc)

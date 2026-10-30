@@ -1,0 +1,16 @@
+{
+  "adapter_version": "0.4.0",
+  "runtime_support": ["0.2.1-rc.3"],
+  "source_reviewed_master": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
+  "primary_packages": [
+    "https://registry.npmjs.org/@deepseek-ai/dsh-agent/-/dsh-agent-0.2.1-rc.3.tgz",
+    "https://registry.npmjs.org/@deepseek-ai/dsh-session/-/dsh-session-0.2.1-rc.3.tgz",
+    "https://registry.npmjs.org/@deepseek-ai/dsh-llm/-/dsh-llm-0.2.1-rc.3.tgz"
+  ],
+  "capture": "ctx.on('session/event', (session, event))",
+  "inject": "ctx.on('agent/pre-step', async (payload, next) => PreStepDecision)",
+  "identity": "session.id + event.seq; original message.id/tool callId retained",
+  "delivery": "POST /api/connections/{connection_id}/events; accepted:true acknowledges private journal persistence only",
+  "context": "POST /api/connections/{connection_id}/context",
+  "unsupported": "Versions outside runtime_support require compatibility validation or the explicit API-proxy fallback; no automatic claim of full host capture."
+}

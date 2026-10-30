@@ -1,0 +1,19 @@
+{
+  "font": "Ark Pixel Font",
+  "version": "2026.10.25",
+  "variant": "12px proportional zh_hans (Simplified Chinese)",
+  "font_file": "ark-pixel-12px-proportional-zh_hans.woff2",
+  "font_original_member": "ark-pixel-12px-proportional-zh_hans.otf.woff2",
+  "font_sha256": "0c6b9a6d8aa19150537e6ccba248909192258167a8bcc7a18d5dad1a2ee12632",
+  "font_bytes": 566768,
+  "license_file": "ark-pixel-OFL.txt",
+  "license": "SIL Open Font License 1.1",
+  "license_sha256": "3ab41567e68e3988ba1ef16dd2644eca95ca5648ea12e7d46e6287fc0bbe5aee",
+  "repository": "https://github.com/TakWolf/ark-pixel-font",
+  "release": "https://github.com/TakWolf/ark-pixel-font/releases/tag/2026.10.25",
+  "asset_url": "https://github.com/TakWolf/ark-pixel-font/releases/download/2026.10.25/ark-pixel-font-12px-proportional-otf.woff2-v2026.10.25.zip",
+  "archive_sha256": "a1b26a1e505bf0b04f6f8faa0f796d6e0b32a1c2539fd1295db1013f8883314e",
+  "archive_sha256_matches_official_release": true,
+  "downloaded_on": "2026-10-29",
+  "modified": false
+}

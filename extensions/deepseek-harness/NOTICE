@@ -1,0 +1,11 @@
+Required Notice: Copyright (c) 2026 myflww. Love House / 爱之屋.
+
+First-party Love House source code, documentation and original assets in this
+release are offered under PolyForm Noncommercial License 1.0.0 (see LICENSE).
+Third-party components keep their own terms; see THIRD_PARTY_NOTICES.md.
+This notice does not relicense third-party materials or user memory contents.
+
+Love House changes: local Agent memory storage, provenance-aware organization,
+library isolation and sharing, and a custom application UI. Neural thread and
+particle rendering is adapted from the separately credited Digital-Brain code.
+The bundled Python interpreter and Ark Pixel font are not modified.

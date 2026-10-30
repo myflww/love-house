@@ -42,7 +42,7 @@ class AgentSourceServiceTests(unittest.TestCase):
         self.server.shutdown();self.server.server_close();self.thread.join();self.host.stop();self.temp.cleanup()
 
     def api(self,path,body=None,lib='default',token=None):
-        headers={'X-NKB-Library':lib}
+        headers={'X-NKB-Library':lib,'X-LoveHouse-Management':self.host.management_token}
         if token:headers['Authorization']='Bearer '+token
         if body is not None:headers['Content-Type']='application/json'
         request=Request(self.base+path,data=None if body is None else json.dumps(body,ensure_ascii=False).encode(),headers=headers)
@@ -198,7 +198,13 @@ class HeadlessSourceCLITests(unittest.TestCase):
         self.log.close();self.temp.cleanup()
 
     def get(self,path):
-        with self.client.open(self.base+path,timeout=5) as r:return json.load(r)
+        request=Request(self.base+path)
+        if path=='/api/agent/sources':
+            # A headless service has the same local management boundary as the
+            # desktop UI. Obtain its browser session rather than weaken auth.
+            with self.client.open(self.base+'/',timeout=5) as page:
+                request.add_header('Cookie',page.headers['Set-Cookie'].split(';')[0])
+        with self.client.open(request,timeout=5) as r:return json.load(r)
 
     def test_real_headless_process_starts_blank_without_demo_gui_or_model(self):
         health=self.get('/api/health');self.assertTrue(health['ok']);self.assertEqual(health['mode'],'storage')

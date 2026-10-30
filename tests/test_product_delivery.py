@@ -45,7 +45,7 @@ class ProductDeliveryTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def req(self, path, body=None, *, library=None, token=None, headers=None):
-        request_headers = {"Content-Type": "application/json", **(headers or {})}
+        request_headers = {"Content-Type": "application/json", "X-LoveHouse-Management": self.host.management_token, **(headers or {})}
         if library:
             request_headers["X-NKB-Library"] = library
         if token:

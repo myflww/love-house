@@ -86,7 +86,7 @@ def forward_chat(handler,host,cid,*,opener=None):
     if c['host']!='api' or c['revoked']:raise RequestError('此API记忆连接已断开，请将客户端切回原API地址或新建连接',403)
     capturing=bool(c['enabled'])
     actual_session=handler.headers.get('X-NKB-Session') or handler.headers.get('X-Neural-Session')
-    if capturing and c['session_scope']!='connection' and not actual_session:
+    if capturing and c['session_scope']!='any' and not actual_session:
         raise RequestError('单窗口接入必须由客户端提供真实 X-NKB-Session；未记录或转发本次内容',400)
     if not handler.path.endswith('/v1/chat/completions'):raise RequestError('仅支持 /v1/chat/completions',404)
     auth=handler.headers.get('Authorization','')

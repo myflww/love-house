@@ -91,7 +91,7 @@ def verify(args):
     model=ThreadingHTTPServer(('127.0.0.1',0),SyntheticModel)
     model_thread=threading.Thread(target=model.serve_forever,kwargs={'poll_interval':.05},daemon=True);model_thread.start()
     def request(port,path,data):
-        req=Request('http://127.0.0.1:'+str(port)+path,data=json.dumps(data).encode(),headers={'Content-Type':'application/json'})
+        req=Request('http://127.0.0.1:'+str(port)+path,data=json.dumps(data).encode(),headers={'Content-Type':'application/json','X-LoveHouse-Management':host.management_token})
         with opener.open(req,timeout=30) as response:return json.load(response)
     def run_cli(options,environment,work,name):
         with (report_dir/(name+'.stdout.txt')).open('w',encoding='utf-8') as stdout,(report_dir/(name+'.stderr.txt')).open('w',encoding='utf-8') as stderr:
@@ -140,7 +140,7 @@ def verify(args):
                     text=json.dumps(snapshot,ensure_ascii=False)
                     case.update(archive_status=state['archive_status'],original_user_saved=user in text,
                                 original_assistant_saved=answer in text,nodes=len(snapshot['nodes']),
-                                bound_session=state['session_scope'],model_requests=len(model_calls)-before_calls)
+                                bound_session=state['bound_session_id'],model_requests=len(model_calls)-before_calls)
                     foreign='Foreign session must not enter the memory: '+user
                     case['foreign_turn_exit']=run_cli(['--profile','headless','--json',foreign],environment,work,mode+'-foreign')
                     after=host.snapshot('default');foreign_text=json.dumps(after,ensure_ascii=False)

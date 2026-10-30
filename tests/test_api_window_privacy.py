@@ -69,7 +69,9 @@ class APIWindowPrivacyTests(unittest.TestCase):
                 self.assertIn('X-NKB-Session',result['error'])
                 body.assert_not_called();credential.assert_not_called();self.upstream.open.assert_not_called()
                 self.assertEqual(self.receipts(cid),[])
-                self.assertEqual(self.host.connections.get(cid)['session_scope'],scope)
+                state=self.host.connections.get(cid)
+                self.assertEqual(state['session_scope'],'next_session' if scope=='next_session' else 'fixed')
+                self.assertEqual(state['bound_session_id'],None if scope=='next_session' else scope)
                 self.assertEqual(self.host.snapshot('default')['nodes'],{})
 
     def test_fixed_window_wrong_header_never_calls_upstream_or_creates_raw(self):
@@ -78,13 +80,14 @@ class APIWindowPrivacyTests(unittest.TestCase):
         self.assertEqual(code,400,result);self.upstream.open.assert_not_called()
         self.assertEqual(self.receipts(cid),[])
         self.assertEqual(self.host.snapshot('default')['nodes'],{})
-        self.assertEqual(self.host.connections.get(cid)['session_scope'],'fixed-window')
+        self.assertEqual(self.host.connections.get(cid)['bound_session_id'],'fixed-window')
 
     def test_next_window_binds_real_header_then_rejects_other_window_without_forwarding(self):
         cid,token=self.connection('next_session')
         code,result=self.chat(cid,token,'real-window-A',request_id='first-real-turn')
         self.assertEqual(code,200,result);self.assertEqual(self.upstream.open.call_count,1)
-        self.assertEqual(self.host.connections.get(cid)['session_scope'],'real-window-A')
+        self.assertEqual(self.host.connections.get(cid)['session_scope'],'next_session')
+        self.assertEqual(self.host.connections.get(cid)['bound_session_id'],'real-window-A')
         before=self.host.snapshot('default')
         code,result=self.chat(cid,token,'window-B',text='WINDOW-B-MUST-NOT-ENTER-ARCHIVE')
         self.assertEqual(code,400,result);self.assertEqual(self.upstream.open.call_count,1)
@@ -96,7 +99,7 @@ class APIWindowPrivacyTests(unittest.TestCase):
         cid,token=self.connection('next_session')
         code,result=self.chat(cid,token,'legacy-real-window',header='X-Neural-Session')
         self.assertEqual(code,200,result);self.assertEqual(self.upstream.open.call_count,1)
-        self.assertEqual(self.host.connections.get(cid)['session_scope'],'legacy-real-window')
+        self.assertEqual(self.host.connections.get(cid)['bound_session_id'],'legacy-real-window')
         self.assertEqual(self.receipts(cid)[0]['session_id'],'legacy-real-window')
 
     def test_explicit_all_connection_mode_remains_compatible_without_session_header(self):
@@ -104,7 +107,7 @@ class APIWindowPrivacyTests(unittest.TestCase):
         self.assertEqual(self.chat(cid,token,request_id='default-turn')[0],200)
         self.assertEqual(self.chat(cid,token,'another-real-window',request_id='other-turn')[0],200)
         self.assertEqual(self.upstream.open.call_count,2)
-        self.assertEqual(self.host.connections.get(cid)['session_scope'],'connection')
+        self.assertEqual(self.host.connections.get(cid)['session_scope'],'any')
         self.assertEqual({r['session_id'] for r in self.receipts(cid)}, {'api-default-session','another-real-window'})
         self.assertEqual(len(self.host.snapshot('default')['nodes']),2)
 

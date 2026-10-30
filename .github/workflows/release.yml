@@ -13,7 +13,7 @@ on:
       - 'pyproject.toml'
   push:
     tags: ['v*']
-    branches: [main, codex/windows-051-fix]
+    branches: [main, codex/windows-051-fix, codex/workbuddy-connect-080rc2]
     paths:
       - 'nkb/**'
       - 'desktop/**'
@@ -56,7 +56,7 @@ jobs:
   windows:
     # The stable main branch may carry this infrastructure before the Windows
     # prerequisite implementation. Build only the repair branch, PRs or tags.
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/codex/windows-051-fix' || startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/codex/windows-051-fix' || github.ref == 'refs/heads/codex/workbuddy-connect-080rc2' || startsWith(github.ref, 'refs/tags/')
     runs-on: windows-latest
     timeout-minutes: 35
     outputs:
@@ -68,6 +68,8 @@ jobs:
       PIP_DISABLE_PIP_VERSION_CHECK: '1'
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -218,6 +220,8 @@ jobs:
       checksums_sha256: ${{ steps.publish.outputs.checksums_sha256 }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/download-artifact@v4
         with:
           name: love-house-windows-x64

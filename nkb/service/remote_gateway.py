@@ -160,14 +160,14 @@ class RemoteGateway:
                     'connection_id':cid,'library_id':c['library_id'],'transport':'streamable-http','protocol_versions':list(VERSIONS),'auth_mode':'private_static_bearer'},
                 'mcp_config':mcp,'host_config':json.dumps(mcp,ensure_ascii=False,indent=2),'agent_setup_text':setup,
                 'hook_config':hook,'configuration_ready':True,'requires_apply':False,'supported':True,
-                'capture_mode':'host_hook_verified' if public['archive_status']=='automatic_connected' else 'tools_only',
-                'automatic_memory':public['archive_status']=='automatic_connected'}
+                **{k:public[k] for k in ('capture_mode','automatic_memory','can_read','can_write','memory_only','read_only','binding_state')},
+                'capture':public['capture'],'capture_notice':'仅在宿主实际调用时记录；收到一次Hook事件不代表已启用持续自动存档。'}
 
     def create(self, data):
         if not isinstance(data,dict) or set(data)-{'name','library_id','session_scope','host'}:raise GatewayError('连接参数不正确')
         if data.get('host','agent')!='agent':raise GatewayError('手机接入使用通用Agent连接')
         library=self.host.library(data.get('library_id'));scope=data.get('session_scope','next_session')
-        if library['is_demo'] or scope not in ('next_session','connection'):raise GatewayError('请选择实际记忆库和有效窗口范围')
+        if library['is_demo'] or scope not in ('next_session','connection','any'):raise GatewayError('请选择实际记忆库和有效窗口范围')
         created=self.host.connections.create(data.get('name'),'agent',library['id'],scope)
         self.host.update_agent_config(created['id'])
         return self.configuration(created['id'])
@@ -297,7 +297,7 @@ def make_gateway_handler(gateway):
             if library:gateway.host.library(library)
             connection=HTTPConnection('127.0.0.1',gateway.host.controller_port,timeout=20)
             try:
-                headers={'Content-Type':'application/json'}
+                headers={'Content-Type':'application/json','X-LoveHouse-Management':gateway.host.management_token}
                 if library:headers['X-NKB-Library']=library
                 raw=json.dumps(body,ensure_ascii=False).encode() if body is not None else None
                 connection.request('POST' if body is not None else 'GET',self.path,body=raw,headers=headers)
@@ -385,11 +385,14 @@ def make_gateway_handler(gateway):
                     with gateway._lock:gateway._sessions.pop(key,None)
                     return self._reply({'authenticated':False},headers={'Set-Cookie':COOKIE+'=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'})
                 if path in ('/api/remote/admin/connections','/api/connections'):return self._reply(gateway.create(body))
-                if len(parts)==6 and parts[:4]==['api','remote','admin','connections'] and parts[5] in ('enabled','disconnect'):
+                if len(parts)==6 and parts[:4]==['api','remote','admin','connections'] and parts[5] in ('enabled','disconnect','rebind'):
                     cid,action=parts[4:]
-                elif len(parts)==4 and parts[:2]==['api','connections'] and parts[3] in ('enabled','disconnect'):
+                elif len(parts)==4 and parts[:2]==['api','connections'] and parts[3] in ('enabled','disconnect','rebind'):
                     cid,action=parts[2:]
                 else:return self._proxy(path,body)
+                if action=='rebind':
+                    gateway.connection(cid);gateway.host.rebind_connection(cid,body)
+                    return self._reply(gateway.configuration(cid))
                 gateway.connection(cid);value=gateway.host.connections.toggle(cid,body.get('enabled',False),disconnect=action=='disconnect')
                 gateway.host.update_agent_config(cid)
                 return self._reply({'connection':value})

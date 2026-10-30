@@ -7,8 +7,10 @@ on:
         description: Optional explicit backend override; default is this PR's exact head commit
         required: false
   push:
-    branches: [main, codex/android-preview]
+    branches: [main, codex/android-preview, codex/workbuddy-connect-080rc2]
     paths:
+      - 'tests/test_agent_source_service.py'
+      - 'tests/test_cloud_service_bootstrap.py'
       - 'android/app/src/androidTest/remote-gateway/**'
       - 'scripts/*android_remote*'
       - 'ios-smoke/fixture_server.py'

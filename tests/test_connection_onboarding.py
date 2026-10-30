@@ -49,7 +49,7 @@ class ConnectionOnboardingTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def req(self, path, body=None, *, library=None, token=None):
-        headers = {"Content-Type": "application/json"}
+        headers = {"Content-Type": "application/json", "X-LoveHouse-Management": self.host.management_token}
         if library:
             headers["X-NKB-Library"] = library
         if token:
@@ -118,7 +118,8 @@ class ConnectionOnboardingTests(unittest.TestCase):
         # window can be the first human-message session after loading the plugin.
         self.assertEqual(self.event(cid, token)[0], 200)
         bound = self.host.connections.get(cid)
-        self.assertEqual(bound["session_scope"], "existing-window-123")
+        self.assertEqual(bound["session_scope"], "next_session")
+        self.assertEqual(bound["bound_session_id"], "existing-window-123")
         self.assertEqual(bound["archive_status"], "automatic_connected")
         self.assertEqual(self.event(cid, token, sid="unrelated-window", event="two")[0], 400)
         self.assertEqual(len(self.req("/api/graph")[1]["nodes"]), 1)

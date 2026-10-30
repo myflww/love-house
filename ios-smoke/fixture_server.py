@@ -57,7 +57,7 @@ def main():
  try:
   while not stopping.wait(.5):
    snapshot=host.snapshot('default');text=json.dumps(snapshot,ensure_ascii=False);connections=host.connections.list()
-   report={'schema':'love-house-ios-service-state/v1','node_count':len(snapshot['nodes']),'original_user_saved':USER in text,'original_assistant_saved':ASSISTANT in text,'connections':[{'host':c['host'],'scope':c['session_scope'],'archive_status':c['archive_status'],'capture':c.get('capture')} for c in connections]}
+   report={'schema':'love-house-ios-service-state/v1','node_count':len(snapshot['nodes']),'original_user_saved':USER in text,'original_assistant_saved':ASSISTANT in text,'connections':[{'host':c['host'],'scope':c['session_scope'],'bound_session_id':c['bound_session_id'],'automatic_memory':c['automatic_memory'],'archive_status':c['archive_status'],'capture':c.get('capture')} for c in connections]}
    temporary=root/'service-state.tmp';temporary.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8');os.replace(temporary,root/'service-state.json')
  finally:
   server.shutdown();server.server_close();gt.join();controller.shutdown();controller.server_close();ct.join();host.stop()

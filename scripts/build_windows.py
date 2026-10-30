@@ -160,7 +160,9 @@ def build(*,installer=True,iscc=None):
         '(startup.log) never contains memories, keys or conversation text.\n\n'
         'Memories: %LOCALAPPDATA%\\LoveHouse. Uninstall keeps memories.\n'
         'Connect using Other Agent / Copy memory connection configuration (MCP).\n'
-        'Windows DeepSeek Harness automatic configuration has not been verified/supported.\n'
+        'WorkBuddy: merge MCP configuration, trust the connector and reload if needed.\n'
+        'MCP tools being online does not prove automatic per-turn archiving.\n'
+        'Only host callbacks supply automatic records; check received time and original text.\n'
         'Publicly downloadable; original project code is licensed for noncommercial use.\n'
         'Third-party components retain their own licences in THIRD-PARTY-LICENSES.\n',encoding='utf-8')
     reports=ROOT/'build/windows/reports';reports.mkdir(parents=True,exist_ok=True)

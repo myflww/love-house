@@ -1,6 +1,8 @@
 name: cross-platform real Harness connection
 
 on:
+  push:
+    branches: [codex/workbuddy-connect-080rc2]
   pull_request:
   workflow_dispatch:
 
@@ -22,6 +24,8 @@ jobs:
       DSH_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

@@ -17,6 +17,25 @@ ROOT=Path(__file__).resolve().parent.parent
 DESKTOP=ROOT/"desktop"
 
 class BridgeProtocolTests(unittest.TestCase):
+    def test_status_uses_scoped_identity_without_management_capability(self):
+        bridge=Bridge('/nonexistent-test-runtime',library_id='bound-fish')
+        for identity in ({'library_id':'bound-fish','is_demo':False},
+                         {'library_id':'other-fish','is_demo':False}):
+            calls=[]
+            def request(port,route,body=None):
+                calls.append((route,body))
+                if route=='/api/stats':return {'nodes':3}
+                if route=='/api/memory/list':return {'identity':identity,'entries':[]}
+                raise AssertionError('Legacy bridge must not acquire management: '+route)
+            with patch.object(bridge,'_personal_port',return_value=23456),patch.object(bridge,'_request',side_effect=request):
+                result=bridge.call_tool('memory_status',{})
+            self.assertEqual(calls,[('/api/stats',None),('/api/memory/list',{'limit':1})])
+            if identity['library_id']=='bound-fish':
+                self.assertFalse(result.get('isError'),result)
+                self.assertEqual(result['structuredContent']['stats'],{'nodes':3})
+                self.assertEqual(result['structuredContent']['passive_sources'],[])
+                self.assertFalse(result['structuredContent']['automatic_memory'])
+            else:self.assertTrue(result.get('isError'),result)
     def test_product_patch_version_and_controller_protocol_are_independent(self):
         with tempfile.TemporaryDirectory() as directory:
             ready = Path(directory) / "app.json"
@@ -74,6 +93,7 @@ class ControllerDesktopTests(unittest.TestCase):
     def tearDown(self):
         self.stop();self.log.close();self.tmp.cleanup()
     def start(self):
+        self.ui_cookie=None
         self.child=subprocess.Popen([sys.executable,"-u",str(DESKTOP/"server.py"),"--data-dir",str(self.data),"--ready-file",str(self.ready),"--parent-pid",str(os.getpid())],cwd=ROOT,env=self.env,stdout=self.log,stderr=self.log)
         deadline=time.monotonic()+20
         while not self.ready.exists() and self.child.poll() is None and time.monotonic()<deadline:time.sleep(.03)
@@ -89,6 +109,11 @@ class ControllerDesktopTests(unittest.TestCase):
         headers={"Content-Type":"application/json"}
         if library:headers["X-NKB-Library"]=library
         if token:headers["Authorization"]="Bearer "+token
+        if not token:
+            if not self.ui_cookie:
+                with urlopen(f"http://127.0.0.1:{self.state['controller_port']}/",timeout=10) as page:
+                    self.ui_cookie=page.headers['Set-Cookie'].split(';')[0]
+            headers['Cookie']=self.ui_cookie
         req=Request(f"http://127.0.0.1:{self.state['controller_port']}"+path,data=None if body is None else json.dumps(body,ensure_ascii=False).encode(),headers=headers)
         with urlopen(req,timeout=10) as response:return json.load(response)
     def tool(self,name,args,library="default"):

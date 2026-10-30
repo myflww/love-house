@@ -61,12 +61,14 @@ class AgentSessionPrivacyTests(unittest.TestCase):
         with self.host.connections.db() as db:
             return db.execute('SELECT COUNT(*) FROM receipts WHERE connection_id=?',(self.cid,)).fetchone()[0]
 
-    def scope(self):return self.host.connections.get(self.cid)['session_scope']
+    def scope(self):
+        connection=self.host.connections.get(self.cid)
+        return connection['bound_session_id'] or connection['session_scope']
 
     def test_new_generic_connections_default_to_next_real_window_and_old_explicit_all_remains(self):
         self.assertEqual(self.scope(),'next_session')
         old=self.host.new_connection({'name':'显式全连接','host':'agent','library_id':'default','session_scope':'connection'})
-        self.assertEqual(old['connection']['session_scope'],'connection')
+        self.assertEqual(old['connection']['session_scope'],'any')
 
     def test_heartbeat_and_all_read_surfaces_do_not_claim_a_pending_window(self):
         self.assertEqual(self.request('/api/connections/'+self.cid+'/heartbeat',{})[0],200)
@@ -153,7 +155,8 @@ class AgentSessionPrivacyTests(unittest.TestCase):
         self.assertTrue(self.event(self.hook())[1]['accepted'])
         from nkb.service.connections import ConnectionStore
         reopened=ConnectionStore(Path(self.temp.name))
-        self.assertEqual(reopened.get(self.cid)['session_scope'],'chosen-window')
+        self.assertEqual(reopened.get(self.cid)['session_scope'],'next_session')
+        self.assertEqual(reopened.get(self.cid)['bound_session_id'],'chosen-window')
         self.assertFalse(self.event(self.hook('after-restart-other','later'))[1]['accepted'])
         self.assertTrue(self.event(self.hook('chosen-window','later'))[1]['accepted'])
         self.assertEqual(self.counts(),2)

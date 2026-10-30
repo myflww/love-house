@@ -18,7 +18,7 @@ ROOT_FILES = frozenset({
     '启动爱之屋.command', '启动知识星图.command', '启动爱之屋Windows.cmd',
 })
 ROOT_DIRS = frozenset({'.github', 'nkb', 'desktop', 'extensions', 'scripts',
-                      'tests', 'examples', 'assets', 'docs', 'android', 'mobile', 'ios-smoke'})
+                      'tests', 'examples', 'assets', 'docs', 'android', 'mobile', 'ios-smoke', 'qa'})
 EXCLUDED_PARTS = frozenset({'.git', 'node_modules', '__pycache__', '.pytest_cache',
     '.mypy_cache', '.ruff_cache', '.venv', 'venv', 'env', 'reports', 'outputs',
     'references', '.runtime', '.DS_Store'})
@@ -89,6 +89,12 @@ def is_allowed(relative: Path) -> bool:
         return relative.name in ROOT_FILES
     if parts[0] not in ROOT_DIRS:
         return False
+    if parts[0] == 'qa':
+        if len(parts) < 3 or parts[1] != 'android-upgrade' or any(
+                part in {'build', '.gradle', '.cxx', '.kotlin'} for part in parts):
+            return False
+        if relative.name in {'local.properties', 'key.properties', 'signing.properties'}:
+            return False
     if parts[0] in {'android', 'mobile'}:
         if any(part in {'build', '.gradle', '.cxx', '.kotlin', 'captures'} for part in parts):
             return False

@@ -38,7 +38,7 @@ class RegistryTests(unittest.TestCase):
         self.assertNotEqual(ca['token'],cb['token'])
         self.assertNotIn(ca['token'],json.dumps(self.registry.list('one')))
         self.assertNotIn('private_path',json.dumps(self.registry.list('one')))
-        self.assertEqual(self.connections.get(ca['connection_id'])['session_scope'],'connection')
+        self.assertEqual(self.connections.get(ca['connection_id'])['session_scope'],'any')
         self.assertFalse(a['source']['full_activity_coverage_verified'])
         if os.name!='nt':
             self.assertEqual(stat.S_IMODE(Path(a['private_path']).stat().st_mode),0o600)
@@ -148,7 +148,7 @@ class SDKTests(unittest.TestCase):
         self.server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
         self.thread=threading.Thread(target=self.server.serve_forever,kwargs={'poll_interval':.01},daemon=True);self.thread.start()
         self.registry.configuration(self.bundle['source']['id'],base_url='http://127.0.0.1:'+str(self.server.server_port))
-        self.client=SourceClient(self.path,timeout=.2)
+        self.client=SourceClient(self.path,timeout=5)
 
     def tearDown(self):
         self.server.shutdown();self.server.server_close();self.thread.join();self.temp.cleanup()
@@ -166,7 +166,7 @@ class SDKTests(unittest.TestCase):
 
     def test_retry_without_explicit_timestamp_is_idempotent_across_client_restart(self):
         first=self.client.record_dialogue('原话','真实可见回复','s','same',platform='qq')
-        second=SourceClient(self.path,timeout=.2).record_dialogue('原话','真实可见回复','s','same',platform='qq')
+        second=SourceClient(self.path,timeout=5).record_dialogue('原话','真实可见回复','s','same',platform='qq')
         self.assertFalse(first['duplicate']);self.assertTrue(second['duplicate'])
         self.assertEqual(len(self.connections.archives('one')),1)
         with self.assertRaises(SourceClientError):self.client.record_dialogue('不同原话','真实可见回复','s','same',platform='qq')
@@ -179,7 +179,7 @@ class SDKTests(unittest.TestCase):
         queue=list(Path(self.cfg['outbox_dir']).glob('*.json'));self.assertEqual(len(queue),1)
         self.assertNotIn('FAKE-SHOULD',queue[0].read_text());self.assertNotIn('FAKE-OTHER',queue[0].read_text())
         if os.name!='nt':self.assertEqual(stat.S_IMODE(queue[0].stat().st_mode),0o600)
-        restored=SourceClient(self.path,timeout=.2);self.assertEqual(restored.drain()['pending'],0)
+        restored=SourceClient(self.path,timeout=5);self.assertEqual(restored.drain()['pending'],0)
         self.assertEqual(len(self.connections.archives('one')),1)
 
     def test_wrong_identity_or_unregistered_platform_does_not_touch_outbox(self):

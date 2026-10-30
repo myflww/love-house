@@ -111,11 +111,12 @@ def _windows_registry_apps():
 def _app_candidates():
     if sys.platform == "win32":
         yield from _windows_registry_apps()
-        roots = [Path.home() / "AppData/Local/Programs", Path.home() / "AppData/Local"]
+        roots = []
         for variable in ("LOCALAPPDATA", "ProgramFiles", "ProgramFiles(x86)"):
             if os.environ.get(variable):
                 root = _path(os.environ[variable])
                 roots.extend((root / "Programs", root) if variable == "LOCALAPPDATA" else (root,))
+        roots.extend((Path.home() / "AppData/Local/Programs", Path.home() / "AppData/Local"))
         for root in dict.fromkeys(roots):
             for name in ("DeepSeek Harness", "deepseek-harness", "@deepseek-ai/dsh-desktop", "dsh-desktop"):
                 yield root / name

@@ -104,7 +104,7 @@ public final class RemoteGatewayTest {
         assertEquals(Boolean.FALSE, evaluate("document.cookie.includes('LoveHouseAdmin')"));
         fill("connectionName", "Android API " + Build.VERSION.SDK_INT + " synthetic Agent");click("createConnection");
         waitFor("real server configuration", "!document.getElementById('configPanel').hidden && document.getElementById('mcpConfig').value.includes('mcpServers')");
-        assertEquals("等待 Agent 加载配置", evaluate("document.getElementById('captureState').textContent"));
+        assertEquals("等待目标窗口绑定", evaluate("document.getElementById('captureState').textContent"));
         JSONObject config = (JSONObject) evaluateBody("const config=JSON.parse(document.getElementById('mcpConfig').value);const server=Object.values(config.mcpServers)[0];const hook=JSON.parse(document.getElementById('hookConfig').value);if(new URL(server.url).origin!==location.origin||!server.url.startsWith('https:')||server.command||server.args)throw Error('MCP must use same-origin HTTPS with no local command');window.__qaServer=server;window.__qaHook=hook;return {https_only:true,no_local_command:true,credentials_persisted:Object.values(localStorage).some(v=>v.includes(server.headers.Authorization)||v.includes(" + JSONObject.quote(ADMIN) + "))};");
         assertFalse(config.getBoolean("credentials_persisted"));
         String windowId = "android-actual-fixture-window-api-" + Build.VERSION.SDK_INT;
@@ -133,7 +133,7 @@ public final class RemoteGatewayTest {
             const assistant=await rpc(8,'tools/call',{name:'memory_read',arguments:{memory_id:entry.id,field:'assistant'}});
             if(user.structuredContent.text!==data.user||assistant.structuredContent.text!==data.assistant)throw Error('Original role text did not survive TLS memory readback');
             const status=await rpc(9,'tools/call',{name:'memory_status',arguments:{}});
-            if(status.structuredContent.automatic_memory!==true||status.structuredContent.connection.session_scope!==data.session_id)throw Error('Actual automatic archive state was not verified');
+            if(status.structuredContent.automatic_memory!==false||status.structuredContent.connection.bound_session_id!==data.session_id||status.structuredContent.connection.session_scope_policy!=='next_session'||status.structuredContent.connection.archive_status!=='host_reported')throw Error('Actual conditional host receipt and binding were not verified');
             const denied=await fetch('/api/remote/admin/libraries',{headers:{Authorization:server.headers.Authorization}});if(denied.status!==403)throw Error('Agent bearer reached admin');
             return {legacy_protocol:true,modern_protocol:true,bootstrap:true,tools_did_not_claim_auto:true,manual_did_not_claim_window:true,host_hook_saved:true,foreign_window_excluded:true,original_user_readback:true,original_assistant_readback:true,agent_admin_isolation:true,actual_window:data.session_id};
             """.replace("WINDOW_ID", JSONObject.quote(windowId)).replace("USER_WORDS", JSONObject.quote(USER)).replace("ASSISTANT_WORDS", JSONObject.quote(ASSISTANT));
@@ -142,13 +142,13 @@ public final class RemoteGatewayTest {
         JSONObject result = (JSONObject) evaluate("window.__qaResult");
         assertTrue(result.optString("error"), result.getBoolean("ok"));
         click("checkConnection");
-        waitFor("portal confirmed real automatic archive", "document.getElementById('captureState').textContent==='已验证收到自动记录'");
+        waitFor("portal confirmed conditional host receipt", "document.getElementById('captureState').textContent==='已收到宿主记录'");
         AtomicReference<Integer> sslErrors = new AtomicReference<>(-1);
         scenario.onActivity(activity -> sslErrors.set(activity.sslErrors));assertEquals(Integer.valueOf(0), sslErrors.get());
         JSONObject report=baseReport();report.put("ok", true);report.put("trusted_https_loaded", true);report.put("portal_login", true);
         report.put("same_origin_referrer_policy", true);
         report.put("http_only_cookie_hidden", true);report.put("configuration", config);report.put("mcp_and_hook", result.getJSONObject("value"));
-        report.put("automatic_archive_ui_verified", true);report.put("ssl_errors", 0);
+        report.put("conditional_host_receipt_ui_verified", true);report.put("ssl_errors", 0);
         writeReport("android-remote-gateway.json", report);
         evaluateBody("document.getElementById('captureState').scrollIntoView({block:'center'});return true;");
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();

@@ -2,10 +2,12 @@ name: Android offline APK verification
 
 on:
   push:
-    branches: [codex/android-preview]
+    branches: [codex/android-preview, codex/workbuddy-connect-080rc2]
     paths:
       - 'android/**'
       - 'mobile/**'
+      - 'nkb/viz/web/remote-mobile.*'
+      - 'nkb/viz/web/connection-ux.js'
       - 'scripts/prepare_mobile_assets.py'
       - 'scripts/prepare_public_release.py'
       - 'scripts/check_android_test_results.py'
@@ -47,6 +49,8 @@ jobs:
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'

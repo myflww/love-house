@@ -4,7 +4,7 @@ import argparse,json,sys
 from pathlib import Path
 HERE=Path(__file__).resolve().parent
 sys.path.insert(0,str(HERE if (HERE/'nkb').is_dir() else HERE.parent))
-from nkb.service.agent_client import AgentClient,AgentConnectionError,MAX_EVENT,_constant,_unique
+from nkb.service.agent_client import AgentClient,AgentConnectionError,MAX_EVENT,_constant,_unique,connection_config_diagnostic
 
 def main():
     for stream in (sys.stdin,sys.stdout,sys.stderr):
@@ -12,10 +12,15 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--connection-config',required=True,type=Path)
     args=parser.parse_args()
     try:
+        try:client=AgentClient(args.connection_config)
+        except AgentConnectionError as exc:
+            diagnostic=connection_config_diagnostic(args.connection_config,exc.code)
+            print(json.dumps(diagnostic,ensure_ascii=False),file=sys.stderr)
+            print(json.dumps({'saved':False,'queued':False,'status':diagnostic['code'],'next_action':diagnostic['next_action']},ensure_ascii=False));return 2
         raw=sys.stdin.buffer.read(MAX_EVENT+1)
         if len(raw)>MAX_EVENT:raise AgentConnectionError('单事件超过32MiB','input_too_large')
         event=json.loads(raw,parse_constant=_constant,object_pairs_hook=_unique)
-        result=AgentClient(args.connection_config).submit_hook(event)
+        result=client.submit_hook(event)
         print(json.dumps(result,ensure_ascii=False,allow_nan=False));return 0
     except (AgentConnectionError,ValueError,UnicodeError,RecursionError) as exc:
         code=getattr(exc,'code','invalid_input')

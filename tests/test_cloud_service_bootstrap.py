@@ -15,7 +15,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import Mock
-from urllib.request import ProxyHandler, build_opener
+from urllib.request import Request, ProxyHandler, build_opener
 import uuid
 
 from nkb.service.credentials import KeyStore
@@ -214,7 +214,11 @@ class CloudServiceProcessTests(unittest.TestCase):
             self.log = None
 
     def get(self, path):
-        with self.client.open(self.base+path, timeout=5) as response:
+        request=Request(self.base+path)
+        if path=='/api/agent/sources':
+            with self.client.open(self.base+'/',timeout=5) as page:
+                request.add_header('Cookie',page.headers['Set-Cookie'].split(';')[0])
+        with self.client.open(request, timeout=5) as response:
             return json.load(response)
 
     def assert_private_key_not_on_disk_or_argv(self):

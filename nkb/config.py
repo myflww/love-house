@@ -75,7 +75,7 @@ class Config:
     context_window_hours: float = 6.0
     bridge_window_hours: float = 24.0 # 同会话相邻锚点的最大桥接间隔
     bridge_max_events: int = 6        # 只引用真实发生的中间事件，绝不生成补写
-    max_nodes: int = 10000            # 容量硬上限；全受保护时拒绝继续写入
+    max_nodes: int | None = 10000     # 兼容底层实验库；个人长期库使用 None，不按条数驱逐
 
     def __post_init__(self):
         self.validate()
@@ -102,6 +102,8 @@ class Config:
                 raise ConfigError(f"{name} 必须大于 0")
         for name in ("steps", "k", "auto_link_top", "context_before", "context_after", "bridge_max_events", "max_nodes"):
             value = getattr(self, name)
+            if name == "max_nodes" and value is None:
+                continue
             minimum = 1 if name in ("steps", "k", "max_nodes") else 0
             if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
                 raise ConfigError(f"{name} 必须是至少 {minimum} 的整数")

@@ -39,6 +39,10 @@ class MemoryHost:
             path=self.root/'framework-example.brain.json'
             if path.exists():self.manager.register_demo(path)
         self.connections=ConnectionStore(self.root)
+        from .usage import UsageJournal
+        try:self.usage=UsageJournal(self.root)
+        except Exception:self.usage=None  # Auxiliary metadata must not block raw archives.
+        self._usage_enabled={}
         # A heartbeat belongs to this running controller, not the previous boot.
         with self.connections.db() as db:db.execute("UPDATE connections SET host_seen=NULL WHERE host IN ('harness','agent')")
         self.keys=key_store or KeyStore()
@@ -64,7 +68,13 @@ class MemoryHost:
         with self._lock:
             if library_id not in self._servers:
                 brain=self.manager.open_library(library_id)
-                if not brain.meta.get("demo"):brain.meta["long_term_archive"]=True
+                if not brain.meta.get("demo"):
+                    from ..companion.retention import enable_temporal_retention
+                    from ..core.transaction import rollback_guard
+                    with rollback_guard(brain) as guard:
+                        migrated=enable_temporal_retention(brain)
+                        if migrated['changed']:guard.persist()
+                    self._usage_enabled[library_id]=migrated['usage_reinforcement']
                 server=ThreadingHTTPServer(('127.0.0.1',0),make_handler(brain))
                 thread=threading.Thread(target=server.serve_forever,kwargs={'poll_interval':.1},daemon=True)
                 server.daemon_threads=False;thread.start();self._servers[library_id]=server;self._threads.append(thread)
@@ -75,7 +85,59 @@ class MemoryHost:
     def transact(self,library_id,callback):
         if self.library(library_id)['is_demo']:raise ValidationError('示例库不能修改')
         self.port_for(library_id)
-        return self._servers[library_id].RequestHandlerClass.memory_transaction(callback)
+        try:pending=self.usage.pending(library_id) if self.usage else []
+        except Exception:pending=[]
+        def apply(brain):
+            from ..companion.retention import enable_temporal_retention
+            enable_temporal_retention(brain)
+            result=callback(brain)
+            enable_temporal_retention(brain)
+            if pending:
+                from ..companion.retention import record_memory_use
+                for item in pending:
+                    record_memory_use(brain,[item['node_id']],kind=item['kind'],now=item['at'])
+            return result
+        result=self._servers[library_id].RequestHandlerClass.memory_transaction(apply)
+        # The graph has committed. Failure of auxiliary metadata acknowledgement
+        # leaves an idempotent pending use; never report the saved body as lost.
+        if pending:
+            try:self.usage.applied(pending)
+            except Exception:pass
+        return result
+    def retention_view(self,library_id):
+        from ..core.brain import Brain
+        from ..companion.retention import get_retention_policy
+        from collections import Counter
+        meta=self.library(library_id);brain=Brain(self.snapshot(library_id));stamp=time.time()
+        states=Counter(brain._node_state(node,stamp)['state'] for node in brain.nodes.values())
+        try:usage={**self.usage.counts(library_id),'available':True} if self.usage else {'pending':0,'available':False}
+        except Exception:usage={'pending':0,'available':False}
+        path=self.manager.path_for(library_id)
+        try:size=path.stat().st_size
+        except OSError:size=None
+        policy=get_retention_policy(brain)
+        return {**policy,'settings':{k:policy[k] for k in ('mode','forgetting_pace','usage_reinforcement')},
+                'node_count':len(brain.nodes),'states':dict(states),'usage':usage,'is_demo':meta['is_demo'],
+                'storage':{'engine':'json','bytes':size},'will_call_model':False,
+                'library_id':library_id,'library_name':meta['name'],
+                'model_note':'借鉴频率、最近性与间隔效应的工程近似，不设统一到期日，不是经人类数据标定的遗忘概率。'}
+    def retention_settings(self,library_id,data):
+        from ..companion.retention import save_retention_policy
+        self.port_for(library_id)
+        previous=self._usage_enabled.get(library_id,False)
+        self._usage_enabled[library_id]=False
+        try:
+            saved=self.transact(library_id,lambda brain:save_retention_policy(brain,data))
+        except Exception:
+            self._usage_enabled[library_id]=previous
+            raise
+        self._usage_enabled[library_id]=saved['usage_reinforcement']
+        return self.retention_view(library_id)
+    def queue_memory_use(self,library_id,ids,kind='recall'):
+        if not ids or self.usage is None or not self._usage_enabled.get(library_id,False):return
+        try:
+            for offset in range(0,len(ids),1000):self.usage.enqueue(library_id,ids[offset:offset+1000],kind)
+        except Exception:pass  # Optional use metadata must not interrupt raw capture.
     def read_archive(self,library_id,receipt_id):
         tomb=self.snapshot(library_id).get('meta',{}).get('memory_tombstones',{})
         if receipt_id in tomb.get('raw_ids',[]):return None
@@ -163,6 +225,10 @@ class MemoryHost:
                 return forget(brain,plan)
             result=self.transact(library_id,commit)
             self.connections.forget(library_id,actual['raw_ids'],actual['texts'])
+            if self.usage:
+                try:
+                    for offset in range(0,len(actual['node_ids']),1000):self.usage.forget(library_id,actual['node_ids'][offset:offset+1000])
+                except Exception:pass
             result['backups_removed']=self.backups.purge(library_id)
         return result
     def structured_context(self,library_id,data):
@@ -197,8 +263,10 @@ class MemoryHost:
         args={key:data[key] for key in ('content','name','format') if key in data}
         args.setdefault('content',None)
         if apply:
-            return self.transact(library_id,lambda brain:import_dialogues(brain,**args,
+            result=self.transact(library_id,lambda brain:import_dialogues(brain,**args,
                 confirm=data.get('confirm'),expected_fingerprint=data.get('expected_fingerprint')))
+            if result.get('ids'):self.enqueue_nodes(library_id,result['ids'])
+            return result
         return plan_dialogues(Brain(self.snapshot(library_id)),**args)
     def enqueue_nodes(self,library_id,node_ids):
         from ..core.brain import Brain
@@ -210,7 +278,8 @@ class MemoryHost:
             if node.get('meta',{}).get('source') not in ('conversation_turn','tool_observation','harness_recorded','persona_import_source'):continue
             evidence=node['meta'].get('evidence') or {}
             ids.append(evidence.get('archive_receipt_id') or nid)
-        if ids:self.organizer.enqueue(library_id,list(dict.fromkeys(ids)))
+        ids=list(dict.fromkeys(ids))
+        for offset in range(0,len(ids),1000):self.organizer.enqueue(library_id,ids[offset:offset+1000])
         return len(ids)
     def duplicate_view(self,library_id):
         from ..core.brain import Brain
@@ -453,6 +522,11 @@ class MemoryHost:
         self.process_pending()
         result=self.structured_context(c['library_id'],{'query':data['query'],'session_id':connected_session_id(cid,sid),
                                                       'max_chars':data.get('max_chars',8000)})
+        # Queue opaque use IDs only after authenticated, scoped context retrieval.
+        # Bootstrap/catalog/export/preview never count as rehearsal. The material
+        # itself remains read-only; use effects join the next actual graph save.
+        if c['session_scope']!='next_session':
+            self.queue_memory_use(c['library_id'],[r['id'] for r in result.get('memory_context',{}).get('records',[])])
         backlog=sum(1 for r in self.connections.pending() if r['library_id']==c['library_id'])
         return {**result,'library_id':c['library_id'],'connection_id':cid,'archive_pending':backlog}
     def process_pending(self):
@@ -485,7 +559,17 @@ class MemoryHost:
                         if len(e['text'])>40000:
                             e['text']=e['text'][:39950]+'…[节点摘录；完整结果保存在事件档案]'
                             e['evidence']['content_truncated']=True
-                    result=local_json(self.port_for(receipt['library_id']),'/api/ingest',e)
+                    def ingest(brain):
+                        from ..companion import ingest_event
+                        from ..companion.retention import match_mentions,record_memory_use
+                        if e.get('type')=='turn' and e.get('status')=='complete' and isinstance(e.get('user'),str):
+                            from ..companion.ingestion import connected_session_id
+                            from ..companion.memory import turn_id
+                            own_id=turn_id(connected_session_id(e['connection_id'],e['session_id']),e['turn_id'])
+                            matches=match_mentions(brain,e['user'])
+                            record_memory_use(brain,[item['id'] for item in matches if item['id']!=own_id],kind='mention')
+                        return ingest_event(brain,e)
+                    result=self.transact(receipt['library_id'],ingest)
                     if result.get('status')=='forgotten':
                         self.connections.forget(receipt['library_id'],[receipt['id']],[])
                     else:
@@ -584,6 +668,7 @@ def make_controller(host):
                 if path=='/api/updates':
                     host.updates.start()
                     return self._json(host.updates.status())
+                if path=='/api/retention':return self._json(host.retention_view(self._chosen()))
                 if path=='/api/memory/status':
                     lib=host.library(self._chosen())
                     return self._json({'memory_connected':True,'storage':'local','mode':'memory_service',
@@ -597,6 +682,11 @@ def make_controller(host):
                     return self._json(host.connection_config(path.split('/')[3]))
                 if path=='/api/duplicates':return self._json(host.duplicate_view(self._chosen()))
                 if path=='/api/organizer':return self._json(host.organizer_view(self._chosen()))
+                if path=='/api/organizer/rules':
+                    from ..core.brain import Brain
+                    from ..organizer.rules import guidance_view
+                    lib=self._chosen()
+                    return self._json(guidance_view(Brain(host.snapshot(lib))))
                 if path=='/api/backups':return self._json({'backups':host.backups.list(self._chosen())})
                 if path=='/api/activity':
                     lib=self._chosen();result=host.connections.activity(lib)
@@ -652,6 +742,7 @@ def make_controller(host):
                     return self._json(host.dialogue_import(self._chosen(),data,apply=path.endswith('/apply')))
                 if path=='/api/updates/check':return self._json(host.updates.request_check())
                 if path=='/api/updates/settings':return self._json(host.updates.settings(data))
+                if path=='/api/retention/settings':return self._json(host.retention_settings(self._chosen(),data))
                 if path=='/api/sharing/preview':
                     lib=self._chosen();preview=host.sharing.preview(lib)
                     provider=host.organizer_view(lib)['provider']

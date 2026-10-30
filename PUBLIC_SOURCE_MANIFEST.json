@@ -33,8 +33,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 11282,
-      "sha256": "4cff5209aec3ddd0878d0eee1450870409c99ac1036df8b5d52496edf5bd2feb"
+      "bytes": 12371,
+      "sha256": "f01c1c8712d256d8742cbcda1a8b1e6af97c4a3a92c25b50c1182deee3273692"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -58,8 +58,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 13478,
-      "sha256": "291ad8abd52c1c8d95b6a4379dab8edb296993be3f82870cce088d68d8586b3f"
+      "bytes": 13662,
+      "sha256": "5dc092801358e2b6d1f653af52969504d82c0f87450a3d4f41db7dfc22aefab9"
     },
     {
       "path": "ROADMAP.md",
@@ -323,8 +323,8 @@
     },
     {
       "path": "desktop/AtlasApp.swift",
-      "bytes": 40310,
-      "sha256": "b0bde5a25c11f9a04f0e944a2ae23131c45fadcaf0dba7ae9e9fcb6d858424d1"
+      "bytes": 41760,
+      "sha256": "1cc917b6e6f8ec0e26eff06a4e34be1dfaaa2143db3a3232b1e69df2a6e3050b"
     },
     {
       "path": "desktop/Icon.swift",
@@ -408,13 +408,23 @@
     },
     {
       "path": "docs/KIMI-REVIEW-20261030.md",
-      "bytes": 6614,
-      "sha256": "d817aa1de17497e29cd9d314b7d2e338dac13ef965ae81db07abbda8019a2a0c"
+      "bytes": 6847,
+      "sha256": "b58113d12ecc67b608307583cf2a8a4b9adfa1d5a9c3a49ff813122fd6677d8b"
     },
     {
       "path": "docs/MACOS-060-HANDOFF.md",
       "bytes": 3825,
       "sha256": "2941434727bbb4b8d6a73a13a794e7207986951f9327915c84a7b4f09efe49a4"
+    },
+    {
+      "path": "docs/MACOS-070-HANDOFF.md",
+      "bytes": 3237,
+      "sha256": "295aee14f24801110b7fdcd948ce8092d124518ded232ab727fd39fa498bae36"
+    },
+    {
+      "path": "docs/QQ-AstrBot-云端接入方案.md",
+      "bytes": 4016,
+      "sha256": "13b3ba4177bec0c15ff7c0ace35a5a151a82005d412487bb3625a60918cd2f4b"
     },
     {
       "path": "docs/下载与系统支持.md",
@@ -465,6 +475,11 @@
       "path": "docs/能力核对与验收.md",
       "bytes": 7033,
       "sha256": "3a5a93c4136879b9b1e096b9702ff1c43a066fc910946724ef2389731e743226"
+    },
+    {
+      "path": "docs/自适应记忆与整理规则.md",
+      "bytes": 6555,
+      "sha256": "85b4e433d4b20b6d41e581e7329b5719486d6c9629e179bd24cbc3598b4c4cd7"
     },
     {
       "path": "examples/01_quickstart.py",
@@ -619,7 +634,7 @@
     {
       "path": "nkb/_version.py",
       "bytes": 22,
-      "sha256": "7080f58cb9c2fef8f8f0680c37a61bd4503726c43de73366087991604f131616"
+      "sha256": "45a00d19b46ee5efaf7a1c17235f907b68203cf7ecd5341a663d3bd8975b2e4e"
     },
     {
       "path": "nkb/adapters/__init__.py",
@@ -702,14 +717,19 @@
       "sha256": "1770f6f9e656536dc1234687eb8c64ef58bc9d354f5c26f88a0958d780d76c39"
     },
     {
+      "path": "nkb/companion/retention.py",
+      "bytes": 13905,
+      "sha256": "dd824ad0e8ab0446e485a90ec3e95a2580355f48b8f49e293234eaf52f95c417"
+    },
+    {
       "path": "nkb/companion/structured.py",
       "bytes": 22390,
       "sha256": "ef33d10739ec6c96a6ac59a203474e7da499337af853561a1e4a65513eb25bcb"
     },
     {
       "path": "nkb/config.py",
-      "bytes": 6678,
-      "sha256": "b11d350078c3e30d85754148731c7fba1eb98f67979d68571cf34b9a5076c0df"
+      "bytes": 6777,
+      "sha256": "1a3c409d18b7a921f383b2721f377e4c7880210c20e676604ae52bd9849d76a0"
     },
     {
       "path": "nkb/core/__init__.py",
@@ -723,13 +743,13 @@
     },
     {
       "path": "nkb/core/brain.py",
-      "bytes": 53836,
-      "sha256": "186b13dbeb0b870fa053918e3466a3311eab99d056dc7fd4db674c1ccdc7ed5e"
+      "bytes": 56817,
+      "sha256": "8007c788f05f7988699455ef37f635dcf0cc6080c5e452175374381a6301e111"
     },
     {
       "path": "nkb/core/lifecycle.py",
-      "bytes": 4257,
-      "sha256": "691cd42a41447c64741010ea4cd68ff733f17825806801255c968e568dcc43ba"
+      "bytes": 4296,
+      "sha256": "f71db9266b61be977d942aa11ac6fc2a690b82d36a30c441e3e902161422b4a5"
     },
     {
       "path": "nkb/core/seed.py",
@@ -753,8 +773,8 @@
     },
     {
       "path": "nkb/ingest/dialogues.py",
-      "bytes": 20518,
-      "sha256": "4aa218cc94566c72594315681c9877fc9cee29b8c1b1cc70d1a901f831bbebff"
+      "bytes": 20557,
+      "sha256": "98dcd456c7005d4d0f17278dcb56e22e302912521e7ee824d50789d27c98778c"
     },
     {
       "path": "nkb/ingest/markdown.py",
@@ -763,8 +783,8 @@
     },
     {
       "path": "nkb/ingest/notes.py",
-      "bytes": 4984,
-      "sha256": "ab973884f152ea41e65acaeee61d103c2e196ce0e06575a7b30d4b4217ecaf06"
+      "bytes": 5073,
+      "sha256": "687441236913cb82b66ea2d8aaf68f4985cf72be8536cd5b2f16a8b475b50155"
     },
     {
       "path": "nkb/libraries/__init__.py",
@@ -788,8 +808,8 @@
     },
     {
       "path": "nkb/organizer/atoms.py",
-      "bytes": 6067,
-      "sha256": "1a9444c2131d120c1334b10d04d1ad2bf4760e7c16b4328097ef3adae12d7987"
+      "bytes": 6233,
+      "sha256": "2eb64d0184fd1252fb4472741b60bc6fa4714c31cd587390118e000dbf4b6585"
     },
     {
       "path": "nkb/organizer/config.py",
@@ -803,13 +823,18 @@
     },
     {
       "path": "nkb/organizer/model.py",
-      "bytes": 5469,
-      "sha256": "8efaa9f36cc079db6135b17df65c0f1bb6ec006aad3219ea760cc72423b9d49b"
+      "bytes": 3594,
+      "sha256": "bbb286c4c2d93d17063b5fd3084d85bb3c663204e06ba53a0045e996260778b6"
+    },
+    {
+      "path": "nkb/organizer/rules.py",
+      "bytes": 6357,
+      "sha256": "e4cd11082b7a21821db6b2ef0d4dcb57560fe1db47ebd878b9b79bc638bb2057"
     },
     {
       "path": "nkb/organizer/state.py",
-      "bytes": 30236,
-      "sha256": "998de4effb7d4513d947d403e224cd875430bfc9e5c6038054e09b2a3bdf349c"
+      "bytes": 33022,
+      "sha256": "7157b9db070a74c22a8df48c5d7fb4f385b163cd06645981572dc35a46ae0da6"
     },
     {
       "path": "nkb/py.typed",
@@ -928,8 +953,8 @@
     },
     {
       "path": "nkb/service/host.py",
-      "bytes": 56584,
-      "sha256": "0dd1d2907b1a24159a3f1baadeab9a3ad708cf206180313a2a056242916f38cf"
+      "bytes": 62317,
+      "sha256": "84c38b2cec91fc59ace61f1e41ea3e8c38f7b6aebca636fd354b5d242c355c7e"
     },
     {
       "path": "nkb/service/providers.py",
@@ -960,6 +985,11 @@
       "path": "nkb/service/updates.py",
       "bytes": 16814,
       "sha256": "b4d356a18242291a1c64707924df82b670e16dae65a868ea069fac2f439ef48d"
+    },
+    {
+      "path": "nkb/service/usage.py",
+      "bytes": 9239,
+      "sha256": "c4b26bd6abc4c1e23838b8fdd5e9c28e2e1e029f90a869fcec2af09b7146456a"
     },
     {
       "path": "nkb/service/windows_credentials.py",
@@ -1048,8 +1078,8 @@
     },
     {
       "path": "nkb/viz/builder.py",
-      "bytes": 2302,
-      "sha256": "c26dacea3e44b5dc01d00b9126df2a682624f47aa80098e7a9802712d4d6bb49"
+      "bytes": 2346,
+      "sha256": "8847dec1c3673f2d425e86fd88eb0e970f2303c6075e50d8ec748ac515dcb548"
     },
     {
       "path": "nkb/viz/web/button-hints.js",
@@ -1068,8 +1098,8 @@
     },
     {
       "path": "nkb/viz/web/index.html",
-      "bytes": 1689994,
-      "sha256": "69d024dcd9922755457bdffcac5240cd3deb58f56d7a6ee076a2eaa1710c8e96"
+      "bytes": 1690463,
+      "sha256": "ec3e88a47292f59207e473934d5adb6bed590011fc3b2a5838cec763b43caaa7"
     },
     {
       "path": "nkb/viz/web/library-manager-ui.js",
@@ -1090,6 +1120,16 @@
       "path": "nkb/viz/web/memory-portability-ui.js",
       "bytes": 17007,
       "sha256": "7ce678221ec0d6bbe172139a927c8b3134ac550a345432c8c195669d6bc75e66"
+    },
+    {
+      "path": "nkb/viz/web/organizer-rules-ui.js",
+      "bytes": 3273,
+      "sha256": "686e5b49335ef29e1bdc3df6b8ee59564c5220b20ce00673b0e300795ba780ee"
+    },
+    {
+      "path": "nkb/viz/web/retention-ui.js",
+      "bytes": 10978,
+      "sha256": "cb5efb1b7b76186e359fcc35fa996d95c640db1df57d96338d0e2e298ba71f9a"
     },
     {
       "path": "nkb/viz/web/update-checker-ui.js",
@@ -1113,8 +1153,8 @@
     },
     {
       "path": "scripts/build_macos.py",
-      "bytes": 34958,
-      "sha256": "81a40afc4f9f4de32d63c01a6f30f163942421a4d82a51e36f85d5a6e2ac28c4"
+      "bytes": 34959,
+      "sha256": "269c84ce7cf9ab55c8dede01db010adb56565f4d09a858099e99725a73993775"
     },
     {
       "path": "scripts/build_windows.py",
@@ -1165,6 +1205,16 @@
       "path": "tests/js/node-visibility.test.mjs",
       "bytes": 5535,
       "sha256": "386000a9a4782fd7f8c83d75aafeac2fa741454282d0fd986788f7cd8b03666c"
+    },
+    {
+      "path": "tests/js/organizer-rules-ui.test.cjs",
+      "bytes": 2083,
+      "sha256": "b732c97ef15454b2ece035617793ac7520988083ac41238eac9e862962f1d55d"
+    },
+    {
+      "path": "tests/js/retention-ui.test.cjs",
+      "bytes": 14671,
+      "sha256": "2c29facc181a7413ca18ec8708fcce87dad55a01c160a854027bb5a4aa2db0b7"
     },
     {
       "path": "tests/js/update-checker-ui.test.cjs",
@@ -1253,8 +1303,8 @@
     },
     {
       "path": "tests/test_dialogue_import_http.py",
-      "bytes": 9567,
-      "sha256": "f6e791b23b154b77030454c42feb830cc4314bdf57931af1a54a01a1f8fd5efc"
+      "bytes": 9858,
+      "sha256": "84516dc8be3adbcfdeba3bac22077fc4fb4105343ea6c849337f2f6f9e3e6f02"
     },
     {
       "path": "tests/test_engine_regressions.py",
@@ -1337,6 +1387,16 @@
       "sha256": "965cc7267d28d6e727b4810680b9f16a7af773d4bc8093a5c86e863f71fbfd78"
     },
     {
+      "path": "tests/test_organizer_rules.py",
+      "bytes": 14918,
+      "sha256": "21060cf788b74971ee392c95c6f72ec40547c7a322ed8d2ac2e154d31875e808"
+    },
+    {
+      "path": "tests/test_organizer_rules_ui.py",
+      "bytes": 819,
+      "sha256": "e77ff606c01ed7341746819bf0617161065132516ffece7e0560c31497c1773a"
+    },
+    {
       "path": "tests/test_organizer_service.py",
       "bytes": 5731,
       "sha256": "a3c8b0ba0aab7f7e45dd4e5231a9c0e71a5990cb124cfd11873ff5e5e2c890eb"
@@ -1372,6 +1432,16 @@
       "sha256": "d348bab5788557091272f8c07122716cf6b279ac0010aaf834e4b10508637618"
     },
     {
+      "path": "tests/test_retention_service.py",
+      "bytes": 16106,
+      "sha256": "849137561c045e00dd66f6bf5a94e86c39989ca969ab8e91a60fc0011bda5f46"
+    },
+    {
+      "path": "tests/test_retention_ui.py",
+      "bytes": 1686,
+      "sha256": "eec83eb29c33fd354e80014cb340d0d333f838b5791a526839cda0cdf9ae0d77"
+    },
+    {
       "path": "tests/test_share_summary.py",
       "bytes": 17402,
       "sha256": "8eb6b80bda8b0c6444ff2ab41b7fe0ecbdc770bc48fca16b9e2c028c9d47737e"
@@ -1382,9 +1452,24 @@
       "sha256": "e0a11c1dfd3d9d39de30d90297b44819110d623157d7833e8cc6ad558157daaf"
     },
     {
+      "path": "tests/test_temporal_retention.py",
+      "bytes": 13221,
+      "sha256": "015d25fe7b11f0f3a7d447fb3702e4849432c1c4de39de32a053fb68e25483b8"
+    },
+    {
+      "path": "tests/test_unlimited_archive_ingest.py",
+      "bytes": 9612,
+      "sha256": "0f3ea5c29548199c796218e27583abe24f6836e6b9686e59d853ec618cdd1c55"
+    },
+    {
       "path": "tests/test_updates.py",
       "bytes": 16175,
       "sha256": "e81877f8ca3f74290b1707ddc7d0abf8a3e9e6dd9e3db6d4ce6b1d55cfcb4599"
+    },
+    {
+      "path": "tests/test_usage_journal.py",
+      "bytes": 8393,
+      "sha256": "a8bc374398c5712e36ee61d03c351e242c939aab7ae25e6fe647e1516df9cd66"
     },
     {
       "path": "tests/test_viewport_policy.py",

@@ -58,8 +58,9 @@ def plan_notes(brain, files, *, mode="heading", kind="doc"):
         part["status"] = "duplicate" if key in known else "new"
         known.add(key)
     added = sum(p["status"] == "new" for p in parts)
-    remaining = max(0, brain.config.max_nodes - len(brain.nodes))
-    if added > remaining:
+    remaining = (None if brain.config.max_nodes is None
+                 else max(0, brain.config.max_nodes - len(brain.nodes)))
+    if remaining is not None and added > remaining:
         raise ValidationError(f"本批需要 {added} 个空位，当前剩余 {remaining}；请减少文件或调整容量")
     return {"items": [{k: p[k] for k in ("source", "label", "status")} for p in parts],
             "added": added, "skipped": len(parts) - added, "total": len(parts),

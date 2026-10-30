@@ -151,14 +151,19 @@ class DialogueImportHTTPTests(unittest.TestCase):
         self.assertEqual(repeated["added"], 0)
         self.assertFalse(self.host.snapshot("default")["nodes"])
 
-    def test_full_capacity_rejects_import_without_evicting_old_memory(self):
+    def test_old_count_limit_cannot_reject_personal_import_or_evict_old_memory(self):
         def fill(brain):
             brain.config.max_nodes = 1
             brain.add("保留旧节点", "不能因导入驱逐")
         self.host.transact("default", fill)
         before = self.host.snapshot("default")
-        self.assertEqual(self.req("/api/dialogue-import/preview", self.payload)[0], 400)
+        self.assertIsNone(before['config']['max_nodes'])
+        self.assertEqual(self.req("/api/dialogue-import/preview", self.payload)[0], 200)
         self.assertEqual(self.host.snapshot("default"), before)
+        self.assertEqual(self.apply()[0],200)
+        after=self.host.snapshot('default')
+        self.assertEqual(len(after['nodes']),2)
+        self.assertIn('保留旧节点',[n['label'] for n in after['nodes'].values()])
 
     def test_payload_change_after_preview_is_rejected(self):
         preview = self.preview()

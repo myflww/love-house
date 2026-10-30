@@ -406,8 +406,8 @@ def main():
     icon = args.icon.expanduser().resolve()
     if not icon.is_file():
         raise SystemExit(f"Approved Love House icon PNG is required: {icon}")
-    if project_version() != "0.6.0":
-        raise SystemExit("Freeze project version at 0.6.0 before creating this desktop candidate")
+    if project_version() != "0.7.0":
+        raise SystemExit("Freeze project version at 0.7.0 before creating this desktop candidate")
     extension = ROOT / "extensions/deepseek-harness"
     if not (extension / "dist/index.js").is_file() or not (extension / "configure.py").is_file():
         raise SystemExit("Automatic-capture extension is not built/frozen: dist/index.js and configure.py are required")
@@ -499,7 +499,7 @@ def main():
         "CFBundleName": APP_NAME, "CFBundleDisplayName": APP_NAME,
         "CFBundleIdentifier": BUNDLE_ID, "CFBundleExecutable": "NeuralAtlas",
         "CFBundlePackageType": "APPL", "CFBundleShortVersionString": project_version(),
-        "CFBundleVersion": "9", "CFBundleIconFile": "LoveHouse",
+        "CFBundleVersion": "10", "CFBundleIconFile": "LoveHouse",
         "LSMinimumSystemVersion": "13.0", "NSHighResolutionCapable": True,
         "NSSupportsAutomaticGraphicsSwitching": True,
         "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},

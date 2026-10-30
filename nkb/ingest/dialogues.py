@@ -282,7 +282,7 @@ def _prepare(brain, content, name, format):
         unit["status"] = "forgotten" if unit["id"] in tombstones else "duplicate" if unit["id"] in known else "new"
         known.add(unit["id"])
     added = sum(u["status"] == "new" for u in units)
-    if added > max(0, brain.config.max_nodes - len(brain.nodes)):
+    if brain.config.max_nodes is not None and added > max(0, brain.config.max_nodes - len(brain.nodes)):
         raise ValidationError(f"本批需要 {added} 个空位；容量不足，未驱逐旧记忆，请分批或调整容量")
     unpaired = sum(len(u["messages"]) for u in units if not u["paired"] and u["messages"][0]["role"] in ("user", "assistant"))
     if unpaired:

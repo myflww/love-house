@@ -10,17 +10,21 @@ from ..retrieval.scoring import dice
 from ..utils import now
 from .config import get_profile
 from .model import OrganizerConflict, OrganizerError
-from .atoms import normalize_atom,make_atom,atom_signature,source_references
+from .atoms import normalize_atom,make_atom,atom_signature,source_references,evidence_event_at
+from .rules import RULES_VERSION, runtime_policy
 
 LAYERS = {"fact": "fact", "preference": "preference", "experience": "episode", "commitment": "commitment", "persona": None}
 ACTIONS = {"remember", "merge", "supersede", "relate", "candidate"}
 RAW_SOURCES = {"conversation_turn", "tool_observation", "harness_recorded", "persona_import_source"}
 HYPOTHETICAL = re.compile(r"假设|假如|如果|角色扮演|小说|想象|扮演|比如|例如|他说|她说|引用|骗你的|导入人格|人格设定")
+RELATIONSHIP_ATTRIBUTE = re.compile(r"(?:^|[./:_-])(?:relationship|relation|bond|milestone|anniversary)(?:$|[./:_-])|关系状态|关系阶段|里程碑|纪念日|相识日", re.I)
 
 
 def fingerprint(node):
     data = {k: node.get(k) for k in ("id", "label", "text", "kind", "session_id", "created", "event_at", "valid_to", "superseded_by", "updated", "important", "impact")}
-    data["meta"] = node.get("meta", {})
+    # Genuine use changes strength/counts, not the text or provenance a job saw.
+    # All other metadata remains guarded, notably disabled/forgotten/evidence.
+    data["meta"] = {key:value for key,value in node.get("meta", {}).items() if key != "memory_usage"}
     return sha256(json.dumps(data, ensure_ascii=False, sort_keys=True, allow_nan=False).encode()).hexdigest()
 
 
@@ -102,7 +106,9 @@ def build_input(brain, library_id, items, profile, archives=None):
                 cursors[role] = offset + len(piece)
                 room -= len(piece)
         records.append({"id": nid, "receipt_id": (evidence_meta.get('archive_receipt_id') if isinstance(evidence_meta,dict) else None) or receipt_id, "roles": selected, "boundaries":boundaries,
-                        "created":node.get("created"), "event_at":node.get("event_at"),
+                        "created":node.get("created"),
+                        "event_at":None if node.get("meta",{}).get("source_time_unknown") else node.get("event_at"),
+                        "source_time_known":not bool(node.get("meta",{}).get("source_time_unknown")) and node.get("event_at") is not None,
                         "recording_group":{"canonical_id":canonical_id(brain,node),
                             "capture_source_count":len(node.get('meta',{}).get('recording_sources',[]))},
                         "origin": node["meta"].get("origin", node["meta"]["source"]),
@@ -122,7 +128,7 @@ def build_input(brain, library_id, items, profile, archives=None):
         related.append({"id": node["id"], "kind": node["kind"], "text": node["text"][:900],
                         "key": node.get("meta", {}).get("organizer_key"), "protected": protected(node),
                         "atom":{k:deepcopy(node.get('meta',{}).get('memory_atom',{}).get(k)) for k in ('subject','predicate','value','qualifiers','layer')}})
-    payload = {"library_id": library_id, "raw": records, "related": related}
+    payload = {"library_id": library_id, "memory_policy": runtime_policy(brain), "raw": records, "related": related}
     while related and len(json.dumps(payload, ensure_ascii=False)) > budget:
         related.pop()
     if len(json.dumps(payload, ensure_ascii=False)) > budget:
@@ -215,6 +221,7 @@ def validate_plan(output, payload, guards, job_id, profile):
                        and all(raw[e["id"]].get("outcome") in ("observed","success","failed") for e in evidence))
         fiction = any(raw[e["id"]]["fiction_or_hypothesis_hint"] for e in evidence)
         op["requires_review"] = (op["action"] == "candidate" or op["layer"] == "persona"
+                                  or bool(RELATIONSHIP_ATTRIBUTE.search(op["key"]))
                                   or op["certainty"] != "clear" or op["domain"] != "real" or fiction
                                   or (not user_quotes and not observation)
                                   or any(not e["complete_sentence"] for e in evidence if e["role"] == "user")
@@ -229,13 +236,15 @@ def validate_plan(output, payload, guards, job_id, profile):
         op['atom'],atom_review=normalize_atom(op)
         op['requires_review']=op['requires_review'] or atom_review
         normalized.append(op)
-    return {"version": 1, "job_id": job_id, "library_id": payload["library_id"],
+    return {"version": 1, "rules_version": RULES_VERSION, "job_id": job_id, "library_id": payload["library_id"],
             "profile": deepcopy(profile), "operations": normalized, **deepcopy(guards)}
 
 
 def _check(brain, plan, library_id):
     if plan.get("library_id") != library_id:
         raise OrganizerConflict("整理结果属于另一个库，未应用")
+    if plan.get("rules_version") != RULES_VERSION:
+        raise OrganizerConflict("整理准则已更新，旧缓存结果需按当前规则重新校验")
     if get_profile(brain) != plan["profile"] or not get_profile(brain)["enabled"]:
         raise OrganizerConflict("整理配置已改变或已关闭，未应用旧结果")
     for nid, digest in {**plan["raw_fingerprints"], **plan["existing_fingerprints"]}.items():
@@ -309,6 +318,8 @@ def apply_plan(brain, plan, library_id):
                     target['meta']['memory_atom']=make_atom(op,target,library_id,sources)
                 else:
                     target['meta']['memory_atom']['evidence']=deepcopy(sources)
+                    target['meta']['memory_atom']['event_at']=evidence_event_at(sources)
+                target['meta']['source_time_unknown']=target['meta']['memory_atom'].get('event_at') is None
                 target["meta"]["organizer_aliases"] = list(dict.fromkeys(target["meta"].get("organizer_aliases", []) + op["aliases"]))[:16]
                 for other in list(dict.fromkeys([e['id'] for e in op['evidence']]+op['related_ids']))[:12]:
                     if other!=target['id'] and brain._key(target['id'],other) not in brain.edges:
@@ -325,7 +336,7 @@ def apply_plan(brain, plan, library_id):
                 result["candidates"].append(cid)
                 continue
             # Capacity eviction must never remove raw evidence as a side effect of a derived fact.
-            if len(brain.nodes) >= brain.config.max_nodes:
+            if brain.config.max_nodes is not None and len(brain.nodes) >= brain.config.max_nodes:
                 raise OrganizerError("记忆容量不足，未驱逐原文；任务保留供重试", "memory_capacity")
             nid = "org_" + sha256(f"{plan['job_id']}:{index}".encode()).hexdigest()[:24]
             kind = "episode" if op.get("observation") else LAYERS[op["layer"]]
@@ -341,6 +352,7 @@ def apply_plan(brain, plan, library_id):
             if kind == "commitment": metadata["status"] = "open"
             brain.add(op["layer"] + " · " + op["verbatim_text"][:60], op["verbatim_text"], kind=kind, id=nid, salience=.7, meta=metadata)
             brain.nodes[nid]['meta']['memory_atom']=make_atom(op,brain.nodes[nid],library_id)
+            brain.nodes[nid]['meta']['source_time_unknown']=brain.nodes[nid]['meta']['memory_atom'].get('event_at') is None
             touched.add(nid)
             result["created"].append(nid)
             if op["action"] == "supersede":
@@ -355,7 +367,7 @@ def apply_plan(brain, plan, library_id):
         brain.meta["organizer_candidates"] = candidates
         changed_nodes = {i for i in before["nodes"].keys() | brain.nodes.keys() if before["nodes"].get(i) != brain.nodes.get(i)}
         changed_edges = {k for k in before["edges"].keys() | brain.edges.keys() if before["edges"].get(k) != brain.edges.get(k)}
-        entry = {"job_id": plan["job_id"], "library_id":library_id,"at": now(), "result": deepcopy(result), "rolled_back": False,
+        entry = {"job_id": plan["job_id"], "library_id":library_id,"rules_version": RULES_VERSION,"at": now(), "result": deepcopy(result), "rolled_back": False,
                  "before_nodes": {i: deepcopy(before["nodes"].get(i)) for i in changed_nodes},
                  "before_edges": {k: deepcopy(before["edges"].get(k)) for k in changed_edges},
                  "after_nodes": {i: fingerprint(brain.nodes[i]) for i in changed_nodes if i in brain.nodes},
@@ -365,6 +377,14 @@ def apply_plan(brain, plan, library_id):
     except Exception:
         for key, value in before.items(): setattr(brain, key, value)
         raise
+
+
+def _usage_semantics(node):
+    """Usage can survive undo only when it still refers to the same statement."""
+    atom = node.get("meta", {}).get("memory_atom")
+    atom = ({key: deepcopy(atom.get(key)) for key in ("subject", "predicate", "value", "qualifiers")}
+            if isinstance(atom, dict) else None)
+    return {"text": node.get("text"), "kind": node.get("kind"), "atom": atom}
 
 
 def rollback(brain, job_id):
@@ -383,7 +403,18 @@ def rollback(brain, job_id):
         if node is None:
             brain.nodes.pop(nid, None); brain._vec.pop(nid, None)
         else:
-            brain.nodes[nid] = deepcopy(node); brain._vec[nid] = brain._vec_for(node)
+            current = brain.nodes.get(nid)
+            restored = deepcopy(node)
+            if (current is not None and _usage_semantics(current) == _usage_semantics(node)
+                    and isinstance(current.get("meta", {}).get("memory_usage"), dict)):
+                # Fingerprints deliberately ignore real use metadata. Undoing an
+                # organizer merge must not erase later use of that same fact.
+                # A changed statement/atom keeps its original pre-job statistics;
+                # heat from a different version is never transferred to it.
+                restored.setdefault("meta", {})["memory_usage"] = deepcopy(current["meta"]["memory_usage"])
+                for field in ("reinforced", "decay_at", "recalls"):
+                    if field in current:restored[field] = deepcopy(current[field])
+            brain.nodes[nid] = restored; brain._vec[nid] = brain._vec_for(restored)
     for key, edge in entry["before_edges"].items():
         if edge is None: brain.edges.pop(key, None)
         else: brain.edges[key] = deepcopy(edge)
@@ -407,7 +438,8 @@ def review_candidate(brain, candidate_id, action):
         return {"id": candidate_id, "status": "accepted", "persona_revision": state["revision"]}
     if op["domain"] != "real" or op.get("source_fiction") or not op["verbatim_text"]:
         raise OrganizerError("角色扮演/未知现实域或无用户证据不能作为现实事实采用", "unsafe_review")
-    if len(brain.nodes) >= brain.config.max_nodes: raise OrganizerError("容量不足，未驱逐原文", "memory_capacity")
+    if brain.config.max_nodes is not None and len(brain.nodes) >= brain.config.max_nodes:
+        raise OrganizerError("容量不足，未驱逐原文", "memory_capacity")
     metadata={"source":"user_confirmed","confirmed":True,"important":True,
               "organizer_candidate":candidate_id,"organizer_evidence":op['evidence'],
               "organizer_sources":source_references(op['evidence']),
@@ -422,6 +454,7 @@ def review_candidate(brain, candidate_id, action):
     # retained on the candidate itself rather than inferred from an external ID.
     library_id=candidate.get('library_id',library_id or '')
     brain.nodes[nid]['meta']['memory_atom']=make_atom(op,brain.nodes[nid],library_id)
+    brain.nodes[nid]['meta']['source_time_unknown']=brain.nodes[nid]['meta']['memory_atom'].get('event_at') is None
     candidate["status"] = "accepted"
     return {"id": candidate_id, "node_id": nid, "status": "accepted"}
 

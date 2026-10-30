@@ -453,9 +453,17 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                 try requireSmoke(organizerPreview["will_call_model"] as? Bool == false, "Organizer preview attempted a model call")
                 print("Native organizer: real panel opens, starts disabled, preview performs no model call")
                 let newUI = try await webView.callAsyncJavaScript(
-                    "return {importChat:!!document.getElementById('dialogueImportBtn'),handoff:!!document.getElementById('windowHandoffBtn'),updates:!!document.getElementById('checkForUpdates')};",
+                    "return {importChat:!!document.getElementById('dialogueImportBtn'),handoff:!!document.getElementById('windowHandoffBtn'),updates:!!document.getElementById('checkForUpdates'),retention:!!document.getElementById('memoryRetentionBtn'),rules:!!document.getElementById('organizerRulesBtn')};",
                     arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
                 try requireSmoke(newUI?["importChat"] as? Bool == true && newUI?["handoff"] as? Bool == true && newUI?["updates"] as? Bool == true, "New desktop controls are missing")
+                try requireSmoke(newUI?["retention"] as? Bool == true && newUI?["rules"] as? Bool == true, "Adaptive memory controls are missing")
+                let retention = try await smokeRequest("api/retention")
+                try requireSmoke(retention["node_limit"] is NSNull && retention["count_eviction"] as? Bool == false && retention["automatic_deletion"] as? Bool == false, "Personal library still has count eviction or timed deletion")
+                let ruleView = try await webView.callAsyncJavaScript(
+                    "await window.LoveHouseOrganizerRules.open(); const d=document.getElementById('organizerRulesDialog'); const text=document.getElementById('organizerFullGuide').textContent; const result={open:d.open,guide:text.includes('统一保存期限')&&text.includes('逐字')}; d.close(); return result;",
+                    arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                try requireSmoke(ruleView?["open"] as? Bool == true && ruleView?["guide"] as? Bool == true, "Organizer guide is not readable in the actual native UI")
+                print("Native 0.7: unlimited personal archive, no TTL, adaptive settings and exact organizer guide verified without model calls")
                 let updates = try await smokeRequest("api/updates")
                 try requireSmoke(updates["auto_install"] as? Bool == false && (updates["settings"] as? [String: Any])?["auto_check"] as? Bool == false, "Isolated update preferences did not prevent network checks")
                 let rescue = try await smokeRequest("api/libraries", method: "POST", payload: ["name":"原生聊天导入自检库"])
@@ -530,6 +538,7 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                     document.getElementById('labelToggle').click();await paint();
                     const labelsOff=c.dataset.labelMode==='focus';
                     document.getElementById('fitBtn').click();await paint();
+                    await wait(()=>S.view.mode==='auto'&&c.dataset.viewMode==='auto'&&!!S.view.target);
                     return {initial,manualMode:manual.mode,preserved,restored:c.dataset.viewMode,labelsOn,labelsOff};
                     """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
                 let initial = result?["initial"] as? [String: Any]

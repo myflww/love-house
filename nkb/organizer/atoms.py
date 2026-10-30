@@ -89,13 +89,18 @@ def atom_signature(atom):
     return sha256(json.dumps(material,ensure_ascii=False,sort_keys=True,allow_nan=False).encode()).hexdigest()
 
 
+def evidence_event_at(evidence):
+    """Unknown historical time stays unknown, rather than becoming organize time."""
+    stamps=[e.get('source_event_at') for e in evidence if isinstance(e,dict) and isinstance(e.get('source_event_at'),(int,float))
+            and not isinstance(e.get('source_event_at'),bool) and math.isfinite(e['source_event_at'])]
+    return max(stamps) if stamps else None
+
+
 def make_atom(op,node,library_id,sources=None):
     atom=deepcopy(op.get('atom') or normalize_atom(op)[0])
     refs=source_references(sources if sources is not None else op['evidence'])
-    stamps=[e.get('source_event_at') for e in refs if isinstance(e.get('source_event_at'),(int,float))
-            and not isinstance(e.get('source_event_at'),bool) and math.isfinite(e['source_event_at'])]
     atom.update(schema=SCHEMA,library_id=library_id,layer=node.get('meta',{}).get('organizer_layer',op['layer']),key=op['key'],
                 domain=op['domain'],certainty=op['certainty'],valid_from=node['valid_from'],valid_to=node.get('valid_to'),
-                event_at=max(stamps) if stamps else node.get('event_at'),recorded_at=node['created'],evidence=refs)
+                event_at=evidence_event_at(refs),recorded_at=node['created'],evidence=refs)
     if node.get('meta',{}).get('evidence_scope')=='tool_observation':atom['outcome']=node['meta'].get('outcome','observed')
     return atom

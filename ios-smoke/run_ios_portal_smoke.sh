@@ -15,7 +15,7 @@ cleanup() {
 trap cleanup EXIT
 export PYTHONUTF8=1
 rm -f "$qa_root/fixture/ready.json" "$qa_root/fixture/service-state.json"
-PYTHONPATH="$backend_root" python3 -u "$project_root/ios-smoke/fixture_server.py" --root "$qa_root/fixture" >"$qa_root/reports/fixture.log" 2>&1 &
+LOVEHOUSE_QA_STACKS=1 PYTHONPATH="$backend_root" python3 -u "$project_root/ios-smoke/fixture_server.py" --root "$qa_root/fixture" >"$qa_root/reports/fixture.log" 2>&1 &
 fixture_pid=$!
 for ((attempt=0; attempt<600; attempt++)); do
   [[ -f "$qa_root/fixture/ready.json" ]] && break

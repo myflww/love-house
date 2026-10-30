@@ -26,6 +26,7 @@ final class PortalController: UIViewController, WKNavigationDelegate {
     private var continuation: CheckedContinuation<Void, Error>?
     private var report: [String: Any] = ["schema":"love-house-ios-wkwebview-smoke/v1", "engine":"iOS Simulator WKWebView", "physical_device":false, "tls_bypass":false]
     private var finished = false
+    private var navigationCount = 0
     private let admin = "IOS-SIMULATOR-SYNTHETIC-ADMIN-ONLY-000000000000"
     private var mode: String { argument("--mode") ?? "portal" }
     private func argument(_ name: String) -> String? {
@@ -52,7 +53,7 @@ final class PortalController: UIViewController, WKNavigationDelegate {
             web.load(URLRequest(url: url))
         }
     }
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { continuation?.resume(); continuation = nil }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { navigationCount += 1; continuation?.resume(); continuation = nil }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { continuation?.resume(throwing:error); continuation = nil }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { continuation?.resume(throwing:error); continuation = nil }
     // Intentionally no authentication-challenge handler: iOS performs normal TLS and root trust validation.
@@ -81,7 +82,7 @@ final class PortalController: UIViewController, WKNavigationDelegate {
             }
             try await navigate(url)
             report["trusted_https_loaded"] = true
-            try await wait("document.getElementById('loginForm') && !document.getElementById('loginButton').disabled")
+            try await wait("document.getElementById('loginForm') && typeof document.getElementById('loginForm').onsubmit==='function' && !document.getElementById('loginButton').disabled")
             _ = try await js("document.getElementById('adminToken').value=admin;document.getElementById('loginButton').click();return true;",["admin":admin])
             try await wait("!document.getElementById('workspace').hidden && document.getElementById('librarySelect').options.length>0")
             report["login_passed"] = true
@@ -124,10 +125,13 @@ final class PortalController: UIViewController, WKNavigationDelegate {
             report["automatic_archive_ui_verified"] = true
             _ = try await js("document.getElementById('captureState').scrollIntoView({block:'center'});return true;")
             finish(true)
-        } catch { finish(false,error:(error as NSError).localizedDescription) }
+        } catch {
+            if let diagnostic = try? await js("return {ready:document.readyState,login_handler_ready:typeof document.getElementById('loginForm')?.onsubmit==='function',login_disabled:document.getElementById('loginButton')?.disabled,workspace_hidden:document.getElementById('workspace')?.hidden,library_options:document.getElementById('librarySelect')?.options.length,notice:document.getElementById('notice')?.textContent,path:location.pathname};") { report["page_diagnostic"] = diagnostic }
+            finish(false,error:(error as NSError).localizedDescription)
+        }
     }
     private func finish(_ ok: Bool, error: String? = nil) {
-        guard !finished else { return };finished=true;report["ok"]=ok;report["process_complete"]=true
+        guard !finished else { return };finished=true;report["ok"]=ok;report["process_complete"]=true;report["navigation_count"]=navigationCount
         if let error { report["error"]=error }
         let directory=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0]
         let path=directory.appendingPathComponent(mode == "reject" ? "tls-rejection.json" : "ios-portal-smoke.json")

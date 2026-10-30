@@ -40,10 +40,19 @@ def main():
  gateway=RemoteGateway(host,origin='https://127.0.0.1',admin_token=ADMIN)
  context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.minimum_version=ssl.TLSVersion.TLSv1_2;context.load_cert_chain(cert,key)
  server=create_server(gateway,tls_context=context);origin='https://127.0.0.1:'+str(server.server_port);gateway.origin=origin;gateway.authority='127.0.0.1:'+str(server.server_port)
+ original_handler=server.RequestHandlerClass
+ class TracedHandler(original_handler):
+  def _trace(self):
+   route=self.path.split('?',1)[0]
+   kind=route if route in ('/api/remote/health','/api/remote/admin/session','/api/remote/admin/login','/api/remote/admin/libraries','/api/remote/admin/connections') else 'mcp' if route.startswith('/mcp/') else 'host-hook' if route.startswith('/api/remote/connections/') else 'asset'
+   print('fixture request: '+self.command+' '+kind,flush=True)
+  def do_GET(self):self._trace();return super().do_GET()
+  def do_POST(self):self._trace();return super().do_POST()
+ server.RequestHandlerClass=TracedHandler
  gt=threading.Thread(target=server.serve_forever,kwargs={'poll_interval':.05});gt.start();stopping=threading.Event()
  for sig in (signal.SIGINT,signal.SIGTERM):signal.signal(sig,lambda *_:stopping.set())
  (root/'ready.json').write_text(json.dumps({'origin':origin,'root_ca':str(ca),'backend_version':__import__('nkb._version',fromlist=['__version__']).__version__,'fixture':'synthetic_only_no_model_credentials'}),encoding='utf-8')
- faulthandler.cancel_dump_traceback_later()
+ if os.environ.get("LOVEHOUSE_QA_STACKS") != "1":faulthandler.cancel_dump_traceback_later()
  print('fixture: ready',flush=True)
  try:
   while not stopping.wait(.5):

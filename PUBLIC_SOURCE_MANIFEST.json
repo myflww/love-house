@@ -63,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 13055,
-      "sha256": "2244ad8b18ab33fa01c60a40460152b9bcc1ac4794dd77836e89f4f94007e7df"
+      "bytes": 13980,
+      "sha256": "cea35b99acd931decb8d2f2545dc6eb2ee6bfa5161ebbb2ee3db8fde8b34c482"
     },
     {
       "path": "ROADMAP.md",
@@ -412,9 +412,24 @@
       "sha256": "43b22087da77377b42731c5e3aa19150b5a6dadfa5da0bf6616cdb414ad48cd9"
     },
     {
+      "path": "docs/MACOS-080RC2-WORKBUDDY-HANDOFF.md",
+      "bytes": 5188,
+      "sha256": "a2239a22f7ee90c978dddbad033123a71e11072f58b15156e7d9f8cf0f00d9e1"
+    },
+    {
+      "path": "docs/RELEASE-080RC2.md",
+      "bytes": 3593,
+      "sha256": "25041b661f5556a821dc30eb68cd42cf567e780455421f69077b4b2836f1b9da"
+    },
+    {
+      "path": "docs/WORKBUDDY-CONNECTION.md",
+      "bytes": 3369,
+      "sha256": "bc1438dd6aa97aea6c999275bc12c5aeba28017000e3f483a374a3e0b16d8e4b"
+    },
+    {
       "path": "docs/下载与系统支持.md",
-      "bytes": 6458,
-      "sha256": "db0443c3233e98e14a0346437ec5442e0e816165f3a4f8a93e9ea8a1d73f88b1"
+      "bytes": 5720,
+      "sha256": "f3e10ca436f0bd11783b3a1b07e6c96fe81b3b0021dde7472e1a806d4904ee0b"
     },
     {
       "path": "docs/发布与许可.md",
@@ -443,8 +458,8 @@
     },
     {
       "path": "docs/手机版安装与使用.md",
-      "bytes": 4775,
-      "sha256": "526a00e1f39ff300e7f1e313956efae0a9cdf5175cea1679af11a6008fc6bc92"
+      "bytes": 5152,
+      "sha256": "9a4276945b8367877b96aa6aac24fd0c2a31b358dbb9a196974d37bec55f5ed1"
     },
     {
       "path": "docs/架构.md",

@@ -56,6 +56,10 @@ class LoveHousePlugin(Star):
         bridge = self.router.for_umo(getattr(event, "unified_msg_origin", None))
         if bridge is None:
             return None
+        if not self._platform_matches(event, bridge.platform):
+            # A configured label is not evidence of the actual platform. In
+            # particular, ChatUI/WebChat must not become a QQ observation.
+            return None
         try:
             source = bridge.client.status()
             if (source.get('enabled') is not True or source.get('revoked') is not False
@@ -67,6 +71,23 @@ class LoveHousePlugin(Star):
         except Exception:
             self._warn('source_configuration')
             return None
+
+    @staticmethod
+    def _platform_matches(event, configured):
+        try:
+            actual_name = event.get_platform_name()
+            actual_id = event.get_platform_id()
+            umo = event.unified_msg_origin
+        except Exception:
+            return False
+        if (not isinstance(actual_name, str) or not actual_name or len(actual_name) > 200
+                or not isinstance(actual_id, str) or not actual_id or len(actual_id) > 200
+                or not isinstance(umo, str) or umo.split(":", 1)[0] != actual_id):
+            return False
+        # AstrBot's core QQ adapters expose these names and an administrator-
+        # chosen instance ID. Generic bridges such as Satori are not QQ proof.
+        aliases = {"qq": {"qq", "aiocqhttp", "qq_official", "qq_official_webhook"}}
+        return actual_name in aliases.get(configured, {configured})
 
     @staticmethod
     def _message_id(event):

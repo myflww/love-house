@@ -35,6 +35,20 @@ def asar_fixture(path, entries):
     path.write_bytes(struct.pack("<II", 4, len(header_pickle)) + header_pickle + b"".join(bodies))
 
 
+class OfficialNpmCliDetectionTests(unittest.TestCase):
+    def test_explicit_official_cli_package_requires_real_entry_and_known_version(self):
+        with tempfile.TemporaryDirectory() as directory:
+            package=Path(directory);(package/'lib').mkdir();entry=package/'lib/bin.js';entry.write_text('// official CLI fixture')
+            metadata={'name':'@deepseek-ai/dsh','version':'0.2.1-rc.5','bin':{'dsh':'lib/bin.js'}}
+            (package/'package.json').write_text(json.dumps(metadata))
+            detected=configure.detect(package)
+            self.assertTrue(detected['supported']);self.assertEqual(detected['version'],'0.2.1-rc.5')
+            self.assertIn('npm CLI',detected['version_source'])
+            metadata['version']='99.0.0';(package/'package.json').write_text(json.dumps(metadata))
+            self.assertFalse(configure.detect(package)['supported'])
+            entry.unlink();self.assertFalse(configure.detect(package)['detected'])
+
+
 class WindowsHarnessDetectionTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="love-house-win-harness-")

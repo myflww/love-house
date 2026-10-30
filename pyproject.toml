@@ -41,7 +41,7 @@ include = ["nkb*"]
 
 [tool.setuptools.package-data]
 nkb = ["py.typed"]
-"nkb.viz" = ["web/*.html", "web/*.js", "web/licenses/*.txt", "art/*.js", "art/LICENSE*"]
+"nkb.viz" = ["web/*.html", "web/*.js", "web/*.css", "web/licenses/*.txt", "art/*.js", "art/LICENSE*"]
 "nkb.service" = ["harness/*.py", "harness/*.json", "harness/*.md", "harness/LICENSE", "harness/NOTICE", "harness/dist/*.js", "harness/dist/*.txt"]
 
 # ── 工具链（选装：make lint / make fmt） ──

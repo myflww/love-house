@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import shutil
 import sqlite3
+from contextlib import closing
 import stat
 import sys
 import tempfile
@@ -112,7 +113,7 @@ class BridgeTests(unittest.TestCase):
         self.assertTrue(reopened.stage_final(self.a, "one", "完整回复。")["duplicate"])
         with self.assertRaises(AdapterError):reopened.stage_final(self.a, "one", "另一份最终回复。")
         self.assertEqual(sum(x[0] == "turn" for x in self.client.calls), 1)
-        with sqlite3.connect(self.bridge.path) as db:
+        with closing(sqlite3.connect(self.bridge.path)) as db, db:
             row = db.execute("SELECT user,assistant,text,details FROM records WHERE id=?", (first,)).fetchone()
         self.assertEqual(row, (None, None, None, "{}"))
 
@@ -204,6 +205,8 @@ class FakeEvent:
     def get_extra(self,k):return self.extras.get(k)
     def set_extra(self,k,v):self.extras[k]=v
     def get_sender_id(self):return 'FAKE-participant'
+    def get_platform_name(self):return 'aiocqhttp'
+    def get_platform_id(self):return self.unified_msg_origin.split(':',1)[0]
 
 
 class HookTests(unittest.IsolatedAsyncioTestCase):
@@ -212,7 +215,7 @@ class HookTests(unittest.IsolatedAsyncioTestCase):
         self.main,self.warnings=load_main()
         self.client=FakeClient();self.bridge=Bridge(self.root,self.client,runtime_agent_id='fish-a',allowed_umos=['qq:FriendMessage:FAKE-A'],clock=lambda:1900000000)
         self.plugin=self.main.LoveHousePlugin.__new__(self.main.LoveHousePlugin)
-        self.plugin.config={'enabled':True,'record_observations':True};self.plugin.router=Router([self.bridge]);self.plugin._last_warning=0.0;self.plugin._worker=None
+        self.plugin.config={'enabled':True,'record_observations':True};self.plugin.router=Router([self.bridge]);self.plugin._last_warning=None;self.plugin._worker=None
         self.event=FakeEvent('qq:FriendMessage:FAKE-A')
 
     async def asyncTearDown(self):self.temp.cleanup()
@@ -257,6 +260,24 @@ class HookTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(turns),1);self.assertEqual(turns[0][2]['delivery_status'],'generated')
         self.assertEqual(len(obs),2);self.assertTrue(all(x[2]['outcome']=='observed' for x in obs))
         self.assertNotIn('FAKE_DONT_STORE_PROVIDER_KEY',json.dumps(self.client.calls))
+
+    async def test_qq_label_cannot_capture_chatui_or_mismatched_platform_instance(self):
+        for platform_name,platform_id in [('webchat','qq'),('aiocqhttp','foreign-instance')]:
+            event=FakeEvent(self.event.unified_msg_origin)
+            event.get_platform_name=lambda:platform_name
+            event.get_platform_id=lambda:platform_id
+            req=types.SimpleNamespace(system_prompt='原人格',extra_user_content_parts=[])
+            await self.plugin.recall_before_request(event,req)
+            self.assertEqual(self.bridge.status()['awaiting_final'],0)
+            self.assertEqual(self.client.calls,[])
+            self.assertEqual(req.system_prompt,'原人格')
+
+    async def test_first_failure_warning_is_visible_even_on_a_freshly_booted_runner(self):
+        with patch('time.monotonic',side_effect=[1.0,2.0,62.0]):
+            self.plugin._warn('first')
+            self.plugin._warn('throttled')
+            self.plugin._warn('after_interval')
+        self.assertEqual(len(self.warnings),2)
 
     async def test_recall_failure_never_rewrites_persona_and_original_waits_for_final(self):
         self.client.read_context=lambda *a,**k:(_ for _ in ()).throw(ConnectionError('FAKE PRIVATE ERROR'))

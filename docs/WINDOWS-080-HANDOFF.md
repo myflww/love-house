@@ -30,3 +30,11 @@ POSIX 无界面服务脚本仍按其明确平台范围运行；Windows 使用自
 共享功能合并后的本机全量第一轮 791 项测试通过，桌面 19 项通过。增加原生适配后 Windows 打包合同 37 项通过；源码模式后端自检结果为 ok:true、latest_feature_apis:passed、astrbot_source_package:passed。
 
 这些是开发机上的共享代码与源码模式验证。Windows CI 的冻结安装包/原生自检、Windows 官方 Harness 实际完整对话及其他系统的连接验证须分别保留证据，不能互相替代。
+
+## 本轮补充验证与跨系统连接
+
+修正测试夹具在 Windows 未显式关闭 SQLite 连接的问题后，开发机最终全量为 814 项通过；这不是 Windows CI 或消费者环境的等价结果。使用日志和 AstrBot 生产连接管理原本已有 finally close，修正保留事务与错误回滚规则。
+
+`verify_harness_connection.py` 已在 macOS 上用官方 rc.3 App，以及锁定的官方 rc.5 npm CLI，分别完成 Harness/原 MCP 两模式的真实宿主回合。每种模式实际走本机 SSE 合成模型并保存两方原话，另开真实会话验证窗口隔离；报告成功与进程退出码一致。所有 profile、模型凭据和记忆库都为隔离合成资料。
+
+新增 `cross-platform-connect.yml` 在 Ubuntu/macOS 对应 runner 上运行同一真实 CLI 驱动。官方 npm CLI 与完整依赖通过提交的 package-lock integrity 固定，关闭安装脚本；CI 完成前不把本机 macOS 上的 npm CLI 结果说成已完成 Linux 运行验证。

@@ -164,7 +164,8 @@
     },
     {
       "path": "tests/test_astrbot_adapter.py",
-      "sha256": "6306c3c5341490db11384dc8cbbfbe33bfe3e7f50bbaea22eb7be233ebd85cf6"
+      "sha256": "063380f740f84b21450b3b870e0035404036467b8218684c44477753be9c7180",
+      "post_merge_verified": true
     },
     {
       "path": "tests/test_organizer_rules.py",
@@ -212,7 +213,8 @@
     },
     {
       "path": "tests/test_usage_journal.py",
-      "sha256": "a8bc374398c5712e36ee61d03c351e242c939aab7ae25e6fe647e1516df9cd66"
+      "sha256": "81f0d741690ebaa10cf4b35d9319125b02f99afb2528626d9aa2f97253381bd9",
+      "post_merge_verified": true
     },
     {
       "path": "tests/test_agent_sources.py",
@@ -300,11 +302,11 @@
     },
     {
       "path": "extensions/astrbot-love-house/main.py",
-      "sha256": "5ea61f32469b72d245962dcfb53b57d6517f0d5ff81834b33955e9ee77c61a7b"
+      "sha256": "b63dc04db6eedff69540058320ad14eb302d0935c1de62cc6dd1ba7128833e87"
     },
     {
       "path": "docs/QQ-AstrBot-云端接入方案.md",
-      "sha256": "230aa000a6cb561ee2afbb3818d97cbc2438f6fc5069dfb2c2653d55aa8a2399"
+      "sha256": "3359da3518d3e088d4705b702a0b53f51745806f9bf7f9a8035a241771bf60ec"
     },
     {
       "path": "docs/Agent身份与全活动记忆.md",
@@ -324,7 +326,7 @@
     },
     {
       "path": "docs/同鱼多平台接入.md",
-      "sha256": "e39712809f8d156dc5fc91f2631c825bfe9cfca69951ab8534b542d18e6007f1"
+      "sha256": "d08d13e0866855310d610ea20a0cdcee41401d7b9a4ad767f6c0b5e0c07e1f54"
     },
     {
       "path": "docs/MACOS-070-HANDOFF.md",
@@ -348,5 +350,15 @@
     "ongoing Harness contract changes"
   ],
   "source": "Local reviewed shared 0.8.0 workspace snapshot (2026-10-30)",
-  "target": "Windows 0.8.0rc1 preserving independent native/runtime gates"
+  "target": "Windows 0.8.0rc1 preserving independent native/runtime gates",
+  "source_drift": [],
+  "adaptations": [
+    "Keep Windows native/runtime/stdin and consumer verification gates",
+    "Explicitly freeze dynamic helper plistlib/zipfile dependencies",
+    "Include reviewed AstrBot source package and SDK integrity input",
+    "Close test-owned SQLite handles explicitly on Windows",
+    "Use production warning state in fresh-boot AstrBot fixture"
+  ],
+  "latest_shared_nkb_missing": [],
+  "latest_shared_nkb_differences": []
 }

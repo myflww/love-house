@@ -1,10 +1,12 @@
 """Usage receipts are metadata-only, scoped and compare-and-ack durable."""
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 from nkb.errors import StorageError, ValidationError
 from nkb.service.usage import DAY, UsageJournal
@@ -20,6 +22,21 @@ class UsageJournalTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_production_context_closes_connection_after_success_and_sqlite_failure(self):
+        original=sqlite3.connect
+        opened=[]
+        def connect(*args,**kwargs):
+            db=original(*args,**kwargs);opened.append(db);return db
+        with patch('nkb.service.usage.sqlite3.connect',side_effect=connect):
+            self.journal.enqueue('one',['closed-handle'],'recall')
+            self.journal.pending('one')
+            with self.assertRaises(StorageError):
+                with self.journal.db() as db:
+                    db.execute('SELECT * FROM deliberately_missing_table')
+        self.assertGreaterEqual(len(opened),3)
+        for db in opened:
+            with self.assertRaises(sqlite3.ProgrammingError):db.execute('SELECT 1')
+
     def test_locked_auxiliary_database_fails_quickly_instead_of_blocking_capture(self):
         locked=sqlite3.connect(self.journal.path)
         try:
@@ -32,7 +49,7 @@ class UsageJournalTests(unittest.TestCase):
 
     def test_corrupt_optional_pending_metadata_is_rejected_without_echoing_it(self):
         self.journal.enqueue('one',['a'],'recall')
-        with sqlite3.connect(self.journal.path) as db:
+        with closing(sqlite3.connect(self.journal.path)) as db, db:
             db.execute("UPDATE memory_usage SET pending_at=-1 WHERE node_id='a'")
         with self.assertRaises(StorageError) as caught:self.journal.pending('one')
         self.assertNotIn('node_id',str(caught.exception))
@@ -45,7 +62,7 @@ class UsageJournalTests(unittest.TestCase):
         self.assertEqual({r["node_id"] for r in rows}, {"a", "b"})
         self.assertTrue(all(set(r) == {"library_id", "node_id", "kind", "day", "at"} for r in rows))
         self.assertEqual(self.journal.counts("one"), {"pending": 2, "by_kind": {"recall": 2, "mention": 0}})
-        with sqlite3.connect(self.journal.path) as db:
+        with closing(sqlite3.connect(self.journal.path)) as db, db:
             columns = {r[1] for r in db.execute("PRAGMA table_info(memory_usage)")}
         self.assertEqual(columns, {"library_id", "node_id", "kind", "last_at", "last_day", "pending_at", "pending_day", "applied_at"})
 
@@ -100,7 +117,7 @@ class UsageJournalTests(unittest.TestCase):
         for day in range(60):
             self.journal.enqueue("one", ["a", "b"], "recall", at=self.stamp + day * DAY)
             self.journal.applied(self.journal.pending("one"))
-        with sqlite3.connect(self.journal.path) as db:
+        with closing(sqlite3.connect(self.journal.path)) as db, db:
             count = db.execute("SELECT COUNT(*) FROM memory_usage").fetchone()[0]
         self.assertEqual(count, 2)
         self.assertEqual(self.journal.counts("one")["pending"], 0)

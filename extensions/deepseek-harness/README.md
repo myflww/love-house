@@ -111,3 +111,7 @@ npm test
 取消/partial、outbox 重启重放、真实 pre-step 注入、synthetic 排除、多连接配置和停用、
 不同会话隔离、可运行的降级代理。支持矩阵的公开类型检查与离线测试不等于用户现有会话已经完成实际归档；
 仍须在插件加载后收到一轮真实记录的持久回执，才能宣称该连接已经自动存档。
+
+## Linux/macOS 的官方 npm CLI 验收
+
+可显式指定官方 `@deepseek-ai/dsh` 的包目录和隔离 profile，已验证精确版本继续使用相同宿主插件。npm CLI 的未知版本目前保守拒绝，不套用 Electron 安装包的资源布局判断。仓库 `scripts/verify_harness_connection.py` 用真实 CLI、临时 `DSH_HOME`、本机合成模型和临时记忆服务，分别验证 Harness/原 MCP 连接自动保存及第二会话隔离；任何一项失败都会返回非零退出码。它不读取已有聊天配置或真实模型密钥。

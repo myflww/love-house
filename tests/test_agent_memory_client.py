@@ -148,7 +148,11 @@ class AgentMemoryClientTests(unittest.TestCase):
   with self.assertRaises(AgentConnectionError) as caught:self.client.submit_hook({**self.turn(),'assistant':'不同的回复'})
   self.assertEqual(caught.exception.code,'event_conflict');self.assertEqual(self.client.pending_count(),1)
  def test_redirect_and_environment_proxy_cannot_transmit_memory_elsewhere(self):
-  target=self.start_service();source=self.start_service(redirect=f'http://127.0.0.1:{target.port}/steal')
+  # The redirect/proxy target is not a discoverable memory controller.
+  # Registering both as the same credential/PID makes coarse Windows mtimes
+  # choose the target directly instead of exercising the redirect boundary.
+  target=LocalMemoryService();self.services.append(target)
+  source=self.start_service(redirect=f'http://127.0.0.1:{target.port}/steal')
   with patch.dict(os.environ,{'HTTP_PROXY':f'http://127.0.0.1:{target.port}','ALL_PROXY':f'http://127.0.0.1:{target.port}'}):
    result=self.new_client().submit_hook(self.turn())
   self.assertFalse(result['saved']);self.assertEqual(target.posts,[]);self.assertEqual(self.client.pending_count(),1)

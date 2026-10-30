@@ -236,6 +236,19 @@ def _contract_probe(app, version):
 
 def _app_version(app):
     shell_version, version, source = None, None, None
+    # A user may explicitly select the official npm CLI package on Linux/macOS.
+    # Its exact verified releases use the same host plugin contract. Unknown CLI
+    # versions remain unsupported until their installed dependency layout is audited.
+    direct = app / "package.json"
+    try:
+        metadata = json.loads(direct.read_text("utf-8")) if direct.is_file() and direct.stat().st_size <= 1024 * 1024 else None
+        if (isinstance(metadata, dict) and metadata.get("name") == "@deepseek-ai/dsh"
+                and isinstance(metadata.get("version"), str)
+                and isinstance(metadata.get("bin"), dict) and metadata["bin"].get("dsh") == "lib/bin.js"
+                and (app / "lib/bin.js").is_file()):
+            return metadata["version"], metadata["version"], "package.json (official npm CLI metadata)"
+    except (OSError, ValueError, TypeError, UnicodeError):
+        pass
     info = app / "Contents/Info.plist"
     if info.is_file():
         with info.open("rb") as stream:

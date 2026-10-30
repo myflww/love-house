@@ -120,7 +120,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
             try {
                 require(fields.size() == 4);
                 AccessibilityNodeInfo field = fields.get(index);
-                field.performAction(AccessibilityNodeInfo.ACTION_SHOW_ON_SCREEN);
+                field.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.getId());
                 Bundle value = new Bundle();
                 value.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, values[index]);
                 require(field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, value));
@@ -186,7 +186,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
             AccessibilityNodeInfo node = find(value -> value.isEnabled() && matches(value, text, exact));
             if (node != null) {
                 for (int depth = 0; node != null && depth < 5; depth++) {
-                    node.performAction(AccessibilityNodeInfo.ACTION_SHOW_ON_SCREEN);
+                    node.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.getId());
                     if (node.isClickable() && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                         node.recycle(); return;
                     }

@@ -9,7 +9,7 @@ import uuid
 import urllib.request
 import urllib.error
 from pathlib import Path
-from http.server import ThreadingHTTPServer
+from .httpd import LoopbackHTTPServer as ThreadingHTTPServer
 from ..libraries import LibraryManager
 from ..libraries.manager import LibraryError
 from ..adapters.http import make_handler, RequestError

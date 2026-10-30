@@ -13,7 +13,8 @@ import hashlib
 import hmac
 from http.client import HTTPConnection
 from http.cookies import SimpleCookie
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from .httpd import LoopbackHTTPServer as ThreadingHTTPServer
 import ipaddress
 import json
 import mimetypes

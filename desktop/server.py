@@ -6,7 +6,7 @@ import json
 import os
 import signal
 import threading
-from http.server import ThreadingHTTPServer
+from nkb.service.httpd import LoopbackHTTPServer as ThreadingHTTPServer
 from pathlib import Path
 from nkb.core.atlas import atlas_brain
 from nkb.service.host import MemoryHost, make_controller

@@ -19,12 +19,13 @@ import tempfile
 import threading
 import time
 import traceback
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from urllib.request import ProxyHandler, Request, build_opener
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from nkb.service.host import MemoryHost, make_controller
+from nkb.service.httpd import LoopbackHTTPServer as ThreadingHTTPServer
 from nkb.service.credentials import KeyStore
 from nkb._version import __version__
 

@@ -11,7 +11,6 @@ import sys
 import tempfile
 import threading
 import time
-from http.server import ThreadingHTTPServer
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
@@ -19,6 +18,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parent))
 from nkb._version import __version__
 from nkb.core.atlas import atlas_brain
 from nkb.service.host import MemoryHost,make_controller
+from nkb.service.httpd import LoopbackHTTPServer as ThreadingHTTPServer
 from nkb.service.credentials import KeyStore
 from nkb.storage.jsonfile import JsonFileStorage
 from windows_diagnostics import (WEBVIEW2_URL,AlreadyRunning,StartupLog,WebView2Unavailable,

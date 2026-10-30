@@ -15,7 +15,8 @@ from pathlib import Path
 import urllib.request
 import urllib.error
 import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from ..service.httpd import LoopbackHTTPServer as ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 from .. import render

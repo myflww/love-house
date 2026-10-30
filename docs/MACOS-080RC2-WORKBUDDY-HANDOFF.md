@@ -6,7 +6,7 @@
 
 ```sh
 git fetch origin codex/workbuddy-connect-080rc2
-git diff v0.8.0rc1..origin/codex/workbuddy-connect-080rc2 -- nkb/service desktop/agent_memory_bridge.py desktop/agent_memory_hook.py nkb/viz/web scripts/configure_agent_source.py tests
+git diff v0.8.0rc1..origin/codex/workbuddy-connect-080rc2 -- nkb desktop/agent_memory_bridge.py desktop/agent_memory_hook.py desktop/harness_bridge.py extensions/deepseek-harness/configure.py scripts/configure_agent_source.py tests
 ```
 
 先查看该分支的实际提交与测试结果，再按下列范围同步，解决 macOS 当前开发分支的冲突。不要导入 Android 密钥、Windows 打包产物、真实用户记忆或宿主聊天记录。
@@ -20,6 +20,7 @@ git diff v0.8.0rc1..origin/codex/workbuddy-connect-080rc2 -- nkb/service desktop
 - 收到一次 Hook 事件，只报告收到事件及最近时间、数量。持续记录依赖宿主继续调用；不能将手工探针标为已验证全自动。
 - 重新绑定必须由管理界面明确确认；保留历史记忆，作废旧连接凭据，重新生成目标窗口配置。旧窗口不得继续写入。
 - 本地连接管理 API 的会话鉴权、远程管理已有认证和 CSRF 保护必须一起同步。此举阻止匿名 API 枚举，不承诺抵御能够以同一用户运行并打开本地管理界面的恶意进程。
+- 同步 `desktop/harness_bridge.py` 的旧 MCP 兼容修复：状态工具改由固定记忆库的目录身份与统计核对，不再直接读取受保护的管理状态接口，也不申请管理 Cookie 或列出其他连接。缺少这项会导致旧桥接的 `memory_status` 返回 401。
 - 同步桌面连接向导与 `remote-mobile` 手机服务管理页；手机管理页不应残留一次事件即自动连接的文案。
 - 更新 `scripts/build_macos.py` 的内嵌自检：`smoke_agent` 中完整 Hook 后仍应断言 `automatic_memory` 为 false，并核对 `host_reported`；窗口测试应断言枚举策略与独立 `bound_session_id`，不能再比较 `session_scope == 会话 ID`。三处本机 HTTP 自检辅助函数访问受保护的连接管理接口前，要通过根页面获取界面 Cookie 或使用同进程管理身份，不要关闭鉴权来让自检通过。这些 macOS 打包自检尚未在本次 Windows 环境改写或执行。
 

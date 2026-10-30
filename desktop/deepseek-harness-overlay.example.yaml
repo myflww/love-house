@@ -1,6 +1,0 @@
-# Legacy manual MCP examples are intentionally not pre-enabled.
-# MCP tools alone do not automatically archive a conversation.
-# For passive capture open 爱之屋 → 连接与记忆 → 新建连接 → 检测与应用.
-# The wizard resolves this user's application/profile paths and writes only its own entry.
-# See extensions/deepseek-harness/README.md for portable host-plugin templates.
-[]

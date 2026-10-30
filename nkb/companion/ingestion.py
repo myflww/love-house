@@ -4,6 +4,7 @@ from __future__ import annotations
 from copy import deepcopy
 from hashlib import sha256
 import json
+import math
 import re
 from urllib.parse import urlsplit
 
@@ -99,6 +100,9 @@ def _ingest_event(brain, event):
         draft["source_url"] = _url(event["source_url"])
     if "evidence" in event:
         draft["evidence"] = _json_data(event["evidence"])
+    event_at=(draft.get('evidence') or {}).get('source_event_at')
+    if event_at is not None and (type(event_at) not in (int,float) or not math.isfinite(event_at)):
+        raise ValidationError('来源发生时间必须是有限时间戳或未知')
     if "outcome" in event:
         if event["outcome"] not in ("observed", "success", "failed"):
             raise ValidationError("outcome只能是observed/success/failed")
@@ -160,7 +164,7 @@ def _ingest_event(brain, event):
     if kind == "turn":
         record_turn(brain, user, assistant, session, request, origin=source["origin"],
                     external_session_id=proof_session,source_event_id=proof_event,connection_id=connection,
-                    _defer_recording_annotation=True)
+                    _defer_recording_annotation=True,event_at=event_at)
         node = brain.nodes[nid]
         node["meta"].update(connection_id=connection, external_session_id=proof_session, external_transport_session_id=external_session,
                             external_turn_id=request, origin=source["origin"], ingest_hash=digest)
@@ -168,6 +172,7 @@ def _ingest_event(brain, event):
             node["meta"]["source_url"] = source["source_url"]
         if "evidence" in draft:
             node["meta"]["evidence"] = draft["evidence"]
+            if draft['evidence'].get('source_time_unknown'):node['meta']['source_time_unknown']=True
         from .dedup import annotate_turn_recording,canonical_id
         dedup=annotate_turn_recording(brain,nid,origin=source["origin"],
              external_session_id=proof_session,source_event_id=proof_event,connection_id=connection)
@@ -195,13 +200,15 @@ def _ingest_event(brain, event):
             propose_persona(brain, proposal.get("text"), proposal.get("evidence_ids"), origin="connected_hook")
     else:
         brain.add(("工具观察 · " if kind == "tool" else "人格导入来源 · ") + text.strip().splitlines()[0][:60],
-                  text, kind="episode", id=nid, session_id=session, impact=0, salience=0.55,
+                  text, kind="episode", id=nid, session_id=session, impact=0, salience=0.55,event_at=event_at,
                   meta={"source": "tool_observation" if kind == "tool" else "persona_import_source",
                         **source, "origin": source["origin"], "confirmed": False, "important": False,
                         "outcome": draft.get("outcome", "observed"), "evidence": draft.get("evidence"),
                         "persona_enabled": draft.get("enabled", True),
                         "external_session_id": external_session, "external_turn_id": request,
                         "ingest_hash": digest, "speaker": "tool" if kind == "tool" else "user"})
+        if isinstance(draft.get('evidence'),dict) and draft['evidence'].get('source_time_unknown'):
+            brain.nodes[nid]['meta']['source_time_unknown']=True
         if kind == "persona_import":
             state = import_persona(brain, text, {**source, "evidence_node_id": nid}, enabled=draft.get("enabled", True))
             brain.nodes[nid]["meta"]["persona_revision"] = state["revision"]

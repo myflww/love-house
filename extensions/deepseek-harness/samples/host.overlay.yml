@@ -1,9 +1,0 @@
-# Generated paths must be resolved on the receiving machine by configure.py.
-# No user name, API key or connection token belongs in this public template.
-- insert:
-    - id: neural-knowledge-host-CONNECTION_HASH
-      name: file:///ABSOLUTE/PROFILE/.neural-knowledge/index.js
-      config:
-        managed_by: neural-knowledge-host
-        connection_file: /ABSOLUTE/PROFILE/.neural-knowledge/connection-CONNECTION_HASH.json
-        host_version: 0.2.1-rc.3

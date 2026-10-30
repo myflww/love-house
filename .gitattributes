@@ -1,3 +1,0 @@
-# Release manifests and third-party licence hashes refer to exact bytes.
-# Preserve those same bytes on Windows instead of applying core.autocrlf.
-* -text

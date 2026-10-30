@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 
 from ..errors import ValidationError
 from ..utils import now
-from .memory import build_context, _text, _count, MAX_TEXT
+from .memory import build_context, _text, _count, MAX_TEXT, _source_labels, _platform_recent_turns
 from .persona import persona_state
 
 SCHEMA = "love-house-memory-context/v1"
@@ -110,6 +110,11 @@ def _source_refs(brain, node, atom, stamp):
             return [], False, 0
         ref = {"id": canonical, "source_node_id": source["id"], "role": role,
                "source_event_at": _number(item.get("source_event_at", source.get("event_at", source.get("created"))))}
+        party=_dict(source.get('meta',{}).get('evidence'))
+        ref.update(_source_labels(source))
+        if party.get('participant_scope')=='external_participant':
+            ref['participant_scope']='external_participant'
+            ref['participant_id']=str(party.get('participant_id') or 'unspecified_platform_peer')[:200]
         receipt = _dict(source.get("meta", {}).get("evidence")).get("archive_receipt_id") or item.get("receipt_id")
         outcome=source.get("meta",{}).get("outcome")
         if outcome in ("observed","success","failed"):ref["outcome"]=outcome
@@ -126,6 +131,11 @@ def _source_refs(brain, node, atom, stamp):
         # confirmation remains separate from what role the original material had.
         ref = {"id": node["id"], "role": _role(node),
                "source_event_at": None if meta.get("source_time_unknown") else _number(node.get("event_at", node.get("created")))}
+        party=_dict(meta.get('evidence'))
+        ref.update(_source_labels(node))
+        if party.get('participant_scope')=='external_participant':
+            ref['participant_scope']='external_participant'
+            ref['participant_id']=str(party.get('participant_id') or 'unspecified_platform_peer')[:200]
         receipt = _dict(meta.get("evidence")).get("archive_receipt_id")
         if isinstance(receipt, str) and receipt:
             if receipt in brain.meta.get("memory_tombstones", {}).get("raw_ids", []):
@@ -201,6 +211,9 @@ def _record(brain, node, stamp, library_id):
     if origin == "conversation_turn":
         layer, subject, predicate = "dialogue", "user", "said"
         status, interpretation = "historical_user_statement", "historical_evidence"
+        if any(ref.get('participant_scope')=='external_participant' for ref in refs):
+            subject='platform_participant'
+            status='historical_participant_statement'
     elif origin == "harness_recorded":
         layer, subject, predicate = "suggestion", "agent", "suggested"
         status, interpretation = "agent_suggestion", "unverified_material"
@@ -222,6 +235,9 @@ def _record(brain, node, stamp, library_id):
         status, interpretation = "historical_assistant_statement", "historical_evidence"
     else:
         status, interpretation = "unverified_import", "unverified_material"
+    if origin=='organizer' and any(ref.get('participant_scope')=='external_participant' for ref in refs):
+        if subject=='user':subject='platform_participant'
+        status,interpretation='participant_attributed_material','historical_evidence'
     if meta.get("demo") or brain.meta.get("demo"):
         status, interpretation, domain = "demonstration_material", "unverified_material", "unknown"
     record = {"id": node["id"], "canonical_id": _canonical(brain, node), "layer": layer,
@@ -244,6 +260,12 @@ def _record(brain, node, stamp, library_id):
         record["display"]["text_ref"] = "value"
     if origin == "conversation_turn" and isinstance(meta.get("assistant_reply"), str):
         record["assistant_statement"] = {"role": "assistant", "value": meta["assistant_reply"], "is_user_fact": False}
+    if isinstance(meta.get('experience'),dict):
+        from ..organizer.experiences import project_experience
+        episode=project_experience(brain,node,library_id)
+        if episode is not None:
+            record['experience']=episode
+            record['layer']='experience'
     source_url=_url(meta.get("source_url"))
     if source_url:record["source"]["url"]=source_url
     if meta.get("outcome"):
@@ -318,6 +340,12 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
         raise ValidationError("上下文记忆ID列表不合法")
     ids = list(dict.fromkeys(ids))
     stamp, reasons, records = now(), Counter(), []
+    declared_recent = base_context.get("platform_recent_ids", [])
+    if (not isinstance(declared_recent, list) or len(declared_recent) > 2
+            or any(not isinstance(nid, str) or len(nid) > 200 for nid in declared_recent)):
+        raise ValidationError("平台最近对话ID列表不合法")
+    valid_recent = {n["id"] for n in _platform_recent_turns(brain, query, stamp=stamp, library_id=library_id)}
+    recent_ids = [nid for nid in dict.fromkeys(declared_recent) if nid in ids and nid in valid_recent]
     for nid in ids:
         node = brain.get(nid)
         if node is None:
@@ -329,7 +357,9 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
         else:
             records.append(record)
     priorities = {"current_memory": 0, "historical_evidence": 1, "unverified_material": 2}
-    records.sort(key=lambda r: (priorities[r["interpretation"]], r["epistemic_status"] != "user_confirmed_statement", ids.index(r["id"])))
+    records.sort(key=lambda r: (0 if r["id"] in recent_ids else 1,
+                               recent_ids.index(r["id"]) if r["id"] in recent_ids else 0,
+                               priorities[r["interpretation"]], r["epistemic_status"] != "user_confirmed_statement", ids.index(r["id"])))
     name = str(library_name if library_name is not None else brain.name)[:80]
     identity = {"library_id": library_id, "library_name": name, "agent_id": agent_id or library_id,
                 "identity_source": "explicit_binding" if library_id or agent_id else "unbound",
@@ -418,6 +448,7 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
             if isinstance(message, dict) and message.get("role") == "user" and message.get("content") == old_packet:
                 message["content"] = encoded
     result.update(schema=SCHEMA, memory_context=packet, packet=encoded, memory_ids=included_ids,
+                  platform_recent_ids=[nid for nid in recent_ids if nid in included_ids],
                   hits=[h for h in result.get("hits", []) if h.get("id") in included_ids],
                   baseline=[n for n in result.get("baseline", []) if n.get("id") in included_ids],
                   packet_chars=len(encoded), truncated=packet["truncation"]["truncated"], read_only=True)

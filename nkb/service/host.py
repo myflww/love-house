@@ -5,6 +5,7 @@ import hashlib
 import json
 import threading
 import time
+import uuid
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -33,12 +34,15 @@ def harness_resources():
 class MemoryHost:
     def __init__(self,root,*,with_demo=False,adapter_options=None,key_store=None,organizer_transport=None):
         self.root=Path(root).expanduser().resolve()
+        self.instance_id=uuid.uuid4().hex
         self.manager=LibraryManager(self.root)
         self.adapter_options=dict(adapter_options or {})
         if with_demo and not self.manager.demo_suppressed:
             path=self.root/'framework-example.brain.json'
             if path.exists():self.manager.register_demo(path)
         self.connections=ConnectionStore(self.root)
+        from .agent_sources import AgentSourceRegistry
+        self.sources=AgentSourceRegistry(self.root,self.connections)
         from .usage import UsageJournal
         try:self.usage=UsageJournal(self.root)
         except Exception:self.usage=None  # Auxiliary metadata must not block raw archives.
@@ -138,6 +142,63 @@ class MemoryHost:
         try:
             for offset in range(0,len(ids),1000):self.usage.enqueue(library_id,ids[offset:offset+1000],kind)
         except Exception:pass  # Optional use metadata must not interrupt raw capture.
+    def agent_sources_view(self,library_id):
+        meta=self.library(library_id)
+        registered=self.sources.list(library_id)
+        known={s['connection_id'] for s in registered}
+        legacy=[{k:c.get(k) for k in ('id','name','host','enabled','revoked','archive_status','capture')}
+                for c in self.connections.list(library_id) if c['id'] not in known]
+        return {'agent_id':library_id,'library_id':library_id,'library_name':meta['name'],
+                'is_demo':meta['is_demo'],'sources':registered,'legacy_connections':legacy,
+                'read_only':True,'full_activity_coverage_verified':False,'model_api_key_required':False}
+    def register_agent_source(self,library_id,data):
+        if self.library(library_id)['is_demo']:raise ValidationError('示例不能绑定实际活动来源')
+        if not self.controller_port:raise ValidationError('请先启动本机记忆服务')
+        return self.sources.register(library_id,data,base_url=f'http://127.0.0.1:{self.controller_port}')
+    def agent_source_action(self,library_id,source_id,action,data=None):
+        source=self.sources.get(source_id)
+        if source['library_id']!=library_id:raise ValidationError('活动来源不属于当前 Agent')
+        if action=='config':
+            if data not in (None,{}):raise ValidationError('来源配置只接受空请求，不能选择其他身份或地址')
+            return self.sources.configuration(source_id,base_url=f'http://127.0.0.1:{self.controller_port}')
+        if self.library(library_id)['is_demo']:raise ValidationError('示例不能修改活动来源')
+        data=data or {}
+        if set(data)-{'enabled','confirm'}:raise ValidationError('来源设置含未声明字段')
+        if action=='disconnect' and data.get('confirm') is not True:raise ValidationError('请确认断开该活动来源')
+        return {'source':self.sources.set_enabled(source_id,data.get('enabled',False),disconnect=action=='disconnect')}
+    def experiences_view(self,library_id,*,limit=30):
+        from ..core.brain import Brain
+        from ..organizer.experiences import project_experience,render_experience
+        if type(limit) is not int or not 1<=limit<=100:raise ValidationError('一次展示1至100条经历')
+        brain=Brain(self.snapshot(library_id));entries=[];invalid=0;cache={}
+        def archive(rid):
+            if rid not in cache:
+                try:cache[rid]=self.connections.read_archive(rid,library_id).get('record')
+                except ValidationError:cache[rid]=None
+            return cache[rid]
+        for node in sorted(brain.nodes.values(),key=lambda n:(n.get('event_at') or n.get('created') or 0,n['id']),reverse=True):
+            if not isinstance(node.get('meta',{}).get('experience'),dict):continue
+            episode=project_experience(brain,node,library_id,read_archive=archive)
+            if episode is None:invalid+=1;continue
+            refs=[episode.get(k) for k in ('what','reason','outcome')]+episode.get('participants',[])+episode.get('places',[])
+            platforms=set()
+            for ref in refs:
+                source=brain.get(ref.get('id')) if isinstance(ref,dict) else None
+                ev=(source or {}).get('meta',{}).get('evidence') or {}
+                if isinstance(ev,dict) and isinstance(ev.get('platform'),str):platforms.add(ev['platform'])
+            entries.append({'id':node['id'],'label':str(episode.get('what',{}).get('quote','一次经历')).splitlines()[0][:100],'event_at':episode.get('event_at'),
+                            'recorded_at':node.get('created'),'display':render_experience(episode),'episode':episode,'platforms':sorted(platforms)})
+        raw=sum(n.get('meta',{}).get('source') in ('conversation_turn','tool_observation','history_import') for n in brain.nodes.values())
+        return {'agent_id':library_id,'entries':entries[:limit],'total':len(entries),'more':len(entries)>limit,
+                'source_records':raw,'unavailable_experiences':invalid,'read_only':True,'will_call_model':False,
+                'note':'经历按来源整理；原因和结果缺少证据时保持未知，工具记录只作依据。'}
+    def astrbot_package(self):
+        import importlib.util
+        path=Path(__file__).resolve().parents[2]/'extensions/astrbot-love-house/package.py'
+        if not path.is_file():raise ValidationError('这个安装包未包含 AstrBot 实验适配器，请从项目获取完整版本')
+        spec=importlib.util.spec_from_file_location('_love_house_astrbot_package',path)
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        return module.package_bytes(strict_sdk=True)
     def read_archive(self,library_id,receipt_id):
         tomb=self.snapshot(library_id).get('meta',{}).get('memory_tombstones',{})
         if receipt_id in tomb.get('raw_ids',[]):return None
@@ -357,6 +418,8 @@ class MemoryHost:
                 db.execute('DELETE FROM connections WHERE id=?',(c['id'],))
             raise
     def update_agent_config(self,cid):
+        source=self.sources.for_connection(cid)
+        if source:return self.sources.configuration(source['id'],base_url=f'http://127.0.0.1:{self.controller_port}')
         from .agent_client import make_agent_config
         return make_agent_config(self.root,self.connections.get(cid,secret=True),persist=True)
     def drain_agent_outboxes(self):
@@ -370,6 +433,7 @@ class MemoryHost:
             except Exception:pass
     def agent_tool(self,cid,token,data):
         c=self.connections.authenticate(cid,token)
+        if self.sources.for_connection(cid):raise RequestError('登记的活动来源使用专用事件与上下文接口',403)
         if c['host']!='agent':raise ValidationError('这不是通用Agent记忆连接')
         if not isinstance(data,dict) or set(data)-{'name','arguments'}:raise ValidationError('工具请求不能选择其他库或连接')
         name=data.get('name');args=data.get('arguments',{})
@@ -405,6 +469,16 @@ class MemoryHost:
             return self.accept(cid,token,event_from_tool(name,args))
         raise ValidationError('未知记忆工具；不会执行任意接口或代码')
     def connection_config(self,cid):
+        source=self.sources.for_connection(cid)
+        if source:
+            descriptor=self.sources.configuration(source['id'],base_url=f'http://127.0.0.1:{self.controller_port}')
+            setup=('这个活动来源固定到 '+source['library_id']+'，宿主标识为 '+source['runtime_agent_id']+'。\n'
+                   '在同一台机器的适配器中加载私有文件：'+descriptor['private_path']+'\n'
+                   '这不是通用MCP配置；配置就绪不证明全部行为已采集。')
+            return {'connection':self.connections.get(cid),'source':source,'agent_setup_text':setup,
+                    'host_config':'','configuration_ready':True,'supported':True,'requires_apply':False,
+                    'api_base_url':'','client_api_key':'','source_config':descriptor,'mode':'registered_source',
+                    'instructions':descriptor['instructions']}
         c=self.connections.get(cid);secret=self.connections.get(cid,secret=True)
         if c['revoked']:
             return {'connection':c,'host_config':'','api_base_url':'','configuration_ready':False,
@@ -498,6 +572,7 @@ class MemoryHost:
                             and len(normalized[role])<=40000 for role in ('user','assistant')))
     def accept(self,cid,token,event):
         c=self.connections.authenticate(cid,token)
+        self.sources.check_source_event(c,event)
         if c['host']=='agent':
             if not isinstance(event,dict):raise ValidationError('事件必须是对象')
             record=event.get('record') if isinstance(event.get('record'),dict) else {}
@@ -512,7 +587,9 @@ class MemoryHost:
                 'bound_session_id':None if current['session_scope'] in ('connection','next_session') else current['session_scope']}
     def context(self,cid,token,data):
         from ..companion import connected_session_id
-        c=self.connections.authenticate(cid,token);sid=data.get('session_id')
+        c=self.connections.authenticate(cid,token)
+        data=self.sources.check_context(c,data)
+        sid=data.get('session_id')
         if set(data)-{'query','session_id','max_chars'}:raise ValidationError('连接上下文不能选择其他记忆库')
         if c['host']=='agent':
             self._agent_session_gate(c,sid or ('agent-default' if c['session_scope']=='connection' else None),read=True)
@@ -543,6 +620,18 @@ class MemoryHost:
                     e.setdefault('origin','harness_hook' if outer.get('record',{}).get('schema')=='deepseek-harness-event/v1' else 'api_proxy')
                     e['evidence']={**(e.get('evidence') if isinstance(e.get('evidence'),dict) else {}),'archive_receipt_id':receipt['id'],'raw_event_preserved':True}
                     record=outer.get('record') or {}
+                    source=self.sources.for_connection(receipt['connection_id'])
+                    if source:
+                        e['evidence'].update(platform=outer.get('platform'),source_id=source['id'],
+                            source_runtime_agent_id=source['runtime_agent_id'],source_event_at=outer.get('occurred_at'),
+                            source_time_unknown=outer.get('occurred_at') is None)
+                        if e.get('type')=='turn':
+                            raw=record.get('raw_event') if isinstance(record.get('raw_event'),dict) else {}
+                            details=raw.get('details') if isinstance(raw.get('details'),dict) else {}
+                            sender=details.get('sender_id')
+                            sender=str(sender) if type(sender) in (str,int) else ''
+                            if len(sender)>200 or any(ord(c)<32 for c in sender):sender=''
+                            e['evidence'].update(participant_scope='external_participant',participant_id=sender or 'unspecified_platform_peer')
                     if record.get('schema')=='love-house-agent-tool/v1':
                         for field in ('source_session_id','source_event_id'):
                             if isinstance(record.get(field),str):e[field]=record[field]
@@ -664,11 +753,18 @@ def make_controller(host):
                 if path in ('/','/index.html'):
                     from ..viz.builder import html_for_serve
                     return self._html(html_for_serve())
-                if path=='/api/health':return self._json({'ok':True,'name':'爱之屋记忆服务','version':__version__,'protocol_version':'0.4.0','mode':'storage'})
+                if path=='/api/health':return self._json({'ok':True,'name':'爱之屋记忆服务','version':__version__,'protocol_version':'0.4.0','mode':'storage','controller_instance_id':host.instance_id})
                 if path=='/api/updates':
                     host.updates.start()
                     return self._json(host.updates.status())
                 if path=='/api/retention':return self._json(host.retention_view(self._chosen()))
+                if path=='/api/agent/sources':return self._json(host.agent_sources_view(self._chosen()))
+                if path=='/api/experiences':
+                    from urllib.parse import parse_qs
+                    try:limit=int(parse_qs(parsed.query).get('limit',['30'])[0])
+                    except (ValueError,TypeError):raise ValidationError('经历数量须为1至100的整数') from None
+                    return self._json(host.experiences_view(self._chosen(),limit=limit))
+                if path=='/api/adapters/astrbot/package':return self._respond(host.astrbot_package(),200,'application/zip')
                 if path=='/api/memory/status':
                     lib=host.library(self._chosen())
                     return self._json({'memory_connected':True,'storage':'local','mode':'memory_service',
@@ -743,6 +839,9 @@ def make_controller(host):
                 if path=='/api/updates/check':return self._json(host.updates.request_check())
                 if path=='/api/updates/settings':return self._json(host.updates.settings(data))
                 if path=='/api/retention/settings':return self._json(host.retention_settings(self._chosen(),data))
+                if path=='/api/agent/sources':return self._json(host.register_agent_source(self._chosen(),data))
+                if len(parts)==5 and parts[:3]==['api','agent','sources'] and parts[4] in ('config','enabled','disconnect'):
+                    return self._json(host.agent_source_action(self._chosen(),parts[3],parts[4],data))
                 if path=='/api/sharing/preview':
                     lib=self._chosen();preview=host.sharing.preview(lib)
                     provider=host.organizer_view(lib)['provider']

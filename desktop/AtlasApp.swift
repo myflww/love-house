@@ -47,6 +47,7 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         configuration.websiteDataStore = .nonPersistent()
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
         configuration.userContentController.add(self, name: "saveMemoryFile")
+        configuration.userContentController.add(self, name: "exportAstrBotAdapter")
         webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = self
         webView.uiDelegate = self
@@ -464,6 +465,19 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                     arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
                 try requireSmoke(ruleView?["open"] as? Bool == true && ruleView?["guide"] as? Bool == true, "Organizer guide is not readable in the actual native UI")
                 print("Native 0.7: unlimited personal archive, no TTL, adaptive settings and exact organizer guide verified without model calls")
+                let lifeUI = try await webView.callAsyncJavaScript(
+                    "return {sources:!!document.getElementById('agentSourcesBtn'),experiences:!!document.getElementById('experienceLibraryBtn'),plugin:!!document.getElementById('exportAstrBotPlugin')};",
+                    arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                try requireSmoke(lifeUI?["sources"] as? Bool == true && lifeUI?["experiences"] as? Bool == true && lifeUI?["plugin"] as? Bool == true, "Experience/source controls are missing")
+                let life = try await smokeRequest("api/experiences")
+                try requireSmoke(life["read_only"] as? Bool == true && life["will_call_model"] as? Bool == false, "Experience view is not read-only")
+                let source = try await smokeRequest("api/agent/sources", method:"POST", payload:["name":"原生合成来源","adapter":"sdk","runtime_agent_id":"SYNTHETIC-NATIVE-FISH","platforms":["qq","browser"]])
+                try requireSmoke(source["config_ready"] as? Bool == true && (source["source"] as? [String:Any])?["full_activity_coverage_verified"] as? Bool == false, "Source configuration claimed unsupported coverage")
+                let packageURL = serviceURL!.appendingPathComponent("api/adapters/astrbot/package")
+                let (pluginData, pluginResponse) = try await URLSession.shared.data(from:packageURL)
+                let bundled = try Data(contentsOf:Bundle.main.resourceURL!.appendingPathComponent("Adapters/LoveHouse-AstrBot-0.1.0-experimental.zip"))
+                try requireSmoke((pluginResponse as? HTTPURLResponse)?.statusCode == 200 && pluginData == bundled && pluginData.prefix(2) == Data([0x50,0x4b]), "Experimental adapter export bytes differ from the bundled source package")
+                print("Native 0.8: human experience/source controls, fixed-source registration and exact experimental plugin ZIP verified; no external Agent or model used")
                 let updates = try await smokeRequest("api/updates")
                 try requireSmoke(updates["auto_install"] as? Bool == false && (updates["settings"] as? [String: Any])?["auto_check"] as? Bool == false, "Isolated update preferences did not prevent network checks")
                 let rescue = try await smokeRequest("api/libraries", method: "POST", payload: ["name":"原生聊天导入自检库"])
@@ -605,6 +619,10 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
     // Only the app's own main frame may request a local, user-selected export.
     // The page never supplies an absolute destination or obtains filesystem access.
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "exportAstrBotAdapter" {
+            exportAstrBotAdapter(message)
+            return
+        }
         guard message.name == "saveMemoryFile", message.frameInfo.isMainFrame,
               let origin = message.frameInfo.request.url, origin.scheme == "http",
               origin.host == "127.0.0.1", origin.port == serviceURL?.port,
@@ -632,6 +650,34 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
             guard let json = try? JSONSerialization.data(withJSONObject: result),
                   let literal = String(data: json, encoding: .utf8) else { return }
             self.webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('lovehouse-file-saved',{detail:\(literal)}));", completionHandler: nil)
+        }
+    }
+
+    private func exportAstrBotAdapter(_ message: WKScriptMessage) {
+        guard message.frameInfo.isMainFrame,
+              let origin = message.frameInfo.request.url, origin.scheme == "http",
+              origin.host == "127.0.0.1", origin.port == serviceURL?.port,
+              let body = message.body as? [String: Any],
+              let requestID = body["request_id"] as? String,
+              requestID.range(of: "^[a-zA-Z0-9_-]{1,80}$", options: .regularExpression) != nil,
+              let resource = Bundle.main.resourceURL?.appendingPathComponent("Adapters/LoveHouse-AstrBot-0.1.0-experimental.zip"),
+              let data = try? Data(contentsOf: resource), data.count <= 4 * 1024 * 1024 else { return }
+        let panel = NSSavePanel()
+        panel.title = "导出 AstrBot 实验插件"
+        panel.message = "插件不包含个人记忆或绑定凭证。请按包内 README 安装，并在实际宿主核验。"
+        panel.nameFieldStringValue = "LoveHouse-AstrBot-0.1.0-experimental.zip"
+        panel.allowedContentTypes = [.zip]
+        panel.canCreateDirectories = true
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard let self = self else { return }
+            var result: [String: Any] = ["request_id":requestID,"saved":false,"cancelled":response != .OK]
+            if response == .OK, let url = panel.url {
+                do { try data.write(to:url,options:.atomic); result["saved"] = true }
+                catch { result["error"] = "插件未能保存，请检查目标文件夹。" }
+            }
+            guard let json = try? JSONSerialization.data(withJSONObject:result),
+                  let literal = String(data:json,encoding:.utf8) else { return }
+            self.webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('lovehouse-adapter-exported',{detail:\(literal)}));",completionHandler:nil)
         }
     }
 

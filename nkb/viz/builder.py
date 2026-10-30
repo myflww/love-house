@@ -27,7 +27,7 @@ def template() -> str:
     # Small product components stay local and are inlined for desktop and offline exports.
     # The connection flow is installed before hints so its dynamic buttons receive help.
     components = []
-    for filename in ("connection-ux.js", "library-manager-ui.js", "memory-organizer-ui.js", "memory-portability-ui.js", "dialogue-import-ui.js", "window-handoff-ui.js", "update-checker-ui.js", "retention-ui.js", "organizer-rules-ui.js", "warm-theme.js", "button-hints.js"):
+    for filename in ("connection-ux.js", "library-manager-ui.js", "memory-organizer-ui.js", "memory-portability-ui.js", "dialogue-import-ui.js", "window-handoff-ui.js", "update-checker-ui.js", "retention-ui.js", "organizer-rules-ui.js", "agent-sources-ui.js", "experience-ui.js", "warm-theme.js", "button-hints.js"):
         path = root.joinpath("web/" + filename)
         if path.is_file():
             code = re.sub(r"</script", lambda _: "<\\/script", path.read_text("utf-8"), flags=re.IGNORECASE)

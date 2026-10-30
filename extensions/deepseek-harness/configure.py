@@ -7,11 +7,12 @@ import os
 import plistlib
 import re
 import shutil
+import struct
 import sys
 import time
 from pathlib import Path
 
-SUPPORTED = ("0.2.1-rc.3",)
+SUPPORTED = ("0.2.1-rc.3", "0.2.1-rc.5")
 OWNER = "neural-knowledge-host"
 BEGIN = "# BEGIN NEURAL-KNOWLEDGE-HOST MANAGED\n"
 END = "# END NEURAL-KNOWLEDGE-HOST MANAGED\n"
@@ -51,18 +52,128 @@ def _legacy_entries(profile):
     return found
 
 
+def _path(value):
+    return Path(os.path.expandvars(str(value).strip().strip('"'))).expanduser().resolve()
+
+
+def _windows_registry_apps():
+    """Read installation inventory only; never start Harness or inspect credentials."""
+    if sys.platform != "win32":
+        return []
+    import winreg
+    result = []
+    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        for suffix in ("", "WOW6432Node\\"):
+            try:
+                with winreg.OpenKey(hive, "Software\\" + suffix + "Microsoft\\Windows\\CurrentVersion\\Uninstall") as key:
+                    for index in range(winreg.QueryInfoKey(key)[0]):
+                        try:
+                            with winreg.OpenKey(key, winreg.EnumKey(key, index)) as entry:
+                                name = winreg.QueryValueEx(entry, "DisplayName")[0]
+                                if not isinstance(name, str) or not ("deepseek" in name.lower() and "harness" in name.lower()):
+                                    continue
+                                location = winreg.QueryValueEx(entry, "InstallLocation")[0]
+                                if isinstance(location, str) and location.strip():
+                                    result.append(_path(location))
+                        except OSError:
+                            continue
+            except OSError:
+                continue
+    return result
+
+
+def _app_candidates():
+    if sys.platform == "win32":
+        yield from _windows_registry_apps()
+        roots = [Path.home() / "AppData/Local/Programs", Path.home() / "AppData/Local"]
+        for variable in ("LOCALAPPDATA", "ProgramFiles", "ProgramFiles(x86)"):
+            if os.environ.get(variable):
+                root = _path(os.environ[variable])
+                roots.extend((root / "Programs", root) if variable == "LOCALAPPDATA" else (root,))
+        for root in dict.fromkeys(roots):
+            for name in ("DeepSeek Harness", "deepseek-harness", "@deepseek-ai/dsh-desktop", "dsh-desktop"):
+                yield root / name
+    else:
+        yield Path("/Applications/DeepSeek Harness.app")
+        yield Path.home() / "Applications/DeepSeek Harness.app"
+
+
+def _asar_json(archive, name):
+    """Read a bounded JSON metadata entry directly; no extraction or executable loading."""
+    with archive.open("rb") as stream:
+        prefix = stream.read(16)
+        if len(prefix) != 16:
+            return None
+        pickle_size, header_size, payload_size, json_size = struct.unpack("<4I", prefix)
+        if (pickle_size != 4 or not 8 <= header_size <= 32 * 1024 * 1024
+                or payload_size + 4 != header_size or not 0 < json_size <= header_size - 8):
+            return None
+        header = json.loads(stream.read(json_size))
+        entry = header
+        for part in name.split("/"):
+            entry = entry.get("files", {}).get(part, {})
+        if entry.get("link") or entry.get("unpacked") or type(entry.get("size")) is not int:
+            return None
+        size = entry["size"]
+        offset = int(entry.get("offset", "-1"))
+        start = 8 + header_size + offset
+        if not 0 < size <= 1024 * 1024 or offset < 0 or start + size > archive.stat().st_size:
+            return None
+        stream.seek(start)
+        return json.loads(stream.read(size))
+
+
+def _app_version(app):
+    shell_version, version, source = None, None, None
+    info = app / "Contents/Info.plist"
+    if info.is_file():
+        with info.open("rb") as stream:
+            metadata = plistlib.load(stream)
+        shell_version = metadata.get("CFBundleShortVersionString") or metadata.get("CFBundleVersion")
+    # The packaged runtime version is authoritative. A release shell can carry
+    # an extended build version, which does not change the bundled agent contract.
+    entries = (("dsh/node_modules/@deepseek-ai/dsh-agent/package.json", "@deepseek-ai/dsh-agent"),
+               ("dsh/package.json", "@deepseek-ai/dsh-desktop-runtime"),
+               ("package.json", "@deepseek-ai/dsh-desktop"))
+    for resources in (app / "resources", app / "Contents/Resources"):
+        for name, expected in entries:
+            try:
+                loose = resources / "app" / name
+                data = (json.loads(loose.read_text("utf-8")) if loose.is_file() and loose.stat().st_size <= 1024 * 1024
+                        else _asar_json(resources / "app.asar", name) if (resources / "app.asar").is_file() else None)
+                if isinstance(data, dict) and data.get("name") == expected and isinstance(data.get("version"), str):
+                    value = data["version"]
+                    if expected == "@deepseek-ai/dsh-desktop":
+                        shell_version = value
+                    version, source = value, ("resources/app/" if loose.is_file() else "resources/app.asar/") + name
+                    return version, shell_version, source
+            except (OSError, ValueError, TypeError, AttributeError, RecursionError):
+                continue
+    return shell_version, shell_version, "Contents/Info.plist" if shell_version else None
+
+
 def detect(app_path=None, profile_dir=None):
-    app = Path(app_path).expanduser().resolve() if app_path else next((p for p in (
-        Path("/Applications/DeepSeek Harness.app"), Path.home() / "Applications/DeepSeek Harness.app") if p.exists()), None)
-    version = None
-    if app and (app / "Contents/Info.plist").exists():
-        with (app / "Contents/Info.plist").open("rb") as stream:
-            info = plistlib.load(stream)
-        version = info.get("CFBundleShortVersionString") or info.get("CFBundleVersion")
-    profile = Path(profile_dir).expanduser().resolve() if profile_dir else Path.home() / ".dsh/profiles/desktop"
+    candidates = [_path(app_path)] if app_path else _app_candidates()
+    app, version, shell_version, version_source = None, None, None, None
+    for candidate in candidates:
+        if candidate.is_file() and candidate.suffix.lower() == ".exe":
+            candidate = candidate.parent
+        if not candidate.is_dir():
+            continue
+        try:
+            found_version, found_shell, found_source = _app_version(candidate)
+        except (OSError, ValueError, TypeError, plistlib.InvalidFileException):
+            found_version, found_shell, found_source = None, None, None
+        if found_version or any((candidate / name).exists() for name in ("DeepSeek Harness.exe", "deepseek-harness.exe", "Contents/Info.plist")):
+            app, version, shell_version, version_source = candidate, found_version, found_shell, found_source
+            break
+    home = _path(os.environ["DSH_HOME"]) if os.environ.get("DSH_HOME") else Path.home() / ".dsh"
+    profile = _path(profile_dir) if profile_dir else home / "profiles/desktop"
     return {"detected": app is not None, "app_path": str(app) if app else None,
-            "version": version, "supported": version in SUPPORTED,
+            "version": version, "shell_version": shell_version, "version_source": version_source,
+            "supported": version in SUPPORTED,
             "supported_versions": list(SUPPORTED), "profile_dir": str(profile),
+            "profile_source": "explicit" if profile_dir else "DSH_HOME" if os.environ.get("DSH_HOME") else "desktop-default",
             "profile_exists": (profile / "cordis.yml").exists(),
             "legacy_manual_entries": _legacy_entries(profile),
             "credentials_read": False, "plugin_built": (ROOT / "dist/index.js").exists()}
@@ -112,20 +223,23 @@ def configure(connection_config, apply=False, app_path=None):
     extra = connection_config.get("host_options", {})
     if not isinstance(extra, dict):
         extra = {}
-    detected = detect(app_path, extra.get("profile_dir"))
+    detected = detect(app_path or extra.get("app_path"), extra.get("profile_dir"))
     supplied = connection_config.get("config", connection_config)
     connection = {"connection_id": supplied.get("connection_id", supplied.get("connectionId")),
                   "connection_token": supplied.get("connection_token", supplied.get("connectionToken")),
                   "library_id": supplied.get("library_id", supplied.get("libraryId")),
                   "session_scope": supplied.get("session_scope", supplied.get("sessionScope", "connection")),
+                  "connection_host": supplied.get("connection_host", supplied.get("connectionHost", "harness")),
                   "enabled": connection_config.get("connection", {}).get("enabled", True),
                   "runtime_dir": supplied.get("runtime_dir", supplied.get("runtimeDir", "~/Library/Application Support/NeuralKnowledge/.runtime"))}
     for key in ("base_url", "allow_remote"):
         if key in supplied:
             connection[key] = supplied[key]
+    if connection['connection_host'] not in ('harness','agent'):
+        raise ValueError("宿主插件只支持Harness或Agent连接")
     if any(not isinstance(connection[k], str) or not connection[k].strip() for k in ("connection_id", "connection_token", "library_id")):
         raise ValueError("缺少后端创建的连接标识、token或library_id")
-    profile = Path(extra.get("profile_dir", detected["profile_dir"])).expanduser().resolve()
+    profile = _path(extra.get("profile_dir", detected["profile_dir"]))
     detected.update(profile_dir=str(profile), profile_exists=(profile / "cordis.yml").exists())
     detected["legacy_manual_entries"] = _legacy_entries(profile)
     installation = profile / ".neural-knowledge"
@@ -232,5 +346,5 @@ if __name__ == "__main__":
     if action in ("disable", "enable", "disconnect"):
         result = set_enabled(request, enabled=action == "enable", remove=action == "disconnect", app_path=request.get("app_path"))
     else:
-        result = detect(request.get("app_path")) if action == "detect" else configure(request, apply=action == "apply", app_path=request.get("app_path"))
+        result = detect(request.get("app_path"), request.get("profile_dir")) if action == "detect" else configure(request, apply=action == "apply", app_path=request.get("app_path"))
     print(json.dumps(result, ensure_ascii=False))

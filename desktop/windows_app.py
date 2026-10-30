@@ -218,7 +218,7 @@ def atomic_export(path,data):
 
 class NativeAPI:
     def __init__(self,url):self._url=url;self._window=None;self._saving=threading.Lock()
-    def platform_info(self):return {'platform':'windows','native':True,'renderer':'WebView2','version':__version__,'harness_supported':False}
+    def platform_info(self):return {'platform':'windows','native':True,'renderer':'WebView2','version':__version__,'harness_supported':True}
     def save_memory_file(self,filename,content):
         if not self._saving.acquire(False):return {'saved':False,'cancelled':False,'error':'另一个保存窗口尚未关闭。'}
         try:

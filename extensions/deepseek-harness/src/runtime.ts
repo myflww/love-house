@@ -9,13 +9,14 @@ import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent';
 import type { UserMessage, MessageId } from '@deepseek-ai/dsh-llm';
 
 export const SOURCE_KIND = 'neural-knowledge-context';
-export const SUPPORTED_HOSTS = ['0.2.1-rc.3'];
+export const SUPPORTED_HOSTS = ['0.2.1-rc.3', '0.2.1-rc.5'];
 type JsonObject = Record<string, any>;
 export interface ConnectionConfig {
   connection_id: string; connection_token: string; library_id: string;
   runtime_dir?: string; base_url?: string; allow_remote?: boolean;
   session_scope?: string;
   enabled?: boolean;
+  connection_host?: 'harness' | 'agent';
 }
 export interface AdapterConfig {
   connection_file: string; host_version: string; state_dir?: string;
@@ -131,7 +132,7 @@ export class Controller {
   }
 }
 
-type Turn = { number: number; started: boolean; interrupted: boolean; messages: JsonObject[]; calls: Map<string, string> };
+type Turn = { number: number; started: boolean; interrupted: boolean; messages: JsonObject[]; calls: Map<string, string>; rawEvents?: JsonObject[] };
 const claimsKey = Symbol.for('neural-knowledge.session-claims.v1');
 const sessionClaims: Map<string, string> = ((globalThis as any)[claimsKey] ??= new Map());
 const textOf = (message: JsonObject) => (Array.isArray(message.content) ? message.content : []).filter((block: JsonObject) => block.type === 'text' && typeof block.text === 'string').map((block: JsonObject) => block.text).join('\n');
@@ -195,6 +196,10 @@ export class HostAdapter {
     void this.heartbeat();
     return true;
   }
+  private waitingForAgentWindow(session: Pick<Session, 'id' | 'header'>) {
+    return this.connection.connection_host === 'agent' && this.connection.session_scope === 'next_session'
+      && !this.boundSession && session.header?.origin !== 'subagent';
+  }
   private status() {
     atomicJson(join(this.stateDir, 'status.json'), { library_id: this.connection.library_id, connection_id: this.connection.connection_id,
       queued: this.pending.size, last_error: this.lastError ?? null, delivery: 'accepted means private journal persisted; graph projection may still be pending' });
@@ -235,9 +240,12 @@ export class HostAdapter {
     const input = event as unknown as JsonObject; const data = input.data ?? {};
     const message = input.type === 'user/message' ? data : data.message;
     if (message?.source?.kind === SOURCE_KIND) return;
-    const claim = input.type === 'user/message' && message?.source?.kind === 'user';
-    if (!this.accepts(session, claim)) {
-      if (input.type === 'turn/start' && !this.boundSession) {
+    const agentMode = this.connection.connection_host === 'agent';
+    const deferred = this.waitingForAgentWindow(session);
+    if (agentMode && session.header?.origin === 'subagent') return;
+    const claim = !agentMode && input.type === 'user/message' && message?.source?.kind === 'user';
+    if (!deferred && !this.accepts(session, claim)) {
+      if (!agentMode && input.type === 'turn/start' && !this.boundSession) {
         this.waitingStarts.set(String(session.id), { session: { id: session.id, header: session.header }, event });
         if (this.waitingStarts.size > 64) this.waitingStarts.delete(this.waitingStarts.keys().next().value!);
       }
@@ -246,10 +254,14 @@ export class HostAdapter {
     const kinds = ['turn/start', 'turn/end', 'step/start', 'step/end', 'user/message', 'assistant/message', 'assistant/attempt', 'tool/call', 'tool/result', 'system/message', 'developer/message'];
     if (!kinds.includes(input.type)) return; // Never collect credential/config/request-header snapshots.
     const sid = String(session.id); const turnNumber = Number.isInteger(data.turn) ? data.turn : (this.turns.get(sid)?.number ?? -1);
-    if (input.type === 'turn/start') this.turns.set(sid, { number: turnNumber, started: true, interrupted: false, messages: [], calls: new Map() });
+    if (input.type === 'turn/start') {
+      this.turns.set(sid, { number: turnNumber, started: true, interrupted: false, messages: [], calls: new Map(), ...(deferred ? { rawEvents: [] } : {}) });
+      if (deferred && this.turns.size > 64) this.turns.delete(this.turns.keys().next().value!);
+    }
     let turn = this.turns.get(sid);
     if (!turn) { turn = { number: turnNumber, started: false, interrupted: false, messages: [], calls: new Map() }; this.turns.set(sid, turn); }
     const redacted: string[] = []; const raw = sanitize(input, redacted);
+    if (deferred) (turn.rawEvents ??= []).push(raw);
     const record: JsonObject = { schema: 'deepseek-harness-event/v1', host_id: this.hostId, host_version: this.config.host_version,
       raw_event: raw, session_origin: session.header?.origin ?? 'root', ...(redacted.length ? { redacted_fields: redacted } : {}) };
     if (input.type === 'tool/call') turn.calls.set(String(data.callId), String(data.name));
@@ -271,6 +283,16 @@ export class HostAdapter {
         assistant: turn.messages.filter(m => m.role === 'assistant').map(textOf).join('\n\n'), messages: turn.messages };
       this.turns.delete(sid);
     }
+    if (deferred) {
+      // A generic MCP connection is enrolled only by a complete real host turn.
+      // Keep candidate windows in memory until then: no raw outbox files, no
+      // premature identity claim and no rejected start event blocking the queue.
+      if (record.normalized?.type !== 'turn' || record.normalized.status !== 'complete'
+          || !record.normalized.user?.trim() || !record.normalized.assistant?.trim()) return;
+      if (!this.accepts(session, true)) return;
+      record.raw_events = turn.rawEvents;
+      this.turns.clear();
+    }
     this.enqueue({ session_id: sid, event_id: hash(`${this.hostId}\0${sid}\0${input.seq}\0${input.type}`),
       event_type: input.type, seq: input.seq, time: input.time, record });
   }
@@ -279,7 +301,8 @@ export class HostAdapter {
     if (decision.kind !== 'enter' || this.disposed || !this.isEnabled() || payload.signal.aborted || this.injected.get(String(payload.agent.session.id)) === payload.turn) return decision;
     const human = decision.messages.filter(message => message.source.kind === 'user');
     if (!human.length || decision.messages.some(message => message.source.kind === SOURCE_KIND)) return decision;
-    if (!this.accepts(payload.agent.session, true)) return decision;
+    if (this.connection.connection_host === 'agent' && payload.agent.session.header?.origin === 'subagent') return decision;
+    if (!this.waitingForAgentWindow(payload.agent.session) && !this.accepts(payload.agent.session, true)) return decision;
     const query = human.map(message => textOf(message as unknown as JsonObject)).join('\n').slice(-40000) || '[用户输入包含附件引用；没有可采集的文字]';
     try {
       const context = await this.controller.send('context', { session_id: String(payload.agent.session.id), query });

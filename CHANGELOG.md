@@ -1,3 +1,9 @@
+## 0.5.1rc2 — Windows Harness connection repair (unreleased)
+
+- Enable the DeepSeek Harness connection wizard on Windows and inspect the installed runtime version from official Electron package metadata. Support standard user/system install locations, registry locations, custom executable paths, and a custom Harness profile.
+- Let existing generic MCP connections install the Harness automatic capture plugin while retaining the same connection, library, identity, and session scope.
+- Keep detection read-only, back up host configuration before installation, persist installation paths per connection, and verify capture only after a real completed dialogue is saved.
+
 # 变更记录
 
 ## 未发布 · Windows 启动与离线依赖修复

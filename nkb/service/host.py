@@ -221,10 +221,10 @@ class MemoryHost:
             try:
                 for c in self.connections.list(library_id):
                     if c['revoked']:continue
-                    config=self.connection_config(c['id'])
+                    config=self.harness_connection_config(c['id']) if c['host']=='agent' and c.get('configured_at') else self.connection_config(c['id'])
                     self.connections.toggle(c['id'],False,disconnect=True)
                     if c['host']=='agent':self.update_agent_config(c['id'])
-                    if c['host']=='harness' and c.get('configured_at'):
+                    if c['host'] in ('harness','agent') and c.get('configured_at'):
                         import importlib.util
                         path=harness_resources()/'configure.py'
                         try:
@@ -315,6 +315,29 @@ class MemoryHost:
             from .agent_client import event_from_tool
             return self.accept(cid,token,event_from_tool(name,args))
         raise ValidationError('未知记忆工具；不会执行任意接口或代码')
+    def harness_connection_config(self,cid):
+        """Private installer input; public Agent setup never contains its token."""
+        c=self.connections.get(cid);secret=self.connections.get(cid,secret=True)
+        if c['host'] not in ('harness','agent') or c['revoked']:
+            raise ValidationError('此连接不能安装Harness自动上报')
+        return {'connection':c,'config':{'connectionId':cid,'connectionToken':secret['token'],
+                'libraryId':c['library_id'],'sessionScope':c['session_scope'],
+                'connectionHost':c['host'],'runtimeDir':str(self.root/'.runtime')},
+                'host_options':{**self.adapter_options,**self.connections.host_options(cid)}}
+    def agent_harness_capture(self,cid):
+        """Offer the real Harness installer on an existing MCP connection."""
+        import importlib.util
+        c=self.connections.get(cid);helper=harness_resources()/'configure.py'
+        plan={}
+        if helper.is_file():
+            spec=importlib.util.spec_from_file_location('nkb_agent_harness_plan',helper)
+            module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+            plan=module.configure(self.harness_connection_config(cid),apply=False)
+        return {'supported':bool(plan.get('supported')),'configured':bool(c.get('configured_at')),
+                'detected':plan.get('detected',{}),'setup':plan,
+                'configure_endpoint':'/api/connections/'+cid+'/configure',
+                'requires_harness_reload':True,'preserves_connection':True,
+                'instructions':'如果这个Agent运行在DeepSeek Harness，安装宿主自动上报插件并重载Harness；沿用当前连接和存档。首轮完整真实对话落盘后才显示已自动存档。'}
     def connection_config(self,cid):
         c=self.connections.get(cid);secret=self.connections.get(cid,secret=True)
         if c['revoked']:
@@ -334,9 +357,11 @@ class MemoryHost:
             if c['session_scope']=='connection':
                 setup=setup.replace('默认只接收首个真实完整hook绑定的窗口。尚未绑定时，手动补录不抢占窗口；其他窗口不记录。',
                     '当前配置采用高级整连接范围，可能记录多个窗口。若只需要一个窗口，请在爱之屋新建单窗口连接；不要把此配置说成仅限一个窗口。')
+            setup+='\n\n如果当前Agent运行在官方DeepSeek Harness，请回到爱之屋的此连接页点击“安装 Harness 自动上报”。只配置MCP不会自动产生每轮记录；此操作沿用本连接、存档和窗口范围，不创建新身份。'
             return {'connection':c,**bundle,'host_config':code,'agent_setup_text':setup,'api_base_url':'','client_api_key':'',
                     'configuration_ready':Path(bundle['private_path']).is_file(),'requires_apply':False,'supported':True,
-                    'instructions':'复制给具备本机MCP/工具配置能力的Agent；自动每轮记录还需要真实宿主钩子。'}
+                    'auto_capture':{'harness':self.agent_harness_capture(cid)},
+                    'instructions':'DeepSeek Harness请安装同一连接的宿主自动上报；其他宿主需要其真实轮次结束钩子。'}
         base=f'http://127.0.0.1:{self.controller_port}'
         config={'connectionId':cid,'connectionToken':secret['token'],'libraryId':c['library_id'],
                 'sessionScope':c['session_scope'],'runtimeDir':str(self.root/'.runtime')}
@@ -347,17 +372,18 @@ class MemoryHost:
                  +''.join('        '+k+': '+json.dumps(v,ensure_ascii=False)+'\n' for k,v in config.items()))
         setup=None
         helper=plugin.parent.parent/'configure.py'
+        adapter_options={**self.adapter_options,**self.connections.host_options(cid)}
         if c['host']=='harness' and helper.exists():
             import importlib.util
             spec=importlib.util.spec_from_file_location('nkb_harness_plan',helper)
             module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-            setup=module.configure({'connection':c,'config':config,'host_options':self.adapter_options},apply=False)
+            setup=module.configure({'connection':c,'config':config,'host_options':adapter_options},apply=False)
             overlay=setup.get('overlay',overlay)
         return {'connection':c,'provider':self.providers.public(cid) if c['host']=='api' else None,
                 'client_api_key':secret['token'] if c['host']=='api' else '',
                 'host_config':overlay if c['host']=='harness' else base+'/connections/'+cid+'/v1',
                 'api_base_url':base+'/connections/'+cid+'/v1','config':config,
-                'host_options':self.adapter_options,
+                'host_options':adapter_options,
                 'setup':setup,'supported': bool(setup and setup.get('supported')) if c['host']=='harness' else True,
                 'requires_apply':c['host']=='harness' and not bool(c.get('configured_at')),
                 'configuration_ready':c['host']=='api' or bool(c.get('configured_at')),
@@ -398,13 +424,19 @@ class MemoryHost:
         if scope=='next_session':self.update_agent_config(current['id'])
         return None
     @staticmethod
-    def _agent_claimable_turn(event):
+    def _agent_claimable_turn(event,*,harness_installed=False):
         if not isinstance(event,dict):return False
         record=event.get('record') if isinstance(event.get('record'),dict) else {}
         normalized=event.get('normalized') or record.get('normalized')
-        return bool(record.get('schema')=='love-house-agent-hook/v1' and isinstance(normalized,dict)
+        generic=record.get('schema')=='love-house-agent-hook/v1' and isinstance(normalized,dict) and normalized.get('origin')=='agent_host_hook'
+        raw=record.get('raw_event') if isinstance(record.get('raw_event'),dict) else {}
+        data=raw.get('data') if isinstance(raw.get('data'),dict) else {}
+        reason=data.get('reason') if isinstance(data.get('reason'),dict) else {}
+        harness=(harness_installed and record.get('schema')=='deepseek-harness-event/v1'
+                 and event.get('event_type')=='turn/end' and raw.get('type')=='turn/end'
+                 and reason.get('kind')=='completed' and record.get('session_origin','root')!='subagent')
+        return bool((generic or harness) and isinstance(normalized,dict)
                     and normalized.get('type')=='turn' and normalized.get('status')=='complete'
-                    and normalized.get('origin')=='agent_host_hook'
                     and all(isinstance(normalized.get(role),str) and bool(normalized[role].strip())
                             and len(normalized[role])<=40000 for role in ('user','assistant')))
     def accept(self,cid,token,event):
@@ -412,8 +444,8 @@ class MemoryHost:
         if c['host']=='agent':
             if not isinstance(event,dict):raise ValidationError('事件必须是对象')
             record=event.get('record') if isinstance(event.get('record'),dict) else {}
-            rejected=self._agent_session_gate(c,event.get('session_id'),claim=self._agent_claimable_turn(event),
-                                               automatic=record.get('schema')=='love-house-agent-hook/v1')
+            rejected=self._agent_session_gate(c,event.get('session_id'),claim=self._agent_claimable_turn(event,harness_installed=bool(c.get('configured_at'))),
+                                               automatic=record.get('schema') in ('love-house-agent-hook/v1','deepseek-harness-event/v1'))
             if rejected:return rejected
         result=self.connections.receive(c,event)
         self.process_pending()
@@ -592,17 +624,28 @@ def make_controller(host):
             path=harness_resources()/'configure.py'
             if not path.exists():return {'detected':False,'supported':False,'message':'适配器正在准备，可使用兼容API接入'}
             spec=importlib.util.spec_from_file_location('nkb_harness_configure',path);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+            options={}
+            for key in ('app_path','profile_dir'):
+                value=(data or {}).get(key)
+                if value is not None:
+                    if not isinstance(value,str) or not value.strip() or len(value)>4096 or '\x00' in value:
+                        raise RequestError('宿主路径须为有效的本机文件或目录',400)
+                    options[key]=value.strip()
             if action=='detect':
-                result=module.detect((data or {}).get('app_path'),host.adapter_options.get('profile_dir'))
-                if host.adapter_options.get('profile_dir'):
+                result=module.detect(options.get('app_path',host.adapter_options.get('app_path')),options.get('profile_dir',host.adapter_options.get('profile_dir')))
+                if 'profile_dir' not in result and host.adapter_options.get('profile_dir'):
                     result['profile_dir']=host.adapter_options['profile_dir']
                     result['profile_exists']=(Path(result['profile_dir'])/'cordis.yml').exists()
                 return result
-            config=host.connection_config(cid)
-            try:result=module.configure(config,apply=(data or {}).get('apply') is True,app_path=(data or {}).get('app_path'))
+            config=host.harness_connection_config(cid)
+            config['host_options']={**config.get('host_options',{}),**options}
+            try:result=module.configure(config,apply=(data or {}).get('apply') is True,app_path=config['host_options'].get('app_path'))
             except ValueError as exc:raise RequestError(str(exc)[:300],400) from None
             except OSError:raise RequestError('无法写入宿主配置；原有配置与凭据已保留，请检查目录权限',503) from None
-            if result.get('applied') is True:host.connections.configured(cid)
+            if result.get('applied') is True:
+                detected=result.get('detected',{})
+                saved={key:detected[key] for key in ('app_path','profile_dir') if detected.get(key)}
+                host.connections.configured(cid,host_options=saved)
             return result
         def do_POST(self):
             try:
@@ -703,19 +746,21 @@ def make_controller(host):
                         if data.get('confirm') is not True:raise ValidationError('请先预览并确认恢复为新库')
                         return self._json(host.backups.restore(parts[2],self._chosen(),data.get('name')))
                 if path=='/api/connections':return self._json(host.new_connection(data))
+                if path=='/api/adapters/harness/detect':return self._json(self._adapter('detect',data=data))
                 if len(parts)==4 and parts[:2]==['api','connections']:
                     cid,action=parts[2:]
                     if action in ('enabled','disconnect'):
                         config=host.connection_config(cid)
+                        harness_config=host.harness_connection_config(cid) if config['connection']['host']=='agent' and config['connection'].get('configured_at') else config
                         changed=host.connections.toggle(cid,data.get('enabled',False),disconnect=action=='disconnect')
                         result={'connection':changed}
                         if changed['host']=='agent':host.update_agent_config(cid)
-                        if changed['host']=='harness' and config.get('configuration_ready'):
+                        if changed['host'] in ('harness','agent') and changed.get('configured_at'):
                             import importlib.util
                             path=harness_resources()/'configure.py'
                             try:
                                 spec=importlib.util.spec_from_file_location('nkb_harness_pause',path);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-                                result['host_change']=module.set_enabled(config,changed['enabled'],remove=action=='disconnect')
+                                result['host_change']=module.set_enabled(harness_config,changed['enabled'],remove=action=='disconnect')
                             except Exception:
                                 result['warning']='服务端已暂停接收；宿主侧停用尚未确认，请重载或移除本连接插件。'
                         return self._json(result)

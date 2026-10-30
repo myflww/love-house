@@ -3,7 +3,7 @@
 此扩展监听真正的宿主事件，不依赖模型决定是否调用记忆 MCP 工具。星图服务只接收和保存记录，
 宿主继续负责对话、模型调用与网页操作。每个连接由服务端固定绑定独立记忆库，切换星图界面不会改变归档目标。
 
-支持 **DeepSeek Harness 0.2.1-rc.3 / Cordis 4.0.5 / Node ≥24.9**。契约来自官方 npm 精确版本的公开类型：
+支持 **DeepSeek Harness 0.2.1-rc.3、0.2.1-rc.5 / Cordis 4.0.5 / Node ≥24.9**。契约来自官方 npm 精确版本的公开类型：
 
 - `@deepseek-ai/dsh-session@0.2.1-rc.3`：`session/event(session,event)`，在提交后发布原始日志事件。
 - `@deepseek-ai/dsh-agent@0.2.1-rc.3`：`agent/pre-step(payload,next)`，用真实上下文替换本步消息。
@@ -11,13 +11,16 @@
 
 官方仓库当前 master `f3803c96974ad4a94195fb97e5c637e9c2a3afe3` 也经过源码审阅，但不据此声称已验证所有后续版本。
 精确来源及支持矩阵见 `host-contract.json`。加载方式使用官方 Cordis 文件模块和 Overlay，未修改或替换 Harness asar。
+2026-10-30 逐文件核对 rc.5 的 `dsh-agent/session/llm/scope` 官方 npm 包：除 `package.json` 中的
+精确版本字符串，94 个文件与 rc.3 完全一致；在独立 rc.5 SDK 依赖中通过同一套 13 项真实
+Cordis/SessionStore 与插件测试，包括完整轮次上报、会话隔离和离线恢复。校验来源和散列留在支持矩阵中。
 
 ## 快速配置
 
 通过知识星图向导选择库和连接，生成计划，再应用。`configure.py` 提供控制器直接调用的标准库入口：
 
 ```python
-detect(app_path=None)
+detect(app_path=None, profile_dir=None)
 configure(connection_config, apply=False, app_path=None)  # 仅读取元数据、返回计划
 configure(connection_config, apply=True, app_path=None)   # 备份后添加本连接条目
 set_enabled(connection_config, enabled=False, remove=False, app_path=None)
@@ -26,6 +29,14 @@ set_enabled(connection_config, enabled=False, remove=False, app_path=None)
 控制器入参 `config` 支持 `connectionId/connectionToken/libraryId/sessionScope/runtimeDir`。
 也接受 snake_case。可通过 `host_options.profile_dir` 明确选择另一个 profile。
 默认路径由当前用户 home 和实际 App 路径推导，项目和公开模板没有个人用户名。
+
+桌面向导调用 Python 配置器：Windows 会检查卸载注册表中的 `InstallLocation` 和常见安装目录，
+也接受安装目录或 `DeepSeek Harness.exe` 的明确路径。版本从 `resources/app.asar` 或未打包的
+`resources/app` 内的官方 package 元数据读取；不会启动宿主、解包/修改 asar，或读取 credentials。
+默认 profile 是 `$DSH_HOME/profiles/desktop`（设置 `DSH_HOME` 时）或 `~/.dsh/profiles/desktop`，
+自定义 profile 需明确指定。检测和计划均只读；应用成功才把两个路径保存到当前连接，重启和暂停复用此绑定。
+发现程序与版本不代表已经自动存档，未验证的宿主版本仍需契约验证；插件收到真实完整轮次回执后才算接通。
+独立 Node `dist/configure.js` CLI 的自动探测目前仍限 macOS；Windows 请使用桌面向导/Python 配置器。
 
 每个连接有独立 hash 条目、标记块、Overlay、私有连接文件和 outbox。安装 A、安装 B、重新配置 A 不会删除 B。
 配置器只更新自己的标记块，先备份既有 patch；其他配置字节保留，不读取或修改 Harness credentials。
@@ -78,7 +89,7 @@ set_enabled(connection_config, enabled=False, remove=False, app_path=None)
 需将客户端 provider 流量明确路由到它。它只能看到经过代理的 provider 请求/回复，
 没有原生窗口身份时使用明确配置的 proxy namespace，不能观察未回传 provider 的工具结果。
 因此它始终标记 wire-only / partial，不冒充完整宿主自动存档；暂停时继续透明透传，停止注入和归档。
-正常 rc.3 用户应选择宿主插件方式。此项目不会自行更换模型、读取 provider API key 或发起付费模型测试。
+正常 rc.3/rc.5 用户应选择宿主插件方式。此项目不会自行更换模型、读取 provider API key 或发起付费模型测试。
 
 ## 构建与离线验收
 

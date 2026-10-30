@@ -18,6 +18,9 @@ mkdir -p build/android-remote
 # its synthetic evidence before then using UiAutomation, without adding any
 # production or QA storage permission. Preserve diagnostics even on failure.
 adb pull /data/local/tmp/love-house-remote-qa build/android-remote/native-output || true
+if [[ -f "$ANDROID_REMOTE_FIXTURE_ROOT/origin-diagnostics.jsonl" ]]; then
+  cp "$ANDROID_REMOTE_FIXTURE_ROOT/origin-diagnostics.jsonl" build/android-remote/
+fi
 if [[ $instrumentation_exit -ne 0 ]]; then exit "$instrumentation_exit"; fi
 python scripts/check_android_test_results.py --reports "$qa_project/build/outputs/androidTest-results/connected"
 for file in android-remote-gateway.json android-tls-rejection.json android-remote-gateway.png; do

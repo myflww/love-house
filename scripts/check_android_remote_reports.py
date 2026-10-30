@@ -31,7 +31,10 @@ def check(directory, api_level):
                 'host_hook_saved','foreign_window_excluded','original_user_readback','original_assistant_readback','agent_admin_isolation'):
         require(result.get(key) is True,'Missing real HTTPS interaction proof: '+key)
     require(state.get('node_count')==1 and state.get('original_user_saved') is True and state.get('original_assistant_saved') is True,'The actual MemoryHost did not retain exact synthetic dialogue')
-    require(any(c.get('archive_status')=='automatic_connected' and c.get('scope')==result.get('actual_window') for c in state.get('connections',[])),'Actual service scope and capture state disagree')
+    require(isinstance(result.get('actual_window'),str) and bool(result['actual_window']),'Actual host window identity is missing')
+    require(any(c.get('archive_status')=='host_reported' and c.get('scope')=='next_session'
+                and c.get('bound_session_id')==result['actual_window'] and c.get('automatic_memory') is False
+                for c in state.get('connections',[])),'Actual service scope and conditional capture state disagree')
     require(fixture.get('public_ca_only') is True and fixture.get('production_app_modified') is False,'Test trust entered the wrong package')
     require('io.github.myflww.lovehouse.preview' in permissions and 'android.permission.INTERNET' not in permissions,'Production APK gained network permission or its manifest was not checked')
     require(bool(apk_entries.strip()) and not any(name in apk_entries for name in ('remote_test_ca','remote_qa_network_security','remoteqa/RemoteGateway')),'Production APK contains test-only trust/host resources or its entries were not checked')

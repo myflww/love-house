@@ -603,8 +603,8 @@
     },
     {
       "path": "docs/MACOS-080RC2-WORKBUDDY-HANDOFF.md",
-      "bytes": 4624,
-      "sha256": "60ad4366529656e924d13315f24d5e21b40b9bcf8a6c00cd2e0aa862ab4fde1f"
+      "bytes": 5188,
+      "sha256": "a2239a22f7ee90c978dddbad033123a71e11072f58b15156e7d9f8cf0f00d9e1"
     },
     {
       "path": "docs/PRIVATE-REMOTE-MEMORY.md",
@@ -1668,8 +1668,8 @@
     },
     {
       "path": "scripts/check_android_remote_reports.py",
-      "bytes": 3753,
-      "sha256": "1313597e6bbd4a911b86e3a08379ca3a27003e4c7aef9a59e013b37d085bf351"
+      "bytes": 4004,
+      "sha256": "89ee0c3007f16d351897314fd169d8b7a79e6491586e5b44798fba16fdffc574"
     },
     {
       "path": "scripts/check_android_test_results.py",
@@ -1853,8 +1853,8 @@
     },
     {
       "path": "tests/test_agent_sources.py",
-      "bytes": 16841,
-      "sha256": "c2b6a94427b469780092fb70571bdc8ad487af8470f4ff52e7141dd60434215c"
+      "bytes": 16838,
+      "sha256": "4827b22fecc344ce09210ff47ee57a07a575116651796955bdb407c3404ff64c"
     },
     {
       "path": "tests/test_agent_sources_ui.py",

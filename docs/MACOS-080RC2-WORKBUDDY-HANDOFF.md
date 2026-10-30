@@ -21,6 +21,7 @@ git diff v0.8.0rc1..origin/codex/workbuddy-connect-080rc2 -- nkb/service desktop
 - 重新绑定必须由管理界面明确确认；保留历史记忆，作废旧连接凭据，重新生成目标窗口配置。旧窗口不得继续写入。
 - 本地连接管理 API 的会话鉴权、远程管理已有认证和 CSRF 保护必须一起同步。此举阻止匿名 API 枚举，不承诺抵御能够以同一用户运行并打开本地管理界面的恶意进程。
 - 同步桌面连接向导与 `remote-mobile` 手机服务管理页；手机管理页不应残留一次事件即自动连接的文案。
+- 更新 `scripts/build_macos.py` 的内嵌自检：`smoke_agent` 中完整 Hook 后仍应断言 `automatic_memory` 为 false，并核对 `host_reported`；窗口测试应断言枚举策略与独立 `bound_session_id`，不能再比较 `session_scope == 会话 ID`。三处本机 HTTP 自检辅助函数访问受保护的连接管理接口前，要通过根页面获取界面 Cookie 或使用同进程管理身份，不要关闭鉴权来让自检通过。这些 macOS 打包自检尚未在本次 Windows 环境改写或执行。
 
 ## macOS 上必须完成的验收
 
@@ -45,6 +46,6 @@ python3 scripts/build_macos.py
 
 ## 证据与限制
 
-Windows 与移动候选的最终构建号、源码提交和 CI 结果以本分支发布说明 `docs/releases/windows-mobile-0.8.0rc2.md` 为准。本文件不是 macOS 新安装包的验收证明；macOS 原生 `.app`、macOS WorkBuddy 及 iPhone 真机仍需由接手电脑验证。现有 macOS 下载不得在完成上述验收前改标为已包含本次修复。
+Windows 与移动候选的最终构建号、源码提交和 CI 结果以本分支发布说明 `docs/RELEASE-080RC2.md` 及发布附件 `WorkBuddy-080rc2-verification.json` 为准。本文件不是 macOS 新安装包的验收证明；macOS 原生 `.app`、macOS WorkBuddy 及 iPhone 真机仍需由接手电脑验证。现有 macOS 下载不得在完成上述验收前改标为已包含本次修复。
 
 用户复盘只作为诊断依据。本文已省略其真实连接、会话与记忆库标识，以及本机临时路径。

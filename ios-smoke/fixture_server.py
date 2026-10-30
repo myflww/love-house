@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Real isolated RemoteGateway for native mobile-engine QA; no public deployment."""
 from __future__ import annotations
+import faulthandler
+faulthandler.enable()
+faulthandler.dump_traceback_later(20,repeat=True)
+print("fixture: interpreter entered; loading standard library",flush=True)
 import argparse,json,os,signal,ssl,subprocess,threading,time
 from pathlib import Path
 from http.server import ThreadingHTTPServer
@@ -21,18 +25,26 @@ def mint(directory):
 
 def main():
  parser=argparse.ArgumentParser();parser.add_argument('--root',type=Path,required=True);args=parser.parse_args();root=args.root.resolve();root.mkdir(parents=True,exist_ok=True)
+ print('fixture: importing actual backend',flush=True)
  from nkb.service.credentials import KeyStore
  from nkb.service.host import MemoryHost,make_controller
  from nkb.service.remote_gateway import RemoteGateway,create_server
- ca,cert,key=mint(root/'tls');host=MemoryHost(root/'memory',key_store=KeyStore(allow_keychain=False))
+ print('fixture: minting isolated CA and TLS certificate',flush=True)
+ ca,cert,key=mint(root/'tls')
+ print('fixture: creating isolated MemoryHost',flush=True)
+ host=MemoryHost(root/'memory',key_store=KeyStore(allow_keychain=False))
+ print('fixture: creating loopback controller',flush=True)
  controller=ThreadingHTTPServer(('127.0.0.1',0),make_controller(host));host.controller_port=controller.server_port
  ct=threading.Thread(target=controller.serve_forever,kwargs={'poll_interval':.05});ct.start()
+ print('fixture: creating actual HTTPS gateway',flush=True)
  gateway=RemoteGateway(host,origin='https://127.0.0.1',admin_token=ADMIN)
  context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.minimum_version=ssl.TLSVersion.TLSv1_2;context.load_cert_chain(cert,key)
  server=create_server(gateway,tls_context=context);origin='https://127.0.0.1:'+str(server.server_port);gateway.origin=origin;gateway.authority='127.0.0.1:'+str(server.server_port)
  gt=threading.Thread(target=server.serve_forever,kwargs={'poll_interval':.05});gt.start();stopping=threading.Event()
  for sig in (signal.SIGINT,signal.SIGTERM):signal.signal(sig,lambda *_:stopping.set())
  (root/'ready.json').write_text(json.dumps({'origin':origin,'root_ca':str(ca),'backend_version':__import__('nkb._version',fromlist=['__version__']).__version__,'fixture':'synthetic_only_no_model_credentials'}),encoding='utf-8')
+ faulthandler.cancel_dump_traceback_later()
+ print('fixture: ready',flush=True)
  try:
   while not stopping.wait(.5):
    snapshot=host.snapshot('default');text=json.dumps(snapshot,ensure_ascii=False);connections=host.connections.list()

@@ -11,6 +11,8 @@ def check(directory, api_level):
     negative=json.loads((directory/'android-tls-rejection.json').read_text())
     state=json.loads((directory/'service-state.json').read_text())
     fixture=json.loads((directory/'fixture.json').read_text())
+    permissions=(directory/'production-permissions.txt').read_text()
+    apk_entries=(directory/'production-apk-entries.txt').read_text()
     def require(condition,message):
         if condition is not True:raise ValueError(message)
     for report in (positive,negative):
@@ -31,6 +33,8 @@ def check(directory, api_level):
     require(state.get('node_count')==1 and state.get('original_user_saved') is True and state.get('original_assistant_saved') is True,'The actual MemoryHost did not retain exact synthetic dialogue')
     require(any(c.get('archive_status')=='automatic_connected' and c.get('scope')==result.get('actual_window') for c in state.get('connections',[])),'Actual service scope and capture state disagree')
     require(fixture.get('public_ca_only') is True and fixture.get('production_app_modified') is False,'Test trust entered the wrong package')
+    require('io.github.myflww.lovehouse.preview' in permissions and 'android.permission.INTERNET' not in permissions,'Production APK gained network permission or its manifest was not checked')
+    require(bool(apk_entries.strip()) and not any(name in apk_entries for name in ('remote_test_ca','remote_qa_network_security','remoteqa/RemoteGateway')),'Production APK contains test-only trust/host resources or its entries were not checked')
     print('Actual Android API '+str(api_level)+' WebView: TLS rejection/trust, portal, MCP, hook, exact roles, window and admin boundaries passed.')
 
 

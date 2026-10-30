@@ -39,10 +39,11 @@ jobs:
     env:
       PYTHONUTF8: '1'
       PYTHONDONTWRITEBYTECODE: '1'
-      ANDROID_REMOTE_FIXTURE_ROOT: ${{ runner.temp }}/love-house-android-remote
       ANDROID_REMOTE_API_LEVEL: ${{ matrix.api-level }}
     steps:
       - uses: actions/checkout@v4
+      - name: Configure the isolated fixture directory after runner allocation
+        run: printf 'ANDROID_REMOTE_FIXTURE_ROOT=%s/love-house-android-remote\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - name: Check out the actual desktop memory backend separately
         uses: actions/checkout@v4
         with:
@@ -92,7 +93,8 @@ jobs:
           apk='android/app/build/outputs/apk/release/app-release-unsigned.apk'
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump permissions "$apk" > build/android-remote/production-permissions.txt
           if grep -F 'android.permission.INTERNET' build/android-remote/production-permissions.txt; then exit 1; fi
-          if unzip -Z1 "$apk" | grep -E 'remote_test_ca|remote_qa_network_security|remoteqa/RemoteGateway'; then exit 1; fi
+          unzip -Z1 "$apk" > build/android-remote/production-apk-entries.txt
+          if grep -E 'remote_test_ca|remote_qa_network_security|remoteqa/RemoteGateway' build/android-remote/production-apk-entries.txt; then exit 1; fi
       - name: Enable KVM on the disposable runner
         run: |
           test -e /dev/kvm

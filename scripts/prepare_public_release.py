@@ -93,6 +93,10 @@ def is_allowed(relative: Path) -> bool:
         return True
     if parts[0] == 'docs' and len(parts) > 1 and parts[1] == 'assets':
         return False  # Historical screenshots were never approved public assets.
+    if parts[0] == 'extensions' and parts[1] == 'astrbot-love-house':
+        return len(parts) == 3 and relative.name in {
+            '__init__.py','main.py','bridge.py','source_client.py','metadata.yaml',
+            '_conf_schema.json','README.md','LICENSE','package.py'}
     if parts[0] == 'extensions' and parts[1] != 'deepseek-harness':
         return False
     if 'dist' in parts and not (parts[:3] == ('extensions', 'deepseek-harness', 'dist')

@@ -156,7 +156,7 @@ class OrganizerThresholdAtomTests(unittest.TestCase):
         self.assertTrue(all(i in self.brains['a'].nodes for i in sources))
         self.assertEqual({i for i,w in self.brains['a'].neighbors(node['id'])},set(sources))
 
-    def test_atom_forged_values_code_fields_and_model_timestamps_are_rejected(self):
+    def test_invalid_optional_atoms_are_withheld_as_literal_candidates_without_retrying_job(self):
         for atom in ({'subject':'user','predicate':'home.city','value':'上海'},
                      {'subject':'user','predicate':'home.city','value':'北京','created':1},
                      {'subject':'user','predicate':'home.city','value':'北京','qualifiers':{'event_at':1}},
@@ -166,7 +166,11 @@ class OrganizerThresholdAtomTests(unittest.TestCase):
                 lid='bad-'+str(len(self.brains));self.brains[lid]=Brain.new();save_profile(self.brains[lid],enabled=True,base_url='https://offline.invalid/v1',model='FAKE')
                 self.reply=lambda p,atom=atom:{'version':1,'operations':[self.op(p,atom=atom)]}
                 self.raw(lid=lid);result=self.organizer.run_once(lid)
-                self.assertEqual(result['code'],'invalid_atom');self.assertEqual(self.facts(lid),[])
+                self.assertEqual(result['status'],'done');self.assertEqual(self.facts(lid),[])
+                candidates=self.brains[lid].meta['organizer_candidates'];self.assertEqual(len(candidates),1)
+                self.assertEqual(candidates[0]['reason_code'],'invalid_atom_verbatim_fallback')
+                self.assertEqual(candidates[0]['operation']['atom']['relation_status'],'verbatim_fallback')
+                self.assertEqual(candidates[0]['operation']['text'],'我住在北京。')
 
     def test_negation_cannot_be_converted_to_a_positive_machine_fact(self):
         self.reply=lambda p:{'version':1,'operations':[self.op(p,layer='preference',atom={'subject':'user','predicate':'likes','value':'咖啡','qualifiers':{'polarity':'affirmed'}})]}

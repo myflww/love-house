@@ -55,6 +55,20 @@ class WindowsPackagingTests(unittest.TestCase):
                 self.assertIsNone(runtime.host.snapshot('default')['config']['max_nodes'])
             finally:runtime.stop()
 
+    def test_smoke_accepts_background_delivery_only_after_exact_bound_roles_exist(self):
+        host=MagicMock()
+        correct={'text':'actual user','meta':{'source':'conversation_turn','assistant_reply':'actual assistant'}}
+        host.snapshot.side_effect=[{'nodes':{}},{'nodes':{'saved':correct}}]
+        with patch.object(windows.time,'sleep'):
+            windows.require_smoke_turn_saved(host,'fixed-library','actual user','actual assistant')
+        self.assertEqual(host.snapshot.call_args_list,[unittest.mock.call('fixed-library'),unittest.mock.call('fixed-library')])
+        for node in ({**correct,'text':'different user'},
+                     {'text':'actual user','meta':{'source':'conversation_turn','assistant_reply':'wrong assistant'}},
+                     {'text':'actual user','meta':{'source':'harness_recorded','assistant_reply':'actual assistant'}}):
+            host.snapshot.side_effect=None;host.snapshot.return_value={'nodes':{'unproven':node}}
+            with patch.object(windows.time,'monotonic',side_effect=[0,11]),self.assertRaises(AssertionError):
+                windows.require_smoke_turn_saved(host,'fixed-library','actual user','actual assistant')
+
     def test_frozen_windows_config_uses_console_exes_and_no_pythonhome_or_token(self):
         from nkb.service.agent_client import make_agent_config
         with tempfile.TemporaryDirectory() as directory:

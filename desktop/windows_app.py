@@ -279,6 +279,22 @@ def write_diagnostics(data_dir,log):
     raise OSError('diagnostics could not be written')
 
 
+def require_smoke_turn_saved(host,library_id,user,assistant,*,timeout=10):
+    """A queue ACK is intermediate; verify the exact second-party roles in its fixed library.
+
+    The desktop retry worker can deliver a file before the submitting process
+    drains its own snapshot. That valid race must not turn a saved turn into a
+    failed smoke, nor may an unsaved queue entry be reported as success.
+    """
+    deadline=time.monotonic()+timeout
+    while True:
+        nodes=host.snapshot(library_id)['nodes']
+        if any(node.get('text')==user and node.get('meta',{}).get('source')=='conversation_turn'
+               and node.get('meta',{}).get('assistant_reply')==assistant for node in nodes.values()):return
+        if time.monotonic()>=deadline:raise AssertionError('Exact hook roles were not saved in the bound library')
+        time.sleep(.05)
+
+
 def backend_smoke(report):
     """No GUI/model/real credentials: verify controller, original sharing and restart."""
     import subprocess
@@ -304,7 +320,10 @@ def backend_smoke(report):
             assert plugin.startswith(b'PK'), 'Reviewed AstrBot source package missing'
             client=AgentClient(cfg['private_path'])
             assert client.status()['connected']
-            assert client.submit_hook({'session_id':'fake-window','turn_id':'one','user':'假数据：我不喜欢被曲解。','assistant':'这是完整的助手原话。','status':'complete'})['saved']
+            first={'session_id':'fake-window','turn_id':'one','user':'假数据：我不喜欢被曲解。','assistant':'这是完整的助手原话。','status':'complete'}
+            receipt=client.submit_hook(first)
+            assert receipt.get('saved') or receipt.get('local_queue_committed')
+            require_smoke_turn_saved(runtime.host,'default',first['user'],first['assistant'])
             boot=client.tool('memory_bootstrap',{});assert boot['total_memories']==1
             page=client.tool('memory_list',{});nid=page['entries'][0]['id']
             assert client.tool('memory_read',{'memory_id':nid})['text']=='假数据：我不喜欢被曲解。'
@@ -327,7 +346,10 @@ def backend_smoke(report):
                 assert rows[2]['result']['structuredContent']['identity']['library_id']=='default'
                 hook=cfg['hook_config'];fake={'session_id':'fake-window','turn_id':'two','user':'假数据：第二条实际原文','assistant':'第二条实际回复','status':'complete'}
                 got=subprocess.run([hook['command'],*hook['args']],input=json.dumps(fake),capture_output=True,text=True,encoding='utf-8',timeout=30)
-                assert got.returncode==0 and json.loads(got.stdout)['saved']
+                assert got.returncode==0
+                receipt=json.loads(got.stdout)
+                assert receipt.get('saved') or receipt.get('local_queue_committed')
+                require_smoke_turn_saved(runtime.host,'default',fake['user'],fake['assistant'])
             expected=runtime.host.snapshot('default');port=runtime.server.server_port
         finally:runtime.stop()
         assert not runtime.ready.exists()

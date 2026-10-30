@@ -7,6 +7,11 @@
       "sha256": "887b0d98edef2513bd4fc917a36c635e8f3f81657a8bb2a8d450e43456e947c0"
     },
     {
+      "path": ".github/CODEOWNERS",
+      "bytes": 180,
+      "sha256": "9d58ff7b9658851da8e244f8f7acff46f18dd6e7386815bc57f4671f1c717926"
+    },
+    {
       "path": ".github/workflows/android-release.yml",
       "bytes": 5760,
       "sha256": "94a90d42be7d6453e866f11d68ac47b9af1f1874517e5c3d673f5dd73bff17f9"
@@ -32,6 +37,46 @@
       "sha256": "86a5482dc603c6f71c8580196db313453bfa28c98f23b1953040c9339d8eab43"
     },
     {
+      "path": "CHANGELOG.md",
+      "bytes": 9692,
+      "sha256": "66fb4774d5f5fe713cc36e7cdd507262008bef9655eed8b89258f19ce45cbeee"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "bytes": 5097,
+      "sha256": "d47658957b9e141a8d4df80f6b29241a353a6c036929f2e530a73d578d4e53d6"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 4563,
+      "sha256": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5"
+    },
+    {
+      "path": "Makefile",
+      "bytes": 1214,
+      "sha256": "b9959d3e42800e895dbc8467923b44be2ba46dcaf625eca670a9d1db40394b67"
+    },
+    {
+      "path": "NOTICE",
+      "bytes": 681,
+      "sha256": "65e3acd2f297d13775c8102c41c8e13f975dd860f6ba9bbaa6d65175e1cdcc64"
+    },
+    {
+      "path": "README.md",
+      "bytes": 13055,
+      "sha256": "2244ad8b18ab33fa01c60a40460152b9bcc1ac4794dd77836e89f4f94007e7df"
+    },
+    {
+      "path": "ROADMAP.md",
+      "bytes": 2570,
+      "sha256": "3fa2729cec2fedd4d084e42bcc3c6f5b32d2f2beb57e969a99016dcc9cb4d9d4"
+    },
+    {
+      "path": "THIRD_PARTY_NOTICES.md",
+      "bytes": 8634,
+      "sha256": "a33e1f11ef8a6144d0053ab2e65ef70bb8683196b31b9a989a070fa394103c0e"
+    },
+    {
       "path": "assets/branding/icon-prompt.txt",
       "bytes": 956,
       "sha256": "7421c6754bdd2f96b3635b4395276409168c4dadbe9e95c2aa99bcde7ea2c7d4"
@@ -47,6 +92,11 @@
       "sha256": "ec58f634f804ae6295510b18fc00612a21aa818c5f6e95754709fb326bc60c92"
     },
     {
+      "path": "assets/fonts/README.md",
+      "bytes": 1379,
+      "sha256": "b9952268b030bddbecc22b25f3ce436113dc74e87d797e11fea931abbe5d9161"
+    },
+    {
       "path": "assets/fonts/ark-pixel-12px-proportional-zh_hans.woff2",
       "bytes": 566768,
       "sha256": "0c6b9a6d8aa19150537e6ccba248909192258167a8bcc7a18d5dad1a2ee12632"
@@ -60,11 +110,6 @@
       "path": "assets/fonts/ark-pixel-source.json",
       "bytes": 1018,
       "sha256": "bce36dab4fbf960f0a6b049f53f9c3a870fb0656c9e6f283f30224f375c6df92"
-    },
-    {
-      "path": "assets/fonts/README.md",
-      "bytes": 1379,
-      "sha256": "b9952268b030bddbecc22b25f3ce436113dc74e87d797e11fea931abbe5d9161"
     },
     {
       "path": "assets/licenses/python-3.12.14-20260825/LICENSE.bdb.txt",
@@ -92,6 +137,16 @@
       "sha256": "122f2c27000472a201d337b9b31f7eb2b52d091b02857061a8880371612d9534"
     },
     {
+      "path": "assets/licenses/python-3.12.14-20260825/LICENSE.libX11.txt",
+      "bytes": 47018,
+      "sha256": "2daec087a88e7c9b8082557cdeebad5bbb8155a4137472f0b22e269cd99d0c1e"
+    },
+    {
+      "path": "assets/licenses/python-3.12.14-20260825/LICENSE.libXau.txt",
+      "bytes": 1148,
+      "sha256": "56abe29bb1d9806a9e04fa9f80fed2c0f18027594df3f098148d814aef6bddfa"
+    },
+    {
       "path": "assets/licenses/python-3.12.14-20260825/LICENSE.libedit.txt",
       "bytes": 1614,
       "sha256": "29cea33c32bbc9785142386377915612a2fa786482c46843383384aded2e09b1"
@@ -110,16 +165,6 @@
       "path": "assets/licenses/python-3.12.14-20260825/LICENSE.libuuid.txt",
       "bytes": 1432,
       "sha256": "122ee1f7e258f2c3c0e538a75c037684f420454bf3850ddc74ce750bbf5fe86b"
-    },
-    {
-      "path": "assets/licenses/python-3.12.14-20260825/LICENSE.libX11.txt",
-      "bytes": 47018,
-      "sha256": "2daec087a88e7c9b8082557cdeebad5bbb8155a4137472f0b22e269cd99d0c1e"
-    },
-    {
-      "path": "assets/licenses/python-3.12.14-20260825/LICENSE.libXau.txt",
-      "bytes": 1148,
-      "sha256": "56abe29bb1d9806a9e04fa9f80fed2c0f18027594df3f098148d814aef6bddfa"
     },
     {
       "path": "assets/licenses/python-3.12.14-20260825/LICENSE.libxcb.txt",
@@ -167,14 +212,14 @@
       "sha256": "818922b2620f12801a12bf78e399644a30990e66824abd8ca8ec24d451d6f92c"
     },
     {
-      "path": "assets/licenses/python-3.12.14-20260825/provenance.json",
-      "bytes": 6457,
-      "sha256": "59cce96223f47e8a56b6df2270c86976393f81c3e83d939f6857cff1402232d7"
-    },
-    {
       "path": "assets/licenses/python-3.12.14-20260825/README.md",
       "bytes": 1374,
       "sha256": "d7ad90e8ef4f9abf78cde8ba267db7e3f86edef5081f285a31e63beda747b941"
+    },
+    {
+      "path": "assets/licenses/python-3.12.14-20260825/provenance.json",
+      "bytes": 6457,
+      "sha256": "59cce96223f47e8a56b6df2270c86976393f81c3e83d939f6857cff1402232d7"
     },
     {
       "path": "assets/licenses/webview2-sdk-1.0.3856.49/LICENSE.txt",
@@ -187,14 +232,14 @@
       "sha256": "106423785c5b7eba0a8e61d1837f2132e9c828e20ad530f565d981c1df60dd90"
     },
     {
-      "path": "assets/licenses/webview2-sdk-1.0.3856.49/provenance.json",
-      "bytes": 3131,
-      "sha256": "f62d129de629571177fd880afefda40e3e55d55a645d6dcfc7a070d442da1fd2"
-    },
-    {
       "path": "assets/licenses/webview2-sdk-1.0.3856.49/README.md",
       "bytes": 978,
       "sha256": "d5702fd258be050955e338db96f747d2f3258a6c9c4693a60ffdead2500e731f"
+    },
+    {
+      "path": "assets/licenses/webview2-sdk-1.0.3856.49/provenance.json",
+      "bytes": 3131,
+      "sha256": "f62d129de629571177fd880afefda40e3e55d55a645d6dcfc7a070d442da1fd2"
     },
     {
       "path": "assets/screenshots/inherit-memory.png",
@@ -282,44 +327,9 @@
       "sha256": "18d6ed0641f638cc817baee0d8e41083bee1d7636ed7b5f563b6b35daade2bb0"
     },
     {
-      "path": "CHANGELOG.md",
-      "bytes": 9692,
-      "sha256": "66fb4774d5f5fe713cc36e7cdd507262008bef9655eed8b89258f19ce45cbeee"
-    },
-    {
-      "path": "CONTRIBUTING.md",
-      "bytes": 5097,
-      "sha256": "d47658957b9e141a8d4df80f6b29241a353a6c036929f2e530a73d578d4e53d6"
-    },
-    {
-      "path": "desktop/agent_memory_bridge.py",
-      "bytes": 4785,
-      "sha256": "9b302c32e8821fb52aa8e6c6af6f1cbafad7f39902fbb5d7b2fe7faf6ca230bc"
-    },
-    {
-      "path": "desktop/agent_memory_hook.py",
-      "bytes": 1439,
-      "sha256": "2d17d5a725bcb4f0c6b261e79f45bae26524211576f1b86923c8e04b906da29c"
-    },
-    {
       "path": "desktop/AtlasApp.swift",
       "bytes": 37104,
       "sha256": "ef83e81d754755531d5ead16d1af50dd424d810debe156390d4282613e4e9598"
-    },
-    {
-      "path": "desktop/deepseek-harness-overlay.example.yaml",
-      "bytes": 396,
-      "sha256": "c618050050f62a292da2015e62411bf1ee5db0c302341ae99113c113a1db27e3"
-    },
-    {
-      "path": "desktop/entitlements.plist",
-      "bytes": 236,
-      "sha256": "4d95578f1c6e92a75973d448867074c6145e1da674122ba3c05ad6c6b1587136"
-    },
-    {
-      "path": "desktop/harness_bridge.py",
-      "bytes": 22699,
-      "sha256": "e7ce0882d2b64a6d2cd42141ff08f4bbadd8ee1d8818963c6caf24580c40db2a"
     },
     {
       "path": "desktop/Icon.swift",
@@ -335,6 +345,31 @@
       "path": "desktop/README.md",
       "bytes": 3893,
       "sha256": "d56fb535b1a8da576d39a8bd8baca62d876ba6b62cef666d66a9d4203d83c1a4"
+    },
+    {
+      "path": "desktop/agent_memory_bridge.py",
+      "bytes": 4785,
+      "sha256": "9b302c32e8821fb52aa8e6c6af6f1cbafad7f39902fbb5d7b2fe7faf6ca230bc"
+    },
+    {
+      "path": "desktop/agent_memory_hook.py",
+      "bytes": 1439,
+      "sha256": "2d17d5a725bcb4f0c6b261e79f45bae26524211576f1b86923c8e04b906da29c"
+    },
+    {
+      "path": "desktop/deepseek-harness-overlay.example.yaml",
+      "bytes": 396,
+      "sha256": "c618050050f62a292da2015e62411bf1ee5db0c302341ae99113c113a1db27e3"
+    },
+    {
+      "path": "desktop/entitlements.plist",
+      "bytes": 236,
+      "sha256": "4d95578f1c6e92a75973d448867074c6145e1da674122ba3c05ad6c6b1587136"
+    },
+    {
+      "path": "desktop/harness_bridge.py",
+      "bytes": 22699,
+      "sha256": "e7ce0882d2b64a6d2cd42141ff08f4bbadd8ee1d8818963c6caf24580c40db2a"
     },
     {
       "path": "desktop/requirements-windows.txt",
@@ -462,6 +497,21 @@
       "sha256": "fb0d829c1539e8ed6c8fed3c2188c46e0c2d1365a5c427c7b213489a08f10baf"
     },
     {
+      "path": "extensions/deepseek-harness/LICENSE",
+      "bytes": 4563,
+      "sha256": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5"
+    },
+    {
+      "path": "extensions/deepseek-harness/NOTICE",
+      "bytes": 681,
+      "sha256": "65e3acd2f297d13775c8102c41c8e13f975dd860f6ba9bbaa6d65175e1cdcc64"
+    },
+    {
+      "path": "extensions/deepseek-harness/README.md",
+      "bytes": 6989,
+      "sha256": "c8bea249e5b8b603ecbf3436936f9b0358df915330ae0dd5a1528fa32e52d1c3"
+    },
+    {
       "path": "extensions/deepseek-harness/build.mjs",
       "bytes": 1250,
       "sha256": "b9e95fb2f81e6521620742f67d4a5f0c537b87a07cf789bdd2ad01a205972a06"
@@ -470,6 +520,11 @@
       "path": "extensions/deepseek-harness/configure.py",
       "bytes": 14224,
       "sha256": "8e8d247a22c40228adbf0f80bc2e48e62eb0304c425b60b4745517cfe57cedcf"
+    },
+    {
+      "path": "extensions/deepseek-harness/dist/THIRD_PARTY_LICENSES.txt",
+      "bytes": 783,
+      "sha256": "558b20a2c348693345e3b97acb9b56e46896f96689d50ee66ac225b8199eaf30"
     },
     {
       "path": "extensions/deepseek-harness/dist/configure.js",
@@ -487,29 +542,14 @@
       "sha256": "4e42540fd30fe4b5dffa16fa0a034c62b9a85d9b161723debd5567a715cbc68a"
     },
     {
-      "path": "extensions/deepseek-harness/dist/THIRD_PARTY_LICENSES.txt",
-      "bytes": 783,
-      "sha256": "558b20a2c348693345e3b97acb9b56e46896f96689d50ee66ac225b8199eaf30"
-    },
-    {
       "path": "extensions/deepseek-harness/host-contract.json",
       "bytes": 992,
       "sha256": "3b5d71503789056b6496c40f4c793b7067db496543ac1696e73ca14a4b2b6adf"
     },
     {
-      "path": "extensions/deepseek-harness/LICENSE",
-      "bytes": 4563,
-      "sha256": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5"
-    },
-    {
       "path": "extensions/deepseek-harness/licenses/yaml-ISC.txt",
       "bytes": 738,
       "sha256": "5bba27375d93e9119f76c1015f7672cf9ad5f70952296e0842fb2243d6376869"
-    },
-    {
-      "path": "extensions/deepseek-harness/NOTICE",
-      "bytes": 681,
-      "sha256": "65e3acd2f297d13775c8102c41c8e13f975dd860f6ba9bbaa6d65175e1cdcc64"
     },
     {
       "path": "extensions/deepseek-harness/package-lock.json",
@@ -520,11 +560,6 @@
       "path": "extensions/deepseek-harness/package.json",
       "bytes": 981,
       "sha256": "853dd20c26f71163d01e43167f83714e73ffab5023841d4ab961c10cc6a804ba"
-    },
-    {
-      "path": "extensions/deepseek-harness/README.md",
-      "bytes": 6989,
-      "sha256": "c8bea249e5b8b603ecbf3436936f9b0358df915330ae0dd5a1528fa32e52d1c3"
     },
     {
       "path": "extensions/deepseek-harness/samples/host.overlay.yml",
@@ -565,16 +600,6 @@
       "path": "extensions/deepseek-harness/tsconfig.json",
       "bytes": 314,
       "sha256": "5ed92ac63e471d9f8ec3ec5124fe024748854f89791b43798d6829b89ac1211a"
-    },
-    {
-      "path": "LICENSE",
-      "bytes": 4563,
-      "sha256": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5"
-    },
-    {
-      "path": "Makefile",
-      "bytes": 1214,
-      "sha256": "b9959d3e42800e895dbc8467923b44be2ba46dcaf625eca670a9d1db40394b67"
     },
     {
       "path": "nkb/__init__.py",
@@ -627,6 +652,11 @@
       "sha256": "17678fcaf1fdf947745da6d16ba40f60081d22abe5bc0c8dc75cd18743a8ab86"
     },
     {
+      "path": "nkb/companion/RECORDING_DEDUP.md",
+      "bytes": 4059,
+      "sha256": "bbcbf21bb496b229099db8e4d05441e2fbb337b88b71aacdc9badb079016cdd2"
+    },
+    {
       "path": "nkb/companion/__init__.py",
       "bytes": 1054,
       "sha256": "b2a23e163a05da4fdc35b4f25dafd30937aff471890b833949910d1e5cf4bb97"
@@ -660,11 +690,6 @@
       "path": "nkb/companion/persona.py",
       "bytes": 15637,
       "sha256": "66dcc9a0a54a69a0b3b8b18c8936e4c8642c2ca787639d11718a9ac67b8d81f4"
-    },
-    {
-      "path": "nkb/companion/RECORDING_DEDUP.md",
-      "bytes": 4059,
-      "sha256": "bbcbf21bb496b229099db8e4d05441e2fbb337b88b71aacdc9badb079016cdd2"
     },
     {
       "path": "nkb/companion/structured.py",
@@ -732,6 +757,11 @@
       "sha256": "cf5711912ca2e3cc1df474c7a394b4172b97e70d29229fcbd1258ed487849767"
     },
     {
+      "path": "nkb/organizer/README.md",
+      "bytes": 7970,
+      "sha256": "1deeb56959c8925b1ca90202537f46b3e9c90b47f2e3e83542b9e062a9fa1735"
+    },
+    {
       "path": "nkb/organizer/__init__.py",
       "bytes": 575,
       "sha256": "0cf475af369b2ad8753f18b4d0da7ea8e06df3373496dc43bb1d2918801d4bb7"
@@ -755,11 +785,6 @@
       "path": "nkb/organizer/model.py",
       "bytes": 5469,
       "sha256": "8efaa9f36cc079db6135b17df65c0f1bb6ec006aad3219ea760cc72423b9d49b"
-    },
-    {
-      "path": "nkb/organizer/README.md",
-      "bytes": 7970,
-      "sha256": "1deeb56959c8925b1ca90202537f46b3e9c90b47f2e3e83542b9e062a9fa1735"
     },
     {
       "path": "nkb/organizer/state.py",
@@ -802,6 +827,11 @@
       "sha256": "04f64f4c0db3db0820edcd57bccfd3dcfee4360147475bece1e7100a967ba469"
     },
     {
+      "path": "nkb/service/AGENT_CONNECTOR.md",
+      "bytes": 5242,
+      "sha256": "ca980d501bd97e10fc69d8ecf9342002c02d9c4cd144a5b9657e76170f9480a0"
+    },
+    {
       "path": "nkb/service/__init__.py",
       "bytes": 68,
       "sha256": "3a1400f452d237fc7ceed3e6bf519aeee66a690a975caaff28b7909a2ab88ef6"
@@ -810,11 +840,6 @@
       "path": "nkb/service/agent_client.py",
       "bytes": 32220,
       "sha256": "ec2277d38cd6f0ff62d9f2fa8b3329e6149758cf9c27eeeab9aa198c4f4edbd1"
-    },
-    {
-      "path": "nkb/service/AGENT_CONNECTOR.md",
-      "bytes": 5242,
-      "sha256": "ca980d501bd97e10fc69d8ecf9342002c02d9c4cd144a5b9657e76170f9480a0"
     },
     {
       "path": "nkb/service/backups.py",
@@ -837,9 +862,29 @@
       "sha256": "997fb45c78704589cbafe045b463fb1520a099bd517ae552d20345f5017c1c1b"
     },
     {
+      "path": "nkb/service/harness/LICENSE",
+      "bytes": 4563,
+      "sha256": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5"
+    },
+    {
+      "path": "nkb/service/harness/NOTICE",
+      "bytes": 681,
+      "sha256": "65e3acd2f297d13775c8102c41c8e13f975dd860f6ba9bbaa6d65175e1cdcc64"
+    },
+    {
+      "path": "nkb/service/harness/README.md",
+      "bytes": 6989,
+      "sha256": "c8bea249e5b8b603ecbf3436936f9b0358df915330ae0dd5a1528fa32e52d1c3"
+    },
+    {
       "path": "nkb/service/harness/configure.py",
       "bytes": 14224,
       "sha256": "8e8d247a22c40228adbf0f80bc2e48e62eb0304c425b60b4745517cfe57cedcf"
+    },
+    {
+      "path": "nkb/service/harness/dist/THIRD_PARTY_LICENSES.txt",
+      "bytes": 783,
+      "sha256": "558b20a2c348693345e3b97acb9b56e46896f96689d50ee66ac225b8199eaf30"
     },
     {
       "path": "nkb/service/harness/dist/configure.js",
@@ -857,29 +902,9 @@
       "sha256": "4e42540fd30fe4b5dffa16fa0a034c62b9a85d9b161723debd5567a715cbc68a"
     },
     {
-      "path": "nkb/service/harness/dist/THIRD_PARTY_LICENSES.txt",
-      "bytes": 783,
-      "sha256": "558b20a2c348693345e3b97acb9b56e46896f96689d50ee66ac225b8199eaf30"
-    },
-    {
       "path": "nkb/service/harness/host-contract.json",
       "bytes": 992,
       "sha256": "3b5d71503789056b6496c40f4c793b7067db496543ac1696e73ca14a4b2b6adf"
-    },
-    {
-      "path": "nkb/service/harness/LICENSE",
-      "bytes": 4563,
-      "sha256": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5"
-    },
-    {
-      "path": "nkb/service/harness/NOTICE",
-      "bytes": 681,
-      "sha256": "65e3acd2f297d13775c8102c41c8e13f975dd860f6ba9bbaa6d65175e1cdcc64"
-    },
-    {
-      "path": "nkb/service/harness/README.md",
-      "bytes": 6989,
-      "sha256": "c8bea249e5b8b603ecbf3436936f9b0358df915330ae0dd5a1528fa32e52d1c3"
     },
     {
       "path": "nkb/service/host.py",
@@ -947,16 +972,6 @@
       "sha256": "59fac0ab11dc1aa69e8d7d69510ad64ae4d5abd5ca6b7390e07f594c2e818649"
     },
     {
-      "path": "nkb/viz/art/build.mjs",
-      "bytes": 925,
-      "sha256": "06b719d864c4ebf89c52ad70eddbf1507b99815f2c4155874f76bfdb76c1688b"
-    },
-    {
-      "path": "nkb/viz/art/digital-brain-adapted.js",
-      "bytes": 4740,
-      "sha256": "72957f8a6789ecb23ea5c293a1b133f602fc0f69d4469e92474209fcc4e8e7b2"
-    },
-    {
       "path": "nkb/viz/art/LICENSE.digital-brain",
       "bytes": 1065,
       "sha256": "7fb8f56b521671260973af775a4cf83a4a607d90d13bb334f5f93cf9fbca21fb"
@@ -965,6 +980,21 @@
       "path": "nkb/viz/art/LICENSE.three",
       "bytes": 1081,
       "sha256": "bfe119ea4fd413f5f7ca3fcd63adb0c4a073ed39daa2fe7d3e6b769e21272601"
+    },
+    {
+      "path": "nkb/viz/art/README.md",
+      "bytes": 2351,
+      "sha256": "224b8f045cd0109605b65810e4d5ed6969e5f88414a450190ed966b95b58a975"
+    },
+    {
+      "path": "nkb/viz/art/build.mjs",
+      "bytes": 925,
+      "sha256": "06b719d864c4ebf89c52ad70eddbf1507b99815f2c4155874f76bfdb76c1688b"
+    },
+    {
+      "path": "nkb/viz/art/digital-brain-adapted.js",
+      "bytes": 4740,
+      "sha256": "72957f8a6789ecb23ea5c293a1b133f602fc0f69d4469e92474209fcc4e8e7b2"
     },
     {
       "path": "nkb/viz/art/neural-art.bundle.js",
@@ -985,11 +1015,6 @@
       "path": "nkb/viz/art/package.json",
       "bytes": 238,
       "sha256": "6c37201fb78c4f668114fdaae66dad484b1664985248481623c4ed66f3b73495"
-    },
-    {
-      "path": "nkb/viz/art/README.md",
-      "bytes": 2351,
-      "sha256": "224b8f045cd0109605b65810e4d5ed6969e5f88414a450190ed966b95b58a975"
     },
     {
       "path": "nkb/viz/art/viewport-policy.js",
@@ -1042,24 +1067,9 @@
       "sha256": "98f538b33bd2bea38756c40057d4b6608e74e7524bae32bb7884fcf64fd64ecb"
     },
     {
-      "path": "NOTICE",
-      "bytes": 681,
-      "sha256": "65e3acd2f297d13775c8102c41c8e13f975dd860f6ba9bbaa6d65175e1cdcc64"
-    },
-    {
       "path": "pyproject.toml",
       "bytes": 2017,
       "sha256": "dac2a37e405cf0145a21074f4efaed76beb46c239c4f177d30377570f59d7aef"
-    },
-    {
-      "path": "README.md",
-      "bytes": 13055,
-      "sha256": "2244ad8b18ab33fa01c60a40460152b9bcc1ac4794dd77836e89f4f94007e7df"
-    },
-    {
-      "path": "ROADMAP.md",
-      "bytes": 2570,
-      "sha256": "3fa2729cec2fedd4d084e42bcc3c6f5b32d2f2beb57e969a99016dcc9cb4d9d4"
     },
     {
       "path": "scripts/build_macos.py",
@@ -1083,8 +1093,8 @@
     },
     {
       "path": "scripts/prepare_public_release.py",
-      "bytes": 13044,
-      "sha256": "056f48108217b2533c9ab8c197b19279f5739ce680c405a0afa897977d63da3b"
+      "bytes": 13117,
+      "sha256": "c02a399ac20f36b9ac71b7146ede6aad046a6ab16883f456128209af84192c9e"
     },
     {
       "path": "scripts/sync_harness_assets.py",
@@ -1283,8 +1293,8 @@
     },
     {
       "path": "tests/test_public_release.py",
-      "bytes": 7716,
-      "sha256": "459500a68cf1cd1f1433d3cb97d14d2e928f805c4b70ae05865b5b0771799c80"
+      "bytes": 7739,
+      "sha256": "1d7bced4072bf8fc524a11e0f2a248571582d5897abb5009a0eacfb78680ed8b"
     },
     {
       "path": "tests/test_recording_dedup.py",
@@ -1310,11 +1320,6 @@
       "path": "tests/test_windows_packaging.py",
       "bytes": 16785,
       "sha256": "8ac9174f3cf1d3d8b0b8d16a98cef4368a5f6bc695af7d6b9c5a163112fa9a13"
-    },
-    {
-      "path": "THIRD_PARTY_NOTICES.md",
-      "bytes": 8634,
-      "sha256": "a33e1f11ef8a6144d0053ab2e65ef70bb8683196b31b9a989a070fa394103c0e"
     },
     {
       "path": "启动爱之屋.command",

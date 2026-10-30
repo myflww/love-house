@@ -29,6 +29,7 @@ class ConnectionStore:
             fields={r['name'] for r in db.execute('PRAGMA table_info(connections)')}
             for field in ('host_seen','configured_at'):
                 if field not in fields:db.execute(f'ALTER TABLE connections ADD COLUMN {field} REAL')
+            if 'host_options' not in fields:db.execute('ALTER TABLE connections ADD COLUMN host_options TEXT')
             receipt_fields={r['name'] for r in db.execute('PRAGMA table_info(receipts)')}
             for field,kind in (('semantic_type','TEXT'),('is_automatic','INTEGER')):
                 if field not in receipt_fields:db.execute(f'ALTER TABLE receipts ADD COLUMN {field} {kind}')
@@ -77,6 +78,7 @@ class ConnectionStore:
         return {k:(row[k] if k=='last_dialogue_at' else int(row[k] or 0)) for k in row.keys()}
     def public(self,row):
         result=dict(row);result.pop('token',None)
+        result.pop('host_options',None)
         result['enabled']=bool(result['enabled']);result['revoked']=bool(result['revoked'])
         result['archive_status']=result['archive_status'] or 'waiting'
         capture=self._capture(result['id']);result['capture']=capture
@@ -105,8 +107,15 @@ class ConnectionStore:
             if key in data and (not isinstance(data[key],str) or len(data[key])>200):raise ValidationError('宿主状态字段不正确')
         with self.db() as db:db.execute('UPDATE connections SET host_seen=?,error=NULL WHERE id=?',(time.time(),cid))
         return {'ok':True,'host_online':True,'archive_status':self.get(cid)['archive_status']}
-    def configured(self,cid):
-        with self.db() as db:db.execute('UPDATE connections SET configured_at=? WHERE id=?',(time.time(),cid))
+    def host_options(self,cid):
+        row=self.get(cid,secret=True)
+        value=json.loads(row.get('host_options') or '{}')
+        return value if isinstance(value,dict) else {}
+    def configured(self,cid,host_options=None):
+        with self.db() as db:
+            if host_options is None:db.execute('UPDATE connections SET configured_at=? WHERE id=?',(time.time(),cid))
+            else:db.execute('UPDATE connections SET configured_at=?,host_options=? WHERE id=?',
+                            (time.time(),json.dumps(host_options,ensure_ascii=False),cid))
     def get(self,cid,secret=False):
         with self.db() as db:r=db.execute('SELECT * FROM connections WHERE id=?',(cid,)).fetchone()
         if r is None:raise ValidationError('连接不存在')

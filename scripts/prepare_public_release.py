@@ -105,6 +105,12 @@ def is_allowed(relative: Path) -> bool:
         return True
     if parts[0] == 'docs' and len(parts) > 1 and parts[1] == 'assets':
         return False  # Historical screenshots were never approved public assets.
+    if relative.as_posix() == '.github/CODEOWNERS':
+        return True
+    if parts[0] == 'extensions' and parts[1] == 'astrbot-love-house':
+        return len(parts) == 3 and relative.name in {
+            '__init__.py','main.py','bridge.py','source_client.py','metadata.yaml',
+            '_conf_schema.json','README.md','LICENSE','package.py'}
     if parts[0] == 'extensions' and parts[1] != 'deepseek-harness':
         return False
     if 'dist' in parts and not (parts[:3] == ('extensions', 'deepseek-harness', 'dist')
@@ -130,7 +136,9 @@ def scan_bytes(relative: Path, content: bytes, *, home: Path | None = None) -> l
         findings.append({'path': relative.as_posix(), 'line': 0, 'category': 'unsafe-svg'})
     patterns = list(SECRET_PATTERNS)
     home = home or Path.home()
-    # Scan native, POSIX and escaped Windows spellings consistently on every OS.
+    # Source may use POSIX separators, native Windows separators or escaped
+    # Windows paths in JSON/Python strings. Inspect all three consistently,
+    # irrespective of the OS running this release gate.
     normalized_home = str(home).replace('\\', '/').rstrip('/')
     if normalized_home not in ('', '.') and not re.fullmatch(r'[A-Za-z]:', normalized_home):
         separator = r'(?:/|\\+)'
@@ -247,7 +255,7 @@ def prepare(source: Path, destination: Path) -> dict:
                 'excluded': ['user memories', 'credentials', 'reports', 'reference clones',
                              'rollback copies', 'historical screenshots', 'source maps']}
     (destination / 'PUBLIC_SOURCE_MANIFEST.json').write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8', newline='\n')
     return {'ok': True, 'files': len(entries), 'bytes': sum(e['bytes'] for e in entries),
             'findings': [], 'manifest': 'PUBLIC_SOURCE_MANIFEST.json'}
 

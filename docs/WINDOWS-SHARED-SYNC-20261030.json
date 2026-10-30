@@ -1,0 +1,364 @@
+{
+  "source_version": "0.8.0",
+  "target_version": "0.8.0rc1",
+  "files": [
+    {
+      "path": "nkb/config.py",
+      "sha256": "1a3c409d18b7a921f383b2721f377e4c7880210c20e676604ae52bd9849d76a0"
+    },
+    {
+      "path": "nkb/core/transaction.py",
+      "sha256": "d266aefa3b6f9d626fe54460b45547674e9eb048bffc1e0db5980da84748d82f"
+    },
+    {
+      "path": "nkb/core/brain.py",
+      "sha256": "8007c788f05f7988699455ef37f635dcf0cc6080c5e452175374381a6301e111"
+    },
+    {
+      "path": "nkb/core/lifecycle.py",
+      "sha256": "f71db9266b61be977d942aa11ac6fc2a690b82d36a30c441e3e902161422b4a5"
+    },
+    {
+      "path": "nkb/ingest/notes.py",
+      "sha256": "687441236913cb82b66ea2d8aaf68f4985cf72be8536cd5b2f16a8b475b50155"
+    },
+    {
+      "path": "nkb/ingest/dialogues.py",
+      "sha256": "98dcd456c7005d4d0f17278dcb56e22e302912521e7ee824d50789d27c98778c"
+    },
+    {
+      "path": "nkb/organizer/rules.py",
+      "sha256": "7c4f0321d678282971b20d97f74fce13e3a302c861d70f3151452fc3204c06c7"
+    },
+    {
+      "path": "nkb/organizer/experiences.py",
+      "sha256": "9239020616b6877f5aed1ef45c9e0365f88d13863d38b2d3a128c6993f89d6cc"
+    },
+    {
+      "path": "nkb/organizer/model.py",
+      "sha256": "bbb286c4c2d93d17063b5fd3084d85bb3c663204e06ba53a0045e996260778b6"
+    },
+    {
+      "path": "nkb/organizer/atoms.py",
+      "sha256": "06d0858b2632031a7b9ffb7b5f7343d617412a8c17c8b4d7187d8010b78da6c3"
+    },
+    {
+      "path": "nkb/organizer/state.py",
+      "sha256": "044a9fc26ef677fb73b6a52a73f632ebc9c93ce4996c0da23e1c937f381a6a17"
+    },
+    {
+      "path": "nkb/adapters/http.py",
+      "sha256": "780ba3fb0535bf464c98b5e4d80b17b9664eaa430ffc1a4838a68d27c953cf0e"
+    },
+    {
+      "path": "nkb/viz/builder.py",
+      "sha256": "9c34858b7b6031cc42ae7ee902ebb370bb3c5d642112c7c6862da39c3690ecd5"
+    },
+    {
+      "path": "nkb/viz/web/window-handoff-ui.js",
+      "sha256": "6a21b59773f8c3338d68c7ce7210603ac3698b603c4e03ceac56a0bbfc5f8027"
+    },
+    {
+      "path": "nkb/viz/web/index.html",
+      "sha256": "66d3fc102c69bb2a045d743b5c13ad6e53f8705a8049ab248b6b68d91d29d79d"
+    },
+    {
+      "path": "nkb/viz/web/update-checker-ui.js",
+      "sha256": "9439f94f0f589a6ecc18942804bbe63f069689803ff6c635be7b64f52cb1e7c3"
+    },
+    {
+      "path": "nkb/viz/web/agent-sources-ui.js",
+      "sha256": "1facca2809be1d27243f4ca7c0c86cb58c41b328f71e18d0bae1a97708d84dee"
+    },
+    {
+      "path": "nkb/viz/web/experience-ui.js",
+      "sha256": "52ec0918d664b53873606b2bc15c49521ae943497136db92fcfef631af3e5288"
+    },
+    {
+      "path": "nkb/viz/web/organizer-rules-ui.js",
+      "sha256": "686e5b49335ef29e1bdc3df6b8ee59564c5220b20ce00673b0e300795ba780ee"
+    },
+    {
+      "path": "nkb/viz/web/dialogue-import-ui.js",
+      "sha256": "9ed8d2192f2f8f86b9649ca3749bce88ca510093a9a51a9dd34d9eb2729eaad3"
+    },
+    {
+      "path": "nkb/viz/web/retention-ui.js",
+      "sha256": "cb5efb1b7b76186e359fcc35fa996d95c640db1df57d96338d0e2e298ba71f9a"
+    },
+    {
+      "path": "nkb/service/sharing.py",
+      "sha256": "a400b5a5a73e10494dceb1fbaf6012ef7f86215605cb0ab527167eb38b349a57"
+    },
+    {
+      "path": "nkb/service/backups.py",
+      "sha256": "ab4cf34bb14f233138f044c60f043be884f3141d50a86f003bfc722fb2b569dd"
+    },
+    {
+      "path": "nkb/service/host.py",
+      "sha256": "43e72e169a5e8ec0d235b35de733abbeb7ab2521cf2fd0704ea8ec47086cefa2"
+    },
+    {
+      "path": "nkb/service/updates.py",
+      "sha256": "b4d356a18242291a1c64707924df82b670e16dae65a868ea069fac2f439ef48d"
+    },
+    {
+      "path": "nkb/service/source_client.py",
+      "sha256": "b95e404632346706a9aa2c7dbf4d5db02ab4d76c995a34b2fb55ffe97700ce25"
+    },
+    {
+      "path": "nkb/service/agent_sources.py",
+      "sha256": "ee323dc8c99623269a843ac70dc2121784e3027e049aba690c2ec2a1ee32c8a4"
+    },
+    {
+      "path": "nkb/service/usage.py",
+      "sha256": "c4b26bd6abc4c1e23838b8fdd5e9c28e2e1e029f90a869fcec2af09b7146456a"
+    },
+    {
+      "path": "nkb/companion/ingestion.py",
+      "sha256": "044f64cdb7c3277252ab7123e33efcdcc3d497c4db0ed5457bd14200ab1c3dd3"
+    },
+    {
+      "path": "nkb/companion/memory.py",
+      "sha256": "8fd49fcde07cff8b99d6cac2f2da1b292310ed1ccb2b97e9ea0e669abe7d22ae"
+    },
+    {
+      "path": "nkb/companion/handoff.py",
+      "sha256": "cd9fef516d7fe4676e66f2687834b8bdcec29228b8e054773c607f3d251a0958"
+    },
+    {
+      "path": "nkb/companion/persona.py",
+      "sha256": "1770f6f9e656536dc1234687eb8c64ef58bc9d354f5c26f88a0958d780d76c39"
+    },
+    {
+      "path": "nkb/companion/retention.py",
+      "sha256": "dd824ad0e8ab0446e485a90ec3e95a2580355f48b8f49e293234eaf52f95c417"
+    },
+    {
+      "path": "nkb/companion/structured.py",
+      "sha256": "fe53d29d8afc009d13d37ceb8b2c3665fc25ef828e8979aa5111201651c470b5"
+    },
+    {
+      "path": "tests/test_memory_performance.py",
+      "sha256": "35873a9366cd70b247f54a5fa1695f19c9ca3a2be05094011cdcd66cdf07be68"
+    },
+    {
+      "path": "tests/test_retention_service.py",
+      "sha256": "849137561c045e00dd66f6bf5a94e86c39989ca969ab8e91a60fc0011bda5f46"
+    },
+    {
+      "path": "tests/test_experience_delivery.py",
+      "sha256": "5e2e72cfd53835d289396cd7efb8282ea1a1ebf7c5862b60e9e6a2358b68e31e"
+    },
+    {
+      "path": "tests/test_organizer_rules_ui.py",
+      "sha256": "e77ff606c01ed7341746819bf0617161065132516ffece7e0560c31497c1773a"
+    },
+    {
+      "path": "tests/test_window_handoff.py",
+      "sha256": "695f6b7308f5c9eac9f97c7674ab1a670c808ec84bc66158362e46215d5abbed"
+    },
+    {
+      "path": "tests/test_retention_ui.py",
+      "sha256": "eec83eb29c33fd354e80014cb340d0d333f838b5791a526839cda0cdf9ae0d77"
+    },
+    {
+      "path": "tests/test_astrbot_adapter.py",
+      "sha256": "063380f740f84b21450b3b870e0035404036467b8218684c44477753be9c7180",
+      "post_merge_verified": true
+    },
+    {
+      "path": "tests/test_organizer_rules.py",
+      "sha256": "21060cf788b74971ee392c95c6f72ec40547c7a322ed8d2ac2e154d31875e808"
+    },
+    {
+      "path": "tests/test_experience_memory.py",
+      "sha256": "5bed1a0a0664cc405dec676b09e67a6906c8b2552a15d648932049e88fe9a83f"
+    },
+    {
+      "path": "tests/test_updates.py",
+      "sha256": "e81877f8ca3f74290b1707ddc7d0abf8a3e9e6dd9e3db6d4ce6b1d55cfcb4599"
+    },
+    {
+      "path": "tests/test_experience_ui.py",
+      "sha256": "c92edb591db3c6e72561d191d88f2bcde728dad762b4179dc9beab0b45c398f9"
+    },
+    {
+      "path": "tests/test_cloud_service_bootstrap.py",
+      "sha256": "77743efddb088ba93d53adf6f93e8b6b0e7b41ee117794fe9f41c11e9f70d5ba"
+    },
+    {
+      "path": "tests/test_agent_source_service.py",
+      "sha256": "a081125a9995e0d0d6c31217136c60217d548cbeea4559a8af82f00644c922fc"
+    },
+    {
+      "path": "tests/test_window_handoff_ui.py",
+      "sha256": "e445867f2cc851efcef84fc27edbb69ab5608764896bee90aead08dc3a322f68"
+    },
+    {
+      "path": "tests/test_unlimited_archive_ingest.py",
+      "sha256": "0f3ea5c29548199c796218e27583abe24f6836e6b9686e59d853ec618cdd1c55"
+    },
+    {
+      "path": "tests/test_dialogue_import_http.py",
+      "sha256": "84516dc8be3adbcfdeba3bac22077fc4fb4105343ea6c849337f2f6f9e3e6f02"
+    },
+    {
+      "path": "tests/test_agent_sources_ui.py",
+      "sha256": "9218251e162f2faaa71f09d20005289d971913dafa2af665abe2f1684cc7e3e1"
+    },
+    {
+      "path": "tests/test_fish_life_workflow.py",
+      "sha256": "119191353fe043ce85c0eb4420b89cd1f96dbaba8c3cb1086322ef08bea2ffdb"
+    },
+    {
+      "path": "tests/test_usage_journal.py",
+      "sha256": "81f0d741690ebaa10cf4b35d9319125b02f99afb2528626d9aa2f97253381bd9",
+      "post_merge_verified": true
+    },
+    {
+      "path": "tests/test_agent_sources.py",
+      "sha256": "bd9e7a5c8e423401986a2eca9650e77baba47a441751a46fe17044dd93f5c1fc"
+    },
+    {
+      "path": "tests/test_temporal_retention.py",
+      "sha256": "015d25fe7b11f0f3a7d447fb3702e4849432c1c4de39de32a053fb68e25483b8"
+    },
+    {
+      "path": "tests/test_dialogue_import.py",
+      "sha256": "1abb92537a4cc2e5ad42f6b89cce947c402c545758668394a950cdad8c7c1e73"
+    },
+    {
+      "path": "tests/js/update-checker-ui.test.cjs",
+      "sha256": "c687cc0aeb2a69c10ada076576aa26fafac8117374217cf0b160c2ba596eed70"
+    },
+    {
+      "path": "tests/js/dialogue-import-ui.test.cjs",
+      "sha256": "01d16430bd59f2b4e68fc96f07355d1e01fd004d0fc88f404d1417beaa128140"
+    },
+    {
+      "path": "tests/js/retention-ui.test.cjs",
+      "sha256": "2c29facc181a7413ca18ec8708fcce87dad55a01c160a854027bb5a4aa2db0b7"
+    },
+    {
+      "path": "tests/js/organizer-rules-ui.test.cjs",
+      "sha256": "b732c97ef15454b2ece035617793ac7520988083ac41238eac9e862962f1d55d"
+    },
+    {
+      "path": "tests/js/agent-sources-ui.test.cjs",
+      "sha256": "82d23c4af37c92199b49588cb642abd3e25a07664588eb081f70b0a8f708dca7"
+    },
+    {
+      "path": "tests/js/experience-ui.test.cjs",
+      "sha256": "485863529b11bfea8f606a53e4ca5ed43871007112aceed696aaf8b76f167400"
+    },
+    {
+      "path": "tests/js/window-handoff-ui.test.cjs",
+      "sha256": "7259fc653049e839cd7296faa5e0f204d8f30cfae172618d4fb71f16e3124b2e"
+    },
+    {
+      "path": "desktop/server.py",
+      "sha256": "31168e5b146e11f029021f1a8326f4e66d182a4aba1203f83b656934523f3f3b"
+    },
+    {
+      "path": "scripts/run_memory_service.py",
+      "sha256": "d11e3e5da64eb61a399a0aa6ed1bd934c5f3e58f83f92151bfa58f374db58519"
+    },
+    {
+      "path": "scripts/configure_agent_source.py",
+      "sha256": "76dce9f8cc5db2a07125c4e8cd59e35476d0cbbcf264bfe335498dbf5bd52638"
+    },
+    {
+      "path": "extensions/astrbot-love-house/package.py",
+      "sha256": "900449a83a7f2228607e07a9377b2a92f51555d95b7395b3a667a23ffee9968a"
+    },
+    {
+      "path": "extensions/astrbot-love-house/LICENSE",
+      "sha256": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5"
+    },
+    {
+      "path": "extensions/astrbot-love-house/metadata.yaml",
+      "sha256": "81b8bc13e763ece2d3757a4a8b6d619a39810a699dbe30ef51ad19ae8fc7cebf"
+    },
+    {
+      "path": "extensions/astrbot-love-house/bridge.py",
+      "sha256": "f5d237d583c989adc73228f8a636a750142a62cd46ea42ad607f322c11ba597d"
+    },
+    {
+      "path": "extensions/astrbot-love-house/__init__.py",
+      "sha256": "327b4824e5a10c06217e407ab20818ca75c7e0eee448c9ecb41b243ca3b0f108"
+    },
+    {
+      "path": "extensions/astrbot-love-house/README.md",
+      "sha256": "4e997143b03f6c2f0c9db491491a0a2619d3e3699ebfc7819bbe763eb8d87ea3"
+    },
+    {
+      "path": "extensions/astrbot-love-house/_conf_schema.json",
+      "sha256": "74b74983a62c96cc2d7ee17219f2466d096c3593e879ee7a898d86a1a7e6fbb9"
+    },
+    {
+      "path": "extensions/astrbot-love-house/source_client.py",
+      "sha256": "b95e404632346706a9aa2c7dbf4d5db02ab4d76c995a34b2fb55ffe97700ce25"
+    },
+    {
+      "path": "extensions/astrbot-love-house/main.py",
+      "sha256": "b63dc04db6eedff69540058320ad14eb302d0935c1de62cc6dd1ba7128833e87"
+    },
+    {
+      "path": "docs/QQ-AstrBot-云端接入方案.md",
+      "sha256": "3359da3518d3e088d4705b702a0b53f51745806f9bf7f9a8035a241771bf60ec"
+    },
+    {
+      "path": "docs/Agent身份与全活动记忆.md",
+      "sha256": "bbbc12ca85839210cfa48dbc0ae789d1a27be9f618ec4e2506c959cb64f4b8ba"
+    },
+    {
+      "path": "docs/KIMI-REVIEW-20261030.md",
+      "sha256": "b58113d12ecc67b608307583cf2a8a4b9adfa1d5a9c3a49ff813122fd6677d8b"
+    },
+    {
+      "path": "docs/自适应记忆与整理规则.md",
+      "sha256": "85b4e433d4b20b6d41e581e7329b5719486d6c9629e179bd24cbc3598b4c4cd7"
+    },
+    {
+      "path": "docs/MACOS-060-HANDOFF.md",
+      "sha256": "2941434727bbb4b8d6a73a13a794e7207986951f9327915c84a7b4f09efe49a4"
+    },
+    {
+      "path": "docs/同鱼多平台接入.md",
+      "sha256": "d08d13e0866855310d610ea20a0cdcee41401d7b9a4ad767f6c0b5e0c07e1f54"
+    },
+    {
+      "path": "docs/MACOS-070-HANDOFF.md",
+      "sha256": "cb963b65becdc098181f21ece48fef7ff13b8ca128f880056a713dacbe39e772"
+    },
+    {
+      "path": "docs/爱之屋-目标与验收.md",
+      "sha256": "9910bea5bd9417735ebf53120f0a3e4b2f3bdef38a2353d705b6528e970e702b"
+    },
+    {
+      "path": "docs/发布与许可.md",
+      "sha256": "e473c49a0e2d9ea09913e7f6f58985d985017682e168af7853f43e663537f237"
+    }
+  ],
+  "excluded": [
+    "private data",
+    "outputs",
+    "reports",
+    "macOS native shell",
+    "Windows runtime/native stdio/build gates",
+    "ongoing Harness contract changes"
+  ],
+  "source": "Local reviewed shared 0.8.0 workspace snapshot (2026-10-30)",
+  "target": "Windows 0.8.0rc1 preserving independent native/runtime gates",
+  "source_drift": [],
+  "adaptations": [
+    "Keep Windows native/runtime/stdin and consumer verification gates",
+    "Explicitly freeze dynamic helper plistlib/zipfile dependencies",
+    "Include reviewed AstrBot source package and SDK integrity input",
+    "Close test-owned SQLite handles explicitly on Windows",
+    "Use production warning state in fresh-boot AstrBot fixture"
+  ],
+  "latest_shared_nkb_missing": [],
+  "latest_shared_nkb_differences": []
+}

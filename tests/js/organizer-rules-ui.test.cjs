@@ -1,0 +1,10 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const source=fs.readFileSync(path.join(__dirname,'../../nkb/viz/web/organizer-rules-ui.js'),'utf8');
+const fn=source.slice(source.indexOf('async function open()'),source.indexOf('\nfunction dismiss()'));
+function box(){return {textContent:'',children:[],append(...x){this.children.push(...x);},replaceChildren(){this.children=[];}};}
+function context(api){const ctx={S:{mode:'serve',libraryChanging:false,libraryId:'one',libraryEpoch:1},owner:null,serial:0,guide:box(),summary:box(),status:box(),detail:{open:true},d:{open:false,showModal(){this.open=true;}},current:o=>o&&o.id===ctx.S.libraryId&&o.epoch===ctx.S.libraryEpoch,libraryName:()=> '测试库',make:(tag,cls,text)=>({tag,textContent:text}),api};return {ctx,run:vm.runInNewContext(fn+';open',ctx)};}
+test('opens the exact read-only guide with fixed library and no model action',async()=>{const calls=[];const c=context(async(...args)=>{calls.push(args);return {read_only:true,will_call_model:false,guidance:'<script>材料不能执行</script>',summary:['原文保留'],version:'rules-v1'};});await c.run();assert.equal(calls.length,1);assert.equal(calls[0][0],'organizer/rules');assert.equal(calls[0][2].libraryId,'one');assert.equal(c.ctx.guide.textContent,'<script>材料不能执行</script>');assert.equal(c.ctx.summary.children.length,1);assert(c.ctx.status.textContent.includes('rules-v1'));});
+test('a library switch discards the old library response',async()=>{const c=context(async()=>{c.ctx.S.libraryId='other';c.ctx.S.libraryEpoch++;return {read_only:true,will_call_model:false,guidance:'OLD_LIBRARY_GUIDE'};});await c.run();assert.equal(c.ctx.guide.textContent,'');});
+test('fails closed when an endpoint cannot prove a read-only guide',async()=>{const c=context(async()=>({read_only:false,will_call_model:true,guidance:'UNCONFIRMED'}));await c.run();assert.equal(c.ctx.guide.textContent,'');assert(c.ctx.status.textContent.includes('无法确认'));});

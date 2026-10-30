@@ -7,7 +7,6 @@ faulthandler.dump_traceback_later(20,repeat=True)
 print("fixture: interpreter entered; loading standard library",flush=True)
 import argparse,json,os,signal,ssl,subprocess,threading,time
 from pathlib import Path
-from http.server import ThreadingHTTPServer
 
 ADMIN='IOS-SIMULATOR-SYNTHETIC-ADMIN-ONLY-000000000000'
 USER='Synthetic iOS host user: remember the blue compass.'
@@ -26,6 +25,7 @@ def mint(directory):
 def main():
  parser=argparse.ArgumentParser();parser.add_argument('--root',type=Path,required=True);args=parser.parse_args();root=args.root.resolve();root.mkdir(parents=True,exist_ok=True)
  print('fixture: importing actual backend',flush=True)
+ from nkb.service.httpd import LoopbackHTTPServer
  from nkb.service.credentials import KeyStore
  from nkb.service.host import MemoryHost,make_controller
  from nkb.service.remote_gateway import RemoteGateway,create_server
@@ -34,7 +34,7 @@ def main():
  print('fixture: creating isolated MemoryHost',flush=True)
  host=MemoryHost(root/'memory',key_store=KeyStore(allow_keychain=False))
  print('fixture: creating loopback controller',flush=True)
- controller=ThreadingHTTPServer(('127.0.0.1',0),make_controller(host));host.controller_port=controller.server_port
+ controller=LoopbackHTTPServer(('127.0.0.1',0),make_controller(host));host.controller_port=controller.server_port
  ct=threading.Thread(target=controller.serve_forever,kwargs={'poll_interval':.05});ct.start()
  print('fixture: creating actual HTTPS gateway',flush=True)
  gateway=RemoteGateway(host,origin='https://127.0.0.1',admin_token=ADMIN)

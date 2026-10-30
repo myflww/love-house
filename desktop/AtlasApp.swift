@@ -47,6 +47,7 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         configuration.websiteDataStore = .nonPersistent()
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
         configuration.userContentController.add(self, name: "saveMemoryFile")
+        configuration.userContentController.add(self, name: "exportAstrBotAdapter")
         webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = self
         webView.uiDelegate = self
@@ -126,6 +127,8 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         menu.addItem(app)
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "关于爱之屋", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        let update = appMenu.addItem(withTitle: "检查更新…", action: #selector(checkForUpdates), keyEquivalent: "")
+        update.target = self
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "退出爱之屋", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         app.submenu = appMenu
@@ -206,6 +209,10 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         if let url = serviceURL { webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)) }
         else { startServer() }
     }
+
+    @objc private func checkForUpdates() {
+        webView.evaluateJavaScript("window.LoveHouseUpdates?.check()")
+    }
     @objc private func fitGraph() {
         webView.evaluateJavaScript("document.getElementById('clearFocus')?.click(); document.getElementById('fitBtn')?.click();", completionHandler: nil)
     }
@@ -232,6 +239,13 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         do {
             try files.createDirectory(at: dataURL, withIntermediateDirectories: true,
                                       attributes: [.posixPermissions: 0o700])
+            if smokeMode {
+                // Native acceptance never calls GitHub, a model or real user data.
+                let updatePreferences = dataURL.appendingPathComponent("updates.json")
+                if !files.fileExists(atPath: updatePreferences.path) {
+                    try Data("{\"auto_check\":false,\"channel\":\"stable\"}".utf8).write(to: updatePreferences, options: .atomic)
+                }
+            }
             let runtime = dataURL.appendingPathComponent(".runtime", isDirectory: true)
             try files.createDirectory(at: runtime, withIntermediateDirectories: true,
                                       attributes: [.posixPermissions: 0o700])
@@ -439,6 +453,44 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                 let organizerPreview = try await smokeRequest("api/organizer/preview", method: "POST", payload: [:])
                 try requireSmoke(organizerPreview["will_call_model"] as? Bool == false, "Organizer preview attempted a model call")
                 print("Native organizer: real panel opens, starts disabled, preview performs no model call")
+                let newUI = try await webView.callAsyncJavaScript(
+                    "return {importChat:!!document.getElementById('dialogueImportBtn'),handoff:!!document.getElementById('windowHandoffBtn'),updates:!!document.getElementById('checkForUpdates'),retention:!!document.getElementById('memoryRetentionBtn'),rules:!!document.getElementById('organizerRulesBtn')};",
+                    arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                try requireSmoke(newUI?["importChat"] as? Bool == true && newUI?["handoff"] as? Bool == true && newUI?["updates"] as? Bool == true, "New desktop controls are missing")
+                try requireSmoke(newUI?["retention"] as? Bool == true && newUI?["rules"] as? Bool == true, "Adaptive memory controls are missing")
+                let retention = try await smokeRequest("api/retention")
+                try requireSmoke(retention["node_limit"] is NSNull && retention["count_eviction"] as? Bool == false && retention["automatic_deletion"] as? Bool == false, "Personal library still has count eviction or timed deletion")
+                let ruleView = try await webView.callAsyncJavaScript(
+                    "await window.LoveHouseOrganizerRules.open(); const d=document.getElementById('organizerRulesDialog'); const text=document.getElementById('organizerFullGuide').textContent; const result={open:d.open,guide:text.includes('统一保存期限')&&text.includes('逐字')}; d.close(); return result;",
+                    arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                try requireSmoke(ruleView?["open"] as? Bool == true && ruleView?["guide"] as? Bool == true, "Organizer guide is not readable in the actual native UI")
+                print("Native 0.7: unlimited personal archive, no TTL, adaptive settings and exact organizer guide verified without model calls")
+                let lifeUI = try await webView.callAsyncJavaScript(
+                    "return {sources:!!document.getElementById('agentSourcesBtn'),experiences:!!document.getElementById('experienceLibraryBtn'),plugin:!!document.getElementById('exportAstrBotPlugin')};",
+                    arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                try requireSmoke(lifeUI?["sources"] as? Bool == true && lifeUI?["experiences"] as? Bool == true && lifeUI?["plugin"] as? Bool == true, "Experience/source controls are missing")
+                let life = try await smokeRequest("api/experiences")
+                try requireSmoke(life["read_only"] as? Bool == true && life["will_call_model"] as? Bool == false, "Experience view is not read-only")
+                let source = try await smokeRequest("api/agent/sources", method:"POST", payload:["name":"原生合成来源","adapter":"sdk","runtime_agent_id":"SYNTHETIC-NATIVE-FISH","platforms":["qq","browser"]])
+                try requireSmoke(source["config_ready"] as? Bool == true && (source["source"] as? [String:Any])?["full_activity_coverage_verified"] as? Bool == false, "Source configuration claimed unsupported coverage")
+                let packageURL = serviceURL!.appendingPathComponent("api/adapters/astrbot/package")
+                let (pluginData, pluginResponse) = try await URLSession.shared.data(from:packageURL)
+                let bundled = try Data(contentsOf:Bundle.main.resourceURL!.appendingPathComponent("Adapters/LoveHouse-AstrBot-0.1.0-experimental.zip"))
+                try requireSmoke((pluginResponse as? HTTPURLResponse)?.statusCode == 200 && pluginData == bundled && pluginData.prefix(2) == Data([0x50,0x4b]), "Experimental adapter export bytes differ from the bundled source package")
+                print("Native 0.8: human experience/source controls, fixed-source registration and exact experimental plugin ZIP verified; no external Agent or model used")
+                let updates = try await smokeRequest("api/updates")
+                try requireSmoke(updates["auto_install"] as? Bool == false && (updates["settings"] as? [String: Any])?["auto_check"] as? Bool == false, "Isolated update preferences did not prevent network checks")
+                let rescue = try await smokeRequest("api/libraries", method: "POST", payload: ["name":"原生聊天导入自检库"])
+                let rescueID = (rescue["library"] as? [String: Any])?["id"] as? String ?? ""
+                try requireSmoke(!rescueID.isEmpty, "Historical import test library missing")
+                let oldChat = "[{\"role\":\"user\",\"content\":\"旧窗口的测试约定\"},{\"role\":\"assistant\",\"content\":\"保留这段测试原文\"}]"
+                let chatPreview = try await smokeRequest("api/dialogue-import/preview", method: "POST", payload: ["content": oldChat], libraryID: rescueID)
+                try requireSmoke(chatPreview["read_only"] as? Bool == true && chatPreview["added"] as? Int == 1, "Historical chat preview failed")
+                let chatImport = try await smokeRequest("api/dialogue-import/apply", method: "POST", payload: ["content": oldChat, "confirm": true, "expected_fingerprint": chatPreview["fingerprint"] as? String ?? ""], libraryID: rescueID)
+                try requireSmoke(chatImport["saved"] as? Bool == true && chatImport["added"] as? Int == 1, "Historical chat was not saved")
+                let handoff = try await smokeRequest("api/memory/handoff", method: "POST", payload: ["profile":"S"], libraryID: rescueID)
+                try requireSmoke(handoff["read_only"] as? Bool == true && handoff["automatic_recording"] as? Bool == false && (handoff["text"] as? String ?? "").contains("旧窗口的测试约定"), "Bounded new-window packet failed")
+                print("Native 0.6: historical chat preview/import, scoped handoff and update controls verified; no model or release-network calls")
                 let a = try await smokeRequest("api/libraries", method: "POST", payload: ["name": "原生自检库甲"])
                 let b = try await smokeRequest("api/libraries", method: "POST", payload: ["name": "原生自检库乙"])
                 smokeLibraryA = (a["library"] as? [String: Any])?["id"] as? String ?? ""
@@ -500,6 +552,7 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                     document.getElementById('labelToggle').click();await paint();
                     const labelsOff=c.dataset.labelMode==='focus';
                     document.getElementById('fitBtn').click();await paint();
+                    await wait(()=>S.view.mode==='auto'&&c.dataset.viewMode==='auto'&&!!S.view.target);
                     return {initial,manualMode:manual.mode,preserved,restored:c.dataset.viewMode,labelsOn,labelsOff};
                     """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
                 let initial = result?["initial"] as? [String: Any]
@@ -549,9 +602,9 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
             return
         }
         let panel = NSOpenPanel()
-        panel.title = "选择要导入的笔记或记忆分享包"
+        panel.title = "选择聊天记录、笔记或记忆分享包"
         panel.message = "只读取你在此明确选择的文件，不扫描其他文件或文件夹。"
-        panel.prompt = "选择笔记"
+        panel.prompt = "选择文件"
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = parameters.allowsMultipleSelection
@@ -566,6 +619,10 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
     // Only the app's own main frame may request a local, user-selected export.
     // The page never supplies an absolute destination or obtains filesystem access.
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "exportAstrBotAdapter" {
+            exportAstrBotAdapter(message)
+            return
+        }
         guard message.name == "saveMemoryFile", message.frameInfo.isMainFrame,
               let origin = message.frameInfo.request.url, origin.scheme == "http",
               origin.host == "127.0.0.1", origin.port == serviceURL?.port,
@@ -593,6 +650,34 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
             guard let json = try? JSONSerialization.data(withJSONObject: result),
                   let literal = String(data: json, encoding: .utf8) else { return }
             self.webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('lovehouse-file-saved',{detail:\(literal)}));", completionHandler: nil)
+        }
+    }
+
+    private func exportAstrBotAdapter(_ message: WKScriptMessage) {
+        guard message.frameInfo.isMainFrame,
+              let origin = message.frameInfo.request.url, origin.scheme == "http",
+              origin.host == "127.0.0.1", origin.port == serviceURL?.port,
+              let body = message.body as? [String: Any],
+              let requestID = body["request_id"] as? String,
+              requestID.range(of: "^[a-zA-Z0-9_-]{1,80}$", options: .regularExpression) != nil,
+              let resource = Bundle.main.resourceURL?.appendingPathComponent("Adapters/LoveHouse-AstrBot-0.1.0-experimental.zip"),
+              let data = try? Data(contentsOf: resource), data.count <= 4 * 1024 * 1024 else { return }
+        let panel = NSSavePanel()
+        panel.title = "导出 AstrBot 实验插件"
+        panel.message = "插件不包含个人记忆或绑定凭证。请按包内 README 安装，并在实际宿主核验。"
+        panel.nameFieldStringValue = "LoveHouse-AstrBot-0.1.0-experimental.zip"
+        panel.allowedContentTypes = [.zip]
+        panel.canCreateDirectories = true
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard let self = self else { return }
+            var result: [String: Any] = ["request_id":requestID,"saved":false,"cancelled":response != .OK]
+            if response == .OK, let url = panel.url {
+                do { try data.write(to:url,options:.atomic); result["saved"] = true }
+                catch { result["error"] = "插件未能保存，请检查目标文件夹。" }
+            }
+            guard let json = try? JSONSerialization.data(withJSONObject:result),
+                  let literal = String(data:json,encoding:.utf8) else { return }
+            self.webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('lovehouse-adapter-exported',{detail:\(literal)}));",completionHandler:nil)
         }
     }
 

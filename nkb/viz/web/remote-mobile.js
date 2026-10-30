@@ -2,16 +2,17 @@
 const $=id=>document.getElementById(id);
 let csrf='',busy=false,current=null,connections=[],timer=null;
 const note=text=>{$('notice').textContent=text;};
-function controls(){for(const id of ['loginButton','createConnection','refreshConnections','checkConnection','logout'])$(id).disabled=busy;for(const id of ['copyAgent','copyMcp'])$(id).disabled=busy||!current||current.connection?.revoked;for(const id of ['connectionSelect','librarySelect','connectionName','adminToken'])$(id).disabled=busy;}
+function replaceContents(element,...children){while(element.firstChild)element.removeChild(element.firstChild);for(const child of children)element.appendChild(child);}
+function controls(){for(const id of ['loginButton','createConnection','refreshConnections','checkConnection','logout'])$(id).disabled=busy;for(const id of ['copyAgent','copyMcp'])$(id).disabled=busy||!current||(current.connection&&current.connection.revoked);for(const id of ['connectionSelect','librarySelect','connectionName','adminToken'])$(id).disabled=busy;}
 async function api(path,body){
  const headers={};if(body!==undefined){headers['Content-Type']='application/json';if(csrf)headers['X-LoveHouse-CSRF']=csrf;}
  const response=await fetch('/api/remote/'+path,{method:body===undefined?'GET':'POST',headers,credentials:'same-origin',cache:'no-store',redirect:'error',...(body===undefined?{}:{body:JSON.stringify(body)})});
  let data;try{data=await response.json();}catch{throw new Error('服务返回的数据无法读取。');}
- if(!response.ok){const message=typeof data.error==='string'?data.error:data.error?.message;throw new Error(message&&message.length<240?message:response.status===401?'请重新打开服务管理。':'连接没有完成，请检查服务状态。');}return data;
+ if(!response.ok){const message=typeof data.error==='string'?data.error:(data.error&&data.error.message);throw new Error(message&&message.length<240?message:response.status===401?'请重新打开服务管理。':'连接没有完成，请检查服务状态。');}return data;
 }
 function mcpText(bundle){
- const config=bundle?.mcp_config||bundle?.remote_config?.mcp_config;
- if(!config?.mcpServers||typeof config.mcpServers!=='object')return '';
+ const config=bundle&&(bundle.mcp_config||(bundle.remote_config&&bundle.remote_config.mcp_config));
+ if(!config||!config.mcpServers||typeof config.mcpServers!=='object')return '';
  for(const server of Object.values(config.mcpServers)){if(!server||typeof server.url!=='string'||server.command||server.args)return '';try{const url=new URL(server.url);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash)return '';}catch{return '';}}
  return JSON.stringify(config,null,2);
 }
@@ -32,12 +33,12 @@ function showConfig(bundle){
  $('hookConfig').value=JSON.stringify(bundle.hook_config||{},null,2);renderCapture(bundle.connection);controls();
 }
 async function refresh(){
- const result=await api('admin/connections');connections=result.connections||[];const selected=current?.connection?.id;
- $('connectionSelect').replaceChildren(new Option('选择连接，或在下面创建',''),...connections.filter(c=>!c.revoked&&c.host==='agent').map(c=>new Option(c.name+' · '+c.library_id,c.id)));
+ const result=await api('admin/connections');connections=result.connections||[];const selected=current&&current.connection&&current.connection.id;
+ replaceContents($('connectionSelect'),new Option('选择连接，或在下面创建',''),...connections.filter(c=>!c.revoked&&c.host==='agent').map(c=>new Option(c.name+' · '+c.library_id,c.id)));
  if(selected){$('connectionSelect').value=selected;const latest=connections.find(c=>c.id===selected);if(latest){current.connection=latest;renderCapture(latest);}}
 }
 async function openWorkspace(){
- const libraries=await api('admin/libraries');$('librarySelect').replaceChildren(...(libraries.libraries||[]).filter(l=>!l.is_demo).map(l=>new Option(l.name,l.id)));
+ const libraries=await api('admin/libraries');replaceContents($('librarySelect'),...(libraries.libraries||[]).filter(l=>!l.is_demo).map(l=>new Option(l.name,l.id)));
  if(libraries.selected_id)$('librarySelect').value=libraries.selected_id;await refresh();$('loginPanel').hidden=true;$('workspace').hidden=false;
  clearInterval(timer);timer=setInterval(()=>{if(!document.hidden&&!busy&&current)refresh().catch(()=>{});},15000);
 }
@@ -45,6 +46,7 @@ async function operation(action){if(busy)return;busy=true;controls();note('');tr
 async function copy(id){const value=$(id).value;if(!value)return;try{await navigator.clipboard.writeText(value);note('已复制。交给你信任的 Agent 保存、加载并检查。');}catch{$(id).closest('details').open=true;$(id).focus();$(id).select();note('配置已选中，请使用系统复制。');}}
 if(typeof document!=='undefined'){
  $('serviceOrigin').textContent=location.origin;
+ if(typeof structuredClone!=='function'||typeof Object.hasOwn!=='function')$('browserNote').hidden=false;
  $('loginForm').onsubmit=event=>{event.preventDefault();operation(async()=>{const result=await api('admin/login',{admin_token:$('adminToken').value});$('adminToken').value='';csrf=result.csrf_token||'';await openWorkspace();note('请选择原连接，或为一个聊天窗口生成配置。');});};
  $('connectionForm').onsubmit=event=>{event.preventDefault();operation(async()=>{const result=await api('admin/connections',{name:$('connectionName').value.trim()||'手机 Agent 连接',library_id:$('librarySelect').value,session_scope:'next_session'});showConfig(result);await refresh();note('配置已生成；复制给 Agent 保存并加载。');$('configPanel').scrollIntoView({behavior:'smooth',block:'start'});});};
  $('connectionSelect').onchange=()=>{const id=$('connectionSelect').value;if(!id)return;operation(async()=>showConfig(await api('admin/connections/'+encodeURIComponent(id)+'/config')));};

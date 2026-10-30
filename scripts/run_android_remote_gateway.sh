@@ -7,12 +7,21 @@ qa_project='android/app/src/androidTest/remote-gateway'
 origin=$(python -c 'import json,sys;print(json.load(open(sys.argv[1]))["origin"])' "$ANDROID_REMOTE_FIXTURE_ROOT/ready.json")
 port=$(python -c 'import sys,urllib.parse;print(urllib.parse.urlsplit(sys.argv[1]).port)' "$origin")
 adb reverse "tcp:$port" "tcp:$port"
+adb shell rm -rf /data/local/tmp/love-house-remote-qa
+set +e
 gradle -p "$qa_project" --no-daemon --stacktrace connectedDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.gatewayOrigin=$origin"
-python scripts/check_android_test_results.py --reports "$qa_project/build/outputs/androidTest-results/connected"
+instrumentation_exit=$?
+set -e
 mkdir -p build/android-remote
+# AGP removes the testOnly APK at suite cleanup. The instrumentation exports
+# its synthetic evidence before then using UiAutomation, without adding any
+# production or QA storage permission. Preserve diagnostics even on failure.
+adb pull /data/local/tmp/love-house-remote-qa build/android-remote/native-output || true
+if [[ $instrumentation_exit -ne 0 ]]; then exit "$instrumentation_exit"; fi
+python scripts/check_android_test_results.py --reports "$qa_project/build/outputs/androidTest-results/connected"
 for file in android-remote-gateway.json android-tls-rejection.json android-remote-gateway.png; do
-  adb exec-out run-as io.github.myflww.lovehouse.remoteqa cat "files/$file" > "build/android-remote/$file"
+  cp "build/android-remote/native-output/$file" "build/android-remote/$file"
   test -s "build/android-remote/$file"
 done
 python - "$ANDROID_REMOTE_FIXTURE_ROOT/service-state.json" <<'PY'

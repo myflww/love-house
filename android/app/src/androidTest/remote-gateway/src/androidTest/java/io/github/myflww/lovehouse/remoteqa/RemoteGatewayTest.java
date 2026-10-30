@@ -14,6 +14,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.ByteArrayOutputStream;
+import android.os.ParcelFileDescriptor;
+import android.util.Base64;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -22,6 +25,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Test;
+import org.junit.Rule;
+import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 
 /** Actual Android WebView, normal TLS trust, real isolated Gateway/MemoryHost. */
@@ -31,6 +36,7 @@ public final class RemoteGatewayTest {
     private static final String USER = "Synthetic Android host user: remember the silver compass.";
     private static final String ASSISTANT = "Synthetic Android host assistant: the silver compass is recorded.";
     private ActivityScenario<RemoteGatewayActivity> scenario;
+    @Rule public TestName testName = new TestName();
 
     private String origin() {
         String value = InstrumentationRegistry.getArguments().getString("gatewayOrigin");
@@ -44,7 +50,21 @@ public final class RemoteGatewayTest {
         intent.putExtra("gatewayOrigin", url);intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         scenario = ActivityScenario.launch(intent);
     }
-    @After public void close() { if (scenario != null) scenario.close(); }
+    @After public void close() throws Exception {
+        if (scenario == null) return;
+        try {
+            AtomicReference<JSONObject> diagnostics = new AtomicReference<>();
+            scenario.onActivity(activity -> {
+                java.util.Map<String,Object> value = new java.util.LinkedHashMap<>();
+                value.put("url", activity.webView().getUrl());value.put("ssl_errors", activity.sslErrors);
+                value.put("http_errors", activity.mainFrameHttpErrors);value.put("console_error",activity.consoleError);
+                value.put("load_error",activity.mainFrameLoadError);value.put("api_level",Build.VERSION.SDK_INT);
+                PackageInfo provider=WebView.getCurrentWebViewPackage();value.put("webview_version",provider==null?"unknown":provider.versionName);
+                diagnostics.set(new JSONObject(value));
+            });
+            writeReport("diagnostics-" + testName.getMethodName() + ".json", diagnostics.get());
+        } finally { scenario.close(); }
+    }
 
     @Test public void normalTlsRejectsTheSameCaOutsideItsOnlyTestDomain() throws Exception {
         // The leaf SAN contains localhost too, but the test CA is trusted only
@@ -90,7 +110,7 @@ public final class RemoteGatewayTest {
               const headers={...server.headers,'Content-Type':'application/json','Accept':'application/json, text/event-stream','MCP-Protocol-Version':modern?'2026-07-28':'2025-11-25','Mcp-Session-Id':'not-the-real-host-window'};
               if(modern){params={...params,_meta:{'io.modelcontextprotocol/protocolVersion':'2026-07-28','io.modelcontextprotocol/clientInfo':{name:'AndroidNativeWebViewQA',version:'1'},'io.modelcontextprotocol/clientCapabilities':{}}};headers['Mcp-Method']=method;if(method==='tools/call')headers['Mcp-Name']=params.name;}
               const response=await fetch(server.url,{method:'POST',headers,body:JSON.stringify({jsonrpc:'2.0',id,method,params})});const value=await response.json();
-              if(!response.ok||value.error||value.result?.isError)throw Error('Actual HTTPS MCP failed: '+method);return value.result;
+              if(!response.ok||value.error||(value.result&&value.result.isError))throw Error('Actual HTTPS MCP failed: '+method);return value.result;
             }
             const initialized=await rpc(1,'initialize',{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'AndroidNativeWebViewQA',version:'1'}},false);
             if(initialized.protocolVersion!=='2025-11-25')throw Error('Legacy handshake failed');
@@ -129,7 +149,10 @@ public final class RemoteGatewayTest {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
         Bitmap screenshot=InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();assertNotNull(screenshot);
         File directory=InstrumentationRegistry.getInstrumentation().getTargetContext().getFilesDir();
-        try(FileOutputStream stream=new FileOutputStream(new File(directory,"android-remote-gateway.png"))){assertTrue(screenshot.compress(Bitmap.CompressFormat.PNG,100,stream));}
+        ByteArrayOutputStream png=new ByteArrayOutputStream();assertTrue(screenshot.compress(Bitmap.CompressFormat.PNG,100,png));
+        byte[] screenshotBytes=png.toByteArray();
+        try(FileOutputStream stream=new FileOutputStream(new File(directory,"android-remote-gateway.png"))){stream.write(screenshotBytes);}
+        exportBeforePackageCleanup("android-remote-gateway.png",screenshotBytes);
     }
 
     private JSONObject baseReport() throws Exception {
@@ -139,8 +162,38 @@ public final class RemoteGatewayTest {
         return report;
     }
     private void writeReport(String name,JSONObject report)throws Exception{
+        report.put("artifact_export","instrumentation_shell_before_package_cleanup");
+        byte[] bytes=report.toString(2).getBytes(StandardCharsets.UTF_8);
         File directory=InstrumentationRegistry.getInstrumentation().getTargetContext().getFilesDir();
-        try(FileOutputStream stream=new FileOutputStream(new File(directory,name))){stream.write(report.toString(2).getBytes(StandardCharsets.UTF_8));}
+        try(FileOutputStream stream=new FileOutputStream(new File(directory,name))){stream.write(bytes);}
+        exportBeforePackageCleanup(name,bytes);
+    }
+    private void exportBeforePackageCleanup(String name,byte[] bytes)throws Exception{
+        assertTrue(name.matches("[A-Za-z0-9_.-]{1,200}"));
+        String directory="/data/local/tmp/love-house-remote-qa",encoded=Base64.encodeToString(bytes,Base64.NO_WRAP);
+        shell("mkdir -p "+directory);shell("printf '' > "+directory+"/"+name+".base64");
+        // Base64 alphabet has no shell substitutions or quotes. Small chunks
+        // avoid Android's argument-size limit for the synthetic screenshot.
+        for(int offset=0;offset<encoded.length();offset+=4096){
+            String chunk=encoded.substring(offset,Math.min(encoded.length(),offset+4096));
+            shell("printf '%s' '"+chunk+"' >> "+directory+"/"+name+".base64");
+        }
+        shell("base64 -d "+directory+"/"+name+".base64 > "+directory+"/"+name);
+        shell("rm "+directory+"/"+name+".base64");
+    }
+    private void shell(String command)throws Exception{
+        // UiAutomation uses Runtime.exec(String), which whitespace-splits and
+        // does not interpret redirections. Its sh -c program must therefore be
+        // one token. Only generated Base64 enters that token; the decoded test
+        // script contains the fixed paths and synthetic evidence above.
+        String payload=Base64.encodeToString((command+" && printf '__REMOTE_QA_EXPORT_OK__'").getBytes(StandardCharsets.UTF_8),Base64.NO_WRAP);
+        String program="echo${IFS}"+payload+"|base64${IFS}-d|sh";
+        ParcelFileDescriptor descriptor=InstrumentationRegistry.getInstrumentation().getUiAutomation().executeShellCommand("sh -c "+program);
+        ByteArrayOutputStream output=new ByteArrayOutputStream();
+        try(ParcelFileDescriptor.AutoCloseInputStream stream=new ParcelFileDescriptor.AutoCloseInputStream(descriptor)){
+            byte[] buffer=new byte[1024];int count;while((count=stream.read(buffer))!=-1)output.write(buffer,0,count);
+        }
+        assertTrue("Native evidence export failed",new String(output.toByteArray(),StandardCharsets.UTF_8).endsWith("__REMOTE_QA_EXPORT_OK__"));
     }
     private void click(String id)throws Exception{evaluateBody("const element=document.getElementById("+JSONObject.quote(id)+");if(!element||element.disabled)throw Error('Missing or disabled portal control');element.click();return true;");}
     private void fill(String id,String value)throws Exception{evaluateBody("const element=document.getElementById("+JSONObject.quote(id)+");element.value="+JSONObject.quote(value)+";element.dispatchEvent(new Event('input',{bubbles:true}));return true;");}
@@ -155,6 +208,8 @@ public final class RemoteGatewayTest {
     private void waitFor(String description,String expression)throws Exception{
         long end=SystemClock.uptimeMillis()+45000;
         do{if(Boolean.TRUE.equals(evaluate("Boolean("+expression+")")))return;SystemClock.sleep(150);}while(SystemClock.uptimeMillis()<end);
-        fail("Timed out waiting for "+description+"; "+evaluate("({url:location.href,notice:document.getElementById('notice')?.textContent||'',ready:document.readyState})"));
+        AtomicReference<String> nativeState=new AtomicReference<>("");
+        scenario.onActivity(activity->nativeState.set("url="+activity.webView().getUrl()+", ssl="+activity.sslErrors+", load="+activity.mainFrameLoadError+", console="+activity.consoleError));
+        fail("Timed out waiting for "+description+"; "+nativeState.get()+"; "+evaluate("({url:location.href,notice:document.getElementById('notice')?document.getElementById('notice').textContent:'',ready:document.readyState})"));
     }
 }

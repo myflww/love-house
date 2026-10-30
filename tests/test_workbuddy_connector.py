@@ -40,7 +40,7 @@ class WorkBuddyConnectorTests(unittest.TestCase):
         plan=self.install()
         self.assertFalse(self.home.exists())
         self.assertFalse(self.root.exists())
-        self.assertEqual(plan['private_path'],str(self.root/'agent-connections/conn_workbuddy_fixture.json'))
+        self.assertEqual(plan['private_path'],str((self.root/'agent-connections/conn_workbuddy_fixture.json').resolve()))
         command=next(iter(plan['mcp_config']['mcpServers'].values()))
         self.assertEqual(command['args'][-1],plan['private_path'])
         self.assertFalse(plan['hook_supported'])

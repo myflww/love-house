@@ -13,28 +13,28 @@
     },
     {
       "path": ".github/workflows/android-remote-gateway.yml",
-      "bytes": 6579,
-      "sha256": "61c67eebae17ee54224bf05938094952f7e074bbf52046377a9b0f86d5c0df81"
+      "bytes": 6672,
+      "sha256": "78b3109746826c9c01cdaf435b8127111c10583c57441d880c816bac442bf658"
     },
     {
       "path": ".github/workflows/android.yml",
-      "bytes": 7304,
-      "sha256": "2786c7b4c3461ff7c332f26248e8af8b3aa7763a48d90f7e09145d39852ad43c"
+      "bytes": 7389,
+      "sha256": "b82a9cf329c21858df503af5e6aa47253001e528a2f676464ccc3f0fe3a686ad"
     },
     {
       "path": ".github/workflows/ci.yml",
-      "bytes": 2585,
-      "sha256": "f2081af76e16a3f30621d1b7e5434da410b55498c3819a1404ff45f6f782401b"
+      "bytes": 2702,
+      "sha256": "da70360348ffef36a689ee523f77b14549fc0d31d698284b82c655abd4c125bd"
     },
     {
       "path": ".github/workflows/cross-platform-connect.yml",
-      "bytes": 2083,
-      "sha256": "7cd55de5634e10475b3b28b3ec307487eab8f4774b401f94317b44685debf494"
+      "bytes": 2168,
+      "sha256": "ed4cf87185b3fdc2ac736ddb44a92140228414f3994a8c023becb629c858b9dd"
     },
     {
       "path": ".github/workflows/ios-portal.yml",
-      "bytes": 2072,
-      "sha256": "e94b921ae699de4c229d6c68d0420831d82858af32f3bcf340d229015472d515"
+      "bytes": 2143,
+      "sha256": "e4c9c62da73c685343440480a8be4854a8a797d8fd74db1cb0a29df3a000d862"
     },
     {
       "path": ".github/workflows/publish-windows-mobile-preview.yml",
@@ -43,8 +43,8 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "bytes": 29208,
-      "sha256": "8cd4d24b9cd7f028dcc7cdf14f2d3e597008d0b2913c0199066bf7debbb288dd"
+      "bytes": 29378,
+      "sha256": "7a9ed23091ad44c2e73f68007d83870b8c4737c5585234fd60874f884c66a737"
     },
     {
       "path": ".github/workflows/verify-public-windows-mobile-preview.yml",
@@ -1848,8 +1848,8 @@
     },
     {
       "path": "tests/test_agent_source_service.py",
-      "bytes": 16070,
-      "sha256": "ad8ee64ce951861f878667ae32858b8a301e6fb9515feb7d60acf34bfab93bae"
+      "bytes": 16453,
+      "sha256": "4d75be03897cb2b61717d601fd0e63ea177d1416f316a141ed760dccf1ec6c44"
     },
     {
       "path": "tests/test_agent_sources.py",
@@ -1913,8 +1913,8 @@
     },
     {
       "path": "tests/test_cloud_service_bootstrap.py",
-      "bytes": 13156,
-      "sha256": "1c5e32168b7540877d22ebbc3aea4ad3ee31b976514dd8cbd801aee56bb897d7"
+      "bytes": 13391,
+      "sha256": "fe4d24706e66b89efa8ccc29c5e739cedf22324c13cac7be74b568138d59a673"
     },
     {
       "path": "tests/test_companion.py",
@@ -2203,8 +2203,8 @@
     },
     {
       "path": "tests/test_workbuddy_connector.py",
-      "bytes": 10756,
-      "sha256": "78dbab7c3ed5973d03d28626982c61b945abc066ca95f85a599ae668cffe2104"
+      "bytes": 10768,
+      "sha256": "35da65ff1ed939c4dd7130375df2ccbfd9d91f731aef25e0b6cd6a90844d0bb3"
     },
     {
       "path": "启动爱之屋.command",

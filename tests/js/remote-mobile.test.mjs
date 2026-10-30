@@ -5,6 +5,9 @@ import vm from 'node:vm';
 const source=await readFile(new URL('../../nkb/viz/web/remote-mobile.js',import.meta.url),'utf8');
 const {mcpText,captureCaption,bindingCaption,captureDiagnostics,rebindPayload}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
 const plain=value=>JSON.parse(JSON.stringify(value));
+test('the untranspiled phone portal contains no syntax unavailable in its Android 9 WebView',()=>{
+ assert.doesNotMatch(source,/\?\.(?![0-9])|\?\?/,'Optional chaining and nullish coalescing require a newer WebView; keep this entry point compatible.');
+});
 test('mobile exports an authenticated HTTPS MCP endpoint without local command paths',()=>{
  const mcp={mcpServers:{memory:{url:'https://memory.example/mcp/fixture',headers:{Authorization:'Bearer FAKE-MEMORY-CONNECTION'}}}};
  assert.deepEqual(JSON.parse(mcpText({mcp_config:mcp})),mcp);

@@ -18,8 +18,8 @@
     },
     {
       "path": ".github/workflows/android.yml",
-      "bytes": 7389,
-      "sha256": "b82a9cf329c21858df503af5e6aa47253001e528a2f676464ccc3f0fe3a686ad"
+      "bytes": 7466,
+      "sha256": "43e9bb23141173c697932d9ff5a8d7f78e3fe2228455274987b022e029714cbf"
     },
     {
       "path": ".github/workflows/ci.yml",
@@ -153,8 +153,8 @@
     },
     {
       "path": "android/app/src/androidTest/remote-gateway/src/androidTest/java/io/github/myflww/lovehouse/remoteqa/RemoteGatewayTest.java",
-      "bytes": 19580,
-      "sha256": "b23c1c0dbe0319a4632e09d2b6d2c6f5d8cd8b9edc0647d759b099eae0eb4d70"
+      "bytes": 19579,
+      "sha256": "93dba939f46e2c8c046b57efc6b6a27cf0ed3b26672860e27d257cba4d669da6"
     },
     {
       "path": "android/app/src/androidTest/remote-gateway/src/main/AndroidManifest.xml",
@@ -1568,8 +1568,8 @@
     },
     {
       "path": "nkb/viz/web/connection-ux.js",
-      "bytes": 51136,
-      "sha256": "8d724f679700073e3ee69967e02d4c9448fd8da57e94fce709c78cc21025fbda"
+      "bytes": 51986,
+      "sha256": "2340bdfe7907d24d961d9b4614c819ba52b845038651e7b0b51f0a8fccd1876a"
     },
     {
       "path": "nkb/viz/web/dialogue-import-ui.js",
@@ -1623,8 +1623,8 @@
     },
     {
       "path": "nkb/viz/web/remote-mobile.js",
-      "bytes": 10565,
-      "sha256": "f70304826bc683dd11ad8a64fc2d4c4edb754d9a7c3b1b9c16f044cefd9b7b85"
+      "bytes": 10584,
+      "sha256": "7c88dd1a3b03a3d12d5ab20737f011c63b3677b947aacad656f3d8465050290a"
     },
     {
       "path": "nkb/viz/web/retention-ui.js",
@@ -1803,8 +1803,8 @@
     },
     {
       "path": "tests/js/remote-mobile.test.mjs",
-      "bytes": 6276,
-      "sha256": "fffda427075ee72f5edb8bedc1cf04d6b47e764c68c8a79172d3f030df53afdd"
+      "bytes": 6532,
+      "sha256": "15ea50e605027aec250ae0ae1b3fdc1c7c244c4529522a86f38c48f44842db75"
     },
     {
       "path": "tests/js/retention-ui.test.cjs",

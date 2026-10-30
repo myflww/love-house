@@ -104,7 +104,7 @@ public final class RemoteGatewayTest {
         assertEquals(Boolean.FALSE, evaluate("document.cookie.includes('LoveHouseAdmin')"));
         fill("connectionName", "Android API " + Build.VERSION.SDK_INT + " synthetic Agent");click("createConnection");
         waitFor("real server configuration", "!document.getElementById('configPanel').hidden && document.getElementById('mcpConfig').value.includes('mcpServers')");
-        assertEquals("等待 Agent 加载配置", evaluate("document.getElementById('captureState').textContent"));
+        assertEquals("等待目标窗口绑定", evaluate("document.getElementById('captureState').textContent"));
         JSONObject config = (JSONObject) evaluateBody("const config=JSON.parse(document.getElementById('mcpConfig').value);const server=Object.values(config.mcpServers)[0];const hook=JSON.parse(document.getElementById('hookConfig').value);if(new URL(server.url).origin!==location.origin||!server.url.startsWith('https:')||server.command||server.args)throw Error('MCP must use same-origin HTTPS with no local command');window.__qaServer=server;window.__qaHook=hook;return {https_only:true,no_local_command:true,credentials_persisted:Object.values(localStorage).some(v=>v.includes(server.headers.Authorization)||v.includes(" + JSONObject.quote(ADMIN) + "))};");
         assertFalse(config.getBoolean("credentials_persisted"));
         String windowId = "android-actual-fixture-window-api-" + Build.VERSION.SDK_INT;

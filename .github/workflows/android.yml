@@ -6,6 +6,8 @@ on:
     paths:
       - 'android/**'
       - 'mobile/**'
+      - 'nkb/viz/web/remote-mobile.*'
+      - 'nkb/viz/web/connection-ux.js'
       - 'scripts/prepare_mobile_assets.py'
       - 'scripts/prepare_public_release.py'
       - 'scripts/check_android_test_results.py'

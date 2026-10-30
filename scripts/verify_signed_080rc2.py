@@ -261,7 +261,11 @@ def verify_source_snapshot(root: Path = ROOT) -> None:
     source_paths = ['android', 'mobile/web', 'scripts/prepare_mobile_assets.py', 'scripts/prepare_public_release.py',
                     'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'assets/fonts/ark-pixel-OFL.txt']
     changed = run(['git', '-C', root, 'diff', '--name-only', SOURCE, 'HEAD', '--', *source_paths])
-    require(not changed.strip(), 'Frozen production application sources changed during signing handoff')
+    # This standalone self-instrumenting test App is not included by the frozen
+    # android/settings.gradle or app/build.gradle. Its addition is the only
+    # Android difference allowed after signing; all production inputs stay fixed.
+    production_changes=[name for name in changed.splitlines() if not name.startswith('android/upgrade-qa/')]
+    require(not production_changes, 'Frozen production application sources changed during signing handoff')
     require(not run(['git', '-C', root, 'diff', '--name-only', 'HEAD', '--', *source_paths]).strip(), 'Frozen production sources have local modifications')
 
 

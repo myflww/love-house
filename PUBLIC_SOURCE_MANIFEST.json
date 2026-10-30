@@ -1808,8 +1808,8 @@
     },
     {
       "path": "scripts/verify_signed_080rc2.py",
-      "bytes": 20331,
-      "sha256": "362e6e3968fa77ebe26abf9f9e3b66ff58fd5a18686b964232ca24ac00708ac7"
+      "bytes": 20681,
+      "sha256": "9b706b8e11612139aa2502ee1e0ef4e61257fcd51248b679082d0601da3158b5"
     },
     {
       "path": "tests/js/agent-connect-ui.test.cjs",
@@ -2218,8 +2218,8 @@
     },
     {
       "path": "tests/test_verify_signed_080rc2.py",
-      "bytes": 8109,
-      "sha256": "40543ea10735c624564c4e419764f3e71a05fd8beaaad2bbdeafa334eb63e0ba"
+      "bytes": 9155,
+      "sha256": "74dd6da47fbbaf7cf5ec2af4a8b11258425f54472f9486c7ece0fdc989b284f2"
     },
     {
       "path": "tests/test_viewport_policy.py",

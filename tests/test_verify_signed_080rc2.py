@@ -84,6 +84,19 @@ class Signed080rc2Tests(unittest.TestCase):
         for key,value in [('bytes',len(raw)+1),('sha256','0'*64),('blob_sha','0'*40)]:
             with self.assertRaises(ValueError):verify.checked_bytes(raw,{**good,key:value})
 
+    def test_only_isolated_upgrade_probe_may_change_after_source_freeze(self):
+        with patch.object(verify,'run',side_effect=['','android/upgrade-qa/app/build.gradle\nandroid/upgrade-qa/settings.gradle\n','']):
+            verify.verify_source_snapshot()
+        for path in ('android/upgrade-qa-malicious/app/build.gradle','android/upgrade-qa-extra.java',
+                     'android/app/build.gradle','android/settings.gradle','android/THIRD_PARTY_NOTICES.md',
+                     'mobile/web/index.html','scripts/prepare_mobile_assets.py'):
+            changed='android/upgrade-qa/app/build.gradle\n'+path+'\n'
+            with self.subTest(path=path),patch.object(verify,'run',side_effect=['',changed]),self.assertRaises(ValueError):
+                verify.verify_source_snapshot()
+        # Committed QA additions are allowed. Uncommitted QA edits are not.
+        with patch.object(verify,'run',side_effect=['','','android/upgrade-qa/app/build.gradle\n']),self.assertRaises(ValueError):
+            verify.verify_source_snapshot()
+
     def test_all_four_matrix_paths_require_both_complete_probes(self):
         for code in (1,2):
             for api in (28,36):

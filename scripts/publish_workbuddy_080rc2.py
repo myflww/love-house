@@ -49,7 +49,7 @@ POST_FREEZE_FILES={
     'tests/test_publish_workbuddy_080rc2.py',
     'scripts/verify_signed_080rc2.py','scripts/android-080rc2-signing-candidate.json',
     'tests/test_verify_signed_080rc2.py','PUBLIC_SOURCE_MANIFEST.json',
-    NOTES,*DOCS.values(),
+    NOTES,*DOCS.values(),'README.md','docs/手机版安装与使用.md',
 }
 HEX40=re.compile('[0-9a-f]{40}')
 HEX64=re.compile('[0-9a-f]{64}')
@@ -119,7 +119,7 @@ def validate_metadata(value):
 
 
 def git(root,*args):
-    try:return subprocess.check_output(['git','-C',str(root),*args],text=True,encoding='utf-8',stderr=subprocess.DEVNULL).strip()
+    try:return subprocess.check_output(['git','-c','core.quotepath=false','-C',str(root),*args],text=True,encoding='utf-8',stderr=subprocess.DEVNULL).strip()
     except (OSError,subprocess.SubprocessError):raise PublicationError('Frozen repository snapshot could not be verified') from None
 
 
@@ -207,8 +207,13 @@ class GitHub:
     def request(self,method,path,*,payload=None,content=None,upload=False,binary=False,expected_bytes=0,missing=False):
         require(path.startswith(BASE) and method in ('GET','POST','PATCH'),'Publication request is outside the fixed repository')
         if method=='PATCH':require(bool(re.fullmatch(re.escape(BASE)+r'releases/[0-9]+',path)),'Only this release metadata may update')
+        # Actions artifact downloads negotiate a JSON API redirect before the
+        # storage server returns ZIP bytes; release assets use octet-stream.
+        accept='application/vnd.github+json'
+        if binary and '/git/blobs/' in path:accept='application/vnd.github.raw+json'
+        elif binary and not re.fullmatch(re.escape(BASE)+r'actions/artifacts/[0-9]+/zip',path):accept='application/octet-stream'
         headers={'Authorization':'Bearer '+self.token,'User-Agent':'LoveHouse-080rc2-Publisher','X-GitHub-Api-Version':'2026-03-10',
-                 'Accept':('application/vnd.github.raw+json' if '/git/blobs/' in path else 'application/octet-stream') if binary else 'application/vnd.github+json'}
+                 'Accept':accept}
         if payload is not None:content=json.dumps(payload,ensure_ascii=False).encode();headers['Content-Type']='application/json'
         elif content is not None:headers['Content-Type']='application/octet-stream'
         url=('https://uploads.github.com' if upload else 'https://api.github.com')+path
@@ -217,7 +222,7 @@ class GitHub:
                 raw=response.read(expected_bytes+1 if binary else 5*1024*1024)
         except urllib.error.HTTPError as exc:
             if missing and exc.code==404:return None
-            raise PublicationError('GitHub rejected a verified publication operation (HTTP '+str(exc.code)+')') from None
+            raise PublicationError('GitHub rejected '+method+' '+path.split('?',1)[0]+' (HTTP '+str(exc.code)+')') from None
         if binary:
             require(len(raw)==expected_bytes,'Downloaded byte count differs from pinned metadata');return raw
         try:return json.loads(raw)

@@ -79,8 +79,8 @@
   ],
   "notes_path": "docs/RELEASE-080RC2.md",
   "release_notes": {
-    "bytes": 3593,
-    "sha256": "25041b661f5556a821dc30eb68cd42cf567e780455421f69077b4b2836f1b9da"
+    "bytes": 3908,
+    "sha256": "f4220e86d09b404bfbafcf2b9e8374a881d21171572c3580e97d28459d06963b"
   },
   "doc_assets": {
     "WORKBUDDY-CONNECTION.md": {

@@ -4,6 +4,8 @@ import io
 import json
 from pathlib import Path
 import struct
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -111,11 +113,26 @@ class WorkBuddyPublicationTests(unittest.TestCase):
         good=metadata()
         with patch.object(publish,'git',side_effect=[PUBLICATION,'','','scripts/workbuddy-080rc2-publication.json','']):
             publish.verify_source(Path('.'),good,PUBLICATION)
+        for documentation in ('README.md','docs/手机版安装与使用.md'):
+            with patch.object(publish,'git',side_effect=[PUBLICATION,'','',documentation,'']):
+                publish.verify_source(Path('.'),good,PUBLICATION)
         for path in ('nkb/service/host.py','mobile/web/app.js','android/app/build.gradle','desktop/main.py','scripts/build_windows.py','LICENSE'):
             with patch.object(publish,'git',side_effect=[PUBLICATION,'','',path]),self.assertRaises(ValueError):
                 publish.verify_source(Path('.'),good,PUBLICATION)
         with patch.object(publish,'git',side_effect=[PUBLICATION,'','','',' M nkb/service/host.py']),self.assertRaises(ValueError):
             publish.verify_source(Path('.'),good,PUBLICATION)
+
+    @unittest.skipUnless(shutil.which('git'),'Git is required for actual UTF-8 path proof')
+    def test_real_git_utf8_document_change_is_recognized_by_exact_allowlist(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            def run(*args):return subprocess.check_output(['git','-C',str(root),*args],text=True,encoding='utf-8',stderr=subprocess.DEVNULL).strip()
+            run('init');run('config','user.name','Synthetic Publisher QA');run('config','user.email','synthetic@example.invalid')
+            (root/'docs').mkdir();document=root/'docs/手机版安装与使用.md';document.write_text('Synthetic original',encoding='utf-8')
+            run('add','.');run('commit','-m','Synthetic source');source=run('rev-parse','HEAD')
+            document.write_text('Synthetic updated origin guidance',encoding='utf-8')
+            run('add','.');run('commit','-m','Synthetic documentation update');publication=run('rev-parse','HEAD')
+            publish.verify_source(root,{'source_commit':source,'signed_head':source},publication)
 
     def test_zip_never_extracts_and_rejects_paths_symlinks_or_budgets(self):
         for name in ('../private','/absolute','C:/drive','a\\..\\private','a/../private'):
@@ -222,6 +239,34 @@ class WorkBuddyPublicationTests(unittest.TestCase):
             with self.assertRaises(ValueError):handler.redirect_request(request,None,302,'',{},url)
         post=urllib.request.Request(request.full_url,data=b'fixture',method='POST')
         with self.assertRaises(ValueError):handler.redirect_request(post,None,302,'',{},'https://release-assets.githubusercontent.com/file')
+
+    def test_actions_archives_use_json_redirect_accept_and_release_assets_stay_binary(self):
+        class Response:
+            def __enter__(self):return self
+            def __exit__(self,*args):pass
+            def read(self,maximum):return b'SYNTHETIC'
+        class Opener:
+            def __init__(self):self.requests=[]
+            def open(self,request,**kwargs):self.requests.append(request);return Response()
+        client=publish.GitHub('SYNTHETIC');client.opener=opener=Opener()
+        for endpoint,expected in (
+                ('actions/artifacts/123/zip','application/vnd.github+json'),
+                ('releases/assets/456','application/octet-stream'),
+                ('git/blobs/'+'4'*40,'application/vnd.github.raw+json')):
+            raw=client.request('GET',publish.BASE+endpoint,binary=True,expected_bytes=9)
+            self.assertEqual(raw,b'SYNTHETIC')
+            self.assertEqual(opener.requests[-1].get_header('Accept'),expected)
+
+    def test_api_failure_identifies_only_public_route_and_status_without_bearer(self):
+        from unittest.mock import Mock
+        from urllib.error import HTTPError
+        client=publish.GitHub('SYNTHETIC-PRIVATE-VALUE');client.opener=Mock()
+        endpoint=publish.BASE+'actions/artifacts/123/zip'
+        client.opener.open.side_effect=HTTPError('https://api.github.com'+endpoint,415,'Unsupported',{},None)
+        with self.assertRaises(publish.PublicationError) as raised:
+            client.request('GET',endpoint,binary=True,expected_bytes=9)
+        self.assertIn('GET '+endpoint,str(raised.exception));self.assertIn('HTTP 415',str(raised.exception))
+        self.assertNotIn(client.token,str(raised.exception))
 
 
 if __name__=='__main__':unittest.main()

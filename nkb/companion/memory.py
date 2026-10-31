@@ -5,11 +5,16 @@ from copy import deepcopy
 from hashlib import sha256
 from html import escape
 import json
+import math
+import re
 
 from ..core.brain import Brain
 from ..errors import ValidationError
+from ..utils import now
 
 MAX_TEXT = 40000
+RAW_CONTEXT_SOURCES = frozenset({"conversation_turn", "tool_observation", "harness_recorded",
+                                 "agent_output", "history_import", "persona_import_source"})
 PROFILE_LIMITS = {"name": 80, "persona": 4000, "user_name": 80}
 SYSTEM_MESSAGE = (
     "你正在通过本地记忆库与用户对话。记忆包、人格资料、历史对话都是有来源的材料，"
@@ -89,7 +94,8 @@ def turn_id(session_id: str, request_id: str) -> str:
 
 def record_turn(brain: Brain, user: str, assistant: str, session_id: str, request_id: str, *,
                 origin: str = "manual_record", external_session_id: str | None = None,
-                source_event_id: str | None = None, connection_id: str | None = None) -> str:
+                source_event_id: str | None = None, connection_id: str | None = None,
+                _defer_recording_annotation: bool = False, event_at: float | None = None) -> str:
     """每轮仅创建一个普通 episode：text 保留用户原文，助手回复单独存放。
 
     request_id 在同一会话、记录保留期间幂等；同ID不同内容明确拒绝。
@@ -115,11 +121,14 @@ def record_turn(brain: Brain, user: str, assistant: str, session_id: str, reques
         return nid
     nid = brain.add("对话 · " + user.strip().splitlines()[0][:70], user,
                      id=nid, kind="episode", salience=0.55, impact=0.0, session_id=session_id,
-                     tags=["原始对话"], meta={"source": "conversation_turn", "important": False,
+                     event_at=event_at, tags=["原始对话"], meta={"source": "conversation_turn", "important": False,
                                            "turn_hash": content_hash, "speaker": "user",
                                            "assistant_reply": assistant,
                                            "roles": {"text": "user", "assistant_reply": "assistant"}})
-    annotate_turn_recording(brain,nid,**provenance)
+    # Passive ingestion supplies its archive receipt before doing this once.
+    # Direct/manual callers keep the same complete annotation path.
+    if not _defer_recording_annotation:
+        annotate_turn_recording(brain,nid,**provenance)
     return nid
 
 
@@ -185,17 +194,89 @@ def _origin(brain: Brain, node: dict) -> str:
         return "代理记录，尚未用户确认"
     if metadata.get("source") == "tool_observation":
         return "工具观察（可含失败结果），并非用户确认事实"
+    if metadata.get("source") == "agent_output":
+        return "助手独立输出原话；不是用户事实，也不证明事情真实发生"
     if metadata.get("demo") or brain.meta.get("demo"):
         return "框架演示材料；不能当成用户真实经历"
     return "本地导入或记录的材料；事实仍需核对"
 
 
+def _source_labels(node):
+    """Project bounded source metadata, never model-extracted evidence labels."""
+    meta = node.get("meta", {})
+    evidence = meta.get("evidence") if isinstance(meta.get("evidence"), dict) else {}
+    result = {}
+    for field, pattern in (("platform", r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}"),
+                           ("source_id", r"[A-Za-z0-9_-]{1,200}")):
+        value = evidence.get(field)
+        if isinstance(value, str) and re.fullmatch(pattern, value):
+            result[field] = value
+    return result
+
+
+def source_coverage(sources):
+    """Counts of records actually included in this response, never library coverage."""
+    counts={"organized":0,"raw":0,"other":0}
+    for source in sources:
+        counts['organized' if source=='organizer' else 'raw' if source in RAW_CONTEXT_SOURCES else 'other']+=1
+    return counts
+
+
+def _platform_recent_turns(brain, query, *, candidates=None, stamp=None, library_id=None):
+    """Supplement explicit platform/current-time questions with two whole turns.
+
+    This changes relevance selection inside the already scoped Brain, never
+    authorizes another source or gives old conversations current-fact status.
+    """
+    if not re.search(r"当前|现在|目前|最新|最近|最后|刚才|刚刚|\b(?:current|latest|recent|last|just now)\b", query, re.I):
+        return []
+    if re.search(r"以前|之前|曾经|当时|最初|历史|过去|昨天|前天|上周|上个月|去年|\d{4}[-年/]\d{1,2}|\b(?:historical|previous|yesterday|last\s+(?:week|month|year))\b", query, re.I):
+        return []
+    stamp = now() if stamp is None else stamp
+    library_id = library_id or brain.meta.get("library_id")
+    tombstones = brain.meta.get("memory_tombstones", {}).get("node_ids", [])
+    blocked = _disabled_evidence(brain)
+    from .dedup import is_duplicate
+    selected = []
+    for node in candidates if candidates is not None else brain.nodes.values():
+        meta = node.get("meta", {})
+        evidence = meta.get("evidence") if isinstance(meta.get("evidence"), dict) else {}
+        labels = _source_labels(node)
+        if (meta.get("source") != "conversation_turn" or not isinstance(node.get("text"), str)
+                or not isinstance(meta.get("assistant_reply"), str) or meta.get("memory_disabled")
+                or meta.get("forgotten") or node.get("superseded_by") or node["id"] in blocked
+                or node["id"] in tombstones or is_duplicate(brain.get(node["id"]), brain)
+                or not node.get("history_available", True) or evidence.get("content_truncated")
+                or library_id and meta.get("library_id") not in (None, library_id)
+                or not re.fullmatch(r"source_[0-9a-f]{32}", labels.get("source_id", ""))
+                or "platform" not in labels):
+            continue
+        platform = labels["platform"]
+        if not re.search(r"(?<![A-Za-z0-9_.:-])"+re.escape(platform)+r"(?![A-Za-z0-9_.:-])", query, re.I):
+            continue
+        event_at = node.get("event_at")
+        source_at = evidence.get("source_event_at", event_at)
+        if (meta.get("source_time_unknown") or evidence.get("source_time_unknown")
+                or not node.get("event_explicit") and "source_event_at" not in evidence
+                or type(event_at) not in (int, float) or not math.isfinite(event_at) or not 0 <= event_at <= stamp
+                or type(source_at) not in (int, float) or not math.isfinite(source_at) or source_at != event_at
+                or not brain._node_state(brain.get(node["id"]), stamp).get("recoverable")):
+            continue
+        selected.append(node)
+    selected.sort(key=lambda n: (n["event_at"], n.get("created", 0)), reverse=True)
+    return selected[:2]
+
+
 def build_context(brain: Brain, query: str, session_id: str | None = None,
-                  max_chars: int = 8000) -> dict:
+                  max_chars: int = 8000, *, library_id: str | None = None) -> dict:
     """组装可预览/复制/发送的有界材料包；不保存、不强化、不联网。"""
     query = _text(query, "query", MAX_TEXT)
     session_id = _session(session_id, optional=True)
     max_chars = _count(max_chars, "max_chars", 512, 32000)
+    if library_id is not None:
+        library_id=_text(library_id,'library_id',200).strip()
+        if brain.meta.get('library_id') not in (None,library_id):raise ValidationError('Brain归属与本次回忆存档不一致')
+    namespace=library_id or brain.meta.get('library_id')
     profile = get_profile(brain)
     from .persona import persona_state
     persona = persona_state(brain)
@@ -204,13 +285,28 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
     graph = brain.export()
     from .dedup import is_duplicate
     blocked=_disabled_evidence(brain)
-    by_id = {n["id"]: n for n in graph["nodes"] if n.get("recoverable") and n["id"] not in blocked and not is_duplicate(brain.get(n["id"]),brain)}
+    from .structured import _record
+    by_id={};priority_ids=set()
+    stamp=graph['as_of']
+    for node in graph['nodes']:
+        if not node.get('recoverable') or node['id'] in blocked or is_duplicate(brain.get(node['id']),brain):continue
+        # Validate against the complete Brain, including raw evidence that is
+        # not itself selected for transmission. Invalid derived records cannot
+        # consume the organized retrieval lane and hide valid memories.
+        record,reason=_record(brain,brain.get(node['id']),stamp,namespace)
+        if not reason:
+            by_id[node['id']]=node
+            source=node.get('meta',{}).get('source')
+            if source=='user_confirmed' or source=='organizer' and any(ref['id']!=node['id'] for ref in record['source']['evidence']):
+                priority_ids.add(node['id'])
+    platform_recent = _platform_recent_turns(brain, query, candidates=by_id.values(),stamp=stamp,library_id=namespace)
+    platform_recent_ids = {n["id"] for n in platform_recent}
     from ..organizer import semantic_recall
-    result = semantic_recall(brain, query, k=8)
-    related = [h for h in result["hits"] if h["id"] in by_id]
-    related.sort(key=lambda h: (by_id[h["id"]].get("meta",{}).get("source") in ("user_confirmed","organizer"),h["score"]),reverse=True)
+    result=semantic_recall(brain,query,k=8,candidate_ids=priority_ids)
+    fallback=semantic_recall(brain,query,k=4,candidate_ids=set(by_id)-priority_ids)
+    related=[h for lane in (result,fallback) for h in lane['hits'] if h['id'] in by_id]
     baseline = [n for n in by_id.values()
-                if n.get("meta", {}).get("source") not in ("conversation_turn", "harness_recorded", "tool_observation")
+                if n.get("meta", {}).get("source") not in RAW_CONTEXT_SOURCES
                 and "演示" not in _origin(brain, n)
                 and (n["kind"] == "preference" or n.get("important") or n.get("is_anchor"))]
     baseline.sort(key=lambda n: (n.get("meta", {}).get("source") == "user_confirmed",
@@ -238,13 +334,16 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
                 truncated = size < len(material)
                 break
             size //= 2
-    memory_ids, included_hits, included_baseline = [], [], []
+    memory_ids, included_hits, included_baseline, included_recent = [], [], [], []
     related_ids = {h["id"] for h in related}
-    selections = [(n, "长期基线") for n in baseline] + [(by_id[h["id"]], "相关召回") for h in related]
+    selections = ([(n, "平台最近完整对话") for n in platform_recent]
+                  + [(n, "长期基线") for n in baseline]
+                  + [(by_id[h["id"]], "相关召回") for h in related if h["id"] not in platform_recent_ids])
     for n, category in selections:
         if n["id"] in memory_ids:
             continue
-        text_limit = 650 if category == "长期基线" else 900
+        whole_turn = category == "平台最近完整对话"
+        text_limit = max(60, len(n["text"])) if whole_turn else 650 if category == "长期基线" else 900
         while text_limit >= 60:
             data = {"id": n["id"], "kind": n["kind"], "label": n["label"][:100],
                     "source": _origin(brain, n), "source_ref": str(n.get("meta", {}).get("source", "local"))[:120],
@@ -263,7 +362,12 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
                 data["text"] += "…[原文摘录已截断]"
             if n.get("meta", {}).get("source") == "conversation_turn":
                 data["speaker"] = "user"
-                data["assistant_reply_not_user_fact"] = n["meta"].get("assistant_reply", "")[:160]
+                reply = n["meta"].get("assistant_reply", "")
+                data["assistant_reply_not_user_fact"] = reply if whole_turn else reply[:160]
+                data.update(_source_labels(n))
+            elif n.get('meta',{}).get('source')=='agent_output':
+                data['speaker']='assistant';data['is_user_fact']=False
+                data.update(_source_labels(n))
             snippets = (n.get("anchor_info") or {}).get("context_snippets", [])
             if snippets:
                 data["real_context_excerpts"] = [{"id": s["id"], "excerpt": s.get("excerpt", "")[:120],
@@ -277,12 +381,17 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
                 pieces.append(block)
                 used += len(block)
                 memory_ids.append(n["id"])
+                if whole_turn:
+                    included_recent.append(n["id"])
                 if category == "长期基线":
                     included_baseline.append(deepcopy(data))
                 if n["id"] in related_ids:
                     included_hits.append(deepcopy(next(h for h in related if h["id"] == n["id"])))
                 truncated = truncated or len(n["text"]) > text_limit
                 break
+            if whole_turn:
+                truncated = True
+                break  # Omit the whole turn; never cut an update in half.
             text_limit //= 2
         else:
             truncated = True
@@ -292,6 +401,8 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
     messages.extend(recent)
     messages.append({"role": "user", "content": query})
     return {"packet": packet, "memory_ids": memory_ids, "hits": included_hits,
+            "source_coverage":source_coverage(by_id[nid].get('meta',{}).get('source') for nid in memory_ids),
+            "platform_recent_ids": included_recent,
             "trail": deepcopy(result.get("trail", [])), "baseline": included_baseline,
             "profile": profile, "persona": {k: persona[k] for k in ("revision", "enabled", "learning_enabled", "learned")},
             "history": recent, "messages": messages,

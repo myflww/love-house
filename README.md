@@ -4,7 +4,7 @@
 
 **给个人 Agent 的长期记忆之家。**
 
-你在原来的客户端聊天，爱之屋替它保存、整理和找回记忆。  
+记忆归属于 Agent，窗口和平台是活动来源；已接入宿主提供的真实对话、工具观察与结果，由爱之屋保存、整理和找回。  
 换一个窗口、换一个模型，也可以接着使用同一个存档。
 
 [**按系统下载安装**](#下载) · [手机版安装](docs/手机版安装与使用.md) · [第一次连接](#三步连接) · [存档迁移](#带着记忆去新窗口) · [许可与署名](#使用许可与署名)
@@ -15,6 +15,22 @@
 </div>
 
 ---
+
+## macOS 0.9.0
+
+本轮聚焦三件事：接收已适配运行程序的可见输出，在下一次处理前自动返回相关整理记忆，并清楚说明配置应填到哪里。独立输出不需要补造用户消息；取回资料会区分整理记忆与原始资料。macOS版已完成本机安装、重启和原存档保留核验，详见 [macOS 0.9 验证记录](docs/MACOS-090-VERIFICATION.md)。Windows共享功能更新见 [0.9交接书](docs/WINDOWS-090-HANDOFF.md)。
+
+## 0.8.0 基础能力
+
+新增“她的经历”：围绕何时、发生了什么、原话中明确表达的缘由、来源报告的结果整理记忆，工具原文默认收在依据里。新增“同鱼活动来源”，把同一条鱼的多个已接入宿主固定到同一存档；提供 AstrBot 实验插件、来源 SDK 与 Linux/macOS 无界面服务入口。登记配置不表示已覆盖所有软件。
+
+阅读 [同鱼多平台接入](docs/同鱼多平台接入.md)、[Agent 身份与经历记忆](docs/Agent身份与全活动记忆.md) 和 [0.8 跨系统交接](docs/MACOS-080-HANDOFF.md)。AstrBot 真实环境验收结果单独记录，不能把本地模拟当作 QQ 或云服务器通过；其他系统继续使用各自已发布版本。
+
+个人存档不按固定条数挤掉旧记录，也不设置统一到期日；基于时间、有效回忆和间隔的连续权重决定淡化。整理模型自动收到版本化规则，原文、来源与权限继续由程序把关。保留 0.6.0 的聊天抢救导入、分档记忆包和自动版本检查。
+
+继续保留 [自适应记忆与整理规则](docs/自适应记忆与整理规则.md) 与 [0.7 同步交接](docs/MACOS-070-HANDOFF.md) 中的底层行为。下方既有下载入口继续对应各自已发布版本。
+
+跨平台接入按明确的宿主来源登记；当前没有监听所有软件的通用采集器。 本轮实机范围见 [真实养鱼验收记录](docs/真实养鱼验收-20261030.md)。
 
 ## 你的 Agent，有自己的存档
 
@@ -46,13 +62,13 @@
 
 ## 下载
 
-**macOS 稳定版为 0.5.0；Windows 推荐 0.5.1rc1 修复预览；手机版为 0.1.0 移动预览。请按系统和芯片选包。**
+**macOS 为 0.9.0；Windows 与 Android 继续使用另一发布分支提供的 0.8.0rc2 预览包。各系统分别验证，请按系统和芯片选包。**
 
 | 你的系统 | 版本与下载 | 使用要求与验证状态 |
 |---|---|---|
-| Windows x64 · Intel / AMD 64 位 | [安装版 EXE](https://github.com/myflww/love-house/releases/download/v0.5.1rc1/LoveHouse-Setup-0.5.1rc1-Windows-x64.exe) · [便携版 ZIP](https://github.com/myflww/love-house/releases/download/v0.5.1rc1/LoveHouse-0.5.1rc1-Windows-x64.zip) | 0.5.1rc1 修复预览；技术最低 Win10 2004/19041 或 Win11。Win11 x64 已实测，Win10 待实机验收 |
-| macOS · Apple Silicon（M 系列） | [0.5.0 稳定版 ZIP](https://github.com/myflww/love-house/releases/download/v0.5.0/LoveHouse-0.5.0-macOS-arm64.zip) | macOS 13.0+；解压后把“爱之屋.app”放入应用程序目录 |
-| 主流 Android 手机 | [0.1.0-preview1 APK](https://github.com/myflww/love-house/releases/download/android-v0.1.0-preview1/LoveHouse-0.1.0-preview1-Android.apk) · [发布与校验](https://github.com/myflww/love-house/releases/tag/android-v0.1.0-preview1) | 技术最低 Android 8.0；保持系统 WebView 更新。通用已签名 APK，真实手机待验收 |
+| Windows x64 · Intel / AMD 64 位 | [安装版 EXE](https://github.com/myflww/love-house/releases/download/v0.8.0rc2/LoveHouse-Setup-0.8.0rc2-Windows-x64.exe) · [便携版 ZIP](https://github.com/myflww/love-house/releases/download/v0.8.0rc2/LoveHouse-0.8.0rc2-Windows-x64.zip) | 0.8.0rc2 预览；技术最低 Win10 2004/19041 或 Win11。Windows实机结果由对应发布分支单列 |
+| macOS · Apple Silicon（M 系列） | [0.9.0 ZIP](https://github.com/myflww/love-house/releases/download/v0.9.0/LoveHouse-0.9.0-macOS-arm64.zip) | macOS 13.0+；解压后把“爱之屋.app”放入应用程序目录 |
+| 主流 Android 手机 | [0.8.0rc2 APK](https://github.com/myflww/love-house/releases/download/v0.8.0rc2/LoveHouse-0.8.0rc2-Android.apk) · [发布与校验](https://github.com/myflww/love-house/releases/tag/v0.8.0rc2) | 技术最低 Android 8.0；保持系统 WebView 更新。通用已签名 APK，真实手机待验收 |
 | iPhone | [打开主屏幕版](https://love-house-mobile-myflww.sharp-rice-0090.chatgpt.site) | Safari 打开 → 分享 → 添加到主屏幕；技术最低 iOS 15.4。PWA 网页应用，无 IPA；真机待验收 |
 | macOS Intel / Windows ARM64 / Windows 32 位 | 暂无对应原生桌面包 | 当前不承诺这些架构的兼容性 |
 | Linux / 源码开发 | [源码](https://github.com/myflww/love-house) | 暂无 Linux 桌面包；Python 3.11+ 可运行本地服务 |
@@ -61,9 +77,9 @@
 
 桌面包不需要自行安装 Python 或 Node。Windows 安装版按当前用户安装；便携版须完整解压后打开 `LoveHouse.exe`。新版携带经过微软签名与 SHA256 验证的离线 WebView2 修复组件，缺失时明确询问后安装。
 
-Windows 使用 [Windows-SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.5.1rc1/Windows-SHA256SUMS.txt)，macOS 使用 [SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.5.0/SHA256SUMS.txt)。GitHub 的自动 Source code 文件不是桌面安装包；旧 Windows 0.5.0 存在启动兼容反馈，请改用上面的修复预览。
+Windows 使用 [Windows-SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.8.0rc2/Windows-SHA256SUMS.txt)，macOS 使用 [SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.9.0/SHA256SUMS.txt)。GitHub 的自动 Source code 文件不是桌面安装包；旧 Windows 0.5.0 存在启动兼容反馈，请改用上面的修复预览。
 
-Windows 修复预览已完成本机与 CI 的安装、原生窗口及公开下载验证；干净系统缺失或损坏 Runtime 的实测仍待完成，因此尚未标为正式稳定版。macOS 保留现有 0.5.0 稳定包。
+Windows修复及实机验证状态以对应发布分支报告为准；本次macOS发布不覆盖已有Windows或Android安装包。
 
 完整安装步骤、系统/芯片范围、验证结果和 Agent 接入差异见 [下载与系统支持](docs/下载与系统支持.md)。主程序签名状态：macOS 为本地签名、未公证，Windows 未附发行商代码签名；请核对来源与校验值，保留系统安全保护。
 
@@ -178,3 +194,4 @@ python3.12 scripts/build_macos.py --native-smoke
 Created by [myflww](https://github.com/myflww) · 非商用 · 保留署名
 
 </div>
+

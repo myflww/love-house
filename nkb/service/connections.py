@@ -2,6 +2,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import secrets
 import sqlite3
 import time
@@ -29,6 +30,7 @@ class ConnectionStore:
             fields={r['name'] for r in db.execute('PRAGMA table_info(connections)')}
             for field in ('host_seen','configured_at'):
                 if field not in fields:db.execute(f'ALTER TABLE connections ADD COLUMN {field} REAL')
+            if 'last_recall' not in fields:db.execute('ALTER TABLE connections ADD COLUMN last_recall TEXT')
             receipt_fields={r['name'] for r in db.execute('PRAGMA table_info(receipts)')}
             for field,kind in (('semantic_type','TEXT'),('is_automatic','INTEGER')):
                 if field not in receipt_fields:db.execute(f'ALTER TABLE receipts ADD COLUMN {field} {kind}')
@@ -39,6 +41,7 @@ class ConnectionStore:
                 db.execute('UPDATE receipts SET semantic_type=?,is_automatic=? WHERE id=?',
                            (semantic_type,int(automatic),row['id']))
             db.execute('CREATE INDEX IF NOT EXISTS receipts_capture_state ON receipts(connection_id,status,semantic_type,is_automatic)')
+            db.execute('CREATE INDEX IF NOT EXISTS receipts_library_pending ON receipts(library_id,status,received)')
         self.path.chmod(0o600)
     @contextmanager
     def db(self):
@@ -58,7 +61,7 @@ class ConnectionStore:
             normalized=event.get('normalized') or record.get('normalized') or event
             if not isinstance(normalized,dict):return '',False
             kind=normalized.get('type')
-            if kind not in ('turn','tool','persona_import') or normalized.get('status','complete')!='complete':kind=''
+            if kind not in ('turn','tool','output','persona_import') or normalized.get('status','complete')!='complete':kind=''
             automatic=record.get('schema') in ('deepseek-harness-event/v1','love-house-agent-hook/v1',
                                                 'neural-api-proxy/v1','neural-api-tool/v1')
             return kind,bool(automatic)
@@ -70,13 +73,36 @@ class ConnectionStore:
               SUM(CASE WHEN status='saved' AND semantic_type='turn' AND is_automatic=1 THEN 1 ELSE 0 END) automatic_dialogues_saved,
               SUM(CASE WHEN status='saved' AND semantic_type='tool' THEN 1 ELSE 0 END) tool_observations_saved,
               SUM(CASE WHEN status='saved' AND semantic_type='tool' AND is_automatic=1 THEN 1 ELSE 0 END) automatic_tool_observations_saved,
+              SUM(CASE WHEN status='saved' AND semantic_type='output' THEN 1 ELSE 0 END) outputs_saved,
+              SUM(CASE WHEN status='saved' AND semantic_type='output' AND is_automatic=1 THEN 1 ELSE 0 END) automatic_outputs_saved,
               SUM(CASE WHEN status='archived' THEN 1 ELSE 0 END) raw_events_only,
               SUM(CASE WHEN status IN ('pending','retry') THEN 1 ELSE 0 END) pending_records,
-              MAX(CASE WHEN status='saved' AND semantic_type='turn' THEN applied END) last_dialogue_at
+              MAX(CASE WHEN status='saved' AND semantic_type='turn' THEN applied END) last_dialogue_at,
+              MAX(CASE WHEN status='saved' AND semantic_type='output' THEN applied END) last_output_at
               FROM receipts WHERE connection_id=?''',(cid,)).fetchone()
-        return {k:(row[k] if k=='last_dialogue_at' else int(row[k] or 0)) for k in row.keys()}
+        return {k:(row[k] if k in ('last_dialogue_at','last_output_at') else int(row[k] or 0)) for k in row.keys()}
+
+    def record_recall(self,cid,coverage):
+        """Metadata for the returned material only, never a query or transcript."""
+        if (not isinstance(coverage,dict) or any(type(coverage.get(k)) is not int or not 0<=coverage[k]<=1000
+                for k in ('organized','raw','other'))):
+            raise ValidationError('召回统计格式不正确')
+        value={'at':time.time(),'organized_count':coverage['organized'],
+               'source_count':coverage['raw'],'other_count':coverage['other']}
+        with self.db() as db:
+            db.execute('UPDATE connections SET last_recall=? WHERE id=? AND enabled=1 AND revoked=0',
+                       (json.dumps(value,separators=(',',':')),cid))
     def public(self,row):
         result=dict(row);result.pop('token',None)
+        encoded=result.pop('last_recall',None);last=None
+        try:
+            item=json.loads(encoded) if encoded else None
+            if (isinstance(item,dict) and type(item.get('at')) in (int,float) and math.isfinite(item['at']) and item['at']>=0
+                    and all(type(item.get(k)) is int and 0<=item[k]<=1000
+                            for k in ('organized_count','source_count','other_count'))):
+                last={k:item[k] for k in ('at','organized_count','source_count','other_count')}
+        except (TypeError,ValueError):pass
+        result['last_recall']=last
         result['enabled']=bool(result['enabled']);result['revoked']=bool(result['revoked'])
         result['archive_status']=result['archive_status'] or 'waiting'
         capture=self._capture(result['id']);result['capture']=capture
@@ -84,9 +110,10 @@ class ConnectionStore:
             # A completed tool result proves automatic observation capture, not
             # that a human/assistant conversation pair has reached the graph.
             if capture['automatic_dialogues_saved']:result['archive_status']='automatic_connected'
+            elif capture['automatic_outputs_saved']:result['archive_status']='outputs_only'
             elif capture['automatic_tool_observations_saved']:result['archive_status']='observations_only'
-            elif capture['complete_dialogues_saved'] or capture['tool_observations_saved']:result['archive_status']='tools_only'
-            elif result['archive_status'] in ('automatic_connected','observations_only','tools_only'):result['archive_status']='waiting'
+            elif capture['complete_dialogues_saved'] or capture['tool_observations_saved'] or capture['outputs_saved']:result['archive_status']='tools_only'
+            elif result['archive_status'] in ('automatic_connected','observations_only','outputs_only','tools_only'):result['archive_status']='waiting'
         result['last_received_at']=result.pop('last_received',None)
         result['host_seen_at']=result.pop('host_seen',None)
         result['host_online']=bool(result['host_seen_at'] and time.time()-result['host_seen_at']<65 and result['enabled'] and not result['revoked'])
@@ -165,7 +192,7 @@ class ConnectionStore:
         digest=hashlib.sha256(payload.encode()).hexdigest();kind=str(event.get('event_type',event.get('type','event')))[:80]
         # Raw host events are already fully archived. Only normalized complete
         # semantic records need applying to the graph; partial stays an archive.
-        normalized=event.get('normalized') or (event.get('record') or {}).get('normalized') or (event if event.get('type') in ('turn','tool','persona_import') else None)
+        normalized=event.get('normalized') or (event.get('record') or {}).get('normalized') or (event if event.get('type') in ('turn','tool','output','persona_import') else None)
         pending=bool(normalized and normalized.get('status','complete')=='complete')
         semantic_type,automatic=self._payload_semantics(event)
         with self.db() as db:
@@ -178,9 +205,14 @@ class ConnectionStore:
                        (key,connection['id'],connection['library_id'],sid,kind,'pending' if pending else 'archived',payload,digest,time.time(),semantic_type,int(automatic)))
             db.execute('UPDATE connections SET last_received=?,error=NULL WHERE id=?',(time.time(),connection['id']))
         return {'accepted':True,'duplicate':False,'receipt_id':key,'status':'pending' if pending else 'archived'}
-    def pending(self,limit=50):
-        with self.db() as db:rows=db.execute("SELECT * FROM receipts WHERE status IN ('pending','retry') ORDER BY received LIMIT ?",(limit,)).fetchall()
+    def pending(self,limit=50,*,library_id=None,receipt_id=None):
+        where="status IN ('pending','retry')";values=[]
+        if library_id is not None:where+=' AND library_id=?';values.append(library_id)
+        if receipt_id is not None:where+=' AND id=?';values.append(receipt_id)
+        with self.db() as db:rows=db.execute('SELECT * FROM receipts WHERE '+where+' ORDER BY received LIMIT ?',(*values,limit)).fetchall()
         return [dict(r) for r in rows]
+    def pending_count(self,library_id):
+        with self.db() as db:return db.execute("SELECT COUNT(*) FROM receipts WHERE library_id=? AND status IN ('pending','retry')",(library_id,)).fetchone()[0]
     def receipt(self,cid,sid,event_id):
         key=hashlib.sha256(json.dumps([cid,sid,str(event_id)],ensure_ascii=False).encode()).hexdigest()
         with self.db() as db:r=db.execute('SELECT * FROM receipts WHERE id=?',(key,)).fetchone()
@@ -197,6 +229,7 @@ class ConnectionStore:
             db.execute("UPDATE receipts SET status='saved',applied=?,attempts=attempts+1,error=NULL,node_ids=?,is_automatic=? WHERE id=?",
                        (time.time(),json.dumps(node_ids),int(automatic),rid))
             if automatic and row['semantic_type']=='turn':db.execute("UPDATE connections SET archive_status='automatic_connected',error=NULL WHERE id=?",(row['connection_id'],))
+            elif automatic and row['semantic_type']=='output':db.execute("UPDATE connections SET archive_status=CASE WHEN archive_status='automatic_connected' THEN archive_status ELSE 'outputs_only' END,error=NULL WHERE id=?",(row['connection_id'],))
             elif automatic and row['semantic_type']=='tool':db.execute("UPDATE connections SET archive_status=CASE WHEN archive_status='automatic_connected' THEN archive_status ELSE 'observations_only' END,error=NULL WHERE id=?",(row['connection_id'],))
             else:db.execute("UPDATE connections SET archive_status=CASE WHEN archive_status='automatic_connected' THEN archive_status ELSE 'tools_only' END,error=NULL WHERE id=?",(row['connection_id'],))
     def failed(self,rid,error):

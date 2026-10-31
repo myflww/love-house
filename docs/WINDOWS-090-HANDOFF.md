@@ -1,6 +1,6 @@
 # 爱之屋 0.9.0：Windows 更新交接
 
-这份交接对应 macOS 0.9.0 的共享功能，基础源码提交为 `dc9c2b6893cb3e05ba0a40d93749af8919e9595e`，分支为 `codex/output-memory-090`；后续仅补文档的提交可一并获取。产品版本为0.9.0，服务协议继续0.4.0，AstrBot实验插件0.2.0，Harness适配器0.4.1。macOS构建号12不应直接充当Windows构建号。
+这份交接对应 macOS 0.9.0 的共享功能，基础源码提交为 `77f00d13385fc84dd5af418fb5a705bb299a14a7`，分支为 `codex/output-memory-090`；后续仅补文档的提交可一并获取。产品版本为0.9.0，服务协议继续0.4.0，AstrBot实验插件0.2.0，Harness适配器0.4.1。macOS构建号12不应直接充当Windows构建号。
 
 **从另一台电脑上最新、已验证的Windows分支继续合并。** 本次没有修改 `desktop/windows_app.py`、`desktop/windows-installer.iss`、`desktop/requirements-windows.txt`、`scripts/build_windows.py` 或Windows发布工作流。不要用这份Mac工作区整目录覆盖Windows工程，尤其保留已完成的WebView2检测、启动诊断、安装和缓存清理修复。若Windows线上版本已经高于0.9.0，只合入需要的功能，并按现有版本策略递增，不降级版本或覆盖已有发布资产。
 

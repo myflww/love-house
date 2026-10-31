@@ -63,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 13974,
-      "sha256": "c87ad47796d5c6e87d35fe6e0349c29b306eb3ffac049e8a4cb1b4f54fe78518"
+      "bytes": 14125,
+      "sha256": "c1e33d9d7ef1536c3841287d9806d67088172f150c941d9bc34e4db5032fe1fb"
     },
     {
       "path": "ROADMAP.md",
@@ -422,14 +422,24 @@
       "sha256": "f4220e86d09b404bfbafcf2b9e8374a881d21171572c3580e97d28459d06963b"
     },
     {
+      "path": "docs/ReleaseNotes-0.9.1rc1-Windows.md",
+      "bytes": 2204,
+      "sha256": "1b1c752540346e7e571cfce3e535eb83209d4b17509b02ca10638a0c91eafc82"
+    },
+    {
+      "path": "docs/WINDOWS-091-FIXES.md",
+      "bytes": 5314,
+      "sha256": "3f341e427413cb4dce1a8209d5fbcaa2e5d9cc8f24c57c5193a2e4923fc4e9ff"
+    },
+    {
       "path": "docs/WORKBUDDY-CONNECTION.md",
       "bytes": 3369,
       "sha256": "bc1438dd6aa97aea6c999275bc12c5aeba28017000e3f483a374a3e0b16d8e4b"
     },
     {
       "path": "docs/下载与系统支持.md",
-      "bytes": 5720,
-      "sha256": "f3e10ca436f0bd11783b3a1b07e6c96fe81b3b0021dde7472e1a806d4904ee0b"
+      "bytes": 5850,
+      "sha256": "81c510814e735374f35bf211efe27154f8f5163812539c89920b20edb99480b9"
     },
     {
       "path": "docs/发布与许可.md",

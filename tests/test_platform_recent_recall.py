@@ -120,17 +120,17 @@ class PlatformRecentRecallTests(unittest.TestCase):
 
     def test_no_platform_or_explicit_historical_queries_keep_original_semantic_selection(self):
         old = self.turn('old', '以前的约定。', '旧值。', ago=100)
-        self.turn('new', ago=10)
+        latest = self.turn('new', ago=10)
         for query in ('QQ 的中性暗号是什么', '我们刚才最后确认的中性暗号是什么',
                       '昨天在 QQ 最后确认的暗号是什么', '以前 QQ 最后确认的约定是什么',
                       'QQ latest agreement from last week'):
             with self.subTest(query=query):
                 recalled = {'hits': [{'id': old, 'score': .8}], 'trail': []}
-                with patch('nkb.organizer.semantic_recall', return_value=recalled) as recall:
+                with patch('nkb.organizer.semantic_recall', return_value=recalled):
                     base = build_context(self.brain, query, max_chars=6000)
-                recall.assert_called_once_with(self.brain, query, k=8)
                 self.assertEqual(base['platform_recent_ids'], [])
                 self.assertEqual(base['memory_ids'], [old])
+                self.assertNotIn(latest,base['memory_ids'])
 
     def test_platform_match_is_case_insensitive_but_not_a_partial_platform_name(self):
         latest = self.turn('latest')

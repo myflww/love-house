@@ -1,0 +1,97 @@
+{
+  "schema": "love-house-workbuddy-080rc2-publication/v1",
+  "ready": true,
+  "source_commit": "ab373b9f6d5b1763b14eb5903a66fb20775eda73",
+  "signed_head": "a6747b5ad82d36502a9e45fce72cfc77423b8fde",
+  "source_runs": {
+    "windows": 41113895853,
+    "android": 41113905174,
+    "android_remote": 41113895852,
+    "ios": 41113905327,
+    "regression": 41113896092
+  },
+  "signed_run": 41119527559,
+  "windows_artifact": {
+    "id": 13005147670,
+    "name": "love-house-windows-x64",
+    "bytes": 519779377,
+    "sha256": "e6ed8d58d323e799cf610fa922704f76b31b1b359a2d5f405f74bfb61e81817c"
+  },
+  "windows_evidence_artifact": {
+    "id": 13004933180,
+    "name": "windows-test-evidence",
+    "bytes": 4374,
+    "sha256": "109175bc3f6b9d32e431dabbce847fc2f117f45aa0d5598cf281248d544ac70d"
+  },
+  "android_build_artifact": {
+    "id": 13006221512,
+    "name": "android-unsigned-api-28",
+    "bytes": 4591746,
+    "sha256": "c490e05aa5ff92c637143360e6bf665b6a2e0ff70c45aa180b4fac59e8e0cf9d"
+  },
+  "windows_files": {
+    "LoveHouse-Setup-0.8.0rc2-Windows-x64.exe": {
+      "bytes": 255204790,
+      "sha256": "d580707d17f9f54430c7e07075393d4816f9aa516792564245479b2061622d15"
+    },
+    "LoveHouse-0.8.0rc2-Windows-x64.zip": {
+      "bytes": 265169101,
+      "sha256": "0a82b59b889cd1ad31695fe4d2b11df06dd8ec97fe238233fa57f0662d1a99c9"
+    },
+    "Windows-SHA256SUMS.txt": {
+      "bytes": 210,
+      "sha256": "912ebebead05be59045bdcfe74bb68e5b1343062420b52082a95dae7a8a3df9a"
+    }
+  },
+  "signed_artifacts": [
+    {
+      "id": 13007472966,
+      "name": "original-signed-080rc2-api-36-from-1",
+      "bytes": 2472423,
+      "sha256": "bbda724a04dd7e8c223e06a95644df1b1dec51ce13d888933fe004c9f73b01e2",
+      "api_level": 36,
+      "from_version_code": 1
+    },
+    {
+      "id": 13007123573,
+      "name": "original-signed-080rc2-api-28-from-1",
+      "bytes": 2471072,
+      "sha256": "91141f4c100300fcdf48714607f2657f0aecabcb28df4128c1400369977a81ad",
+      "api_level": 28,
+      "from_version_code": 1
+    },
+    {
+      "id": 13007078493,
+      "name": "original-signed-080rc2-api-36-from-2",
+      "bytes": 2467150,
+      "sha256": "9ac56c88817b0958f5613dead31872c71e710045a01439648a9b40c874e4ab0f",
+      "api_level": 36,
+      "from_version_code": 2
+    },
+    {
+      "id": 13006944524,
+      "name": "original-signed-080rc2-api-28-from-2",
+      "bytes": 2467975,
+      "sha256": "6dfb58a617c9019a18e08b2f60dc78da627bb922f3cb4c839719b6f16ca32e1f",
+      "api_level": 28,
+      "from_version_code": 2
+    }
+  ],
+  "notes_path": "docs/RELEASE-080RC2.md",
+  "release_notes": {
+    "bytes": 3908,
+    "sha256": "f4220e86d09b404bfbafcf2b9e8374a881d21171572c3580e97d28459d06963b"
+  },
+  "doc_assets": {
+    "WORKBUDDY-CONNECTION.md": {
+      "path": "docs/WORKBUDDY-CONNECTION.md",
+      "bytes": 3369,
+      "sha256": "bc1438dd6aa97aea6c999275bc12c5aeba28017000e3f483a374a3e0b16d8e4b"
+    },
+    "MACOS-080RC2-WORKBUDDY-HANDOFF.md": {
+      "path": "docs/MACOS-080RC2-WORKBUDDY-HANDOFF.md",
+      "bytes": 5529,
+      "sha256": "f5cb6fd68136d358a6b14010d7fcb7e00f39a7abaa5ceae7b9586eb65a747ff7"
+    }
+  }
+}

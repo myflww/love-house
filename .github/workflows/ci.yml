@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [main, master, codex/workbuddy-connect-080rc2]
+    branches: [main, master, codex/workbuddy-connect-080rc2, codex/windows-091-fixes]
   pull_request:
   workflow_dispatch:
 

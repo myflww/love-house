@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries><package android:name="io.github.myflww.lovehouse.preview" /></queries>
+    <application android:label="Love House Upgrade QA" android:allowBackup="false" android:usesCleartextTraffic="false" />
+    <!-- Developer-only self-instrumentation. It never enters the public App APK. -->
+    <instrumentation
+        android:name="io.github.myflww.lovehouse.upgradeqa.UpgradeProbeInstrumentation"
+        android:targetPackage="io.github.myflww.lovehouse.upgradeqa"
+        android:functionalTest="true" />
+</manifest>

@@ -1,5 +1,6 @@
 {
   "enabled": {"type":"bool","description":"启用已登记活动来源","default":false,"hint":"只处理下方明确登记的消息来源；其他私聊、群聊和Agent不会进入本插件队列。"},
+  "record_scheduled_outputs": {"type":"bool","description":"保存已绑定来源的主动任务输出","default":false,"hint":"仅适配AstrBot 4.29.3真实CronMessageEvent。原UMO仍须在白名单中；任务开始前取回相关记忆，保存最终助手文字和可见工具结果，不把调度指令当成用户发言。默认关闭，不扩大原有采集范围。"},
   "record_observations": {"type":"bool","description":"保留宿主实际观察结果","default":true,"hint":"只保存可见文字结果作为经历证据，不记录工具参数、模型私有推理或厂商凭据。"},
   "bindings": {
     "type":"template_list","description":"Agent活动来源绑定","default":[],

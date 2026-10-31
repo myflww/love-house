@@ -239,7 +239,7 @@ def _project_experience(brain, node, library_id, *, read_archive=None):
         except (KeyError, TypeError, ValueError):return None
         if sm.get("source") == "conversation_turn":roles = {"user":source.get("text", ""), "assistant":sm.get("assistant_reply", "")}
         elif sm.get("source") == "tool_observation":roles = {"tool":source.get("text", "")}
-        elif sm.get("source") == "harness_recorded":roles = {"assistant":source.get("text", "")}
+        elif sm.get("source") in ("harness_recorded", "agent_output"):roles = {"assistant":source.get("text", "")}
         elif sm.get("source") == "persona_import_source":roles = {"assistant":source.get("text", "")}
         else:return None
         receipt = (sm.get("evidence") or {}).get("archive_receipt_id") if isinstance(sm.get("evidence"),dict) else None

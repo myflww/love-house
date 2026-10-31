@@ -317,7 +317,7 @@ def _private(path, content):
     if path.is_symlink():
         raise ValueError("拒绝替换符号链接配置")
     temporary = path.with_name(path.name + "." + str(time.time_ns()) + ".tmp")
-    with temporary.open("x", encoding="utf-8") as stream:
+    with temporary.open("x", encoding="utf-8", newline="") as stream:
         os.chmod(temporary, 0o600)
         stream.write(content)
         stream.flush()
@@ -408,13 +408,13 @@ def configure(connection_config, apply=False, app_path=None):
         raise ValueError("宿主插件尚未构建，未更改Harness设置")
     if not profile_exists or patch.is_symlink() or installation.is_symlink():
         raise ValueError("宿主profile不存在或目标是符号链接，未更改配置")
-    source = patch.read_text("utf-8") if patch.exists() else "[]\n"
+    source = patch.read_bytes().decode("utf-8") if patch.exists() else "[]\n"
     candidate = _patch(source, block, owner, config_file)
     marker = installation / "managed.json"
     if installation.exists() and any(installation.iterdir()) and not marker.exists():
         raise ValueError("插件安装目录已有未知文件，未覆盖")
     installation.mkdir(parents=True, exist_ok=True, mode=0o700)
-    _private(marker, json.dumps({"managed_by": OWNER, "version": "0.4.0"}))
+    _private(marker, json.dumps({"managed_by": OWNER, "version": "0.4.1"}))
     for name in ("index.js", "configure.js", "proxy.js", "THIRD_PARTY_LICENSES.txt"):
         origin, target = ROOT / "dist" / name, installation / name
         if origin.exists() and origin.resolve() != target.resolve():
@@ -422,13 +422,13 @@ def configure(connection_config, apply=False, app_path=None):
     _private(config_file, json.dumps(connection, ensure_ascii=False))
     _private(installation / "package.json", json.dumps({"name": "neural-knowledge-local-adapter", "private": True, "type": "module"}))
     _private(Path(result["overlay_file"]), block)
-    _private(marker, json.dumps({"managed_by": OWNER, "version": "0.4.0"}))
+    _private(marker, json.dumps({"managed_by": OWNER, "version": "0.4.1"}))
     backup = None
     if patch.exists():
         backup = patch.with_name(patch.name + ".neural-knowledge-" + str(time.time_ns()) + ".backup")
         shutil.copy2(patch, backup)
         os.chmod(backup, 0o600)
-        if patch.read_text("utf-8") != source:
+        if patch.read_bytes().decode("utf-8") != source:
             raise ValueError("宿主配置在准备期间发生变化，未写入；请重新生成计划")
     _private(patch, candidate)
     return {**result, "applied": True, "backup": str(backup) if backup else None,
@@ -459,7 +459,7 @@ def set_enabled(connection_config, enabled, remove=False, app_path=None):
         if patch.is_symlink():
             raise ValueError("拒绝更改链接的宿主配置；源采集已禁用")
         if patch.exists():
-            source = patch.read_text("utf-8")
+            source = patch.read_bytes().decode("utf-8")
             block = prepared["overlay"]
             begin = block.splitlines(keepends=True)[0]
             end = block.splitlines(keepends=True)[-1]

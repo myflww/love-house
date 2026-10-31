@@ -114,6 +114,30 @@ class ConnectionStateTests(unittest.TestCase):
         self.assertTrue(self.status()['automatic_memory'])
         self.assertEqual(self.status()['capture']['automatic_dialogues_saved'],1)
 
+    def test_independent_output_does_not_claim_a_window_or_attest_an_adapter(self):
+        event={'session_id':'fixture-window-a','event_id':'output-one','record':{
+            'schema':'love-house-agent-hook/v1','normalized':{'type':'output','role':'assistant',
+            'text':'合成独立助手输出','status':'complete','origin':'agent_host_hook'}}}
+        pending=self.host.accept(self.cid,self.token,event)
+        self.assertFalse(pending['accepted'])
+        self.assertEqual(pending['status'],'awaiting_window_binding')
+        self.assertFalse(self.host.connections.archives('default'))
+        self.assertTrue(self.hook()['accepted'])
+        self.assertEqual(self.host.accept(self.cid,self.token,event)['status'],'saved')
+        state=self.status()
+        self.assertEqual(state['capture']['outputs_saved'],1)
+        self.assertEqual(state['capture']['automatic_outputs_saved'],0)
+        self.assertFalse(state['automatic_memory'])
+        self.assertEqual(state['connection']['archive_status'],'host_reported')
+        self.assertIsNotNone(state['capture']['last_output_at'])
+        event['session_id']='foreign-window';event['event_id']='foreign-output'
+        self.assertFalse(self.host.accept(self.cid,self.token,event)['accepted'])
+        self.assertEqual(len(self.host.connections.archives('default')),2)
+        fresh=self.host.rebind_connection(self.cid,{'confirm':True,'expected_bound_session_id':'fixture-window-a'})
+        self.assertEqual(fresh['connection']['capture']['outputs_saved'],0)
+        self.assertFalse(fresh['connection']['automatic_memory'])
+        self.assertEqual(len(self.host.snapshot('default')['nodes']),2)
+
     def test_rebind_requires_confirmation_and_current_binding_then_invalidates_old_host(self):
         self.hook()
         before=self.host.snapshot('default')

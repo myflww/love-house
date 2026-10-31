@@ -1,0 +1,42 @@
+name: Publish verified WorkBuddy Windows and Android 0.8.0rc2
+on:
+  push:
+    branches: [codex/workbuddy-publish-080rc2]
+    paths:
+      - scripts/publish_workbuddy_080rc2.py
+      - scripts/workbuddy-080rc2-publication.json
+      - tests/test_publish_workbuddy_080rc2.py
+      - .github/workflows/publish-workbuddy-080rc2.yml
+      - docs/RELEASE-080RC2.md
+      - docs/WORKBUDDY-CONNECTION.md
+      - docs/MACOS-080RC2-WORKBUDDY-HANDOFF.md
+permissions:
+  contents: read
+concurrency:
+  group: publish-workbuddy-080rc2
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'myflww/love-house' && github.ref == 'refs/heads/codex/workbuddy-publish-080rc2' && contains(github.event.head_commit.message, '[publish-workbuddy-080rc2]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      actions: read
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify append-only publication safeguards
+        run: python -m unittest tests.test_publish_workbuddy_080rc2 -v
+      - name: Verify exact tested bytes, publish draft and compare anonymous downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/publish_workbuddy_080rc2.py

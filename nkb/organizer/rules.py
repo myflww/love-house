@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from ..companion.retention import get_retention_policy
 
-RULES_VERSION = "love-house-organizer-rules/2026-10-30.2"
+RULES_VERSION = "love-house-organizer-rules/2026-10-30.4"
 ALLOWED_OPERATIONS = ("remember", "merge", "supersede", "relate", "candidate")
 
 _OUTPUT_GUIDANCE = (
@@ -21,6 +21,8 @@ _OUTPUT_GUIDANCE = (
     "action仅remember/merge/supersede/relate/candidate；layer仅fact/preference/experience/commitment/persona。"
     "certainty为clear/uncertain/conflict，domain为real/roleplay/unknown。"
     "evidence必须引用本批次实际提供的id、角色和逐字原文。"
+    "优先输出最小可校验操作：text保持简短，evidence只选支持这一项的短完整语句；"
+    "不要重复整段聊天或网页，不输出无关别名。默认可以省略atom，逐字引用与角色正确比提取机器属性更优先。"
     "quote只能逐字取roles对应字段，context_prefix不是本片证据。"
     "recording_group只是同一对话被不同通道记录的来源信息，不是多条独立事实证据。"
     "不把助手自述当用户事实，不把小说/角色扮演当现实，不覆盖用户重要设定。"
@@ -66,6 +68,23 @@ _MEMORY_GUIDANCE = (
     "participant_id由宿主提供，必须保留人物区别，不依据昵称猜主人身份。"
     "这类来源的事实、偏好、约定与人格不得自动归给主人，先做candidate；经历可作为对方原话保留，"
     "不能据对方说‘完成了’就确认Agent真的成功。"
+    "\n以下仅为合成输出示例：假设本批确实有SYNTHETIC-OBS的tool原文与success来源状态，"
+    "以及SYNTHETIC-REASON的assistant原话。真实输出必须换成本批实际id与逐字内容，不能照抄示例来源。"
+    '{"version":1,"operations":[{"action":"remember","layer":"experience","key":"experience.public_page_visit",'
+    '"text":"查看公开资料页","certainty":"clear","domain":"real","evidence":['
+    '{"id":"SYNTHETIC-OBS","role":"tool","quote":"打开公开资料页，标题为海豚介绍，HTTP状态为200。"},'
+    '{"id":"SYNTHETIC-REASON","role":"assistant","quote":"我想了解海豚的生活习性。"}],"episode":{'
+    '"what":{"id":"SYNTHETIC-OBS","role":"tool","quote":"打开公开资料页，标题为海豚介绍，HTTP状态为200。"},'
+    '"reason":{"id":"SYNTHETIC-REASON","role":"assistant","quote":"我想了解海豚的生活习性。"},'
+    '"outcome":{"id":"SYNTHETIC-OBS","role":"tool","quote":"打开公开资料页，标题为海豚介绍，HTTP状态为200。"}}}]}'
+    "示例不提供atom；原因仍是助手自述而非已证实动机，success仍只表示来源报告，逐字引用由程序重新校验。"
+    "\n9. raw.source_kind=agent_output表示宿主确实收到的一段助手独立输出，roles只有assistant；"
+    "没有user或tool就不能补造它们。可用layer=experience、action=remember、精确assistant引用，"
+    "省略atom与episode，把值得保留的话整理为‘助手当时说过’的索引；程序仍归类为历史助手陈述，"
+    "不把它计作已经证实的生活经历或用户事实。这里domain=real仅表示真实收到了这段输出，"
+    "certainty=clear仅表示引用和归属明确；原文是假设或角色扮演时保留domain=unknown或roleplay，"
+    "这不妨碍索引‘她当时确实说过’，但不确认话中事情发生。来源时间未知、上下文不完整、归属不清或存在矛盾时仍须审阅。"
+    "没有实际观察依据时，不要给这段输出编造episode、成功结果、主人偏好、人格变化或已履行的承诺。"
 )
 
 SYSTEM_GUIDANCE = "整理规则版本：" + RULES_VERSION + "\n" + _OUTPUT_GUIDANCE + _MEMORY_GUIDANCE

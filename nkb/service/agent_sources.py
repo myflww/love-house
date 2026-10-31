@@ -56,6 +56,7 @@ class AgentSourceRegistry:
                 "enabled": connection["enabled"], "revoked": connection["revoked"],
                 "host_online": connection["host_online"], "last_received_at": connection["last_received_at"],
                 "capture": connection["capture"], "archive_status": connection["archive_status"],
+                "last_recall":connection.get("last_recall"),
                 "config_ready": (self.directory / (row["id"] + ".json")).is_file(),
                 "identity_assurance": "registered_adapter_assertion",
                 "full_activity_coverage_verified": False, "model_api_key_required": False}
@@ -185,9 +186,13 @@ class AgentSourceRegistry:
                 if key in envelope and envelope[key] != expected:
                     raise ValidationError("事件语义中的来源归属冲突，原文未接收")
         if normalized is not None:
-            if (not isinstance(normalized, dict) or normalized.get("type") not in ("turn", "tool")
+            if (not isinstance(normalized, dict) or normalized.get("type") not in ("turn", "tool", "output")
                     or normalized.get("status", "complete") not in ("partial", "complete")):
-                raise ValidationError("当前来源只接完整对话或真实观察的既有语义，未把未知活动塞入重试")
+                raise ValidationError("当前来源只接完整对话、可见输出或真实观察，未知活动未入队")
+            if normalized['type']=='output' and (normalized.get('role')!='assistant'
+                    or any(k in normalized for k in ('user','assistant','explicit','proposals'))
+                    or normalized.get('status','complete')!='complete'):
+                raise ValidationError('独立输出只能是完整助手原话，不能伪造用户或确认')
             complete=normalized.get('status','complete')=='complete'
             fields=('user','assistant') if normalized['type']=='turn' else ('text',)
             for field in fields:

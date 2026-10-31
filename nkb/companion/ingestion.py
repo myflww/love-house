@@ -53,7 +53,8 @@ def _ingest_event(brain, event):
     """event含connection_id/session_id/turn_id/type/status；不联网也不persist。
 
     type=turn: user/assistant原文；type=tool: text/origin/evidence/outcome；
-    type=persona_import: text与explicit=True。status默认complete，可为partial。
+    type=output: 只有助手可见原话，不补造用户；type=persona_import: text与explicit=True。
+    status默认complete，可为partial。
     partial字段按最新完整缓冲覆盖而不是append，重放相同片段不会重复累计。
     """
     if brain.meta.get("demo"):
@@ -66,8 +67,11 @@ def _ingest_event(brain, event):
     session = connected_session_id(connection, external_session)
     kind = event.get("type", "turn")
     status = event.get("status", "complete")
-    if kind not in ("turn", "tool", "persona_import") or status not in ("partial", "complete"):
+    if kind not in ("turn", "tool", "output", "persona_import") or status not in ("partial", "complete"):
         raise ValidationError("事件type或status不支持")
+    if kind=='output' and (event.get('role')!='assistant'
+            or any(k in event for k in ('user','assistant','explicit','proposals')) or status!='complete'):
+        raise ValidationError('独立输出只能保存完整助手陈述，不能导入人格或伪造用户')
     identifier = turn_id(session, request)
     identity = kind + ":" + identifier
     nid = identifier if kind == "turn" else kind + "_" + identifier[5:]
@@ -144,7 +148,7 @@ def _ingest_event(brain, event):
         user = _text(draft.get("user"), "user", MAX_TEXT)
         assistant = _text(draft.get("assistant"), "assistant", MAX_TEXT)
         digest = sha256(json.dumps([user, assistant, source], ensure_ascii=False, sort_keys=True).encode()).hexdigest()
-    elif kind == "tool":
+    elif kind in ("tool", "output"):
         text = _text(draft.get("text"), "text", MAX_TEXT)
         digest = sha256(json.dumps([text, source, draft.get("outcome", "observed"), draft.get("evidence")],
                                   ensure_ascii=False, sort_keys=True).encode()).hexdigest()
@@ -182,9 +186,13 @@ def _ingest_event(brain, event):
         if match and canonical==nid:
             raw = "\n".join([match.group(1), *lines[1:]]).strip()
             if raw:
-                state = import_persona(brain, raw, {**source, "evidence_node_id": nid})
-                node["meta"]["persona_revision"] = state["revision"]
-                node["meta"]["persona_action"] = "explicit_import"
+                if (draft.get('evidence') or {}).get('participant_scope')=='external_participant':
+                    node['meta']['persona_action']='review_required'
+                    node['meta']['persona_review_note']='来源参与者的导入请求已作为原话保存，需存档管理者在本机人格设置中确认。'
+                else:
+                    state = import_persona(brain, raw, {**source, "evidence_node_id": nid})
+                    node["meta"]["persona_revision"] = state["revision"]
+                    node["meta"]["persona_action"] = "explicit_import"
         elif not match and ("导入人格" in user or "设定如下" in user):
             node["meta"]["persona_review_note"] = "标记不在明确首行命令中，可能属于引用或讨论，未导入人格"
         learned = learn_from_dialogue(brain) if canonical==nid else {"changed":False}
@@ -199,14 +207,14 @@ def _ingest_event(brain, event):
                 raise ValidationError("proposal必须是对象")
             propose_persona(brain, proposal.get("text"), proposal.get("evidence_ids"), origin="connected_hook")
     else:
-        brain.add(("工具观察 · " if kind == "tool" else "人格导入来源 · ") + text.strip().splitlines()[0][:60],
+        brain.add(("工具观察 · " if kind == "tool" else "行为输出 · " if kind == "output" else "人格导入来源 · ") + text.strip().splitlines()[0][:60],
                   text, kind="episode", id=nid, session_id=session, impact=0, salience=0.55,event_at=event_at,
-                  meta={"source": "tool_observation" if kind == "tool" else "persona_import_source",
+                  meta={"source": "tool_observation" if kind == "tool" else "agent_output" if kind == "output" else "persona_import_source",
                         **source, "origin": source["origin"], "confirmed": False, "important": False,
                         "outcome": draft.get("outcome", "observed"), "evidence": draft.get("evidence"),
                         "persona_enabled": draft.get("enabled", True),
                         "external_session_id": external_session, "external_turn_id": request,
-                        "ingest_hash": digest, "speaker": "tool" if kind == "tool" else "user"})
+                        "ingest_hash": digest, "speaker": "tool" if kind == "tool" else "assistant" if kind == "output" else "user"})
         if isinstance(draft.get('evidence'),dict) and draft['evidence'].get('source_time_unknown'):
             brain.nodes[nid]['meta']['source_time_unknown']=True
         if kind == "persona_import":

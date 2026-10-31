@@ -1,0 +1,19 @@
+{
+  "schema": "love-house-windows-091-publication/v1",
+  "ready": false,
+  "source_commit": "PENDING",
+  "source_runs": {"windows": 0, "regression": 0, "connection": 0},
+  "windows_artifact": {"id": 0, "name": "love-house-windows-x64", "bytes": 0, "sha256": "PENDING"},
+  "windows_evidence_artifact": {"id": 0, "name": "windows-test-evidence", "bytes": 0, "sha256": "PENDING"},
+  "windows_files": {
+    "LoveHouse-Setup-0.9.1rc1-Windows-x64.exe": {"bytes": 0, "sha256": "PENDING"},
+    "LoveHouse-0.9.1rc1-Windows-x64.zip": {"bytes": 0, "sha256": "PENDING"},
+    "Windows-SHA256SUMS.txt": {"bytes": 0, "sha256": "PENDING"}
+  },
+  "astrbot_package": {"bytes": 0, "sha256": "PENDING"},
+  "notes_path": "docs/ReleaseNotes-0.9.1rc1-Windows.md",
+  "release_notes": {"bytes": 0, "sha256": "PENDING"},
+  "doc_assets": {
+    "WINDOWS-091-FIXES.md": {"path": "docs/WINDOWS-091-FIXES.md", "bytes": 0, "sha256": "PENDING"}
+  }
+}

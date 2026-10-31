@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from nkb import Brain, Config
 from nkb.errors import ValidationError
@@ -160,6 +161,16 @@ class ShareStoreTests(unittest.TestCase):
         self.assertEqual(before, self.host.snapshot('default'))
         self.assertEqual(selected, self.host.manager.selected_id)
         self.assertEqual(self.host.organizer_view('default')['status']['completed'], 0)
+
+    def test_windows_reserved_library_names_still_produce_portable_share_filenames(self):
+        package=self.store.prepare('default')
+        for name in ('CON','aux','NUL','COM1','LPT9'):
+            package['name']=name
+            with self.subTest(name=name),patch.object(self.store,'prepare',return_value=package):
+                for format,suffix in (('json','.json'),('markdown','.md')):
+                    filename=self.store.download('default',format=format)['filename']
+                    self.assertTrue(filename.startswith('爱之屋-'),filename)
+                    self.assertTrue(filename.endswith(suffix),filename)
 
     def test_import_creates_fresh_identity_and_does_not_rebind_or_enable_models(self):
         content = self.store.download('default')['content']; before = self.host.snapshot('default'); connection = self.host.connections.get(self.cid, secret=True)

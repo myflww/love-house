@@ -134,7 +134,8 @@ export class Controller {
   }
 }
 
-type Turn = { number: number; started: boolean; interrupted: boolean; messages: JsonObject[]; calls: Map<string, string>; rawEvents?: JsonObject[] };
+type Turn = { number: number; started: boolean; interrupted: boolean; messages: JsonObject[]; calls: Map<string, string>; rawEvents?: JsonObject[];
+  lastAssistant?: { message: JsonObject; turn: number; seq: number }; lastWorkSeq?: number };
 const claimsKey = Symbol.for('neural-knowledge.session-claims.v1');
 const sessionClaims: Map<string, string> = ((globalThis as any)[claimsKey] ??= new Map());
 const textOf = (message: JsonObject) => (Array.isArray(message.content) ? message.content : []).filter((block: JsonObject) => block.type === 'text' && typeof block.text === 'string').map((block: JsonObject) => block.text).join('\n');
@@ -174,7 +175,7 @@ export class HostAdapter {
   }
   private async heartbeat() {
     if (!this.isEnabled()) return;
-    try { await this.controller.send('heartbeat', { host_version: this.config.host_version, adapter_version: '0.4.0', ...(this.boundSession ? { bound_session_id: this.boundSession } : {}) }); }
+    try { await this.controller.send('heartbeat', { host_version: this.config.host_version, adapter_version: '0.4.1', ...(this.boundSession ? { bound_session_id: this.boundSession } : {}) }); }
     catch { /* Online status is separate from archived-turn acceptance; never fake a record. */ }
   }
   private isEnabled() {
@@ -204,6 +205,28 @@ export class HostAdapter {
   private waitingForAgentWindow(session: Pick<Session, 'id' | 'header'>) {
     return this.connection.connection_host === 'agent' && this.connection.session_scope === 'next_session'
       && !this.boundSession && session.header?.origin !== 'subagent';
+  }
+  private fixedRoot(session: Pick<Session, 'id' | 'header'>) {
+    const sid = String(session.id); const scope = this.connection.session_scope ?? 'connection';
+    return session.header?.origin !== 'subagent'
+      && (scope === 'next_session' ? this.boundSession === sid : scope !== 'connection' && scope === sid);
+  }
+  private publicTaskQuery(session: Session): string | undefined {
+    // rc.3's public surface projection reads only committed model-visible
+    // messages of this exact session. No raw log, files, private fields,
+    // request/header snapshots, assistant reasoning, or other sessions.
+    if (typeof session.deriveMessages !== 'function') return;
+    const messages = session.deriveMessages();
+    if (!Array.isArray(messages)) return;
+    const baseline = '当前已绑定存档的长期基线和约定';
+    for (let index = messages.length - 1; index >= 0; index--) {
+      const message = messages[index];
+      if (message.role === 'user' && message.source?.kind === 'user') {
+        const text = textOf(message as unknown as JsonObject);
+        return text.trim() ? text.slice(-40000) : baseline;
+      }
+    }
+    return baseline;
   }
   private status() {
     atomicJson(join(this.stateDir, 'status.json'), { library_id: this.connection.library_id, connection_id: this.connection.connection_id,
@@ -242,6 +265,7 @@ export class HostAdapter {
   }
   capture(session: Pick<Session, 'id' | 'header'>, event: SessionEvent) {
     if (this.disposed || this.closing || !this.isEnabled()) return;
+    if (session.header?.origin === 'subagent') return;
     const input = event as unknown as JsonObject; const data = input.data ?? {};
     const message = input.type === 'user/message' ? data : data.message;
     if (message?.source?.kind === SOURCE_KIND) return;
@@ -270,9 +294,14 @@ export class HostAdapter {
     const record: JsonObject = { schema: 'deepseek-harness-event/v1', host_id: this.hostId, host_version: this.config.host_version,
       raw_event: raw, session_origin: session.header?.origin ?? 'root', ...(redacted.length ? { redacted_fields: redacted } : {}) };
     if (input.type === 'tool/call') turn.calls.set(String(data.callId), String(data.name));
+    if (['step/start', 'assistant/attempt', 'tool/call', 'tool/result'].includes(input.type)) turn.lastWorkSeq = input.seq;
     if (message?.role && ['user', 'assistant'].includes(message.role)) {
       const human = message.role === 'user' && message.source?.kind === 'user' && session.header?.origin !== 'subagent';
-      turn.messages.push(visibleMessage(sanitize(message), human));
+      const visible = visibleMessage(sanitize(message), human);
+      turn.messages.push(visible);
+      if (input.type === 'assistant/message' && message.role === 'assistant') {
+        turn.lastAssistant = { message: visible, turn: data.turn, seq: input.seq };
+      }
       if (data.interrupted === true) turn.interrupted = true;
     }
     if (input.type === 'tool/result') {
@@ -283,8 +312,27 @@ export class HostAdapter {
     if (input.type === 'turn/end') {
       const reason = data.reason?.kind ?? 'unknown';
       const status = reason === 'completed' && turn.started && !turn.interrupted ? 'complete' : reason === 'error' ? 'failed' : reason === 'blocked' ? 'blocked' : 'partial';
-      record.normalized = { type: 'turn', turn_id: `${sid}:${data.turn}`, status, reason,
-        user: turn.messages.filter(m => m.is_human).map(textOf).join('\n\n'),
+      const human = turn.messages.filter(m => m.is_human);
+      const finalAssistant = turn.lastAssistant?.message;
+      // Independent output may only use an already selected root window. It
+      // cannot claim next_session, include another window, or promote a child
+      // agent's reply. Broad connection scope retains its existing turn path.
+      const fixedRoot = this.fixedRoot(session);
+      const finalText = finalAssistant ? textOf(finalAssistant) : '';
+      const finalTextOnly = Array.isArray(finalAssistant?.content)
+        && finalAssistant.content.every((block: JsonObject) => block.type === 'text');
+      if (fixedRoot && status === 'complete' && Number.isInteger(data.turn) && data.turn === turn.number
+          && turn.lastAssistant?.turn === turn.number && turn.lastAssistant.seq > (turn.lastWorkSeq ?? -1)
+          && !human.length && finalAssistant?.source?.kind === 'model'
+          && typeof finalAssistant.id === 'string' && finalAssistant.id.trim() && finalText.trim() && finalTextOnly) {
+        // Canonical assistant/message is committed visible output, but it is
+        // not final until the matching turn/end reports completed. Keep only
+        // the last visible response, never tool steps or a synthetic user.
+        record.normalized = { type: 'output', role: 'assistant', text: finalText,
+          turn_id: `${sid}:${data.turn}`, status: 'complete', reason,
+          evidence: { assistant_message_id: finalAssistant.id } };
+      } else record.normalized = { type: 'turn', turn_id: `${sid}:${data.turn}`, status, reason,
+        user: human.map(textOf).join('\n\n'),
         assistant: turn.messages.filter(m => m.role === 'assistant').map(textOf).join('\n\n'), messages: turn.messages };
       this.turns.delete(sid);
     }
@@ -304,14 +352,26 @@ export class HostAdapter {
   async beforeStep(payload: { agent: Agent; messages: UserMessage[]; turn: number; step: number; signal: AbortSignal }, next: () => Promise<PreStepDecision>): Promise<PreStepDecision> {
     const decision = await next();
     if (decision.kind !== 'enter' || this.disposed || this.closing || !this.isEnabled() || payload.signal.aborted || this.injected.get(String(payload.agent.session.id)) === payload.turn) return decision;
+    if (payload.agent.session.header?.origin === 'subagent') return decision;
     const human = decision.messages.filter(message => message.source.kind === 'user');
-    if (!human.length || decision.messages.some(message => message.source.kind === SOURCE_KIND)) return decision;
-    if (this.connection.connection_host === 'agent' && payload.agent.session.header?.origin === 'subagent') return decision;
-    if (!this.waitingForAgentWindow(payload.agent.session) && !this.accepts(payload.agent.session, true)) return decision;
-    const query = human.map(message => textOf(message as unknown as JsonObject)).join('\n').slice(-40000) || '[用户输入包含附件引用；没有可采集的文字]';
+    if (decision.messages.some(message => message.source.kind === SOURCE_KIND)) return decision;
+    const sid = String(payload.agent.session.id); const withoutHuman = !human.length;
+    if (withoutHuman) {
+      const turn = this.turns.get(sid);
+      if (!this.fixedRoot(payload.agent.session) || !this.accepts(payload.agent.session)
+          || !turn?.started || turn.interrupted || turn.number !== payload.turn) return decision;
+    } else if (!this.waitingForAgentWindow(payload.agent.session) && !this.accepts(payload.agent.session, true)) return decision;
     try {
-      const context = await this.controller.send('context', { session_id: String(payload.agent.session.id), query });
+      const query = withoutHuman ? this.publicTaskQuery(payload.agent.session)
+        : human.map(message => textOf(message as unknown as JsonObject)).join('\n').slice(-40000) || '[用户输入包含附件引用；没有可采集的文字]';
+      if (!query) return decision;
+      const context = await this.controller.send('context', { session_id: sid, query });
       if (payload.signal.aborted || this.closing || !this.isEnabled() || typeof context.packet !== 'string' || !context.packet.trim()) return decision;
+      if (withoutHuman) {
+        const current = this.turns.get(sid);
+        if (!this.fixedRoot(payload.agent.session) || !this.accepts(payload.agent.session)
+            || !current?.started || current.interrupted || current.number !== payload.turn) return decision;
+      }
       const text = `[宿主记忆连接绑定库 ${this.connection.library_id}。本会话使用宿主自动采集，仍以持久回执确认存档；无需再次调用旧手动record工具。若主动调用旧工具，先memory_status核实目标库，不得混入其他库。]\n${context.packet}`;
       const injected: UserMessage = Object.freeze({ id: `neural-context-${hash(`${this.connection.connection_id}:${payload.agent.session.id}:${payload.turn}:${payload.step}:${text}`)}` as MessageId,
         role: 'user', content: Object.freeze([{ type: 'text' as const, text }]),

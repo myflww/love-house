@@ -117,9 +117,16 @@ class OrganizerTransportTests(unittest.TestCase):
         _, data = self.request_data(reply=reply)
         self.assertNotIn('PRIVATE-REASONING-NOT-MEMORY', json.dumps(data))
 
+    def test_malformed_chat_response_is_output_failure_rather_than_network_failure(self):
+        for reply in ({}, {'choices': []}, {'choices': [{'message': {}}]}, {'choices': 'invalid'}):
+            with self.subTest(reply=reply):
+                with self.assertRaises(OrganizerError) as caught:
+                    call_model(profile(), KEY, PAYLOAD, send=lambda *args, **kwargs: reply)
+                self.assertEqual(caught.exception.code, 'invalid_output')
+
     def test_invalid_secret_echo_or_oversized_output_still_cannot_be_applied(self):
         for content, expected in ((42, 'invalid_output'), ('x'*100001, 'invalid_output'),
-                                  (json.dumps({'leak': KEY}), 'invalid_output'), ('invalid JSON', 'provider_error')):
+                                  (json.dumps({'leak': KEY}), 'invalid_output'), ('invalid JSON', 'invalid_output')):
             with self.subTest(expected=expected, content_type=type(content).__name__):
                 with self.assertRaises(OrganizerError) as caught:
                     call_model(profile(), KEY, PAYLOAD,
@@ -129,7 +136,7 @@ class OrganizerTransportTests(unittest.TestCase):
 
     def test_existing_http_timeout_and_connection_error_codes_remain_sanitized(self):
         for error, expected in ((HTTPError('https://example.invalid', 302, KEY, {}, None), 'redirect_blocked'),
-                               (HTTPError('https://example.invalid', 401, KEY, {}, None), 'provider_http_error'),
+                               (HTTPError('https://example.invalid', 401, KEY, {}, None), 'provider_authentication'),
                                (TimeoutError(KEY), 'timeout'), (socket.timeout(KEY), 'timeout'),
                                (URLError(KEY), 'provider_error')):
             with self.subTest(expected=expected):

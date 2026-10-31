@@ -154,6 +154,15 @@ class MemoryHost:
         return {'agent_id':library_id,'library_id':library_id,'library_name':meta['name'],
                 'is_demo':meta['is_demo'],'sources':registered,'legacy_connections':legacy,
                 'read_only':True,'full_activity_coverage_verified':False,'model_api_key_required':False}
+    def connections_view(self):
+        items=[]
+        for connection in self.connections.list():
+            source=self.sources.for_connection(connection['id'])
+            registered=({k:source[k] for k in ('id','adapter','library_id','runtime_agent_id')}
+                        if source and source['library_id']==connection['library_id'] else None)
+            items.append({**connection,'registered_source':registered,
+                          'provider':self.providers.public(connection['id']) if connection['host']=='api' else None})
+        return {'connections':items}
     def register_agent_source(self,library_id,data):
         if self.library(library_id)['is_demo']:raise ValidationError('示例不能绑定实际活动来源')
         if not self.controller_port:raise ValidationError('请先启动本机记忆服务')
@@ -191,7 +200,7 @@ class MemoryHost:
                 if isinstance(ev,dict) and isinstance(ev.get('platform'),str):platforms.add(ev['platform'])
             entries.append({'id':node['id'],'label':str(episode.get('what',{}).get('quote','一次经历')).splitlines()[0][:100],'event_at':episode.get('event_at'),
                             'recorded_at':node.get('created'),'display':render_experience(episode),'episode':episode,'platforms':sorted(platforms)})
-        raw=sum(n.get('meta',{}).get('source') in ('conversation_turn','tool_observation','history_import') for n in brain.nodes.values())
+        raw=sum(n.get('meta',{}).get('source') in ('conversation_turn','tool_observation','agent_output','history_import') for n in brain.nodes.values())
         return {'agent_id':library_id,'entries':entries[:limit],'total':len(entries),'more':len(entries)>limit,
                 'source_records':raw,'unavailable_experiences':invalid,'read_only':True,'will_call_model':False,
                 'note':'经历按来源整理；原因和结果缺少证据时保持未知，工具记录只作依据。'}
@@ -222,6 +231,7 @@ class MemoryHost:
     def organizer_view(self,library_id):
         from ..core.brain import Brain
         from ..organizer import get_profile
+        from ..organizer.model import resolve_model,failure_message
         raw=self.snapshot(library_id);settings=get_profile(Brain(raw));pid=settings['provider_id']
         cid=pid.split(':',1)[1] if pid.startswith('connection:') else ''
         provider={'base_url':settings['base_url'],'model':settings['model'],'storage':'none','key_saved':False,'credential_ready':False}
@@ -229,6 +239,12 @@ class MemoryHost:
             c=self.connections.get(cid)
             if c['library_id']==library_id:provider=self.providers.public(cid)
         elif settings['base_url']:provider.update(self.keys.metadata(self.organizer_ref(library_id,settings['base_url'],pid=='separate:session')))
+        provider['model_ready']=False
+        try:
+            resolve_model(settings,self.organizer_credential(library_id,settings))
+            provider['model_ready']=True
+        except ValidationError as exc:
+            provider['configuration_error']=failure_message(getattr(exc,'code','provider_not_found'))
         status=self.organizer.status(library_id);counts=status['counts']
         mapped={**status,'pending':counts.get('pending',0)+counts.get('running',0),'completed':counts.get('done',0),
                 'failed':sum(j['status']=='failed' for j in status['jobs']),'retrying':sum(j['status']=='retry' for j in status['jobs']),
@@ -237,9 +253,14 @@ class MemoryHost:
                 'status':mapped,'provider':provider,'batches':status['jobs'],'candidates':raw.get('meta',{}).get('organizer_candidates',[])}
     def organizer_settings(self,library_id,data):
         from ..organizer import DEFAULT_PROFILE,save_profile
+        from ..organizer.config import validate_profile
+        from ..organizer.model import validate_key
+        if not isinstance(data,dict):raise ValidationError('整理设置须为对象')
         raw=self.organizer_view(library_id)['settings'];mode=data.get('provider_mode',raw['provider_mode'])
         if mode not in ('connection','separate'):raise ValidationError('整理模型方式不正确')
         settings={k:data[k] for k in DEFAULT_PROFILE if k in data}
+        key='';previous_key='';save_key=data.get('save_key',True)
+        if type(save_key) is not bool:raise ValidationError('save_key必须是布尔值')
         if mode=='connection':
             cid=data.get('connection_id',raw['connection_id']);c=self.connections.get(cid)
             if c['library_id']!=library_id or c['host']!='api' or c['revoked']:raise ValidationError('请选择本库有效的API连接')
@@ -250,19 +271,38 @@ class MemoryHost:
             key=data.get('api_key','')
             if not isinstance(key,str) or len(key)>32768:raise ValidationError('整理模型密钥格式不正确')
             if key.strip():
-                temporary=data.get('save_key',True) is False
-                self.keys.set(self.organizer_ref(library_id,base,temporary),key.strip(),persist=data.get('save_key',True))
+                key=validate_key(key)
+                temporary=not save_key
                 settings['provider_id']='separate:session' if temporary else 'separate'
+        # Validate every setting before any credential write: a rejected budget
+        # or URL must not silently replace the previously working key.
+        profile=validate_profile({**{k:raw[k] for k in DEFAULT_PROFILE},**settings})
+        if key:
+            ref=self.organizer_ref(library_id,profile['base_url'],not save_key)
+            previous_key=self.keys.get(ref)
+            self.keys.set(ref,key,persist=save_key)
         self.transact(library_id,lambda brain:save_profile(brain,**settings))
         self.enqueue_archives(library_id)
-        return self.organizer_view(library_id)
+        result=self.organizer_view(library_id)
+        changed=(any(profile[k]!=raw[k] for k in ('provider_id','base_url','model'))
+                 or bool(key and key!=previous_key) or bool(profile['enabled'] and not raw['enabled']))
+        resumed=0
+        if profile['enabled'] and changed and result['provider']['model_ready']:
+            resumed=self.organizer.resume_configuration_jobs(library_id)
+            if resumed:result=self.organizer_view(library_id)
+        result['resumed_configuration_jobs']=resumed
+        if result['provider']['credential_ready'] and not result['provider']['key_saved']:
+            result['warning']='整理密钥仅在本次运行中可用，重启后需重新填写；设置和原文已保留。'
+        if resumed:
+            result['warning']=(result.get('warning','')+' 已将因配置问题受阻的任务重新排队；仍使用原调用预算。').strip()
+        return result
     def enqueue_archives(self,library_id):
         from ..core.brain import Brain
         from ..companion.dedup import is_duplicate
         brain=Brain(self.snapshot(library_id));ids=[]
         for node in brain.nodes.values():
             if is_duplicate(node,brain) or node.get('meta',{}).get('memory_disabled'):continue
-            if node.get('meta',{}).get('source') not in ('conversation_turn','tool_observation','harness_recorded','persona_import_source'):continue
+            if node.get('meta',{}).get('source') not in ('conversation_turn','tool_observation','agent_output','harness_recorded','persona_import_source'):continue
             ids.append((node['meta'].get('evidence') or {}).get('archive_receipt_id') or node['id'])
         for i in range(0,len(ids),1000):self.organizer.enqueue(library_id,list(dict.fromkeys(ids[i:i+1000])))
     def forget_preview(self,library_id,nid):
@@ -296,13 +336,10 @@ class MemoryHost:
             result['backups_removed']=self.backups.purge(library_id)
         return result
     def structured_context(self,library_id,data):
-        from ..core.brain import Brain
-        from ..companion.structured import build_structured_context
         meta=self.library(library_id)
-        base=local_json(self.port_for(library_id),'/api/ai/context',data)
-        return build_structured_context(Brain(self.snapshot(library_id)),data.get('query'),base,
-             max_chars=data.get('max_chars',8000),library_id=library_id,library_name=meta['name'],
-             agent_id=library_id,session_id=data.get('session_id'))
+        self.port_for(library_id)
+        return self._servers[library_id].RequestHandlerClass.memory_structured_material(
+            data,library_id=library_id,library_name=meta['name'])
     def memory_access(self,library_id,action,data):
         from ..core.brain import Brain
         from ..companion.catalog import memory_bootstrap,memory_catalog,memory_read
@@ -339,7 +376,7 @@ class MemoryHost:
         for nid in node_ids:
             node=brain.get(nid)
             if node is None or is_duplicate(node,brain) or node.get('meta',{}).get('memory_disabled'):continue
-            if node.get('meta',{}).get('source') not in ('conversation_turn','tool_observation','harness_recorded','persona_import_source'):continue
+            if node.get('meta',{}).get('source') not in ('conversation_turn','tool_observation','agent_output','harness_recorded','persona_import_source'):continue
             evidence=node['meta'].get('evidence') or {}
             ids.append(evidence.get('archive_receipt_id') or nid)
         ids=list(dict.fromkeys(ids))
@@ -641,7 +678,7 @@ class MemoryHost:
                                                automatic=record.get('schema') in ('love-house-agent-hook/v1','deepseek-harness-event/v1'))
             if rejected:return rejected
         result=self.connections.receive(c,event)
-        self.process_pending()
+        self.process_pending(library_id=c['library_id'],receipt_id=result['receipt_id'],limit=1)
         current=self.connections.get(cid)
         return {**result,'status':next((e['status'] for e in self.connections.activity(c['library_id'])['events'] if e['id']==result['receipt_id']),result['status']),
                 'library_id':c['library_id'],'session_scope':current['session_scope'],
@@ -663,20 +700,31 @@ class MemoryHost:
             sid=sid or ('agent-default' if c['session_scope']=='any' else 'unbound-memory-read')
         else:self.connections.authorize_session(cid,sid)
         if not isinstance(data.get('query'),str) or not data['query'].strip():raise ValidationError('查询内容不能为空')
-        self.process_pending()
+        # Ingestion is the receipt/worker path's responsibility. A read must not
+        # wait for another source's queued graph saves before the next action.
         result=self.structured_context(c['library_id'],{'query':data['query'],'session_id':connected_session_id(cid,sid),
                                                       'max_chars':data.get('max_chars',8000)})
+        try:
+            coverage=result.get('source_coverage')
+            if not isinstance(coverage,dict):
+                coverage={'organized':0,'raw':0,'other':0}
+                for item in result.get('memory_context',{}).get('records',[]):
+                    kind=item.get('source',{}).get('kind')
+                    category='organized' if kind in ('organizer','user_confirmed') else 'raw' if kind in ('conversation_turn','tool_observation','agent_output','harness_recorded','history_import') else 'other'
+                    coverage[category]+=1
+            self.connections.record_recall(c['id'],coverage)
+        except Exception:pass  # Optional counters never interrupt scoped recall.
         # Queue opaque use IDs only after authenticated, scoped context retrieval.
         # Bootstrap/catalog/export/preview never count as rehearsal. The material
         # itself remains read-only; use effects join the next actual graph save.
         if c['session_scope']=='any' or c.get('bound_session_id'):
             self.queue_memory_use(c['library_id'],[r['id'] for r in result.get('memory_context',{}).get('records',[])])
-        backlog=sum(1 for r in self.connections.pending() if r['library_id']==c['library_id'])
+        backlog=self.connections.pending_count(c['library_id'])
         return {**result,'library_id':c['library_id'],'connection_id':cid,'archive_pending':backlog}
-    def process_pending(self):
+    def process_pending(self,*,library_id=None,receipt_id=None,limit=50):
         if not self._apply_lock.acquire(False):return
         try:
-            for receipt in self.connections.pending():
+            for receipt in self.connections.pending(limit,library_id=library_id,receipt_id=receipt_id):
                 try:self.library(receipt['library_id'])
                 except LibraryError:continue
                 try:
@@ -706,12 +754,16 @@ class MemoryHost:
                         if isinstance(e.get(key),str) and len(e[key])>40000:
                             e[key]=e[key][:39950]+'…[节点摘录；完整原文保存在事件档案]'
                             e['evidence']['content_truncated']=True
-                    if e.get('type')=='tool':
-                        content=e.get('content',e.get('text',''))
+                    if e.get('type') in ('tool','output'):
+                        # Output has one validated text field. The legacy tool
+                        # content alias must not replace it with unchecked text
+                        # that differs from the organizer's archived evidence.
+                        content=e.get('text','') if e['type']=='output' else e.get('content',e.get('text',''))
                         e['text']=content if isinstance(content,str) else json.dumps(content,ensure_ascii=False)
-                        call_key=json.dumps([e['turn_id'],e.get('call_id')],ensure_ascii=False)
-                        e['evidence']['call_id']=str(e.get('call_id',''))[:200]
-                        e['turn_id']='tool:'+hashlib.sha256(call_key.encode()).hexdigest()[:40]
+                        if e.get('type')=='tool':
+                            call_key=json.dumps([e['turn_id'],e.get('call_id')],ensure_ascii=False)
+                            e['evidence']['call_id']=str(e.get('call_id',''))[:200]
+                            e['turn_id']='tool:'+hashlib.sha256(call_key.encode()).hexdigest()[:40]
                         if len(e['text'])>40000:
                             e['text']=e['text'][:39950]+'…[节点摘录；完整结果保存在事件档案]'
                             e['evidence']['content_truncated']=True
@@ -859,7 +911,7 @@ def make_controller(host):
                         'connections':host.connections.list(lib['id'])})
                 if path=='/api/libraries':return self._json({'libraries':host.manager.list_libraries(),'selected_id':host.manager.selected_id,'trashed_count':len(host.manager.list_trash())})
                 if path=='/api/libraries/trash':return self._json({'libraries':host.manager.list_trash(),'read_only':True})
-                if path=='/api/connections':return self._json({'connections':[{**c,'provider':host.providers.public(c['id']) if c['host']=='api' else None} for c in host.connections.list()]})
+                if path=='/api/connections':return self._json(host.connections_view())
                 if path.startswith('/api/connections/') and path.endswith('/config'):
                     return self._json(host.connection_config(path.split('/')[3]))
                 if path=='/api/duplicates':return self._json(host.duplicate_view(self._chosen()))
@@ -949,9 +1001,12 @@ def make_controller(host):
                 if len(parts)==5 and parts[:3]==['api','agent','sources'] and parts[4] in ('config','enabled','disconnect'):
                     return self._json(host.agent_source_action(self._chosen(),parts[3],parts[4],data))
                 if path=='/api/sharing/preview':
-                    lib=self._chosen();preview=host.sharing.preview(lib)
-                    provider=host.organizer_view(lib)['provider']
-                    return self._json({**preview,'summary_provider':provider})
+                    # Complete sharing is independent of optional model settings,
+                    # credentials, organizer backlog or a broken provider.
+                    return self._json(host.sharing.preview(self._chosen()))
+                if path=='/api/sharing/summary-provider':
+                    self._require_management()
+                    return self._json({'summary_provider':host.organizer_view(self._chosen())['provider']})
                 if path=='/api/sharing/download':
                     if data.get('confirm') is not True:raise ValidationError('请先确认分享文件包含本库的个人记忆')
                     lib=self._chosen();revision=data.get('expected_revision')

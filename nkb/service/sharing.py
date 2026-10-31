@@ -309,6 +309,10 @@ class ShareStore:
             package["reading_summary"] = _Sanitizer().value(reading_summary)
         content = json.dumps(package, ensure_ascii=False, indent=2, allow_nan=False) if format == "json" else to_markdown(package)
         filename = re.sub(r"[^\w\u4e00-\u9fff-]+", "-", package["name"], flags=re.UNICODE).strip("-_")[:60] or "爱之屋记忆"
+        # Windows reserves these basenames even when a multi-part extension is
+        # present. The same portable file should save on every supported OS.
+        if filename.upper() in {'CON','PRN','AUX','NUL',*[f'COM{i}' for i in range(1,10)],*[f'LPT{i}' for i in range(1,10)]}:
+            filename='爱之屋-'+filename
         return {"filename": filename + ".lovehouse." + ("json" if format == "json" else "md"),
                 "mime": "application/json; charset=utf-8" if format == "json" else "text/markdown; charset=utf-8",
                 "content": content, "preview": share_preview(package)}

@@ -1,0 +1,41 @@
+name: Publish verified Windows 0.9.1rc1
+on:
+  push:
+    branches: [codex/windows-091-publish]
+    paths:
+      - scripts/publish_windows_091.py
+      - scripts/windows-091-publication.json
+      - tests/test_publish_windows_091.py
+      - .github/workflows/publish-windows-091.yml
+      - docs/ReleaseNotes-0.9.1rc1-Windows.md
+      - docs/WINDOWS-091-FIXES.md
+permissions:
+  contents: read
+concurrency:
+  group: publish-windows-091
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'myflww/love-house' && github.ref == 'refs/heads/codex/windows-091-publish' && contains(github.event.head_commit.message, '[publish-windows-091]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      actions: read
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify append-only Windows publication safeguards
+        run: python -m unittest tests.test_publish_windows_091 -v
+      - name: Verify frozen source and exact tested bytes, publish draft, compare anonymous downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/publish_windows_091.py

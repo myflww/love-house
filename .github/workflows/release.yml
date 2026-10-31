@@ -13,7 +13,7 @@ on:
       - 'pyproject.toml'
   push:
     tags: ['v*']
-    branches: [main, codex/windows-051-fix, codex/workbuddy-connect-080rc2]
+    branches: [main, codex/windows-051-fix, codex/workbuddy-connect-080rc2, codex/windows-091-fixes]
     paths:
       - 'nkb/**'
       - 'desktop/**'
@@ -56,7 +56,7 @@ jobs:
   windows:
     # The stable main branch may carry this infrastructure before the Windows
     # prerequisite implementation. Build only the repair branch, PRs or tags.
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/codex/windows-051-fix' || github.ref == 'refs/heads/codex/workbuddy-connect-080rc2' || startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/codex/windows-051-fix' || github.ref == 'refs/heads/codex/workbuddy-connect-080rc2' || github.ref == 'refs/heads/codex/windows-091-fixes' || startsWith(github.ref, 'refs/tags/')
     runs-on: windows-latest
     timeout-minutes: 35
     outputs:

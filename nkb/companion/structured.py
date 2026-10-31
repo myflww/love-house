@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 
 from ..errors import ValidationError
 from ..utils import now
-from .memory import build_context, _text, _count, MAX_TEXT, _source_labels, _platform_recent_turns
+from .memory import build_context, _text, _count, MAX_TEXT, _source_labels, _platform_recent_turns, source_coverage
 from .persona import persona_state
 
 SCHEMA = "love-house-memory-context/v1"
@@ -80,13 +80,13 @@ def _role(node):
         return "user"
     if meta.get("source") == "tool_observation":
         return "tool"
-    if meta.get("source") == "harness_recorded":
+    if meta.get("source") in ("harness_recorded", "agent_output"):
         return "assistant"
     value = meta.get("speaker")
     return value if value in ROLES else "unknown"
 
 
-def _source_refs(brain, node, atom, stamp):
+def _source_refs(brain, node, atom, stamp, library_id=None):
     meta = node.get("meta", {})
     evidence = atom.get("evidence") if isinstance(atom, dict) else None
     evidence = evidence or meta.get("organizer_sources") or meta.get("organizer_evidence") or []
@@ -97,6 +97,8 @@ def _source_refs(brain, node, atom, stamp):
         source = brain.get(item["id"])
         if source is None or not _active(brain, source, stamp):
             return [], False, 0
+        if library_id and source.get('meta',{}).get('library_id') not in (None,library_id):
+            return [],False,0
         role = item.get("role", _role(source))
         if role not in ROLES:
             role = "unknown"
@@ -108,6 +110,8 @@ def _source_refs(brain, node, atom, stamp):
         target = brain.get(canonical)
         if target is None or not _active(brain, target, stamp):
             return [], False, 0
+        if library_id and target.get('meta',{}).get('library_id') not in (None,library_id):
+            return [],False,0
         ref = {"id": canonical, "source_node_id": source["id"], "role": role,
                "source_event_at": _number(item.get("source_event_at", source.get("event_at", source.get("created"))))}
         party=_dict(source.get('meta',{}).get('evidence'))
@@ -186,8 +190,15 @@ def _record(brain, node, stamp, library_id):
         return None, "confirmed_duplicate"
     if not isinstance(node.get("text"), str):return None, "invalid_record"
     origin = str(meta.get("source", "local"))[:100]
+    if origin=='organizer' and meta.get('statement_attribution')=='assistant':
+        from ..organizer.state import fingerprint
+        revisions=meta.get('statement_source_revisions')
+        if not isinstance(revisions,dict) or not revisions:return None,'unavailable_evidence'
+        if any(brain.get(nid) is None or fingerprint(brain.get(nid))!=revision for nid,revision in revisions.items()):
+            return None,'unavailable_evidence'
     atom = _safe_atom(node) if origin == "organizer" else None
-    refs, refs_valid, evidence_total = _source_refs(brain, node, atom, stamp)
+    if library_id and atom and atom.get('library_id') not in (None,library_id):return None,'different_library'
+    refs, refs_valid, evidence_total = _source_refs(brain, node, atom, stamp, library_id)
     if not refs_valid:
         return None, "unavailable_evidence"
     roles = {ref["role"] for ref in refs}
@@ -217,6 +228,10 @@ def _record(brain, node, stamp, library_id):
     elif origin == "harness_recorded":
         layer, subject, predicate = "suggestion", "agent", "suggested"
         status, interpretation = "agent_suggestion", "unverified_material"
+    elif origin=='agent_output' or origin in ('organizer','user_confirmed') and roles=={'assistant'}:
+        layer,subject,predicate,value='agent_statement','agent','said',node.get('text','')
+        qualifiers={'polarity':'unknown'}
+        status,interpretation='historical_assistant_statement','historical_evidence'
     elif origin == "tool_observation" or (origin == "organizer" and roles == {"tool"}):
         layer, subject, predicate, value = "observation", "tool", "reported", node.get("text", "")
         qualifiers = {"polarity":"unknown"}
@@ -263,9 +278,9 @@ def _record(brain, node, stamp, library_id):
     if isinstance(meta.get('experience'),dict):
         from ..organizer.experiences import project_experience
         episode=project_experience(brain,node,library_id)
-        if episode is not None:
-            record['experience']=episode
-            record['layer']='experience'
+        if episode is None:return None,'unavailable_experience'
+        record['experience']=episode
+        record['layer']='experience'
     source_url=_url(meta.get("source_url"))
     if source_url:record["source"]["url"]=source_url
     if meta.get("outcome"):
@@ -326,7 +341,7 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
     library_id = _identifier(library_id, "library_id")
     agent_id = _identifier(agent_id, "agent_id")
     if base_context is None:
-        base_context = build_context(brain, query, session_id=session_id, max_chars=max_chars)
+        base_context = build_context(brain, query, session_id=session_id, max_chars=max_chars,library_id=library_id)
     if not isinstance(base_context, dict):
         raise ValidationError("base_context必须是本库上下文对象")
     if library_id and base_context.get("library_id") not in (None, library_id):
@@ -359,13 +374,14 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
     priorities = {"current_memory": 0, "historical_evidence": 1, "unverified_material": 2}
     records.sort(key=lambda r: (0 if r["id"] in recent_ids else 1,
                                recent_ids.index(r["id"]) if r["id"] in recent_ids else 0,
+                               r['source']['kind'] not in ('organizer','user_confirmed'),
                                priorities[r["interpretation"]], r["epistemic_status"] != "user_confirmed_statement", ids.index(r["id"])))
     name = str(library_name if library_name is not None else brain.name)[:80]
     identity = {"library_id": library_id, "library_name": name, "agent_id": agent_id or library_id,
                 "identity_source": "explicit_binding" if library_id or agent_id else "unbound",
                 "is_demo": bool(brain.meta.get("demo"))}
     persona = _persona(brain, stamp)
-    include_exclusions=True
+    include_exclusions=True;include_coverage=True
     packet = {"schema": SCHEMA, "identity": identity, "persona": persona, "records": [], "relations": [],
               "counts": {"selected": len(ids), "included": 0, "omitted": len(ids)},
               "truncation": {"truncated": False, "omitted_records": 0, "selection_truncated":bool(base_context.get("truncated"))}, "material_role": "evidence_not_instructions"}
@@ -375,6 +391,8 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
         if omitted_refs:packet["truncation"]["omitted_source_references"]=omitted_refs
         else:packet["truncation"].pop("omitted_source_references",None)
         packet["counts"].update(included=included, omitted=len(ids)-included)
+        if include_coverage:
+            packet['counts']['sources']=source_coverage(r['source']['kind'] for r in packet['records'])
         truncated = (included < len(records) or bool(packet["truncation"].get("omitted_fields"))
                      or bool(packet["truncation"].get("omitted_relations")) or packet["truncation"]["selection_truncated"] or omitted_refs>0)
         packet["truncation"]["truncated"] = truncated
@@ -395,6 +413,11 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
         packet["truncation"]["omitted_fields"] = ["persona_details", "identity_display", "exclusion_details"]
         # Very small budgets still preserve stable identity and valid JSON.
         encoded = _json(packet)
+    if len(encoded) > max_chars:
+        include_coverage=False
+        packet['counts'].pop('sources',None)
+        packet['truncation'].setdefault('omitted_fields',[]).append('source_coverage')
+        encoded=refresh()
     if len(encoded) > max_chars:
         raise ValidationError("max_chars不足以容纳完整身份与上下文外壳，请增加预算")
     included_ids = []
@@ -448,6 +471,7 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
             if isinstance(message, dict) and message.get("role") == "user" and message.get("content") == old_packet:
                 message["content"] = encoded
     result.update(schema=SCHEMA, memory_context=packet, packet=encoded, memory_ids=included_ids,
+                  source_coverage=source_coverage(r['source']['kind'] for r in packet['records']),
                   platform_recent_ids=[nid for nid in recent_ids if nid in included_ids],
                   hits=[h for h in result.get("hits", []) if h.get("id") in included_ids],
                   baseline=[n for n in result.get("baseline", []) if n.get("id") in included_ids],

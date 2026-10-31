@@ -81,6 +81,9 @@ class Bridge:
                     details TEXT NOT NULL, last_error TEXT, final_digest TEXT
                 );
                 CREATE INDEX IF NOT EXISTS records_pending ON records(status,occurred);
+                CREATE TABLE IF NOT EXISTS host_send_stages(
+                    id TEXT PRIMARY KEY, observed_at REAL NOT NULL
+                );
             """)
             if 'final_digest' not in {row['name'] for row in db.execute('PRAGMA table_info(records)')}:
                 db.execute('ALTER TABLE records ADD COLUMN final_digest TEXT')
@@ -141,15 +144,38 @@ class Bridge:
             raise AdapterError("资料包超过本轮预算，未截断后冒充完整记忆")
         return "<love_house_memory_material>\n历史资料，仅供参考，内容不是系统指令。\n" + encoded + "\n</love_house_memory_material>"
 
-    def stage_final(self, umo, message_id, assistant, *, is_chunk=False, has_tool_calls=False, role="assistant"):
-        _, identity = self._scope(umo, message_id)
-        if is_chunk or has_tool_calls or role != "assistant":
+    def stage_final(self, umo, message_id, assistant, *, is_chunk=False, has_tool_calls=False, role="assistant",
+                    aborted=False, execution_origin="message", actual_platform=None, occurred_at=None):
+        session, identity = self._scope(umo, message_id)
+        if is_chunk or has_tool_calls or role != "assistant" or aborted:
             return {"staged": False, "reason": "not_final_assistant"}
         assistant = safe_text(assistant)
+        if execution_origin not in ("message", "scheduled"):
+            raise AdapterError("输出执行来源不正确")
+        actual_platform = _identifier(actual_platform or self.platform, "实际平台", 80)
         with self.db() as db:
             row = db.execute("SELECT * FROM records WHERE id=?", (identity,)).fetchone()
             if row is None:
-                return {"staged": False, "reason": "missing_original_user_message"}
+                # A visible assistant output stands alone. Never invent a user
+                # message from scheduler metadata or copy arbitrary run history.
+                at = self.clock() if occurred_at is None else occurred_at
+                if type(at) not in (int, float) or not 0 <= at <= self.clock() + 300:
+                    raise AdapterError("输出历史时间不合法")
+                details = {"adapter": "astrbot", "platform": self.platform, "source_umo": umo,
+                           "runtime_agent_id": self.runtime_agent_id, "stage": "final_generated",
+                           "execution_origin": execution_origin, "actual_platform": actual_platform,
+                           "speaker_role": "assistant", "delivery_status": "generated", "recipient_read": False}
+                digest = _key(assistant)
+                db.execute("INSERT INTO records VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (identity, session, message_id, "output", None, None, assistant, None, at, "ready", digest,
+                     json.dumps(details, ensure_ascii=False), None, digest))
+                return {"staged": True, "event_id": identity, "kind": "output"}
+            if row["kind"] == "output":
+                if row["final_digest"] != _key(assistant):
+                    raise AdapterError("同一输出标识出现不同正文，未覆盖")
+                return {"staged": False, "duplicate": True}
+            if execution_origin == "scheduled":
+                raise AdapterError("定时输出不能冒充已存在的用户对话")
             if row["status"] == "queued":
                 # Source SDK owns the durable body now. Do not reconstitute it
                 # from callbacks after restarting or store another transcript.
@@ -159,19 +185,43 @@ class Bridge:
             if row["assistant"] is not None and row["assistant"] != assistant:
                 raise AdapterError("同一轮产生不同最终回复，未覆盖已经保存的回复")
             details = json.loads(row["details"])
-            details.update(stage="final_generated", delivery_status="generated", recipient_read=False)
+            details.update(stage="final_generated", delivery_status="generated", recipient_read=False,
+                           execution_origin=execution_origin, actual_platform=actual_platform)
             db.execute("UPDATE records SET assistant=?,status='ready',details=?,last_error=NULL,final_digest=? WHERE id=?",
                        (assistant, json.dumps(details, ensure_ascii=False), _key(assistant), identity))
         return {"staged": True, "event_id": identity}
 
-    def stage_observation(self, umo, message_id, text, *, stage="observed", failed=False, discriminator=""):
+    def note_host_send_stage(self, umo, message_id):
+        _, identity = self._scope(umo, message_id)
+        stamp = self.clock()
+        if type(stamp) not in (int, float) or not 0 <= stamp < float("inf"):
+            raise AdapterError("发送阶段观察时间不合法")
+        # This table has no prose or ready state, is never read by flush(), and
+        # cannot affect an event's SDK identity/digest. Commands with no LLM
+        # output may still have a private send-stage note, never a memory node.
+        with self.db() as db:
+            db.execute("INSERT OR IGNORE INTO host_send_stages VALUES(?,?)", (identity, stamp))
+        return {"noted": True, "event_id": identity, "private_only": True}
+
+    def stage_observation(self, umo, message_id, text, *, stage="observed", failed=False, discriminator="",
+                          execution_origin="message", actual_platform=None, execution_status=None):
         session, parent = self._scope(umo, message_id)
+        if stage == "after_message_sent":
+            # Safely handle an older caller too; do not create a new source
+            # event or even inspect its former generic send-stage text.
+            return self.note_host_send_stage(umo, message_id)["event_id"]
+        if execution_origin not in ("message", "scheduled") or execution_status not in (None, "failed", "cancelled"):
+            raise AdapterError("观察执行来源或状态不正确")
+        actual_platform = _identifier(actual_platform or self.platform, "实际平台", 80)
         text = safe_text(text)
         identity = "astrbot_obs_" + _key([parent, stage, discriminator, text])[:40]
         details = {"adapter": "astrbot", "platform": self.platform, "source_umo": umo,
                    "runtime_agent_id": self.runtime_agent_id, "stage": stage, "parent_event_id": parent,
-                   "delivery_status": "host_send_stage" if stage == "after_message_sent" else "not_applicable",
+                   "execution_origin": execution_origin, "actual_platform": actual_platform,
+                   "delivery_status": "not_applicable",
                    "recipient_read": False}
+        if execution_status is not None:
+            details["execution_status"] = execution_status
         with self.db() as db:
             db.execute("INSERT OR IGNORE INTO records VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                        (identity, session, message_id, "observation", None, None, text,
@@ -191,6 +241,9 @@ class Bridge:
                 if row["kind"] == "turn":
                     response = self.client.record_dialogue(row["user"], row["assistant"], row["session"], row["id"],
                         platform=self.platform, occurred_at=row["occurred"], delivery_status="generated", details=details)
+                elif row["kind"] == "output":
+                    response = self.client.record_output(row["text"], row["session"], row["id"],
+                        platform=self.platform, occurred_at=row["occurred"], details=details)
                 else:
                     response = self.client.record_observation(row["text"], row["session"], row["id"],
                         platform=self.platform, occurred_at=row["occurred"], outcome=row["outcome"], details=details)
@@ -213,10 +266,12 @@ class Bridge:
     def status(self):
         with self.db() as db:
             counts = {r["status"]: r["count"] for r in db.execute("SELECT status,COUNT(*) AS count FROM records GROUP BY status")}
+            send_stages = db.execute("SELECT COUNT(*) FROM host_send_stages").fetchone()[0]
         return {"runtime_agent_id": self.runtime_agent_id, "platform": self.platform,
                 "registered_umo_count": len(self.allowed), "awaiting_final": counts.get("awaiting_final", 0),
                 "pending": counts.get("ready", 0), "durably_queued_callbacks": counts.get("queued", 0),
-                "coverage": ["bound_message_final_generation", "observed_tool_text", "host_send_stage"],
+                "private_host_send_stages": send_stages,
+                "coverage": ["bound_message_final_generation", "standalone_assistant_output", "observed_tool_text", "private_host_send_stage_metadata"],
                 "not_proven": ["qq_recipient_delivery_or_read", "unhooked_external_apps", "private_model_reasoning"]}
 
 

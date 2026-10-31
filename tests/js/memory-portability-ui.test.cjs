@@ -67,3 +67,26 @@ test('Windows native bridge reports saved/cancelled truthfully and does not fall
  assert.equal(calls.length,3);assert.equal(ctx.state.native.size,0);
  assert.deepEqual(calls[0],{filename:'单库.json',content:'WINDOWS_EXPLICIT_MEMORY'});
 });
+
+test('an unready Windows bridge waits for native save and never reports a blocked browser download',async()=>{
+ const ctx=context();let attempts=0,saves=0;
+ ctx.window={pywebview:{api:{}}};ctx.setTimeout=resolve=>{attempts++;if(attempts===2)ctx.window.pywebview.api.save_memory_file=async()=>{saves++;return {saved:true};};resolve();};
+ const run=action('saveFile',ctx);
+ assert.equal(await run({filename:'safe.json',content:'synthetic'},ctx.state.owner),'saved');
+ assert.equal(attempts,2);assert.equal(saves,1);
+ ctx.window.pywebview.api={};ctx.setTimeout=resolve=>resolve();
+ await assert.rejects(run({filename:'safe.json',content:'synthetic'},ctx.state.owner),/尚未就绪/);
+});
+
+test('a library switch while waiting for native readiness does not open a stale save dialog',async()=>{
+ const ctx=context();let saves=0;
+ ctx.window={pywebview:{api:{}}};ctx.setTimeout=resolve=>{ctx.S.libraryEpoch++;ctx.window.pywebview.api.save_memory_file=async()=>{saves++;return {saved:true};};resolve();};
+ assert.equal(await action('saveFile',ctx)({filename:'old.json',content:'OLD'},ctx.state.owner),'stale');
+ assert.equal(saves,0);
+});
+
+test('a library switch while native saving cannot overwrite the next library status',async()=>{
+ const ctx=context();ctx.api=async()=>({filename:'old.json',content:'OLD'});
+ ctx.saveFile=async()=>{ctx.S.libraryEpoch++;ctx.shareNotice.textContent='NEXT_LIBRARY';return 'saved';};
+ await action('download',ctx)('json');assert.equal(ctx.shareNotice.textContent,'NEXT_LIBRARY');
+});

@@ -95,27 +95,51 @@ class WindowsPackagingTests(unittest.TestCase):
     def test_native_save_preserves_unicode_content_and_never_accepts_direct_paths(self):
         with tempfile.TemporaryDirectory() as directory:
             target=Path(directory)/'分享.json';window=MagicMock();window.get_current_url.return_value='http://127.0.0.1:8768/'
-            window.create_file_dialog.return_value=(str(target),)
             api=windows.NativeAPI('http://127.0.0.1:8768/');api._window=window
-            fake=SimpleNamespace(FileDialog=SimpleNamespace(SAVE=1))
-            with patch.dict(sys.modules,{'webview':fake}):
+            with patch.object(windows,'export_save_dialog',return_value=str(target)) as dialog:
                 self.assertTrue(api.save_memory_file('分享.json','完整用户原话：不喜欢咖啡。\n实际助手回复。')['saved'])
                 self.assertFalse(api.save_memory_file('../escape.json','x')['saved'])
                 self.assertFalse(api.save_memory_file('C:\\escape.json','x')['saved'])
+            dialog.assert_called_once_with(window,'分享.json')
             self.assertEqual(target.read_text('utf-8'),'完整用户原话：不喜欢咖啡。\n实际助手回复。')
-            self.assertEqual(window.create_file_dialog.call_count,1)
             self.assertFalse(list(Path(directory).glob('*.tmp')))
 
     def test_cancel_and_foreign_origin_do_not_write_or_open_save_dialog(self):
         api=windows.NativeAPI('http://127.0.0.1:8768/');api._window=MagicMock()
         api._window.get_current_url.return_value='https://example.com/'
-        self.assertFalse(api.save_memory_file('copy.json','x')['saved'])
-        api._window.create_file_dialog.assert_not_called()
-        api._window.get_current_url.return_value='http://127.0.0.1:8768/'
-        api._window.create_file_dialog.return_value=None
-        with patch.dict(sys.modules,{'webview':SimpleNamespace(FileDialog=SimpleNamespace(SAVE=1))}):
+        with patch.object(windows,'export_save_dialog',return_value=None) as dialog:
+            self.assertFalse(api.save_memory_file('copy.json','x')['saved'])
+            dialog.assert_not_called()
+            api._window.get_current_url.return_value='http://127.0.0.1:8768/'
             result=api.save_memory_file('copy.json','x')
         self.assertFalse(result['saved']);self.assertTrue(result['cancelled'])
+
+    def test_save_dialog_and_disk_failures_are_errors_and_navigation_during_save_cannot_write(self):
+        api=windows.NativeAPI('http://127.0.0.1:8768/');api._window=MagicMock()
+        api._window.get_current_url.return_value=api._url
+        with patch.object(windows,'export_save_dialog',side_effect=RuntimeError('PRIVATE PATH')):
+            result=api.save_memory_file('copy.json','x')
+        self.assertFalse(result['saved']);self.assertFalse(result['cancelled']);self.assertNotIn('PRIVATE PATH',result['error'])
+        with patch.object(windows,'export_save_dialog',return_value='copy.json'),patch.object(windows,'atomic_export',side_effect=PermissionError('PRIVATE PATH')):
+            result=api.save_memory_file('copy.json','x')
+        self.assertFalse(result['saved']);self.assertFalse(result['cancelled'])
+        api._window.get_current_url.side_effect=[api._url,'https://example.com/']
+        with patch.object(windows,'export_save_dialog',return_value='copy.json'),patch.object(windows,'atomic_export') as write:
+            self.assertFalse(api.save_memory_file('copy.json','x')['saved']);write.assert_not_called()
+
+    def test_astrbot_native_export_accepts_no_remote_bytes_or_path_and_uses_host_package(self):
+        host=MagicMock();host.astrbot_package.return_value=b'REVIEWED SYNTHETIC PLUGIN ZIP'
+        api=windows.NativeAPI('http://127.0.0.1:8768/',host);api._window=MagicMock()
+        api._window.get_current_url.return_value=api._url
+        with tempfile.TemporaryDirectory() as directory:
+            target=Path(directory)/'插件.zip'
+            with patch.object(windows,'export_save_dialog',return_value=str(target)) as dialog:
+                self.assertTrue(api.export_astrbot_adapter()['saved'])
+            self.assertEqual(target.read_bytes(),host.astrbot_package.return_value)
+            dialog.assert_called_once_with(api._window,'LoveHouse-AstrBot-0.2.0-experimental.zip')
+        with self.assertRaises(TypeError):api.export_astrbot_adapter('untrusted-path.zip')
+        api._window.get_current_url.return_value='https://example.com/'
+        host.astrbot_package.reset_mock();self.assertFalse(api.export_astrbot_adapter()['saved']);host.astrbot_package.assert_not_called()
 
     def test_reserved_windows_export_names_and_non_utf8_are_rejected(self):
         for filename in ['CON.json','lpt1.md','NUL.json','wrong.exe','end.md ','a|b.json','/tmp/x.json','..\\x.json']:

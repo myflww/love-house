@@ -217,24 +217,65 @@ def atomic_export(path,data):
         if temporary:Path(temporary).unlink(missing_ok=True)
 
 
+def export_save_dialog(window,filename):
+    """Return an explicit user selection; do not turn dialog failures into cancel.
+
+    The pywebview 6.2 WinForms helper catches dialog exceptions and returns None,
+    the same value as cancellation. Own the small dialog on the existing STA UI
+    thread so a broken dialog can be reported and missing HOMEPATH is harmless.
+    """
+    from System import Func,Object
+    from System.Windows.Forms import SaveFileDialog,DialogResult
+    owner=window.native
+    if owner is None:raise ValueError('Native window is not ready')
+    extension=Path(filename).suffix.lower()
+    filters={'.json':'Love House JSON (*.json)|*.json','.md':'Markdown (*.md)|*.md',
+             '.zip':'Love House plugin ZIP (*.zip)|*.zip'}
+    if extension not in filters:raise ValueError('Unsupported export extension')
+    def choose():
+        dialog=SaveFileDialog()
+        try:
+            dialog.FileName=filename;dialog.Filter=filters[extension]
+            dialog.DefaultExt=extension.lstrip('.');dialog.AddExtension=True
+            dialog.OverwritePrompt=True;dialog.CheckPathExists=True;dialog.RestoreDirectory=True
+            dialog.InitialDirectory=str(Path.home())
+            result=dialog.ShowDialog(owner)
+            if result==DialogResult.Cancel:return None
+            if result!=DialogResult.OK:raise OSError('Unexpected save dialog result')
+            return str(dialog.FileName)
+        finally:dialog.Dispose()
+    return owner.Invoke(Func[Object](choose)) if owner.InvokeRequired else choose()
+
+
 class NativeAPI:
-    def __init__(self,url):self._url=url;self._window=None;self._saving=threading.Lock()
+    def __init__(self,url,host=None):self._url=url;self._host=host;self._window=None;self._saving=threading.Lock();self._choose_export=None
     def platform_info(self):return {'platform':'windows','native':True,'renderer':'WebView2','version':__version__,'harness_supported':True}
+    def _check_export_origin(self):
+        if not self._window or self._window.get_current_url()!=self._url:
+            raise ValueError('只能从爱之屋本机页面保存文件')
+    def _save_export(self,filename,data):
+        self._check_export_origin()
+        target=(self._choose_export or export_save_dialog)(self._window,filename)
+        if not target:return {'saved':False,'cancelled':True}
+        self._check_export_origin()
+        if Path(target).suffix.lower()!=Path(filename).suffix.lower():target+=Path(filename).suffix
+        atomic_export(target,data)
+        return {'saved':True,'cancelled':False}
     def save_memory_file(self,filename,content):
         if not self._saving.acquire(False):return {'saved':False,'cancelled':False,'error':'另一个保存窗口尚未关闭。'}
         try:
             data=valid_export(filename,content)
-            if not self._window or self._window.get_current_url()!=self._url:
-                raise ValueError('只能从爱之屋本机页面保存分享文件')
-            import webview
-            selected=self._window.create_file_dialog(webview.FileDialog.SAVE,save_filename=filename,
-                         file_types=('Love House JSON (*.json)','Markdown (*.md)'))
-            if not selected:return {'saved':False,'cancelled':True}
-            target=selected if isinstance(selected,str) else selected[0]
-            if Path(target).suffix.lower()!=Path(filename).suffix.lower():target+=Path(filename).suffix
-            atomic_export(target,data)
-            return {'saved':True,'cancelled':False}
-        except (OSError,ValueError,UnicodeError):return {'saved':False,'cancelled':False,'error':'文件未保存，请检查位置、文件名和磁盘空间。'}
+            return self._save_export(filename,data)
+        except Exception:return {'saved':False,'cancelled':False,'error':'文件未保存，请检查保存窗口、位置、文件名和磁盘空间后重试。'}
+        finally:self._saving.release()
+    def export_astrbot_adapter(self):
+        # No caller-supplied path, URL, package bytes or private runtime files.
+        if not self._saving.acquire(False):return {'saved':False,'cancelled':False,'error':'另一个保存窗口尚未关闭。'}
+        try:
+            self._check_export_origin()
+            if self._host is None:raise ValueError('Memory service is not ready')
+            return self._save_export('LoveHouse-AstrBot-0.2.0-experimental.zip',self._host.astrbot_package())
+        except Exception:return {'saved':False,'cancelled':False,'error':'插件未保存，请检查保存窗口、位置和磁盘空间后重试。'}
         finally:self._saving.release()
 
 
@@ -357,11 +398,67 @@ def backend_smoke(report):
         try:
             assert runtime.server.server_port==port and runtime.host.snapshot('default')==expected
         finally:runtime.stop()
+        from windows_organizer_smoke import organizer_smoke
+        organizer=organizer_smoke(root)
         result={'ok':True,'version':__version__,'controller':'passed','stdio_and_hook':'passed' if getattr(sys,'frozen',False) else 'source-only',
-                'sharing_roundtrip':'passed','restart':'passed','latest_feature_apis':'passed','astrbot_source_package':'passed','real_model_calls':0,'real_credentials_accessed':False}
+                'sharing_roundtrip':'passed','restart':'passed','latest_feature_apis':'passed','astrbot_source_package':'passed','organizer':organizer,'real_model_calls':0,'real_credentials_accessed':False}
     result.update(phase='complete',process_complete=True,cleanup={'status':'removed','isolated':True})
     smoke_report(report,result)
     return result
+
+
+def verify_native_exports(window,api,runtime,directory):
+    """Use the shipped UI and JS bridge, replacing only the user's path choice.
+
+    Runs only inside an explicitly owned native-smoke scratch. It does not grant
+    a production webpage a save-path API or open/cancel a user's own dialog.
+    """
+    import hashlib
+    from nkb.companion.memory import record_turn
+    root=Path(directory)/'synthetic-export';root.mkdir()
+    user='SYNTHETIC_EXPORT_USER_喜欢无糖茶';assistant='SYNTHETIC_EXPORT_ASSISTANT_记住了'
+    runtime.host.transact('default',lambda brain:record_turn(brain,user,assistant,'synthetic-export-window','synthetic-export-turn'))
+    organizer_view=runtime.host.organizer_view
+    def broken_optional_organizer(unused):raise RuntimeError('Synthetic unavailable optional organizer')
+    runtime.host.organizer_view=broken_optional_organizer
+    choices=[]
+    def evaluate(script):
+        ready=threading.Event();box={}
+        def received(value):box['value']=value;ready.set()
+        window.evaluate_js(script,received)
+        assert ready.wait(30),'Native export UI response timed out'
+        return box['value']
+    def choose(target):
+        def selected(unused,filename):choices.append(filename);return str(target) if target else None
+        api._choose_export=selected
+    def share(button):
+        return evaluate("""(async()=>{const d=document.getElementById('memoryShareDialog');if(d.open)d.close();await window.LoveHousePortability.openShare();const c=document.getElementById('sharePersonalConsent');c.checked=true;c.dispatchEvent(new Event('change'));const b=document.getElementById('"""+button+"""');if(b.disabled)throw Error('Synthetic share is disabled');await b.onclick();return {notice:d.querySelector('.portability-notice').textContent};})()""")
+    try:
+        saved=root/'合成分享.json';choose(saved);value=share('downloadMemoryJSON')
+        assert '文件已保存' in value['notice'],value
+        package=json.loads(saved.read_text('utf-8'));nodes=package['memory']['nodes'].values()
+        assert any(node['text']==user and node.get('meta',{}).get('assistant_reply')==assistant for node in nodes)
+        assert package['scope']=='single_library'
+        markdown=root/'合成阅读.md';choose(markdown);value=share('downloadMemoryMarkdown')
+        assert '文件已保存' in value['notice'] and user in markdown.read_text('utf-8') and assistant in markdown.read_text('utf-8'),value
+        choose(None);value=share('downloadMemoryJSON');assert '已取消保存' in value['notice'],value
+        choose(root/'missing-parent'/'cannot-write.json');value=share('downloadMemoryJSON')
+        assert '导出未完成' in value['notice'] and '已取消' not in value['notice'],value
+        count=len(choices);original=api._window
+        class ForeignPage:
+            def get_current_url(self):return 'https://example.invalid/'
+        api._window=ForeignPage()
+        try:value=share('downloadMemoryJSON')
+        finally:api._window=original
+        assert '导出未完成' in value['notice'] and len(choices)==count,value
+        runtime.host.organizer_view=organizer_view
+        plugin=root/'合成插件.zip';choose(plugin)
+        value=evaluate("""(async()=>{document.getElementById('memoryShareDialog').close();await window.LoveHouseSources.open();await document.getElementById('exportAstrBotPlugin').onclick();return {notice:document.getElementById('agentSourcesStatus').textContent};})()""")
+        assert '实验插件已导出' in value['notice'] and plugin.read_bytes()==runtime.host.astrbot_package(),value
+        return {'json_original_roles':'passed','markdown':'passed','cancel':'passed','write_error':'passed','organizer_independent_preview':'passed',
+                'foreign_origin':'passed','astrbot_zip':'passed','dialog_selection':'synthetic_owned_path',
+                'astrbot_sha256':hashlib.sha256(plugin.read_bytes()).hexdigest()}
+    finally:api._choose_export=None;runtime.host.organizer_view=organizer_view
 
 
 def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=False):
@@ -386,7 +483,7 @@ def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=F
         result['phase']='clr_initialization'
         import webview
         if log:log.write('window',phase='window_start',smoke=smoke)
-        api=NativeAPI(runtime.url)
+        api=NativeAPI(runtime.url,runtime.host)
         window=webview.create_window('爱之屋',runtime.url,js_api=api,width=1360,height=900,min_size=(900,600),
                                     background_color='#fffaf0',text_select=True,hidden=smoke and not visible)
         api._window=window
@@ -422,6 +519,7 @@ def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=F
                     assert ready.wait(45),'WebView2 JS response timed out'
                     value=box['value'];assert value['health']['ok'] and value['health']['version']==__version__
                     assert value['save_bridge'] and value['graph'] and value['webgl'] and value['latest_controls'],value
+                    result['native_exports']=verify_native_exports(window,api,runtime,data_dir)
                     result.update(ok=True,webview=value,phase='native_checks_passed')
                 except Exception as exc:result.update(failure=smoke_failure(exc),phase='native_checks_failed')
                 finally:window.destroy()

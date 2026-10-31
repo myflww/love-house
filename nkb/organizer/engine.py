@@ -11,8 +11,9 @@ import uuid
 from ..core.brain import Brain
 from ..errors import ValidationError
 from .config import get_profile
-from .model import OrganizerConflict, OrganizerError, call_model, transport as default_transport
-from .state import build_input, validate_plan, raw_node, disabled
+from .model import (OrganizerConflict, OrganizerError, call_model, failure_message,
+                    resolve_model, transport as default_transport)
+from .state import build_input, validate_plan, raw_node, disabled, archive_roles, RAW_SOURCES
 
 
 class Organizer:
@@ -178,6 +179,9 @@ class Organizer:
         job = None
         try:
             if self._stopping.is_set(): return {"status":"stopped"}
+            # Only an explicit per-library run repairs old false deletion
+            # failures. The background worker never repeatedly revives them.
+            if library_id is not None and flush:self.repair_source_jobs(library_id)
             with self.db() as db:
                 db.execute("UPDATE jobs SET status='retry',next_run=?,error_code='interrupted',error='进程中断，等待安全重试' WHERE status='running' AND lease_until<?",(time.time(),time.time()))
                 db.execute("UPDATE items SET status='retry' WHERE status='running' AND job_id IN (SELECT id FROM jobs WHERE status='retry')")
@@ -232,6 +236,12 @@ class Organizer:
                 return {"status":"waiting_threshold" if trigger['mode']=='strict' and not trigger['eligible'] else "waiting", "library_id":library_id, "trigger":trigger}
             self._active_job = job["id"]
             ids = json.loads(job["raw_ids"])
+            # Capture may commit and enqueue AFTER the first snapshot but BEFORE
+            # this queue claim. Such a claimed receipt must be checked against a
+            # fresh graph, otherwise a brand-new source looks permanently deleted.
+            brain=self._snapshot(library_id)
+            if get_profile(brain)!=profile:
+                raise OrganizerConflict("整理配置已变化，按新配置安全重试")
             # Do not replay even a cached result after its source was removed/disabled.
             if self._deleted(library_id,ids,brain):
                 raise OrganizerError("来源已删除或遗忘，未重放整理结果", "source_deleted")
@@ -260,9 +270,9 @@ class Organizer:
                 else:
                     chars = len(json.dumps(payload, ensure_ascii=False))
                     credential = self.credential(library_id, deepcopy(profile))
-                    key = credential.get("api_key") if isinstance(credential, dict) else credential
-                    if not isinstance(key, str) or not key.strip():
-                        raise OrganizerError("整理模型缺少凭证，原文仍保留", "missing_credential")
+                    # Missing/invalid credentials or model names never reserve a
+                    # billable request. These failures happen before transport.
+                    resolve_model(profile, credential)
                     with self.db() as db:
                         db.execute("BEGIN IMMEDIATE")
                         if not self._valid_job(db,job): return {"status":"cancelled","job_id":job["id"]}
@@ -308,7 +318,7 @@ class Organizer:
                        "missing_raw":"原始记录暂不可用", "missing_archive":"需要完整归档，不能把摘录当全文",
                        "missing_credential":"整理模型尚未配置凭证，原文仍保留", "missing_model":"整理模型名称尚未配置，原文仍保留",
                        "budget_limited":"达到近24小时整理预算，原文和任务仍保留",
-                       "invalid_evidence":"模型证据校验失败，原文仍保留"}.get(code,"整理未完成，原文仍保留，可查看状态或重试")
+                       "invalid_evidence":"模型证据校验失败，原文仍保留"}.get(code,failure_message(code))
             if job:
                 terminal = code == "source_deleted" or job["attempts"] >= profile["max_attempts"]
                 with self.db() as db:
@@ -383,6 +393,70 @@ class Organizer:
             pass
         return {"library_id":library_id,"forgotten":len(set(raw_ids)),"cancelled_library_queue":True,
                 "tombstoned_nodes":len(set(node_ids)),"checkpointed":checkpointed}
+
+    def repair_source_jobs(self, library_id):
+        """Explicit retry of rc2 false deletions, with current provenance proof.
+
+        Retain attempts and the call ledger. A missing archive, privacy tombstone,
+        disabled source, cached plan or another library is never recovered here.
+        """
+        library_id=self._library(library_id)
+        if not self.read_archive:return 0
+        with self.db() as db:
+            epoch=self._epoch(db,library_id)
+            jobs=[dict(row) for row in db.execute("SELECT id,raw_ids FROM jobs WHERE library_id=? "
+                "AND status='failed' AND error_code='source_deleted' AND plan_json IS NULL",(library_id,))]
+        if not jobs:return 0
+        brain=self._snapshot(library_id);repaired=0
+        for job in jobs:
+            ids=json.loads(job['raw_ids'])
+            if not ids or self._deleted(library_id,ids,brain):continue
+            verified=True
+            for rid in ids:
+                source=raw_node(brain,rid);proof=source.get('meta',{}).get('evidence')
+                if (source.get('meta',{}).get('source') not in RAW_SOURCES
+                        or not isinstance(proof,dict) or proof.get('archive_receipt_id')!=rid):
+                    verified=False;break
+                try:archive=self.read_archive(library_id,rid)
+                except ValidationError:archive=None
+                if (not isinstance(archive,dict) or archive.get('library_id')!=library_id
+                        or archive.get('id')!=rid):
+                    verified=False;break
+                try:roles=archive_roles(archive)
+                except (AttributeError,TypeError):roles={}
+                if not roles or not any(isinstance(text,str) and text for text in roles.values()):
+                    verified=False;break
+            if not verified:continue
+            with self.db() as db:
+                db.execute("BEGIN IMMEDIATE")
+                if self._epoch(db,library_id)!=epoch:break
+                changed=db.execute("UPDATE jobs SET status='retry',next_run=0,error_code=NULL,error=NULL,updated=? "
+                    "WHERE id=? AND library_id=? AND status='failed' AND error_code='source_deleted' AND plan_json IS NULL",
+                    (time.time(),job['id'],library_id)).rowcount
+                if changed:
+                    db.execute("UPDATE items SET status='retry' WHERE library_id=? AND job_id=?",(library_id,job['id']))
+                    repaired+=1
+        return repaired
+
+    def resume_configuration_jobs(self, library_id):
+        """Recover this library's config-blocked tasks after an actual repair.
+
+        Caller must confirm a usable changed configuration. Do not revive quota,
+        transport, invalid evidence, rejected/forgotten or completed tasks. Keep
+        call-budget history and successful cached plans intact.
+        """
+        library_id = self._library(library_id)
+        codes = ("missing_credential", "missing_model", "invalid_credential",
+                 "provider_authentication", "provider_access_denied", "provider_not_found")
+        with self.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            rows = db.execute("SELECT id FROM jobs WHERE library_id=? AND status IN ('failed','retry') "
+                              "AND error_code IN (?,?,?,?,?,?) AND plan_json IS NULL", (library_id,*codes)).fetchall()
+            for row in rows:
+                db.execute("UPDATE jobs SET status='retry',attempts=0,next_run=0,error_code=NULL,error=NULL,updated=? WHERE id=?",
+                           (time.time(),row['id']))
+                db.execute("UPDATE items SET status='retry' WHERE library_id=? AND job_id=?",(library_id,row['id']))
+        return len(rows)
 
     def retry(self, job_id):
         with self.db() as db:

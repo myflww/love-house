@@ -650,8 +650,18 @@ def make_handler(brain: Brain):
                 result = _response_snapshot(callback(brain))
                 guard.persist()
                 return result
+    def structured_material(data, *, library_id, library_name):
+        # One locked read over the existing index. Avoid a loopback HTTP query
+        # followed by a full graph deepcopy and re-encoding on every action.
+        from ..companion.structured import build_structured_context
+        with operation_lock:
+            result=build_structured_context(brain,data.get('query'),max_chars=data.get('max_chars',8000),
+                library_id=library_id,library_name=library_name,agent_id=library_id,
+                session_id=data.get('session_id'))
+            return _response_snapshot(result)
     Handler.memory_snapshot = staticmethod(snapshot)
     Handler.memory_transaction = staticmethod(transaction)
+    Handler.memory_structured_material = staticmethod(structured_material)
     return Handler
 
 

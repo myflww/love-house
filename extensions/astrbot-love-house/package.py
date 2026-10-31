@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Package the experimental plugin from an explicit source-only allowlist."""
+"""Package the experimental plugin 0.2.0 from an explicit source-only allowlist."""
 from __future__ import annotations
 
 import argparse

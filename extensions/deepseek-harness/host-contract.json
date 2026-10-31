@@ -1,5 +1,5 @@
 {
-  "adapter_version": "0.4.0",
+  "adapter_version": "0.4.1",
   "runtime_support": [
     "0.2.1-rc.3",
     "0.2.1-rc.5"
@@ -115,5 +115,7 @@
     "changed_contract": "Reject automatic configuration/loading and report differing SDK files or metadata",
     "installed_code_executed_for_detection": false,
     "real_official_electron_smoke": "Passed against installed official rc.3 ASAR with isolated disabled connection; no model or credentials accessed"
-  }
+  },
+  "independent_output": "Only a completed matching turn in an already fixed root session, with no human input and a final committed text-only model assistant message. Never claims next_session or normalizes intermediate assistant/message events as output.",
+  "before_no_human_work": "Only an already fixed root session with observed, matching, uninterrupted turn/start may query context using its public Session.deriveMessages() latest real human text, or a fixed baseline when that valid public projection has no task text. No new claim, other session, private reasoning, raw event snapshots, or synthetic user archival."
 }

@@ -355,6 +355,21 @@ class SourceClient:
         cfg = self.config()
         return self.submit_event(self._event(cfg, session_id, event_id, platform, normalized, occurred_at=occurred_at, details=details))
 
+    def record_output(self, text, session_id, event_id, *, platform, occurred_at=None,
+                      delivery_status="generated", details=None):
+        """Archive one visible Agent output without inventing a user message.
+
+        A scheduler or another runtime may have no conversational input. This
+        remains an assistant statement, not a tool observation or user fact.
+        """
+        if delivery_status not in ("generated", "platform_accepted", "delivered"):
+            raise SourceClientError("输出结果状态不正确", "invalid_input")
+        normalized = {"type": "output", "role": "assistant", "text": _text(text, "text"),
+                      "evidence": {"delivery_status": delivery_status}}
+        cfg = self.config()
+        return self.submit_event(self._event(cfg, session_id, event_id, platform, normalized,
+                                            occurred_at=occurred_at, details=details))
+
     def _validate_event(self, cfg, event):
         if not isinstance(event, dict): raise SourceClientError("活动须为对象", "invalid_input")
         for key, value in self._identity(cfg).items():
@@ -364,8 +379,12 @@ class SourceClient:
         _text(event.get("event_id"), "event_id", 200)
         record = event.get("record")
         normalized = record.get("normalized") if isinstance(record, dict) else None
-        if not isinstance(normalized, dict) or normalized.get("type") not in ("turn", "tool") or normalized.get("status") != "complete":
+        if not isinstance(normalized, dict) or normalized.get("type") not in ("turn", "tool", "output") or normalized.get("status") != "complete":
             raise SourceClientError("活动尚无受支持的语义，未假装已形成记忆", "invalid_input")
+        if normalized.get("type") == "output":
+            if normalized.get("role") != "assistant" or any(k in normalized for k in ("user", "assistant", "explicit", "proposals")):
+                raise SourceClientError("独立输出只能保留助手原话，不能伪造用户或确认", "invalid_input")
+            _text(normalized.get("text"), "text")
         if len(_json(event).encode()) > MAX_EVENT_BYTES:
             raise SourceClientError("单条活动超过32MiB，请分段保留真实消息", "event_too_large")
 

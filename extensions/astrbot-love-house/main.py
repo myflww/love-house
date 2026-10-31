@@ -13,15 +13,16 @@ from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.provider import LLMResponse, ProviderRequest
 from astrbot.api.star import Context, Star, register
-from astrbot.core.agent.message import TextPart
+from astrbot.core.agent.message import TextPart, UserMessageSegment
 from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.core.astr_agent_context import AstrAgentContext
+from astrbot.core.cron.events import CronMessageEvent
 
 from .bridge import AdapterError, Bridge, Router
 from .source_client import SourceClient
 
 
-@register("love_house", "myflww", "爱之屋 Agent 经历记忆（实验适配）", "0.1.0")
+@register("love_house", "myflww", "爱之屋 Agent 经历记忆（实验适配）", "0.2.0")
 class LoveHousePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -56,7 +57,10 @@ class LoveHousePlugin(Star):
         bridge = self.router.for_umo(getattr(event, "unified_msg_origin", None))
         if bridge is None:
             return None
-        if not self._platform_matches(event, bridge.platform):
+        scheduled = isinstance(event, CronMessageEvent)
+        if scheduled and self.config.get("record_scheduled_outputs", False) is not True:
+            return None
+        if not self._platform_matches(event, bridge.platform, scheduled=scheduled):
             # A configured label is not evidence of the actual platform. In
             # particular, ChatUI/WebChat must not become a QQ observation.
             return None
@@ -73,7 +77,7 @@ class LoveHousePlugin(Star):
             return None
 
     @staticmethod
-    def _platform_matches(event, configured):
+    def _platform_matches(event, configured, *, scheduled=False):
         try:
             actual_name = event.get_platform_name()
             actual_id = event.get_platform_id()
@@ -84,6 +88,10 @@ class LoveHousePlugin(Star):
                 or not isinstance(actual_id, str) or not actual_id or len(actual_id) > 200
                 or not isinstance(umo, str) or umo.split(":", 1)[0] != actual_id):
             return False
+        if scheduled:
+            # Only _route may enable this for a real CronMessageEvent. AstrBot
+            # keeps the original delivery UMO/id but uses name='cron'.
+            return actual_name == "cron"
         # AstrBot's core QQ adapters expose these names and an administrator-
         # chosen instance ID. Generic bridges such as Satori are not QQ proof.
         aliases = {"qq": {"qq", "aiocqhttp", "qq_official", "qq_official_webhook"}}
@@ -136,6 +144,42 @@ class LoveHousePlugin(Star):
             except asyncio.CancelledError:
                 pass
 
+    @staticmethod
+    def _origin(event):
+        return {"execution_origin": "scheduled" if isinstance(event, CronMessageEvent) else "message",
+                "actual_platform": event.get_platform_name()}
+
+    async def _material(self, event, bridge, message_id):
+        marker = "love_house_material_" + bridge.source_id
+        material = event.get_extra(marker)
+        if not isinstance(material, str):
+            material = await asyncio.wait_for(asyncio.to_thread(bridge.read_material,
+                event.unified_msg_origin, message_id, event.message_str), timeout=1.2)
+            event.set_extra(marker, material)
+        return material
+
+    @filter.on_agent_begin()
+    async def recall_before_agent(self, event: AstrMessageEvent, run_context: ContextWrapper[AstrAgentContext]):
+        bridge = self._route(event)
+        if bridge is None or event.get_extra("love_house_request_material_" + bridge.source_id) is True:
+            return
+        try:
+            messages = getattr(run_context, "messages", None)
+            if not isinstance(messages, list):
+                raise AdapterError("宿主未提供可追加的运行消息")
+            material = await self._material(event, bridge, self._message_id(event))
+            if any(getattr(part, "text", None) == material
+                   for message in messages if isinstance(getattr(message, "content", None), list)
+                   for part in message.content):
+                return
+            message = UserMessageSegment(content=[TextPart(text=material).mark_as_temp()])
+            message._no_save = True
+            messages.append(message)
+            # Scheduler instructions are retrieval queries only. No synthetic
+            # user turn or run/tool history is copied into the memory journal.
+        except Exception:
+            self._warn("agent_begin_recall")
+
     @filter.on_llm_request()
     async def recall_before_request(self, event: AstrMessageEvent, req: ProviderRequest):
         bridge = self._route(event)
@@ -143,20 +187,17 @@ class LoveHousePlugin(Star):
             return
         try:
             message_id = self._message_id(event)
-            await asyncio.to_thread(bridge.stage_received, event.unified_msg_origin, message_id,
-                event.message_str, occurred_at=getattr(event.message_obj, "timestamp", None),
-                sender_id=event.get_sender_id())
+            if not isinstance(event, CronMessageEvent):
+                await asyncio.to_thread(bridge.stage_received, event.unified_msg_origin, message_id,
+                    event.message_str, occurred_at=getattr(event.message_obj, "timestamp", None),
+                    sender_id=event.get_sender_id())
             # A tool-loop may prepare several requests for one received event.
             # Rehearsal is not proportional to the number of loop steps.
-            marker = "love_house_material_" + bridge.source_id
-            material = event.get_extra(marker)
-            if not isinstance(material, str):
-                material = await asyncio.wait_for(asyncio.to_thread(bridge.read_material,
-                    event.unified_msg_origin, message_id, event.message_str), timeout=1.2)
-                event.set_extra(marker, material)
+            material = await self._material(event, bridge, message_id)
             if any(getattr(part, 'text', None) == material for part in req.extra_user_content_parts):
                 return
             req.extra_user_content_parts.append(TextPart(text=material).mark_as_temp())
+            event.set_extra("love_house_request_material_" + bridge.source_id, True)
         except Exception:
             self._warn("recall_or_stage")
 
@@ -166,11 +207,50 @@ class LoveHousePlugin(Star):
         if bridge is None or resp is None:
             return
         try:
+            if getattr(resp, "is_chunk", False) or bool(getattr(resp, "tools_call_name", [])):
+                return
+            role = getattr(resp, "role", "")
+            termination = "failed" if role == "err" else "cancelled" if self._reported_abort(run_context, resp) else None
+            if termination:
+                text = ("宿主报告本次运行失败，未取得完整助手输出；不代表外部操作失败。" if termination == "failed"
+                        else "宿主报告本次输出已停止，没有完整助手输出；不代表外部操作失败。")
+                await asyncio.to_thread(bridge.stage_observation, event.unified_msg_origin,
+                    self._message_id(event), text, stage="execution_terminal", failed=termination == "failed",
+                    execution_status=termination, **self._origin(event))
+                return
             await asyncio.to_thread(bridge.stage_final, event.unified_msg_origin, self._message_id(event),
                 getattr(resp, "completion_text", ""), is_chunk=getattr(resp, "is_chunk", False),
-                has_tool_calls=bool(getattr(resp, "tools_call_name", [])), role=getattr(resp, "role", ""))
+                has_tool_calls=bool(getattr(resp, "tools_call_name", [])), role=getattr(resp, "role", ""),
+                aborted=self._aborted(event, run_context, resp), **self._origin(event))
         except Exception:
             self._warn("final_generation")
+
+    @staticmethod
+    def _aborted(event, run_context, resp):
+        stopped = getattr(event, "is_stopped", None)
+        if callable(stopped) and stopped():
+            return True
+        return LoveHousePlugin._reported_abort(run_context, resp)
+
+    @staticmethod
+    def _reported_abort(run_context, resp):
+        if any(getattr(resp, flag, False) is True for flag in ("aborted", "cancelled")):
+            return True
+        # AstrBot 4.29.3 reports interruption as role=assistant, then calls done.
+        # Detect its exact public synthetic pair; never persist that stop notice
+        # as successful output and never inspect reasoning/provider completion.
+        messages = getattr(run_context, "messages", None)
+        if getattr(resp, "completion_text", None) != "Output stopped." or not isinstance(messages, list) or len(messages) < 2:
+            return False
+        def plain(message):
+            content = getattr(message, "content", None)
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                return "".join(part.text for part in content if isinstance(part, TextPart))
+            return None
+        return (getattr(messages[-2], "role", None) == "user" and plain(messages[-2]) == "Stop output."
+                and getattr(messages[-1], "role", None) == "assistant" and plain(messages[-1]) == "Output stopped.")
 
     @filter.on_llm_tool_respond()
     async def observation(self, event: AstrMessageEvent, tool, tool_args: dict | None, tool_result):
@@ -189,7 +269,7 @@ class LoveHousePlugin(Star):
                 return
             await asyncio.to_thread(bridge.stage_observation, event.unified_msg_origin,
                 self._message_id(event), "\n".join(texts), stage="observed_result",
-                failed=getattr(tool_result, "isError", False) is True)
+                failed=getattr(tool_result, "isError", False) is True, **self._origin(event))
         except Exception:
             self._warn("observed_result")
 
@@ -199,8 +279,7 @@ class LoveHousePlugin(Star):
         if bridge is None:
             return
         try:
-            await asyncio.to_thread(bridge.stage_observation, event.unified_msg_origin, self._message_id(event),
-                "AstrBot 已触发本轮回复的发送后阶段；未提供收件人送达或已读凭据。", stage="after_message_sent")
+            await asyncio.to_thread(bridge.note_host_send_stage, event.unified_msg_origin, self._message_id(event))
         except Exception:
             self._warn("send_stage")
 

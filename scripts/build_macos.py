@@ -406,8 +406,8 @@ def main():
     icon = args.icon.expanduser().resolve()
     if not icon.is_file():
         raise SystemExit(f"Approved Love House icon PNG is required: {icon}")
-    if project_version() != "0.8.0":
-        raise SystemExit("Freeze project version at 0.8.0 before creating this desktop candidate")
+    if project_version() != "0.9.0":
+        raise SystemExit("Freeze project version at 0.9.0 before creating this desktop candidate")
     extension = ROOT / "extensions/deepseek-harness"
     if not (extension / "dist/index.js").is_file() or not (extension / "configure.py").is_file():
         raise SystemExit("Automatic-capture extension is not built/frozen: dist/index.js and configure.py are required")
@@ -457,7 +457,7 @@ def main():
         if not source.is_file() or source.is_symlink():raise SystemExit('AstrBot experimental source package is incomplete')
         shutil.copy2(source,astrbot_target/filename)
     adapters=resources/'Adapters';adapters.mkdir()
-    run([sys.executable,astrbot_target/'package.py','--check','--output',adapters/'LoveHouse-AstrBot-0.1.0-experimental.zip'])
+    run([sys.executable,astrbot_target/'package.py','--check','--output',adapters/'LoveHouse-AstrBot-0.2.0-experimental.zip'])
     overlay = "# Generate the connection in Love House > Connect Chat.\n# Paths and private credentials are generated for the current user at runtime.\n"
     (resources / "deepseek-harness-overlay.example.yaml").write_text(overlay, encoding="utf-8")
     (app.parent / "deepseek-harness-overlay.example.yaml").write_text(overlay, encoding="utf-8")
@@ -508,7 +508,7 @@ def main():
         "CFBundleName": APP_NAME, "CFBundleDisplayName": APP_NAME,
         "CFBundleIdentifier": BUNDLE_ID, "CFBundleExecutable": "NeuralAtlas",
         "CFBundlePackageType": "APPL", "CFBundleShortVersionString": project_version(),
-        "CFBundleVersion": "11", "CFBundleIconFile": "LoveHouse",
+        "CFBundleVersion": "12", "CFBundleIconFile": "LoveHouse",
         "LSMinimumSystemVersion": "13.0", "NSHighResolutionCapable": True,
         "NSSupportsAutomaticGraphicsSwitching": True,
         "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},

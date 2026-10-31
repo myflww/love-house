@@ -38,6 +38,7 @@ node_modules/
 
 # Private rollback copies of the installed app and knowledge data
 /outputs/rollback/
+/outputs/
 
 /data/
 *.sqlite3

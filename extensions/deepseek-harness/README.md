@@ -1,7 +1,7 @@
-# DeepSeek Harness 宿主自动存档适配器
+# 爱之屋 DeepSeek Harness 宿主自动存档适配器（0.4.1）
 
-此扩展监听真正的宿主事件，不依赖模型决定是否调用记忆 MCP 工具。星图服务只接收和保存记录，
-宿主继续负责对话、模型调用与网页操作。每个连接由服务端固定绑定独立记忆库，切换星图界面不会改变归档目标。
+此扩展监听真正的宿主事件，不依赖模型决定是否调用记忆 MCP 工具。爱之屋服务接收和保存记录，
+宿主继续负责对话、模型调用与网页操作。每个连接由服务端固定绑定独立记忆库，切换爱之屋界面不会改变归档目标。
 
 支持 **DeepSeek Harness 0.2.1-rc.3 / Cordis 4.0.5 / Node ≥24.9**。契约来自官方 npm 精确版本的公开类型：
 
@@ -14,7 +14,7 @@
 
 ## 快速配置
 
-通过知识星图向导选择库和连接，生成计划，再应用。`configure.py` 提供控制器直接调用的标准库入口：
+通过爱之屋向导选择库和连接，生成计划，再应用。`configure.py` 提供控制器直接调用的标准库入口：
 
 ```python
 detect(app_path=None)
@@ -38,15 +38,31 @@ set_enabled(connection_config, enabled=False, remove=False, app_path=None)
 ## 每轮实际发生什么
 
 1. 已提交的真实 user、assistant、tool/call、tool/result 及 turn 边界自动进入私有 outbox。
-2. 请求选定连接的上下文后，在 `agent/pre-step` 中加入带明确 producer 的 recall 材料。
+2. 请求选定连接的上下文后，在 `agent/pre-step` 中加入带明确 producer 的 recall 材料。已经固定的根会话在本轮无新 human 时，也可用该会话公开已提交的最近 human 任务取回相关记忆，见下文范围。
 3. 自己注入的 synthetic 消息不会再次采入记忆；其他上下文也不会冒充人类发言。
-4. `turn/end` 附带 normalized 轮次，仅 completed、无 interrupted 且确实看到 start 时标为 complete。
+4. `turn/end` 附带 normalized 记录，仅 completed、无 interrupted 且确实看到 start 时标为 complete。已有真实用户输入仍只保存一份 turn，不额外生成 output。
 5. 原始事件发往已认证连接；只有 `accepted:true` 才删除 outbox。该 ACK 只说明私有 journal 已落盘，
    不代表图谱投影已经成功。图谱 pending/retry 由服务端活动状态显示。
 
 保留原始角色、message ID、call ID 与附件引用，不去读取引用文件，不把引用假称附件全文。
 递归移除明确 credential 字段及可解析工具参数里的 credential 键；用户实际发言的 text 不被改写。
 不收集宿主 credentials、环境变量或 request/header 配置快照。normalized 只取可见正文，原始失败尝试保留出处。
+
+### 已绑定窗口里的独立助手输出
+
+0.4.1 补充了没有真实用户输入的独立最终输出。仅在明确固定会话 ID，或 `next_session` 已被真实 human 发言绑定之后的同一个根会话中启用；显式多窗口 `connection` 范围保留原有 turn 路径，本次不扩大独立输出范围。子代理不采集，也不会注入这份根会话记忆。
+
+必须先观察到本轮 start，最终 end 的 turn 编号一致且 `reason.kind=completed`。本轮没有真实 human 输入，最后一条已提交 `assistant/message` 来自 model、包含稳定消息 ID 和非空可见文字，且没有工具调用或其他未知内容块，才生成 `type=output, role=assistant, text`。后面还有工具调用/结果、新步骤或未形成表面消息的 attempt 时，旧助手文字不会冒充最终输出。只取最后一条最终正文，不拼接此前工具步骤，不把调度或 synthetic 内容补造为 user。
+
+`assistant/message` 本身只作为既有原始事件保存，不能提前生成独立 output；取消、中断、错误、缺少 turn/start 或没有明确最终文字仍只保留已有原始证据路径。独立输出不触发首次窗口 claim，也不允许后台另一根会话自动加入。
+
+### 下一次无新输入的工作前取回记忆
+
+当同一个根会话已经固定，或者 `next_session` 已由真实 human 绑定，且本轮 start 已被观察、turn 编号一致、没有 interrupted 时，`agent/pre-step` 即使没有新 human 消息，也会取回一次相关记忆。检索问题只来自这个 `payload.agent.session` 的公开 `deriveMessages()`：选择最新 `role=user`、`source.kind=user` 的可见文字。它读取 SessionStore 已提交的模型可见 surface，不读取原始事件快照、其他会话、磁盘文件、请求头或私有推理；影子替换后的旧表面消息也不会绕过公开投影重新出现。
+
+这份旧任务只用作 query，不会被重新上报成 user，不会创建新 turn 或取得窗口 claim。公开投影有效但没有 human 任务文字时，只请求固定的“当前已绑定存档的长期基线和约定”。公开方法缺失或读取失败则不猜任务，聊天继续。资料注入使用现有的明确 `neural-knowledge-context` producer，一轮成功取回后不按 step 重复查询，自身资料仍不会回流采集。
+
+未绑定窗口、其他窗口、子代理、显式多窗口 `connection` 的无 human 请求、缺少本轮 start 或已中断的轮次都不进入这条新增读取路径。原有真实 human 请求仍沿用原来的绑定与注入流程。以上使用真实 rc.3 Cordis/SessionStore 合成事件完成离线验收，尚不能称为用户实际无人值守任务的实机验收，也不代表能观察其他执行器。支持判断仍基于已有精确宿主版本与公开事件契约；没有添加每次加载时重新校验任意 asar 的密码学指纹机制。
 
 `session_scope=connection` 表示显式连接范围，精确会话 ID 只接收该窗口。
 `next_session` 在首个真实 human 消息前绑定，启动通知和 synthetic 内容不会抢占；绑定会持久保存。
@@ -64,6 +80,7 @@ set_enabled(connection_config, enabled=False, remove=False, app_path=None)
 - `POST /api/connections/{id}/events`，Bearer token；稳定 body 为 `{session_id,event_id,event_type,seq,time,record}`。
 - `record={schema:'deepseek-harness-event/v1',host_id,host_version,raw_event,normalized?}`，删密钥时有 `redacted_fields`。
 - normalized turn：`{type:'turn',turn_id,status,reason,user,assistant,messages}`。
+- normalized output：`{type:'output',role:'assistant',text,turn_id,status:'complete',reason:'completed',evidence:{assistant_message_id}}`。它是助手陈述，不是完整对话或已确认用户事实。
 - normalized tool：`{type:'tool',call_id,tool_name,turn_id,outcome,content}`。工具无错误只标 observed，不擅自宣称网页业务成功。
 - `POST /api/connections/{id}/context`，同认证，`{session_id,query}` 返回真实 `packet`。
 - `POST /api/connections/{id}/heartbeat` 只报告在线，不建立虚构会话或完整记录。
@@ -92,3 +109,7 @@ npm test
 取消/partial、outbox 重启重放、真实 pre-step 注入、synthetic 排除、多连接配置和停用、
 不同会话隔离、可运行的降级代理。支持矩阵的公开类型检查与离线测试不等于用户现有会话已经完成实际归档；
 仍须在插件加载后收到一轮真实记录的持久回执，才能宣称该连接已经自动存档。
+
+独立输出额外覆盖固定窗口、human 绑定后输出、未绑定不能自抢窗口、中间/失败步骤排除、turn 编号一致、子代理隔离、离线稳定 ID 重放，以及官方精确 rc.3 的真实 Cordis/SessionStore 合成事件。没有真实模型调用，也没有修改用户 Harness 配置。
+
+无新 human 的行动前召回还覆盖固定会话与已绑定 next_session、最近公开 human 任务选择、固定基线、同轮不重复注入、自身 recall 不变成新 user，以及不允许的窗口在读取公开历史之前就被排除。

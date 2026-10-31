@@ -553,7 +553,15 @@ class Brain:
                kinds: list[str] | None = None,
                min_score: float | None = None,
                include_expired: bool = False,
-               as_of: float | None = None) -> dict:
+               as_of: float | None = None,
+               candidate_ids: set[str] | None = None) -> dict:
+        # Internal selection can reserve a retrieval lane for organized records
+        # without deleting their raw evidence from this Brain. Lifecycle checks
+        # still apply; a supplied ID never authorizes an inactive node.
+        if candidate_ids is not None:
+            if not isinstance(candidate_ids, (set, frozenset, list, tuple)) or any(not isinstance(i, str) for i in candidate_ids):
+                raise ValidationError("candidate_ids必须是本图节点ID集合")
+            candidate_ids = set(candidate_ids)
         cfg = self.config
         steps = cfg.steps if steps is None else steps
         k = cfg.k if k is None else k
@@ -565,6 +573,7 @@ class Brain:
         states = {nid: self._node_state(n, ref) for nid, n in self.nodes.items()}
         allowed = {nid for nid, n in self.nodes.items()
                    if (not kinds or n["kind"] in kinds)
+                   and (candidate_ids is None or nid in candidate_ids)
                    and states[nid]["history_available"]
                    and n.get("valid_from", n["created"]) <= ref
                    and (not n.get("event_recorded") or n.get("event_at", 0) <= ref)

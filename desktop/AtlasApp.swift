@@ -469,13 +469,18 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                     "return {sources:!!document.getElementById('agentSourcesBtn'),experiences:!!document.getElementById('experienceLibraryBtn'),plugin:!!document.getElementById('exportAstrBotPlugin')};",
                     arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
                 try requireSmoke(lifeUI?["sources"] as? Bool == true && lifeUI?["experiences"] as? Bool == true && lifeUI?["plugin"] as? Bool == true, "Experience/source controls are missing")
+                let helpUI = try await webView.callAsyncJavaScript(
+                    "window.LoveHouseConnectionHelp.open('astrbot'); const d=document.getElementById('connectionHelpDialog'); const t=document.getElementById('connectionHelpBody').textContent; const result={open:d.open,recipient:t.includes('AstrBot 的爱之屋插件设置'),scope:t.includes('SnowLuma')&&t.includes('NapCat')}; document.getElementById('closeConnectionHelp').click(); return {...result,closed:!d.open};",
+                    arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                try requireSmoke(helpUI?["open"] as? Bool == true && helpUI?["recipient"] as? Bool == true && helpUI?["scope"] as? Bool == true && helpUI?["closed"] as? Bool == true, "Connection recipient guide is not usable in native UI")
+                print("Native 0.9: connection recipients and configuration locations open and close without model calls")
                 let life = try await smokeRequest("api/experiences")
                 try requireSmoke(life["read_only"] as? Bool == true && life["will_call_model"] as? Bool == false, "Experience view is not read-only")
                 let source = try await smokeRequest("api/agent/sources", method:"POST", payload:["name":"原生合成来源","adapter":"sdk","runtime_agent_id":"SYNTHETIC-NATIVE-FISH","platforms":["qq","browser"]])
                 try requireSmoke(source["config_ready"] as? Bool == true && (source["source"] as? [String:Any])?["full_activity_coverage_verified"] as? Bool == false, "Source configuration claimed unsupported coverage")
                 let packageURL = serviceURL!.appendingPathComponent("api/adapters/astrbot/package")
                 let (pluginData, pluginResponse) = try await URLSession.shared.data(from:packageURL)
-                let bundled = try Data(contentsOf:Bundle.main.resourceURL!.appendingPathComponent("Adapters/LoveHouse-AstrBot-0.1.0-experimental.zip"))
+                let bundled = try Data(contentsOf:Bundle.main.resourceURL!.appendingPathComponent("Adapters/LoveHouse-AstrBot-0.2.0-experimental.zip"))
                 try requireSmoke((pluginResponse as? HTTPURLResponse)?.statusCode == 200 && pluginData == bundled && pluginData.prefix(2) == Data([0x50,0x4b]), "Experimental adapter export bytes differ from the bundled source package")
                 print("Native 0.8: human experience/source controls, fixed-source registration and exact experimental plugin ZIP verified; no external Agent or model used")
                 let updates = try await smokeRequest("api/updates")
@@ -660,12 +665,12 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
               let body = message.body as? [String: Any],
               let requestID = body["request_id"] as? String,
               requestID.range(of: "^[a-zA-Z0-9_-]{1,80}$", options: .regularExpression) != nil,
-              let resource = Bundle.main.resourceURL?.appendingPathComponent("Adapters/LoveHouse-AstrBot-0.1.0-experimental.zip"),
+              let resource = Bundle.main.resourceURL?.appendingPathComponent("Adapters/LoveHouse-AstrBot-0.2.0-experimental.zip"),
               let data = try? Data(contentsOf: resource), data.count <= 4 * 1024 * 1024 else { return }
         let panel = NSSavePanel()
         panel.title = "导出 AstrBot 实验插件"
         panel.message = "插件不包含个人记忆或绑定凭证。请按包内 README 安装，并在实际宿主核验。"
-        panel.nameFieldStringValue = "LoveHouse-AstrBot-0.1.0-experimental.zip"
+        panel.nameFieldStringValue = "LoveHouse-AstrBot-0.2.0-experimental.zip"
         panel.allowedContentTypes = [.zip]
         panel.canCreateDirectories = true
         panel.beginSheetModal(for: window) { [weak self] response in

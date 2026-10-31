@@ -16,7 +16,7 @@ from .experiences import normalize_episode,episode_key,episode_conflicts,make_ex
 
 LAYERS = {"fact": "fact", "preference": "preference", "experience": "episode", "commitment": "commitment", "persona": None}
 ACTIONS = {"remember", "merge", "supersede", "relate", "candidate"}
-RAW_SOURCES = {"conversation_turn", "tool_observation", "harness_recorded", "persona_import_source"}
+RAW_SOURCES = {"conversation_turn", "tool_observation", "harness_recorded", "persona_import_source", "agent_output"}
 HYPOTHETICAL = re.compile(r"假设|假如|如果|角色扮演|小说|想象|扮演|比如|例如|他说|她说|引用|骗你的|导入人格|人格设定")
 RELATIONSHIP_ATTRIBUTE = re.compile(r"(?:^|[./:_-])(?:relationship|relation|bond|milestone|anniversary)(?:$|[./:_-])|关系状态|关系阶段|里程碑|纪念日|相识日", re.I)
 
@@ -34,6 +34,8 @@ def _roles(node):
     source = metadata.get("source")
     if source == "conversation_turn":
         return {"user": node["text"], "assistant": metadata.get("assistant_reply", "")}
+    if source == "agent_output":
+        return {"assistant": node["text"]}
     return {"tool" if source == "tool_observation" else "assistant": node["text"]}
 
 
@@ -63,6 +65,9 @@ def archive_roles(archive):
     if normalized.get("type") == "tool":
         value = normalized.get("text", normalized.get("content", ""))
         return {"tool": value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)}
+    if normalized.get("type") == "output":
+        value=normalized.get("text")
+        return {"assistant":value} if isinstance(value,str) else {}
     return {k: normalized[k] for k in ("user", "assistant") if isinstance(normalized.get(k), str)}
 
 
@@ -78,6 +83,8 @@ def build_input(brain, library_id, items, profile, archives=None):
         node = raw_node(brain, receipt_id)
         if node is None or disabled(node) or node.get("meta", {}).get("source") not in RAW_SOURCES:
             raise OrganizerError("待整理原文不存在或不是原始事件，未处理", "missing_raw")
+        if node.get('meta',{}).get('library_id') not in (None,library_id):
+            raise OrganizerError('待整理原文不属于当前存档','invalid_evidence')
         nid = node["id"]
         if is_duplicate(node,brain):
             raw_hashes[nid]=fingerprint(node)
@@ -93,6 +100,8 @@ def build_input(brain, library_id, items, profile, archives=None):
         if truncated and not archive:
             raise OrganizerError("原文节点只是截断摘录，需完整归档才能继续整理", "missing_archive")
         roles = archive_roles(archive) if archive else _roles(node)
+        if node['meta']['source']=='agent_output' and set(roles)!={'assistant'}:
+            raise OrganizerError('助手输出档案必须只有assistant原文，不能补入用户或工具角色','invalid_raw')
         if not roles or not any(isinstance(text,str) and text for text in roles.values()):
             raise OrganizerError("完整归档缺少角色原文，未假装完成整理", "missing_archive")
         for role, text in roles.items():
@@ -111,12 +120,15 @@ def build_input(brain, library_id, items, profile, archives=None):
                         "event_at":None if node.get("meta",{}).get("source_time_unknown") else node.get("event_at"),
                         "source_time_known":not bool(node.get("meta",{}).get("source_time_unknown")) and node.get("event_at") is not None,
                         "source_revision":fingerprint(node),
+                        "source_recoverable":bool(brain._node_state(node,now()).get('recoverable')),
                         "recording_group":{"canonical_id":canonical_id(brain,node),
                             "capture_source_count":len(node.get('meta',{}).get('recording_sources',[]))},
                         "origin": node["meta"].get("origin", node["meta"]["source"]),
+                        "source_kind": node["meta"]["source"],
                         "platform":(evidence_meta.get('platform') if isinstance(evidence_meta,dict) else None),
                         "outcome": node["meta"].get("outcome"), "source_url": str(node["meta"].get("source_url") or "")[:300],
-                        "fiction_or_hypothesis_hint": bool(HYPOTHETICAL.search(roles.get("user", ""))),
+                        "fiction_or_hypothesis_hint": bool(HYPOTHETICAL.search(roles.get("user", "") or
+                            (roles.get('assistant','') if node['meta']['source']=='agent_output' else ''))),
                         "context_prefix": roles.get("user", "")[:160]})
         if isinstance(evidence_meta,dict) and evidence_meta.get('participant_scope')=='external_participant':
             records[-1]['participant_scope']='external_participant'
@@ -242,6 +254,12 @@ def validate_plan(output, payload, guards, job_id, profile):
             and (episode['outcome'] is None or episode['outcome']['role']=='tool'
                  and raw[episode['outcome']['id']].get('outcome') in ('observed','success','failed')))
         op['attributed_episode_observation']=attributed_episode
+        attributed_statement=bool(op['action']=='remember' and op['layer']=='experience' and episode is None
+            and op.get('atom') is None
+            and all(e['role']=='assistant' and e['complete_sentence']
+                    and raw[e['id']].get('source_kind')=='agent_output'
+                    and raw[e['id']].get('source_time_known') and raw[e['id']].get('source_recoverable') for e in evidence))
+        op['attributed_output_statement']=attributed_statement
         user_quotes = [e["context"] for e in evidence if e["role"] == "user"]
         tool_quotes = [e["quote"] for e in evidence if e["role"] == "tool"]
         observation = (not user_quotes and bool(tool_quotes) and op["layer"] in ("fact","experience")
@@ -251,14 +269,19 @@ def validate_plan(output, payload, guards, job_id, profile):
         fiction = any(raw[e["id"]]["fiction_or_hypothesis_hint"] for e in evidence)
         op["requires_review"] = (op["action"] == "candidate" or op["layer"] == "persona"
                                   or bool(RELATIONSHIP_ATTRIBUTE.search(op["key"]))
-                                  or op["certainty"] != "clear" or op["domain"] != "real" or fiction
-                                  or (not user_quotes and not observation)
+                                  or op["certainty"] != "clear" or (not attributed_statement and (op["domain"] != "real" or fiction))
+                                  or (not user_quotes and not observation and not attributed_statement)
                                   or (episode is not None and not attributed_episode)
                                   or any(not e["complete_sentence"] for e in evidence if e["role"] == "user")
                                   or len("\n".join(user_quotes)) > 2000)
         if op['layer']!='experience' and any(e.get('participant_scope')=='external_participant' for e in evidence):
             op['requires_review']=True
         op["verbatim_text"] = "\n".join(dict.fromkeys(user_quotes))[:2000]
+        if attributed_statement:
+            statements='\n'.join(dict.fromkeys(e['context'] for e in evidence))
+            if len(statements)>2000:op['requires_review']=True
+            op['verbatim_text']=statements[:2000]
+            op['statement_source_revisions']={e['id']:raw[e['id']]['source_revision'] for e in evidence}
         op["source_fiction"] = fiction
         op["observation"] = observation
         if observation:
@@ -373,6 +396,8 @@ def apply_plan(brain, plan, library_id):
                         evidence.append(deepcopy(e))
                 sources=source_references(target['meta'].get('organizer_sources',[])+evidence)
                 target['meta']['organizer_sources']=sources
+                if op.get('statement_source_revisions'):
+                    target['meta'].setdefault('statement_source_revisions',{}).update(op['statement_source_revisions'])
                 target["meta"]["organizer_evidence"] = evidence[-24:]
                 if not isinstance(target['meta'].get('memory_atom'),dict):
                     target['meta']['memory_atom']=make_atom(op,target,library_id,sources)
@@ -406,6 +431,8 @@ def apply_plan(brain, plan, library_id):
                         "organizer_layer": op["layer"], "organizer_summary": op["text"], "organizer_evidence": deepcopy(op["evidence"]),
                         "organizer_aliases": op["aliases"], "organizer_job": plan["job_id"], "domain": "real",
                         "organizer_sources":source_references(op['evidence'])}
+            if op.get('attributed_output_statement'):
+                metadata.update(statement_attribution='assistant',domain=op['domain'],statement_source_revisions=deepcopy(op['statement_source_revisions']))
             if op.get("observation"):
                 metadata["organizer_layer"] = "experience"
                 metadata["evidence_scope"] = "tool_observation"
@@ -547,6 +574,8 @@ def semantic_recall(brain, query, k=8, **kwargs):
     for node in brain.export()["nodes"]:
         metadata = node.get("meta", {})
         if metadata.get("source") != "organizer" or disabled(node) or not node.get("recoverable"):
+            continue
+        if kwargs.get('candidate_ids') is not None and node['id'] not in kwargs['candidate_ids']:
             continue
         terms = [term for term in metadata.get("organizer_aliases", [])
                  if term in query or dice(set(qv), set(brain.encoder(term))) >= .35]

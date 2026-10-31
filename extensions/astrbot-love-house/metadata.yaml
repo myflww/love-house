@@ -1,6 +1,7 @@
 name: astrbot_plugin_love_house
 display_name: 爱之屋经历记忆（实验适配）
-desc: 为明确登记的同一Agent保存跨会话对话与实际观察，回忆资料不改人格，模型整理生成有证据的经历。
-version: v0.1.0
+desc: 为明确登记的Agent保存对话、独立助手输出与可见观察；可选主动任务输出，不改宿主人格。
+version: v0.2.0
 author: myflww
+astrbot_version: '>=4.29.3'
 # Monorepo subdirectory package: no repository-root automatic updater is advertised.

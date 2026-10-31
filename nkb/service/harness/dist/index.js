@@ -215,7 +215,7 @@ var HostAdapter = class {
   async heartbeat() {
     if (!this.isEnabled()) return;
     try {
-      await this.controller.send("heartbeat", { host_version: this.config.host_version, adapter_version: "0.4.0", ...this.boundSession ? { bound_session_id: this.boundSession } : {} });
+      await this.controller.send("heartbeat", { host_version: this.config.host_version, adapter_version: "0.4.1", ...this.boundSession ? { bound_session_id: this.boundSession } : {} });
     } catch {
     }
   }
@@ -254,6 +254,25 @@ var HostAdapter = class {
     if (start) this.capture(start.session, start.event);
     void this.heartbeat();
     return true;
+  }
+  fixedRoot(session) {
+    const sid = String(session.id);
+    const scope = this.connection.session_scope ?? "connection";
+    return session.header?.origin !== "subagent" && (scope === "next_session" ? this.boundSession === sid : scope !== "connection" && scope === sid);
+  }
+  publicTaskQuery(session) {
+    if (typeof session.deriveMessages !== "function") return;
+    const messages = session.deriveMessages();
+    if (!Array.isArray(messages)) return;
+    const baseline = "\u5F53\u524D\u5DF2\u7ED1\u5B9A\u5B58\u6863\u7684\u957F\u671F\u57FA\u7EBF\u548C\u7EA6\u5B9A";
+    for (let index = messages.length - 1; index >= 0; index--) {
+      const message = messages[index];
+      if (message.role === "user" && message.source?.kind === "user") {
+        const text = textOf(message);
+        return text.trim() ? text.slice(-4e4) : baseline;
+      }
+    }
+    return baseline;
   }
   status() {
     atomicJson(join(this.stateDir, "status.json"), {
@@ -312,6 +331,7 @@ var HostAdapter = class {
   }
   capture(session, event) {
     if (this.disposed || !this.isEnabled()) return;
+    if (session.header?.origin === "subagent") return;
     const input = event;
     const data = input.data ?? {};
     const message = input.type === "user/message" ? data : data.message;
@@ -345,9 +365,14 @@ var HostAdapter = class {
       ...redacted.length ? { redacted_fields: redacted } : {}
     };
     if (input.type === "tool/call") turn.calls.set(String(data.callId), String(data.name));
+    if (["step/start", "assistant/attempt", "tool/call", "tool/result"].includes(input.type)) turn.lastWorkSeq = input.seq;
     if (message?.role && ["user", "assistant"].includes(message.role)) {
       const human = message.role === "user" && message.source?.kind === "user" && session.header?.origin !== "subagent";
-      turn.messages.push(visibleMessage(sanitize(message), human));
+      const visible = visibleMessage(sanitize(message), human);
+      turn.messages.push(visible);
+      if (input.type === "assistant/message" && message.role === "assistant") {
+        turn.lastAssistant = { message: visible, turn: data.turn, seq: input.seq };
+      }
       if (data.interrupted === true) turn.interrupted = true;
     }
     if (input.type === "tool/result") {
@@ -365,12 +390,27 @@ var HostAdapter = class {
     if (input.type === "turn/end") {
       const reason = data.reason?.kind ?? "unknown";
       const status = reason === "completed" && turn.started && !turn.interrupted ? "complete" : reason === "error" ? "failed" : reason === "blocked" ? "blocked" : "partial";
-      record.normalized = {
+      const human = turn.messages.filter((m) => m.is_human);
+      const finalAssistant = turn.lastAssistant?.message;
+      const fixedRoot = this.fixedRoot(session);
+      const finalText = finalAssistant ? textOf(finalAssistant) : "";
+      const finalTextOnly = Array.isArray(finalAssistant?.content) && finalAssistant.content.every((block) => block.type === "text");
+      if (fixedRoot && status === "complete" && Number.isInteger(data.turn) && data.turn === turn.number && turn.lastAssistant?.turn === turn.number && turn.lastAssistant.seq > (turn.lastWorkSeq ?? -1) && !human.length && finalAssistant?.source?.kind === "model" && typeof finalAssistant.id === "string" && finalAssistant.id.trim() && finalText.trim() && finalTextOnly) {
+        record.normalized = {
+          type: "output",
+          role: "assistant",
+          text: finalText,
+          turn_id: `${sid}:${data.turn}`,
+          status: "complete",
+          reason,
+          evidence: { assistant_message_id: finalAssistant.id }
+        };
+      } else record.normalized = {
         type: "turn",
         turn_id: `${sid}:${data.turn}`,
         status,
         reason,
-        user: turn.messages.filter((m) => m.is_human).map(textOf).join("\n\n"),
+        user: human.map(textOf).join("\n\n"),
         assistant: turn.messages.filter((m) => m.role === "assistant").map(textOf).join("\n\n"),
         messages: turn.messages
       };
@@ -388,13 +428,24 @@ var HostAdapter = class {
   async beforeStep(payload, next) {
     const decision = await next();
     if (decision.kind !== "enter" || this.disposed || !this.isEnabled() || payload.signal.aborted || this.injected.get(String(payload.agent.session.id)) === payload.turn) return decision;
+    if (payload.agent.session.header?.origin === "subagent") return decision;
     const human = decision.messages.filter((message) => message.source.kind === "user");
-    if (!human.length || decision.messages.some((message) => message.source.kind === SOURCE_KIND)) return decision;
-    if (!this.accepts(payload.agent.session, true)) return decision;
-    const query = human.map((message) => textOf(message)).join("\n").slice(-4e4) || "[\u7528\u6237\u8F93\u5165\u5305\u542B\u9644\u4EF6\u5F15\u7528\uFF1B\u6CA1\u6709\u53EF\u91C7\u96C6\u7684\u6587\u5B57]";
+    if (decision.messages.some((message) => message.source.kind === SOURCE_KIND)) return decision;
+    const sid = String(payload.agent.session.id);
+    const withoutHuman = !human.length;
+    if (withoutHuman) {
+      const turn = this.turns.get(sid);
+      if (!this.fixedRoot(payload.agent.session) || !this.accepts(payload.agent.session) || !turn?.started || turn.interrupted || turn.number !== payload.turn) return decision;
+    } else if (!this.accepts(payload.agent.session, true)) return decision;
     try {
-      const context = await this.controller.send("context", { session_id: String(payload.agent.session.id), query });
+      const query = withoutHuman ? this.publicTaskQuery(payload.agent.session) : human.map((message) => textOf(message)).join("\n").slice(-4e4) || "[\u7528\u6237\u8F93\u5165\u5305\u542B\u9644\u4EF6\u5F15\u7528\uFF1B\u6CA1\u6709\u53EF\u91C7\u96C6\u7684\u6587\u5B57]";
+      if (!query) return decision;
+      const context = await this.controller.send("context", { session_id: sid, query });
       if (payload.signal.aborted || !this.isEnabled() || typeof context.packet !== "string" || !context.packet.trim()) return decision;
+      if (withoutHuman) {
+        const current = this.turns.get(sid);
+        if (!this.fixedRoot(payload.agent.session) || !this.accepts(payload.agent.session) || !current?.started || current.interrupted || current.number !== payload.turn) return decision;
+      }
       const text = `[\u5BBF\u4E3B\u8BB0\u5FC6\u8FDE\u63A5\u7ED1\u5B9A\u5E93 ${this.connection.library_id}\u3002\u672C\u4F1A\u8BDD\u4F7F\u7528\u5BBF\u4E3B\u81EA\u52A8\u91C7\u96C6\uFF0C\u4ECD\u4EE5\u6301\u4E45\u56DE\u6267\u786E\u8BA4\u5B58\u6863\uFF1B\u65E0\u9700\u518D\u6B21\u8C03\u7528\u65E7\u624B\u52A8record\u5DE5\u5177\u3002\u82E5\u4E3B\u52A8\u8C03\u7528\u65E7\u5DE5\u5177\uFF0C\u5148memory_status\u6838\u5B9E\u76EE\u6807\u5E93\uFF0C\u4E0D\u5F97\u6DF7\u5165\u5176\u4ED6\u5E93\u3002]
 ${context.packet}`;
       const injected = Object.freeze({

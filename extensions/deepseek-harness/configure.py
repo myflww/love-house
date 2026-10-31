@@ -162,7 +162,7 @@ def configure(connection_config, apply=False, app_path=None):
     if installation.exists() and any(installation.iterdir()) and not marker.exists():
         raise ValueError("插件安装目录已有未知文件，未覆盖")
     installation.mkdir(parents=True, exist_ok=True, mode=0o700)
-    _private(marker, json.dumps({"managed_by": OWNER, "version": "0.4.0"}))
+    _private(marker, json.dumps({"managed_by": OWNER, "version": "0.4.1"}))
     for name in ("index.js", "configure.js", "proxy.js", "THIRD_PARTY_LICENSES.txt"):
         origin, target = ROOT / "dist" / name, installation / name
         if origin.exists() and origin.resolve() != target.resolve():
@@ -170,7 +170,7 @@ def configure(connection_config, apply=False, app_path=None):
     _private(config_file, json.dumps(connection, ensure_ascii=False))
     _private(installation / "package.json", json.dumps({"name": "neural-knowledge-local-adapter", "private": True, "type": "module"}))
     _private(Path(result["overlay_file"]), block)
-    _private(marker, json.dumps({"managed_by": OWNER, "version": "0.4.0"}))
+    _private(marker, json.dumps({"managed_by": OWNER, "version": "0.4.1"}))
     backup = None
     if patch.exists():
         backup = patch.with_name(patch.name + ".neural-knowledge-" + str(time.time_ns()) + ".backup")

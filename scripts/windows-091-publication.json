@@ -1,19 +1,52 @@
 {
   "schema": "love-house-windows-091-publication/v1",
-  "ready": false,
-  "source_commit": "PENDING",
-  "source_runs": {"windows": 0, "regression": 0, "connection": 0},
-  "windows_artifact": {"id": 0, "name": "love-house-windows-x64", "bytes": 0, "sha256": "PENDING"},
-  "windows_evidence_artifact": {"id": 0, "name": "windows-test-evidence", "bytes": 0, "sha256": "PENDING"},
-  "windows_files": {
-    "LoveHouse-Setup-0.9.1rc1-Windows-x64.exe": {"bytes": 0, "sha256": "PENDING"},
-    "LoveHouse-0.9.1rc1-Windows-x64.zip": {"bytes": 0, "sha256": "PENDING"},
-    "Windows-SHA256SUMS.txt": {"bytes": 0, "sha256": "PENDING"}
+  "ready": true,
+  "source_commit": "cc19f5ab36ab1c4227983bbf77501545e255b14f",
+  "source_runs": {
+    "windows": 41222977099,
+    "regression": 41222977117,
+    "connection": 41222977151
   },
-  "astrbot_package": {"bytes": 0, "sha256": "PENDING"},
+  "windows_artifact": {
+    "id": 13051535281,
+    "name": "love-house-windows-x64",
+    "bytes": 519939155,
+    "sha256": "939f6d044767ff67e4416251ef15baef5f697ae93a4c29d4fc72a3ad683247fc"
+  },
+  "windows_evidence_artifact": {
+    "id": 13051325687,
+    "name": "windows-test-evidence",
+    "bytes": 5197,
+    "sha256": "6b11f7a29139b9f0726944d0236f524203a9f6a7573181664e01c89ee70348f5"
+  },
+  "windows_files": {
+    "LoveHouse-0.9.1rc1-Windows-x64.zip": {
+      "bytes": 265265269,
+      "sha256": "50871744613e6a0c8c58f50814a616534126412bc34ca5e8ade5a02c1cb50b9c"
+    },
+    "LoveHouse-Setup-0.9.1rc1-Windows-x64.exe": {
+      "bytes": 255269317,
+      "sha256": "56634d8e63e806c5d988302ed01678d2881a40e4c12f836a08ae1b361bccdad6"
+    },
+    "Windows-SHA256SUMS.txt": {
+      "bytes": 210,
+      "sha256": "d07224a7872a1c508616aca056a3682159904b48b5c13db649c19227a30d741b"
+    }
+  },
+  "astrbot_package": {
+    "bytes": 27868,
+    "sha256": "8b81a51f87547e05596b0ab715764f6cf424a905b68f8cdcd48d2f1a71d71039"
+  },
   "notes_path": "docs/ReleaseNotes-0.9.1rc1-Windows.md",
-  "release_notes": {"bytes": 0, "sha256": "PENDING"},
+  "release_notes": {
+    "bytes": 2204,
+    "sha256": "1b1c752540346e7e571cfce3e535eb83209d4b17509b02ca10638a0c91eafc82"
+  },
   "doc_assets": {
-    "WINDOWS-091-FIXES.md": {"path": "docs/WINDOWS-091-FIXES.md", "bytes": 0, "sha256": "PENDING"}
+    "WINDOWS-091-FIXES.md": {
+      "path": "docs/WINDOWS-091-FIXES.md",
+      "bytes": 5257,
+      "sha256": "39d87d570e386c3d1044cbd32122a7b3d445d8b0472fbe60415cb344bc5c3caf"
+    }
   }
 }

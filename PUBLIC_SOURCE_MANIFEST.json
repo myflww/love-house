@@ -108,8 +108,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 14113,
-      "sha256": "8b8efecd12f76290e59697a3c2c322b8873b541c251941468d1ea5a93d6c9b29"
+      "bytes": 14025,
+      "sha256": "0ee7976447282ff6307b9d2a8b5d08d093734b0fc25947086aa2af70671d3c22"
     },
     {
       "path": "ROADMAP.md",
@@ -718,8 +718,8 @@
     },
     {
       "path": "docs/WINDOWS-091-FIXES.md",
-      "bytes": 4895,
-      "sha256": "030d841dbaed7d109425f0d9270bdf84b0fe5c6d2b82ce299e3371855d2b7af8"
+      "bytes": 5257,
+      "sha256": "39d87d570e386c3d1044cbd32122a7b3d445d8b0472fbe60415cb344bc5c3caf"
     },
     {
       "path": "docs/WINDOWS-HANDOFF-CHANGES.json",
@@ -1883,8 +1883,8 @@
     },
     {
       "path": "scripts/windows-091-publication.json",
-      "bytes": 918,
-      "sha256": "c6c686105207c590daa5edcda764e93c17eba390976ca70a7e258e9c1e9273f8"
+      "bytes": 1653,
+      "sha256": "022e3ecbc6eaf61f4a21e7e5ce4cb64bd3667454cba33ab31e1deeeeda8c71ab"
     },
     {
       "path": "scripts/workbuddy-080rc2-publication.json",

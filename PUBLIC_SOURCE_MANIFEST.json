@@ -63,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 16493,
-      "sha256": "9467ba28b92845ed1135ee2845634fea4852866f788f62c517c078b967ab0d45"
+      "bytes": 17749,
+      "sha256": "7f4f2dbdd1e347fa39ec41a50d74d972ad9d41c15921d0fc15be2803703c73d8"
     },
     {
       "path": "ROADMAP.md",
@@ -432,6 +432,11 @@
       "sha256": "f813f0074d5dc99af7f1b3ac449786ae65cec52ceb458406f4fc0b7a8e261f40"
     },
     {
+      "path": "docs/MACOS-0101-INDEPENDENT-MEMORIES.md",
+      "bytes": 3200,
+      "sha256": "ac8f59050e23c0198a7adefd497bec48d43bf8d6310495ee9db6eefa256f6972"
+    },
+    {
       "path": "docs/MACOS-080RC2-WORKBUDDY-HANDOFF.md",
       "bytes": 5529,
       "sha256": "f5cb6fd68136d358a6b14010d7fcb7e00f39a7abaa5ceae7b9586eb65a747ff7"
@@ -457,6 +462,11 @@
       "sha256": "592a5d8f4f4736c17f31167f7861b8cfce4dcc1b0e94d2e4dabcfa00c94d3151"
     },
     {
+      "path": "docs/WINDOWS-0101-HANDOFF.md",
+      "bytes": 2601,
+      "sha256": "77132986f1d242e5d8b1467e0e3a5cc8905ac43c6402500e6c304fb4a918039f"
+    },
+    {
       "path": "docs/WINDOWS-091-FIXES.md",
       "bytes": 5314,
       "sha256": "3f341e427413cb4dce1a8209d5fbcaa2e5d9cc8f24c57c5193a2e4923fc4e9ff"
@@ -468,8 +478,8 @@
     },
     {
       "path": "docs/下载与系统支持.md",
-      "bytes": 7669,
-      "sha256": "87716d6324d4b2757aa5148bb5300b4806e30e586dc2e713a13e8e3b6fb9b4e1"
+      "bytes": 8756,
+      "sha256": "dd17769696c68cf9d7e15279e2debae52ebeae7e7c088cdfcb70d0361e9a6be2"
     },
     {
       "path": "docs/发布与许可.md",

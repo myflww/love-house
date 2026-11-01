@@ -1,0 +1,139 @@
+name: Diagnose Windows 0.10.2 installer upgrade using pinned candidate
+
+on:
+  push:
+    branches: [codex/windows-0102-upgrade-probe]
+    paths:
+      - .github/workflows/windows-0102-upgrade-probe.yml
+      - scripts/windows_upgrade_smoke.py
+      - tests/test_windows_upgrade_smoke.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: windows-0102-upgrade-probe
+  cancel-in-progress: false
+
+jobs:
+  pinned_candidate_upgrade:
+    if: github.repository == 'myflww/love-house' && github.ref == 'refs/heads/codex/windows-0102-upgrade-probe'
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+      LOVE_HOUSE_DISPOSABLE_UPGRADE_RUNNER: github-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify corrected upgrade protocol and synthetic schema fixtures
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m unittest tests.test_windows_upgrade_smoke -v
+          if ($LASTEXITCODE -ne 0) { throw 'Upgrade protocol fixture tests failed' }
+      - name: Download and verify the exact existing candidate without rebuilding
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+          # Native stdout redirection preserves binary bytes in PowerShell 7.4+.
+          if ($PSVersionTable.PSVersion -lt [version]'7.4') { throw 'Binary-safe PowerShell is required' }
+          $repository = 'myflww/love-house'
+          $source = '0c79d2860340153ce2fc3417fc9fb57acfc17e8b'
+          $tree = '939b64f846182f26353eb56e4c725bdf4826043d'
+          $runId = 41336066757L
+          $artifactId = 13095541402L
+          $archiveBytes = 520409793L
+          $archiveSha = 'c3601b5f62403fbf2f3127574c66ef15992add56a55fddd85e4c30dcedd0c744'
+          $run = gh api "repos/$repository/actions/runs/$runId" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $run.head_sha -cne $source -or $run.path -cne '.github/workflows/release.yml' -or $run.repository.full_name -cne $repository) { throw 'Candidate workflow does not identify the pinned production source' }
+          $commit = gh api "repos/$repository/git/commits/$source" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $commit.sha -cne $source -or $commit.tree.sha -cne $tree) { throw 'Candidate commit tree differs from the reviewed source' }
+          $artifact = gh api "repos/$repository/actions/artifacts/$artifactId" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $artifact.id -ne $artifactId -or $artifact.name -cne 'love-house-windows-x64' -or $artifact.expired -isnot [bool] -or $artifact.expired -ne $false -or $artifact.workflow_run.id -ne $runId -or $artifact.workflow_run.head_sha -cne $source -or $artifact.digest -cne ('sha256:' + $archiveSha) -or $artifact.size_in_bytes -ne $archiveBytes) { throw 'Candidate artifact provenance or archive identity differs' }
+          $scratch = Join-Path $env:RUNNER_TEMP 'love-house-0102-upgrade-probe'
+          if (Test-Path -LiteralPath $scratch) { throw 'Expected a fresh diagnostic workspace' }
+          New-Item -ItemType Directory -Path $scratch | Out-Null
+          $archivePath = Join-Path $scratch 'candidate.zip'
+          gh api "repos/$repository/actions/artifacts/$artifactId/zip" > $archivePath
+          if ($LASTEXITCODE -ne 0 -or (Get-Item -LiteralPath $archivePath).Length -ne $archiveBytes -or (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant() -cne $archiveSha) { throw 'Downloaded candidate archive differs from the pinned bytes' }
+          $setupName = 'LoveHouse-Setup-0.10.2rc1-Windows-x64.exe'
+          $portableName = 'LoveHouse-0.10.2rc1-Windows-x64.zip'
+          $expectedNames = @($setupName,$portableName,'Windows-SHA256SUMS.txt')
+          $zip = [IO.Compression.ZipFile]::OpenRead($archivePath)
+          try {
+            $entries = @($zip.Entries)
+            if ($entries.Count -ne 3 -or @($entries.FullName | Select-Object -Unique).Count -ne 3) { throw 'Candidate archive must contain exactly three distinct release files' }
+            foreach ($entry in $entries) {
+              if ($entry.FullName -cnotin $expectedNames -or $entry.Length -le 0 -or $entry.Length -gt 800MB) { throw 'Candidate archive contains an unexpected or unbounded member' }
+            }
+          } finally { $zip.Dispose() }
+          $candidate = Join-Path $scratch 'candidate'
+          Expand-Archive -LiteralPath $archivePath -DestinationPath $candidate
+          $checksums = [Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
+          foreach ($line in [IO.File]::ReadAllLines((Join-Path $candidate 'Windows-SHA256SUMS.txt'))) {
+            $match = [regex]::Match($line,'\A([a-f0-9]{64})  ([A-Za-z0-9_.-]+)\z')
+            if (-not $match.Success -or $match.Groups[2].Value -cnotin @($setupName,$portableName) -or $checksums.ContainsKey($match.Groups[2].Value)) { throw 'Candidate checksum manifest is invalid' }
+            $checksums.Add($match.Groups[2].Value,$match.Groups[1].Value)
+          }
+          if ($checksums.Count -ne 2) { throw 'Candidate checksum manifest is incomplete' }
+          foreach ($name in @($setupName,$portableName)) {
+            if ((Get-FileHash -LiteralPath (Join-Path $candidate $name) -Algorithm SHA256).Hash.ToLowerInvariant() -cne $checksums[$name]) { throw 'Candidate executable or portable ZIP differs from its original manifest' }
+          }
+          $reports = Join-Path $env:GITHUB_WORKSPACE 'build/upgrade-probe/reports'
+          New-Item -ItemType Directory -Force -Path $reports | Out-Null
+          [ordered]@{diagnostic_only=$true; candidate_source_commit=$source; candidate_source_tree=$tree; candidate_workflow_run=$runId; candidate_artifact_id=$artifactId; candidate_archive_bytes=$archiveBytes; candidate_archive_sha256=$archiveSha; candidate_setup_sha256=$checksums[$setupName]; probe_commit=$env:GITHUB_SHA; upgrade_script_sha256=(Get-FileHash -LiteralPath 'scripts/windows_upgrade_smoke.py' -Algorithm SHA256).Hash.ToLowerInvariant(); upgrade_tests_sha256=(Get-FileHash -LiteralPath 'tests/test_windows_upgrade_smoke.py' -Algorithm SHA256).Hash.ToLowerInvariant()} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $reports 'probe-provenance.json') -Encoding utf8
+          "CANDIDATE_SETUP=$(Join-Path $candidate $setupName)" >> $env:GITHUB_ENV
+          "PROBE_SCRATCH=$scratch" >> $env:GITHUB_ENV
+      - name: Download the pinned public 0.10.1rc1 installer and perform a real upgrade
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+          if ($env:GITHUB_ACTIONS -cne 'true' -or $env:LOVE_HOUSE_DISPOSABLE_UPGRADE_RUNNER -cne 'github-hosted' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted') { throw 'Actual installation is restricted to a disposable GitHub-hosted runner' }
+          $oldSetup = Join-Path $env:PROBE_SCRATCH 'LoveHouse-Setup-0.10.1rc1-Windows-x64.exe'
+          & "$env:SystemRoot\System32\curl.exe" --disable --fail --location --silent --show-error --retry 3 --retry-delay 3 --connect-timeout 30 --max-time 600 --proto '=https' --proto-redir '=https' --header 'Authorization:' 'https://github.com/myflww/love-house/releases/download/v0.10.1rc1/LoveHouse-Setup-0.10.1rc1-Windows-x64.exe' --output $oldSetup
+          if ($LASTEXITCODE -ne 0 -or (Get-FileHash -LiteralPath $oldSetup -Algorithm SHA256).Hash.ToLowerInvariant() -cne '8a9d5dfe5bb1963dd215ba5d209107857a668027e2d7f4f1bf364eacf66134e9') { throw 'Old public installer differs from the pinned release' }
+          $report = Join-Path $env:GITHUB_WORKSPACE 'build/upgrade-probe/reports/windows-upgrade.json'
+          python scripts/windows_upgrade_smoke.py --old-setup $oldSetup --new-setup $env:CANDIDATE_SETUP --report $report
+          if ($LASTEXITCODE -ne 0) { throw 'Actual pinned candidate installer upgrade failed' }
+          $value = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
+          if ($value.ok -isnot [bool] -or $value.ok -ne $true -or $value.process_complete -isnot [bool] -or $value.process_complete -ne $true -or $value.phase -cne 'complete') { throw 'Actual upgrade report did not finalize successfully' }
+          if ($value.organizer_schema_upgrade -isnot [string] -or $value.organizer_schema_upgrade -cne 'existing_schema_preserved') { throw 'The actual published 0.10.1 organizer schema was not preserved' }
+          python -c "import sys;sys.path.insert(0,'scripts');import publish_windows_0102 as p;from pathlib import Path;v=p.checked_json(Path('build/upgrade-probe/reports/probe-provenance.json').read_bytes());p.checked_upgrade_report(Path('build/upgrade-probe/reports/windows-upgrade.json').read_bytes(),v['candidate_setup_sha256']);print('Exact preservation proof passed')"
+          if ($LASTEXITCODE -ne 0) { throw 'Actual upgrade report did not pass the publication preservation validator' }
+      - name: Select bounded diagnostic reports
+        if: always()
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = Join-Path $env:GITHUB_WORKSPACE 'build/upgrade-probe/reports'
+          $target = Join-Path $env:RUNNER_TEMP 'love-house-0102-upgrade-probe-bounded'
+          New-Item -ItemType Directory -Force -Path $target | Out-Null
+          foreach ($name in @('probe-provenance.json','windows-upgrade.json')) {
+            $file = Join-Path $source $name
+            if (Test-Path -LiteralPath $file -PathType Leaf) {
+              $length = (Get-Item -LiteralPath $file).Length
+              if ($length -gt 2MB) { @{diagnostic_only=$true;report_omitted=$true;reason='oversized';name=$name;bytes=$length} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $target $name) -Encoding utf8 }
+              else { Copy-Item -LiteralPath $file -Destination (Join-Path $target $name) }
+            }
+          }
+          [ordered]@{diagnostic_only=$true;probe_commit=$env:GITHUB_SHA;job_status='${{ job.status }}';public_release_evidence=$false} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $target 'probe-result.json') -Encoding utf8
+      - name: Preserve bounded real-upgrade diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-0102-upgrade-probe
+          path: ${{ runner.temp }}/love-house-0102-upgrade-probe-bounded/*.json
+          if-no-files-found: error
+          retention-days: 14

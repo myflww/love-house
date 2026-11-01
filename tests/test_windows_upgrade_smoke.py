@@ -1,8 +1,9 @@
 """Real isolated Controller requests, with fake installers/processes/credentials.
 
-Set LOVE_HOUSE_UPGRADE_OLD_SOURCE to an existing public 0.9.1 checkout for the
+Set LOVE_HOUSE_UPGRADE_OLD_SOURCE to an existing public 0.10.1rc1 checkout for the
 cross-version source proof. Ordinary CI also runs the complete HTTP protocol
-against its real current Controller and an explicitly seeded old SQLite schema.
+against its real current Controller, preserving its existing SQLite schema.
+An independent pre-purpose fixture tests the older factual-purpose migration.
 Actual EXE/window/install proof remains in the dedicated Windows release job.
 """
 import json
@@ -56,7 +57,7 @@ def controller_worker(source,data,credentials):
 
 
 class UpgradeSmokeTests(unittest.TestCase):
-    def test_full_http_protocol_and_migration_with_real_disposable_controllers(self):
+    def test_full_http_protocol_preserves_existing_schema_with_real_disposable_controllers(self):
         from nkb.service.credentials import KeyStore
         fixture=tempfile.TemporaryDirectory(prefix='upgrade-api-proof-')
         self.addCleanup(fixture.cleanup)
@@ -90,12 +91,6 @@ class UpgradeSmokeTests(unittest.TestCase):
                     self.process.stdin.write('stop\n');self.process.stdin.flush();self.process.wait(timeout=20)
                     if strict:test.assertEqual(self.process.returncode,0,self.process.stderr.read())
                     self.process.stdin.close();self.process.stdout.close();self.process.stderr.close()
-                    if self.old and strict:
-                        with closing(sqlite3.connect(self.data/'organizer.sqlite3')) as db, db:
-                            if 'purpose' in {r[1] for r in db.execute('PRAGMA table_info(jobs)')}:
-                                # Current-source CI starts from an explicit old
-                                # schema; the optional 0.9.1 proof already has it.
-                                db.execute('ALTER TABLE jobs DROP COLUMN purpose')
         # Deliberately retain an unresolved spelling, just as Windows TEMP can
         # contain an 8.3 profile name. run() canonicalizes its installer paths.
         alias=fixture_root/'path-spelling';alias.mkdir()
@@ -117,6 +112,7 @@ class UpgradeSmokeTests(unittest.TestCase):
         self.assertEqual(result['connections'],'passed')
         self.assertEqual(result['credential_metadata'],'passed')
         self.assertEqual(result['durable_attempts_and_budget'],'passed')
+        self.assertEqual(result['organizer_schema_upgrade'],'existing_schema_preserved')
         self.assertEqual(len(phases),3)
         if 'LOVE_HOUSE_UPGRADE_OLD_SOURCE' in os.environ:self.assertEqual(phases[0],smoke.OLD_VERSION)
         self.assertEqual(phases[1:],[smoke.NEW_VERSION,smoke.NEW_VERSION])
@@ -124,6 +120,74 @@ class UpgradeSmokeTests(unittest.TestCase):
         self.assertIn(('/api/connections',401),requests)
         self.assertIn(('/api/persona',403),requests)
         self.assertEqual(json.loads(credentials.read_text('utf-8')),{})
+
+    def make_queue_fixture(self,root,*,legacy=False):
+        from nkb.organizer import Organizer
+        def forbidden(*args,**kwargs):raise AssertionError('Queue fixture must not call a provider or access graph data')
+        if legacy:
+            # Construct the actual earlier schema independently. Do not mutate
+            # a modern Controller's database to claim it came from an old app.
+            with closing(sqlite3.connect(root/'organizer.sqlite3')) as db,db:
+                db.executescript('''
+                    CREATE TABLE items(library_id TEXT,raw_id TEXT,status TEXT,progress TEXT,
+                      job_id TEXT,created REAL,PRIMARY KEY(library_id,raw_id));
+                    CREATE TABLE jobs(id TEXT PRIMARY KEY,library_id TEXT,raw_ids TEXT,status TEXT,
+                      attempts INTEGER,next_run REAL,lease_until REAL,created REAL,updated REAL,
+                      input_json TEXT,guards_json TEXT,plan_json TEXT,result_json TEXT,error_code TEXT,error TEXT);
+                    CREATE TABLE calls(id TEXT PRIMARY KEY,library_id TEXT,at REAL,chars INTEGER);
+                ''')
+        else:
+            Organizer(root,snapshot=forbidden,apply=forbidden,credential=forbidden,transport=forbidden)
+        with closing(sqlite3.connect(root/'organizer.sqlite3')) as db,db:
+            for identity in ('synthetic-one','synthetic-two'):
+                db.execute("INSERT INTO items VALUES(?,?,'pending','{}',NULL,1)",(identity,'raw-'+identity))
+        return lambda:Organizer(root,snapshot=forbidden,apply=forbidden,credential=forbidden,transport=forbidden)
+
+    def test_existing_queue_schema_preserves_both_purposes_and_all_content(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);reload=self.make_queue_fixture(root)
+            with closing(sqlite3.connect(root/'organizer.sqlite3')) as db,db:
+                db.execute("ALTER TABLE jobs ADD COLUMN fixture_existing_field TEXT DEFAULT 'keep-me'")
+            before=smoke.seed_ledger(root,('synthetic-one','synthetic-two'),'SYNTHETIC-preserve')
+            self.assertTrue(before['purpose_column_before'])
+            self.assertEqual(before['mode'],'existing_schema_preserved')
+            self.assertEqual(len(before['state']['jobs']),4)
+            for identity in ('synthetic-one','synthetic-two'):
+                jobs=[job for job in before['state']['jobs'] if job['library_id']==identity]
+                self.assertEqual({job['purpose'] for job in jobs},{'memory','persona'})
+                self.assertEqual({job['attempts'] for job in jobs},{3,4})
+                for job in jobs:
+                    self.assertEqual(job['fixture_existing_field'],'keep-me')
+                    for field in ('input_json','guards_json','plan_json','result_json'):
+                        self.assertIn('SYNTHETIC-preserve',job[field])
+            reload();smoke.check_ledger(root,before)
+            reload();smoke.check_ledger(root,before)
+
+    def test_independent_legacy_schema_migrates_to_memory_without_losing_content(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);migrate=self.make_queue_fixture(root,legacy=True)
+            self.assertNotIn('purpose',smoke.queue_schema(root)['jobs'])
+            before=smoke.seed_ledger(root,('synthetic-one','synthetic-two'),'SYNTHETIC-legacy')
+            self.assertFalse(before['purpose_column_before'])
+            self.assertEqual(before['mode'],'legacy_purpose_migrated')
+            self.assertEqual(len(before['state']['jobs']),2)
+            self.assertNotIn('purpose',smoke.queue_schema(root)['jobs'])
+            migrate();smoke.check_ledger(root,before)
+            self.assertEqual({job['purpose'] for job in smoke.queue_state(root)['jobs']},{'memory'})
+            migrate();smoke.check_ledger(root,before)
+
+    def test_queue_proof_rejects_changed_purpose_payload_budget_or_existing_schema(self):
+        changes=["UPDATE jobs SET purpose='memory' WHERE purpose='persona'",
+                 "UPDATE jobs SET input_json='{}'", "UPDATE jobs SET guards_json='{}'",
+                 "UPDATE jobs SET plan_json='{}'", "UPDATE jobs SET result_json='{}'",
+                 'UPDATE jobs SET attempts=0', 'UPDATE calls SET chars=0',
+                 'ALTER TABLE jobs RENAME COLUMN guards_json TO missing_guards_json']
+        for change in changes:
+            with self.subTest(change=change),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory);self.make_queue_fixture(root)
+                before=smoke.seed_ledger(root,('synthetic-one','synthetic-two'),'SYNTHETIC-negative')
+                with closing(sqlite3.connect(root/'organizer.sqlite3')) as db,db:db.execute(change)
+                with self.assertRaises(AssertionError):smoke.check_ledger(root,before)
 
     def test_cleanup_retries_only_profile_locks_and_preserves_the_initial_failure(self):
         with smoke.owned_fixture() as root:

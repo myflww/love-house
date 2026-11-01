@@ -32,7 +32,7 @@ function context({api,mode='serve',demo=false,clipboard}={}){
  navigator:{clipboard:{writeText:clipboard||(async()=>{})}},window:{confirm:()=>true,LoveHouseConnect:{open:x=>harness.push(x)}}};
  vm.runInNewContext(source,ctx);
  async function open(){get('agentSourcesBtn').click();await flush();}
- function form(consent=false){get('agentSourceName').value='AstrBot主宿主';get('agentSourceRuntime').value='stable-runtime-fish';get('agentSourceAdapter').value='astrbot';get('agentSourceConsent').checked=consent;get('agentSourceConsent').onchange();}
+ function form(consent=false){get('agentSourceName').value='AstrBot主宿主';get('agentSourceRuntime').value='stable-runtime-fish';get('agentSourceAdapter').value='astrbot';get('astrbotSetupUmos').value='test-instance:FriendMessage:TEST-A';get('agentSourceConsent').checked=consent;get('agentSourceConsent').onchange();}
  return {ctx,S,MEMORY,calls,messages,get,body,head,harness,panels,open,form};
 }
 
@@ -55,7 +55,7 @@ test('creating a source needs explicit same-fish consent and sends no model key 
  const c=context({api:async(route,body)=>body?descriptor():listing()});await c.open();c.form(false);
  await c.get('createAgentSource').click();assert.equal(c.calls.length,1);assert.equal(c.get('createAgentSource').disabled,true);
  c.form(true);await c.get('createAgentSource').click();await flush();
- const call=c.calls.find(x=>x[0]==='agent/sources'&&x[1]);assert.deepEqual(call,['agent/sources',{name:'AstrBot主宿主',adapter:'astrbot',runtime_agent_id:'stable-runtime-fish',platforms:['*']},{libraryId:'fish-a'}]);
+ const call=c.calls.find(x=>x[0]==='agent/sources'&&x[1]);assert.deepEqual(call,['agent/sources',{name:'AstrBot主宿主',adapter:'astrbot',runtime_agent_id:'stable-runtime-fish',platforms:['qq'],astrbot_setup:{same_machine:true,platform:'qq',allowed_umos:['test-instance:FriendMessage:TEST-A']}},{libraryId:'fish-a'}]);
  assert.equal(c.get('agentSourceConfigPath').value,descriptor().private_path);assert.equal(c.get('agentSourceConsent').checked,false);
  assert(!/api_key|token|mcpServers/i.test(JSON.stringify(call)));assert.equal(c.MEMORY.busy,false);assert.equal(c.ctx.writeBusy,false);
 });
@@ -126,7 +126,7 @@ test('new source uses a stable default identity for the selected fish without re
  const c=context({api:async(route,body)=>body?descriptor():listing()});await c.open();
  assert.equal(c.get('agentSourceRuntime').value,'lovehouse_fish-a');assert.equal(c.get('agentSourceIdentityAdvanced').open,false);
  assert(c.get('agentSourceName').value.includes('fish-a'));c.get('agentSourceAdapter').value='astrbot';
- c.get('agentSourceConsent').checked=true;c.get('agentSourceConsent').onchange();await c.get('createAgentSource').click();await flush();
+ c.get('astrbotSetupUmos').value='test-instance:FriendMessage:TEST-A';c.get('agentSourceConsent').checked=true;c.get('agentSourceConsent').onchange();await c.get('createAgentSource').click();await flush();
  assert.equal(c.calls.find(x=>x[1])?.[1].runtime_agent_id,'lovehouse_fish-a');
  c.S.libraryId='fish-b';c.S.libraryEpoch++;c.ctx.updateMemoryButtons();await c.open();
  assert.equal(c.get('agentSourceRuntime').value,'lovehouse_fish-b');assert(c.get('agentSourceName').value.includes('fish-b'));assert(!c.get('agentSourceName').value.includes('fish-a'));
@@ -172,4 +172,48 @@ test('overlapping same-library configuration requests cannot reopen an older sou
 
 test('source organizer button opens this archive read-only controls without invoking a model',async()=>{
  const c=context();await c.open();c.get('source-organizer-source-a').click();assert.deepEqual(c.panels,[['organizerPanel',true]]);assert.equal(c.calls.length,1);assert(!c.get('agentSourcesDialog').open);
+});
+
+function setupDescriptor(){const result=descriptor({source:fishSource({adapter:'astrbot',runtime_agent_id:'stable-runtime-fish'})});result.astrbot_setup={config:{enabled:true,record_scheduled_outputs:false,record_observations:true,bindings:[{runtime_agent_id:result.source.runtime_agent_id,source_config_path:result.private_path,allowed_umos:['test-instance:FriendMessage:TEST-A'],platform:'qq'}]},config_path:'/private/generated/astrbot_plugin_love_house_config.json',config_filename:'astrbot_plugin_love_house_config.json',plugin_directory:'astrbot_plugin_love_house',same_machine_only:true,writes_astrbot_install:false,requires_reload:true,instructions:['固定插件目录','备份现有配置，合并已有绑定','在面板重载插件','发送 /lovehouse_status','真实对话后回爱之屋核验']};return result;}
+
+test('fast setup requires sid and same machine before the single ownership confirmation can create',async()=>{
+ const c=context();await c.open();c.form(true);c.get('astrbotSetupUmos').value='';c.get('astrbotSetupUmos').oninput();assert(c.get('createAgentSource').disabled);
+ c.get('astrbotSetupUmos').value='not-a-sid';c.get('astrbotSetupUmos').oninput();assert(c.get('createAgentSource').disabled);
+ c.get('astrbotSetupUmos').value='test-instance:FriendMessage:TEST-A';c.get('astrbotSetupLocation').value='other';c.get('astrbotSetupLocation').onchange();assert(c.get('createAgentSource').disabled);
+ c.get('astrbotSetupLocation').value='same';c.get('astrbotSetupLocation').onchange();assert(!c.get('createAgentSource').disabled);
+ assert.equal(c.calls.length,1);
+});
+
+test('one confirmation generates exact usable AstrBot JSON, safe fixed paths and next steps',async()=>{
+ let copied='';const expected=setupDescriptor();const c=context({clipboard:async text=>copied=text,api:async(route,body)=>body?expected:listing({sources:[expected.source]})});await c.open();c.form(true);await c.get('createAgentSource').click();await flush();
+ assert.deepEqual(JSON.parse(c.get('astrbotSetupJson').value),expected.astrbot_setup.config);
+ assert.equal(c.get('astrbotSetupConfigPath').value,expected.astrbot_setup.config_path);assert(!c.get('astrbotSetupResult').hidden);
+ const text=all(c.get('astrbotSetupSteps')).map(x=>x.textContent).join('\n');assert(text.includes('重载'));assert(text.includes('真实对话'));
+ await c.get('copyAstrbotSetup').click();assert.deepEqual(JSON.parse(copied),expected.astrbot_setup.config);
+ assert.equal(c.calls.filter(x=>x[1]).length,1);assert.equal(c.get('agentSourceConsent').checked,false);
+ c.S.libraryId='fish-b';c.S.libraryEpoch++;c.ctx.updateMemoryButtons();assert.equal(c.get('astrbotSetupJson').value,'');assert.equal(c.get('astrbotSetupConfigPath').value,'');assert.equal(c.get('astrbotSetupUmos').value,'');assert(c.get('astrbotSetupResult').hidden);
+});
+
+test('invalid cross-source generated JSON is never exposed',async()=>{
+ const wrong=setupDescriptor();wrong.astrbot_setup.config.bindings[0].runtime_agent_id='OTHER-FISH';const c=context({api:async(route,body)=>body?wrong:listing()});await c.open();c.form(true);await c.get('createAgentSource').click();await flush();
+ assert.equal(c.get('astrbotSetupJson').value,'');assert.equal(c.get('agentSourceConfigPath').value,'');assert(c.get('agentSourcesStatus').textContent.includes('归属'));
+});
+
+test('existing source can generate setup using its exact identity without registering a second source',async()=>{
+ const expected=setupDescriptor();const c=context({api:async(route,body)=>!body?listing({sources:[expected.source]}):route.endsWith('/config')?descriptor({source:expected.source}):expected});await c.open();await c.get('source-config-source-a').click();await flush();
+ assert.equal(c.get('agentSourceAdapter').value,'astrbot');assert(c.get('addAgentSource').open);
+ c.get('astrbotSetupUmos').value='test-instance:FriendMessage:TEST-A';c.get('astrbotSetupUmos').oninput();await c.get('generateAstrbotSetup').click();await flush();
+ assert(c.calls.some(x=>x[0]==='agent/sources/source-a/astrbot-setup'));assert(!c.calls.some(x=>x[0]==='agent/sources'&&x[1]));assert.deepEqual(JSON.parse(c.get('astrbotSetupJson').value),expected.astrbot_setup.config);
+});
+
+test('whole official sid reply sends only UMO and discards UID from the form before saving',async()=>{
+ const expected=setupDescriptor();const c=context({api:async(route,body)=>body?expected:listing()});await c.open();c.form(true);
+ c.get('astrbotSetupUmos').value='UMO: 「test-instance:FriendMessage:TEST-A」\nUID: 「PRIVATE-UID-DO-NOT-SAVE」\n*Use UMO to set whitelist and configure routing, use UID to set admin list(UMO 可用于设置白名单和配置文件路由，UID 可用于设置管理员列表)\n\nYour session information:\nBot ID: 「test-instance」\nMessage Type: 「FriendMessage」\nSession ID: 「TEST-A」';c.get('astrbotSetupUmos').oninput();await c.get('createAgentSource').click();await flush();
+ const call=c.calls.find(x=>x[1]);assert.deepEqual(call[1].astrbot_setup.allowed_umos,['test-instance:FriendMessage:TEST-A']);assert(!JSON.stringify(call).includes('PRIVATE-UID'));assert.equal(c.get('astrbotSetupUmos').value,'test-instance:FriendMessage:TEST-A');
+});
+
+test('malformed or mixed sid reply is blocked with a clear correction before creating a source',async()=>{
+ const c=context();await c.open();c.form(true);
+ for(const extra of ['UMO: invalid','other-instance:FriendMessage:TEST','UNRELATED-CHAT-BODY']){c.get('astrbotSetupUmos').value='UMO: 「test-instance:FriendMessage:TEST-A」\n'+extra;c.get('astrbotSetupUmos').oninput();assert(c.get('createAgentSource').disabled);assert(c.get('astrbotSetupValidation').textContent.includes('无法识别或冲突'));await c.get('createAgentSource').click();}
+ assert.equal(c.calls.filter(x=>x[1]).length,0);
 });

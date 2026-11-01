@@ -13,7 +13,7 @@ on:
       - 'pyproject.toml'
   push:
     tags: ['v*']
-    branches: [main, codex/windows-051-fix, codex/workbuddy-connect-080rc2, codex/windows-091-fixes, codex/windows-0101-sync]
+    branches: [main, codex/windows-051-fix, codex/workbuddy-connect-080rc2, codex/windows-091-fixes, codex/windows-0101-sync, codex/windows-0102-astrbot]
     paths:
       - 'nkb/**'
       - 'desktop/**'
@@ -50,13 +50,13 @@ permissions:
 
 concurrency:
   group: windows-release-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref == 'refs/heads/codex/windows-0101-sync' }}
+  cancel-in-progress: ${{ github.ref == 'refs/heads/codex/windows-0101-sync' || github.ref == 'refs/heads/codex/windows-0102-astrbot' }}
 
 jobs:
   windows:
     # The stable main branch may carry this infrastructure before the Windows
     # prerequisite implementation. Build only the repair branch, PRs or tags.
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/codex/windows-051-fix' || github.ref == 'refs/heads/codex/workbuddy-connect-080rc2' || github.ref == 'refs/heads/codex/windows-091-fixes' || github.ref == 'refs/heads/codex/windows-0101-sync' || startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/codex/windows-051-fix' || github.ref == 'refs/heads/codex/workbuddy-connect-080rc2' || github.ref == 'refs/heads/codex/windows-091-fixes' || github.ref == 'refs/heads/codex/windows-0101-sync' || github.ref == 'refs/heads/codex/windows-0102-astrbot' || startsWith(github.ref, 'refs/tags/')
     runs-on: windows-latest
     timeout-minutes: 35
     outputs:
@@ -146,8 +146,8 @@ jobs:
         env:
           LOVE_HOUSE_DISPOSABLE_UPGRADE_RUNNER: github-hosted
         run: |
-          $oldSetup = Join-Path $env:RUNNER_TEMP 'LoveHouse-Setup-0.9.1rc1-Windows-x64.exe'
-          Invoke-WebRequest -Uri 'https://github.com/myflww/love-house/releases/download/v0.9.1rc1/LoveHouse-Setup-0.9.1rc1-Windows-x64.exe' -OutFile $oldSetup
+          $oldSetup = Join-Path $env:RUNNER_TEMP 'LoveHouse-Setup-0.10.1rc1-Windows-x64.exe'
+          Invoke-WebRequest -Uri 'https://github.com/myflww/love-house/releases/download/v0.10.1rc1/LoveHouse-Setup-0.10.1rc1-Windows-x64.exe' -OutFile $oldSetup
           if ((Get-FileHash -LiteralPath $oldSetup -Algorithm SHA256).Hash.ToLowerInvariant() -cne '56634d8e63e806c5d988302ed01678d2881a40e4c12f836a08ae1b361bccdad6') { throw 'Old public installer bytes differ from the pinned release' }
           $newSetup = Get-ChildItem dist/release/LoveHouse-Setup-*-Windows-x64.exe | Select-Object -First 1
           python scripts/windows_upgrade_smoke.py --old-setup $oldSetup --new-setup $newSetup.FullName --report build/windows/reports/windows-upgrade.json

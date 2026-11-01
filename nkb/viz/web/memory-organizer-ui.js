@@ -3,15 +3,60 @@
 'use strict';
 if(typeof ORGANIZER==='undefined'||!document.getElementById('organizerPanel'))return;
 const by=id=>document.getElementById(id),make=(tag,cls,text)=>el(tag,cls,text);
-const UI={busy:false,machineBusy:false,version:0,owner:null,machineVersion:0,machineOwner:null,machineEpoch:null,machineJSON:'',duplicates:null};
+const UI={busy:false,machineBusy:false,version:0,owner:null,machineVersion:0,machineOwner:null,machineEpoch:null,machineJSON:'',duplicates:null,configOwner:null,configRequestOwner:null,configReadFailed:false};
 const style=document.createElement('style');style.textContent=`
 .memory-trigger-note{padding:12px;border:1px solid var(--line);background:var(--soft);margin:10px 0}.memory-trigger-note strong{display:block}.memory-trigger-note p{margin:5px 0 0;font-size:12px;line-height:1.7}.memory-more-actions{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}.memory-extra-dialog{width:min(720px,calc(100vw - 30px));max-height:calc(100vh - 40px);overflow:auto}.memory-extra-dialog .dialog-title{display:flex;align-items:center;justify-content:space-between;gap:12px}.memory-extra-dialog .dialog-title h2{font-size:20px}.memory-extra-dialog label{display:block;margin:12px 0 6px}.memory-extra-dialog input:not([type=checkbox]),.memory-extra-dialog select{width:100%}.memory-extra-dialog .inline-check{display:flex;align-items:flex-start;gap:8px}.memory-extra-dialog .inline-check input{width:auto;flex-shrink:0}.memory-extra-dialog .detail-json{max-height:340px;overflow:auto;white-space:pre-wrap}.memory-json-record,.duplicate-review-group{padding:13px;border:1px solid var(--line);margin:12px 0;background:var(--panel)}.memory-json-record h3,.duplicate-review-group h3{font-size:14px;color:var(--ink);letter-spacing:0}.memory-json-record p,.duplicate-review-group p{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}.duplicate-channel{font-size:12px;color:var(--muted)}.duplicate-review-group .source-rows{margin:10px 0}.duplicate-review-group .source-rows>div{padding:10px 0;border-bottom:1px solid var(--line)}.memory-extra-dialog .status-note{margin:10px 0;font-size:12px;color:var(--muted)}.memory-json-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}`;
 document.head.append(style);
+style.textContent+=`.organizer-api-status{padding:12px;border:1px solid var(--line);background:var(--soft);margin:8px 0 12px;overflow-wrap:anywhere}.organizer-api-status strong{display:block;font-size:13px}.organizer-api-status p{margin:6px 0 0;font-size:12px;line-height:1.65}.organizer-api-status[data-state=call_failed],.organizer-api-status[data-state=credential_missing],.organizer-api-status[data-state=connection_unavailable]{border-color:var(--muted)}.organizer-library-identity{display:flex;flex-direction:column;align-items:flex-start;min-width:0}.organizer-library-identity .library-switch{padding:0 0 3px}.organizer-library-api-status{display:block;max-width:190px;padding:0;border:0;background:none;text-align:left;font:inherit;font-size:10px;line-height:1.5;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}.organizer-library-api-status:hover{color:var(--ink)}.organizer-library-api-status:focus-visible{outline:2px solid var(--ink);outline-offset:3px}`;
 function button(text,id,description){const b=make('button','btn',text);b.type='button';if(id)b.id=id;if(description)b.dataset.hintDescription=description;return b;}
 function context(){return {id:S.libraryId,epoch:S.libraryEpoch};}
 function current(c){return !!c&&c.id===S.libraryId&&c.epoch===S.libraryEpoch;}
 function safeNotice(target,message,error=false){target.textContent=message;target.classList.toggle('error',error);}
 const settings=by('organizerSettings'),cadence=by('organizerCadence'),batch=by('organizerBatchSize');
+const apiStatus=make('section','organizer-api-status');apiStatus.id='organizerApiStatus';apiStatus.setAttribute('role','status');apiStatus.setAttribute('aria-live','polite');
+const apiTitle=make('strong',''),apiModel=make('p',''),apiCredential=make('p',''),apiVerification=make('p','');apiTitle.id='organizerApiStatusTitle';apiModel.id='organizerApiStatusModel';apiCredential.id='organizerApiStatusCredential';apiVerification.id='organizerApiStatusVerification';apiStatus.append(apiTitle,apiModel,apiCredential,apiVerification);by('organizerState').before(apiStatus);
+const libraryApi=button('整理API · 状态待确认','organizerLibraryApiStatus','查看当前记忆库已保存的整理API配置；查看状态不会调用模型。');libraryApi.className='organizer-library-api-status';libraryApi.setAttribute('aria-controls','organizerPanel');
+const libraryIdentity=make('div','organizer-library-identity'),libraryMenu=by('libraryMenuBtn');libraryMenu.before(libraryIdentity);libraryIdentity.append(libraryMenu,libraryApi);libraryApi.onclick=()=>{setPanelOpen('organizerPanel',true);settings.open=true;};
+// Only saved, library-scoped metadata enters these labels. Never inspect a key input.
+function configurationLabel(data){
+ if(!data)return {state:'unknown',title:'记忆整理API · 状态待确认',mini:'API状态待确认',model:'',credential:'正在读取当前记忆库已保存的配置。',verification:'查看状态不会调用模型。'};
+ const s=data.settings||{},p=data.provider||{},configured=data.configuration?.configured??!!(s.provider_id||s.connection_id||s.base_url||s.model);
+ let state=!configured?'not_configured':data.configuration?.state==='connection_unavailable'?'connection_unavailable':p.credential_ready!==true?'credential_missing':p.model_ready!==true?'incomplete':p.key_saved===true?'saved':'session_only';
+ let service='自定义 API';try{const host=new URL(p.base_url||s.base_url).hostname;service=host==='api.deepseek.com'?'DeepSeek':host||service;}catch{}
+ const model=configured?`${service} · ${p.model||s.model||'模型名称未填写'}${s.provider_mode==='connection'?' · 跟随本库模型连接':' · 独立整理模型'}`:'';
+ const labels={not_configured:['尚未配置记忆整理API','API未配置'],credential_missing:['整理API配置已保留 · 密钥不可用','API密钥不可用'],connection_unavailable:['整理API的模型连接已断开','API连接不可用'],incomplete:['记忆整理API配置尚未完整','API配置待补全'],saved:['已配置记忆整理API','API已配置'],session_only:['已配置记忆整理API · 仅本次运行','API仅本次运行']};
+ let [title,mini]=labels[state]||labels.incomplete;
+ const credential=state==='not_configured'?'为当前记忆库选择模型并保存后，这里会显示配置状态。':state==='connection_unavailable'?'请在整理设置中重新选择当前库的有效模型连接。':state==='credential_missing'?'未找到可用密钥。请重新填写并保存；原有设置和记忆仍保留。':state==='incomplete'?'请补全 API 地址和模型名称，再保存整理设置。':p.key_saved?'密钥已保存在本机安全存储；这里不会显示密钥。':'密钥仅在本次运行中可用，重启爱之屋后需要重新填写。';
+ let verification='保存配置和查看状态都不会调用模型，尚未确认 API 联网可用。';
+ const failures={provider_authentication:'密钥被服务拒绝，请核对密钥和 API 服务',provider_access_denied:'服务拒绝访问，请检查账户或模型权限',provider_not_found:'API 地址或模型不存在',provider_insufficient_balance:'服务账户余额不足',provider_request_rejected:'服务不接受该请求',rate_limited:'服务遇到频率或额度限制',provider_unavailable:'服务暂时不可用',provider_http_error:'服务未成功响应',tls_error:'证书验证失败',timeout:'请求超时',provider_error:'网络连接失败',redirect_blocked:'API 地址发生重定向'};
+ const latest=(data.batches||[]).filter(b=>b.status==='done'||failures[b.error_code]).sort((a,b)=>num(b.updated??b.created)-num(a.updated??a.created))[0];
+ if(['saved','session_only'].includes(state)&&latest&&failures[latest.error_code]){state='call_failed';title='记忆整理API已配置 · 最近调用失败';mini='API最近调用失败';verification=`最近一次整理调用失败：${failures[latest.error_code]}。更改设置后不会自动测试，请以之后的实际整理结果为准。`;}
+ return {state,title,mini,model,credential,verification};
+}
+function renderConfiguration(data){
+ const label=configurationLabel(data);apiStatus.dataset.state=libraryApi.dataset.state=label.state;apiTitle.textContent=label.title;apiModel.textContent=label.model;apiModel.hidden=!label.model;apiCredential.textContent=!data&&UI.configReadFailed?'当前配置状态暂时无法读取，请稍后刷新。':label.credential;
+ apiVerification.textContent=label.verification+(ORGANIZER.dirty?' 当前还有未保存的修改；以上显示已保存的配置。':'')+(UI.configReadFailed?' 最新状态暂时读不到，以上为本次已确认的配置；请稍后刷新。':'');
+ libraryApi.textContent='整理'+label.mini;libraryApi.title=`${libraryName(S.libraryId)} · ${label.title}${label.model?' · '+label.model:''}${UI.configReadFailed?' · 最新状态读取失败':''}`;libraryApi.setAttribute('aria-label',libraryApi.title+'，打开整理设置');
+ by('organizerMiniStatus').textContent=label.mini;by('organizerActivityStatus').textContent=label.title+(data?' · '+organizerSummary(data):'');
+}
+async function refreshConfiguration(){
+ if(S.mode!=='serve'||S.libraryChanging)return;const owner=context(),version=++ORGANIZER.version;UI.configRequestOwner=owner;
+ if(!current(UI.configOwner))renderConfiguration(null);
+ try{if(!ORGANIZER.data){await refreshConnections();if(!current(owner)||version!==ORGANIZER.version)return;}
+  const data=await api('organizer',undefined,{libraryId:owner.id});if(!current(owner)||version!==ORGANIZER.version)return;
+  if(data.library_id!==undefined&&data.library_id!==owner.id)throw new Error('整理状态不属于当前库');
+  UI.configReadFailed=false;if(['整理状态暂时读不到，请稍后刷新。','配置已保存，最新状态暂时读不到；请稍后刷新。'].includes(by('organizerNotice').textContent))by('organizerNotice').textContent='';renderOrganizer(data);return data;
+ }catch(e){if(current(owner)&&version===ORGANIZER.version&&!e.staleLibrary){UI.configReadFailed=true;renderConfiguration(current(UI.configOwner)?ORGANIZER.data:null);by('organizerNotice').textContent='整理状态暂时读不到，请稍后刷新。';}}
+}
+refreshOrganizer=refreshConfiguration;
+function ensureConfiguration(){
+ if(S.libraryChanging||!current(UI.configOwner)){renderConfiguration(null);if(S.libraryChanging)libraryApi.textContent='整理API · 切换中';}
+ libraryApi.disabled=S.mode!=='serve'||S.libraryChanging;
+ if(S.mode==='serve'&&!S.libraryChanging&&S.libraryId&&MEMORY.catalogReady&&!current(UI.configRequestOwner))refreshOrganizer();
+}
+const originalLibraryReset=resetLibraryView;resetLibraryView=function(...args){originalLibraryReset(...args);UI.configOwner=UI.configRequestOwner=null;UI.configReadFailed=false;renderConfiguration(null);by('organizerState').textContent='正在读取当前库的整理状态…';by('organizerCounts').replaceChildren();triggerBox.replaceChildren();};
+const originalLibraryRender=renderLibraries;renderLibraries=function(...args){originalLibraryRender(...args);ensureConfiguration();};
+settings.addEventListener('input',()=>renderConfiguration(current(UI.configOwner)?ORGANIZER.data:null));settings.addEventListener('change',()=>renderConfiguration(current(UI.configOwner)?ORGANIZER.data:null));
 const thresholdLabel=make('label','','累计多少条后自动整理');thresholdLabel.htmlFor='organizerTriggerCount';
 const threshold=make('input','');threshold.id='organizerTriggerCount';threshold.type='number';threshold.min='0';threshold.max='500';threshold.step='1';threshold.required=true;threshold.value='20';
 const thresholdNote=make('p','form-note');thresholdNote.id='organizerTriggerHelp';threshold.setAttribute('aria-describedby',thresholdNote.id);
@@ -34,10 +79,10 @@ function renderTrigger(data){const settings=data.settings||{},status=data.status
  if(num(status.calls_24h)>=num(settings.daily_call_limit,Infinity)||num(status.chars_24h)>=num(settings.daily_char_limit,Infinity))note+=' 当前预算已用完，后续会等预算恢复；原文仍保留。';
  triggerBox.append(make('strong','',title),make('p','',note));const aliases=num(status.counts?.done_alias);if(aliases)triggerBox.append(make('p','',`${aliases} 条已确认的重复来源没有再次送给模型，原文仍可查看。`));}
 const originalRender=renderOrganizer;
-renderOrganizer=function(data){originalRender(data);if(!ORGANIZER.dirty){const s=data.settings||{},fresh=!s.enabled&&!s.provider_id&&!s.model;threshold.value=String(fresh?20:num(s.auto_trigger_count));}modeNote();renderTrigger(data);updateControls();};
+renderOrganizer=function(data){originalRender(data);UI.configOwner=context();renderConfiguration(data);if(!ORGANIZER.dirty){const s=data.settings||{},fresh=!s.enabled&&!s.provider_id&&!s.model;threshold.value=String(fresh?20:num(s.auto_trigger_count));}modeNote();renderTrigger(data);updateControls();};
 threshold.addEventListener('input',()=>{ORGANIZER.dirty=true;modeNote();});cadence.addEventListener('change',modeNote);
 saveOrganizerSettings=async function(options={}){
- if(!canWrite()||MEMORY.busy||UI.busy)return;const owner=context();const trigger=Number(threshold.value);
+ if(!canWrite()||MEMORY.busy||UI.busy)return;if(!current(UI.configOwner)){toast('当前库的整理设置还未读取，请稍后再保存。',true);return;}const owner=context();const trigger=Number(threshold.value);
  if(!threshold.value.trim()||!Number.isInteger(trigger)||trigger<0||trigger>500){toast('累计阈值请填0–500的整数；0保留旧兼容节奏。',true);return;}
  const body={enabled:options.enable===true?true:by('organizerEnabled').checked,provider_mode:by('organizerMode').value,connection_id:by('organizerConnection').value||null,
   cadence:cadence.value,auto_trigger_count:trigger,batch_size:num(batch.value),daily_call_limit:num(by('organizerCallLimit').value),daily_char_limit:num(by('organizerCharLimit').value)};
@@ -45,8 +90,12 @@ saveOrganizerSettings=async function(options={}){
  if(body.provider_mode==='separate'){try{Object.assign(body,providerPayload('organizerProvider'));}catch(e){toast(e.message,true);return;}}
  else if(body.enabled&&!body.connection_id){toast('请选择当前库的模型连接，或设置独立整理模型。');return;}
  MEMORY.busy=true;writeBusy=true;updateWriteState();let acknowledged=false;
- try{const result=await api('organizer/settings',body);acknowledged=true;if(!current(owner))return;by('organizerProviderKey').value='';ORGANIZER.dirty=false;await refreshOrganizer();if(!current(owner))return;by('organizerNotice').textContent=result.warning||'';toast(options.enable===true?'已保存并开启自动整理；人格学习按本库开关和预算逐步进行。':'整理设置已保存；只按当前规则和预算运行。');return result;}
- catch(e){if(!e.staleLibrary)toast(acknowledged?'设置已保存，状态读取未确认；请刷新整理面板。':'保存未确认：'+e.message,true);}
+ try{const result=await api('organizer/settings',body,{libraryId:owner.id});acknowledged=true;if(!current(owner))return;
+  if(result.library_id!==undefined&&result.library_id!==owner.id)throw new Error('返回的整理设置不属于当前库');
+  by('organizerProviderKey').value='';ORGANIZER.dirty=false;ORGANIZER.version++;UI.configRequestOwner=owner;UI.configReadFailed=false;renderOrganizer(result);by('organizerNotice').textContent=result.warning||'';
+  toast(options.enable===true?'已保存并开启自动整理；API是否可用以实际整理结果为准。':'整理API配置已保存；保存没有调用模型。');
+  const fresh=await refreshOrganizer();if(!current(owner))return;if(!fresh)by('organizerNotice').textContent='配置已保存，最新状态暂时读不到；请稍后刷新。';else by('organizerNotice').textContent=result.warning||'';return result;}
+ catch(e){if(current(owner)&&!e.staleLibrary){by('organizerNotice').textContent=acknowledged?'设置已保存，状态读取未确认；请刷新整理面板。':'保存未确认，当前显示的仍是上次已保存配置；请检查后重试。';toast(acknowledged?'设置已保存，状态读取未确认；请刷新整理面板。':'保存未确认：'+e.message,true);}}
  finally{MEMORY.busy=false;writeBusy=false;updateWriteState();}
 };
 by('saveOrganizerSettings').onclick=saveOrganizerSettings;
@@ -99,7 +148,8 @@ function renderDuplicates(data,owner){duplicateGroups.replaceChildren();const gr
  if(merged.length){duplicateGroups.append(make('h3','section-label','已折叠显示的来源'));for(const group of merged){const card=make('div','duplicate-review-group');card.append(make('strong','',S.byId.get(String(group.canonical_id))?.label||'一组对话来源'),make('p','form-note',`${Array.isArray(group.alias_ids)?group.alias_ids.length:0} 条重复来源与主记录一起保留。`));const separate=button('取消显示归并');separate.classList.add('duplicate-write');separate.onclick=()=>{if(current(owner))mutateDuplicates('separate',{node_id:group.canonical_id,expected:group.expected});};card.append(separate);duplicateGroups.append(card);}}
  updateControls();
 }
-function updateControls(){const writable=canWrite()&&!MEMORY.busy&&!UI.busy;threshold.disabled=!writable||cadence.value==='session';machineOpen.disabled=S.mode!=='serve'||S.libraryChanging;duplicateOpen.disabled=duplicateLink.disabled=S.mode!=='serve'||S.libraryChanging;machineRead.disabled=UI.busy||UI.machineBusy||S.libraryChanging;machineCopy.disabled=!UI.machineJSON||UI.machineOwner!==S.libraryId||UI.machineEpoch!==S.libraryEpoch;duplicateRefresh.disabled=UI.busy||S.libraryChanging;duplicateReconcile.disabled=!writable;duplicate.close.disabled=UI.busy;for(const b of duplicateGroups.querySelectorAll('.duplicate-write'))b.disabled=!writable||(b.dataset.requiresConsent==='true'&&!b._consent?.checked);
+function updateControls(){const writable=canWrite()&&!MEMORY.busy&&!UI.busy;const configurationWritable=writable&&!writeBusy&&current(UI.configOwner);by('saveOrganizerSettings').disabled=!configurationWritable;for(const input of settings.querySelectorAll('input,select'))input.disabled=!configurationWritable;threshold.disabled=!configurationWritable||cadence.value==='session';machineOpen.disabled=S.mode!=='serve'||S.libraryChanging;duplicateOpen.disabled=duplicateLink.disabled=S.mode!=='serve'||S.libraryChanging;machineRead.disabled=UI.busy||UI.machineBusy||S.libraryChanging;machineCopy.disabled=!UI.machineJSON||UI.machineOwner!==S.libraryId||UI.machineEpoch!==S.libraryEpoch;duplicateRefresh.disabled=UI.busy||S.libraryChanging;duplicateReconcile.disabled=!writable;duplicate.close.disabled=UI.busy;for(const b of duplicateGroups.querySelectorAll('.duplicate-write'))b.disabled=!writable||(b.dataset.requiresConsent==='true'&&!b._consent?.checked);
+ ensureConfiguration();
  if(machine.dialog.open&&(UI.machineOwner!==S.libraryId||UI.machineEpoch!==S.libraryEpoch)){machine.dialog.close();clearMachine();}
  if(duplicate.dialog.open&&UI.owner&&!current(UI.owner)){closeDuplicates();}
 }

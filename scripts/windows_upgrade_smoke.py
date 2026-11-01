@@ -25,9 +25,9 @@ from urllib.error import HTTPError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 import uuid
 
-OLD_VERSION = '0.9.1rc1'
-NEW_VERSION = '0.10.1rc1'
-OLD_SETUP_SHA256 = '56634d8e63e806c5d988302ed01678d2881a40e4c12f836a08ae1b361bccdad6'
+OLD_VERSION = '0.10.1rc1'
+NEW_VERSION = '0.10.2rc1'
+OLD_SETUP_SHA256 = '8a9d5dfe5bb1963dd215ba5d209107857a668027e2d7f4f1bf364eacf66134e9'
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 FIXTURE_PREFIX='love-house-upgrade-中文 空格-'

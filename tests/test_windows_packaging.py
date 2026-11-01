@@ -136,7 +136,7 @@ class WindowsPackagingTests(unittest.TestCase):
             with patch.object(windows,'export_save_dialog',return_value=str(target)) as dialog:
                 self.assertTrue(api.export_astrbot_adapter()['saved'])
             self.assertEqual(target.read_bytes(),host.astrbot_package.return_value)
-            dialog.assert_called_once_with(api._window,'LoveHouse-AstrBot-0.2.0-experimental.zip')
+            dialog.assert_called_once_with(api._window,'LoveHouse-AstrBot-0.3.0-experimental.zip')
         with self.assertRaises(TypeError):api.export_astrbot_adapter('untrusted-path.zip')
         api._window.get_current_url.return_value='https://example.com/'
         host.astrbot_package.reset_mock();self.assertFalse(api.export_astrbot_adapter()['saved']);host.astrbot_package.assert_not_called()
@@ -362,6 +362,7 @@ class WindowsPackagingTests(unittest.TestCase):
     def test_loaded_releases_startup_watchdog_before_independent_native_checks_deadline(self):
         import threading
         import windows_latest_smoke as latest
+        import windows_0102_smoke as release
         events=[];threads=[]
         class Signal:
             def __init__(self):self.handlers=[]
@@ -400,7 +401,8 @@ class WindowsPackagingTests(unittest.TestCase):
              patch.object(windows,'dotnet_status',return_value={'ok':True}),\
              patch.object(windows,'runtime_status',return_value={'available':True}),\
              patch.object(windows,'verify_native_exports',return_value={}),\
-             patch.object(latest,'verify_latest_ui',return_value=({'status':'passed'},{})):
+             patch.object(latest,'verify_latest_ui',return_value=({'status':'passed'},{'library':'synthetic'})),\
+             patch.object(release,'verify',return_value=release.EXPECTED.copy()):
             result=windows.run_window(directory,smoke=True)
         self.assertTrue(result['ok']);self.assertNotIn('smoke_timeout',result)
         runtime.stop.assert_called_once()

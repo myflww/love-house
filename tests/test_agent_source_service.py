@@ -74,6 +74,70 @@ class AgentSourceServiceTests(unittest.TestCase):
         self.assertEqual(len(self.host.connections.archives('default')),2)
         self.model.assert_not_called()
 
+    def test_fast_setup_generates_private_usable_config_with_fixed_identity_and_no_host_writes(self):
+        data={'name':'合成快速配置','adapter':'astrbot','runtime_agent_id':'synthetic-fish','platforms':['qq'],
+              'astrbot_setup':{'same_machine':True,'platform':'qq','allowed_umos':['synthetic-instance:FriendMessage:TEST']}}
+        code,bundle=self.api('/api/agent/sources',data)
+        self.assertEqual(code,200,bundle)
+        setup=bundle['astrbot_setup'];config=setup['config'];binding=config['bindings'][0]
+        self.assertEqual(binding,{'runtime_agent_id':'synthetic-fish','source_config_path':bundle['private_path'],
+                                  'allowed_umos':['synthetic-instance:FriendMessage:TEST'],'platform':'qq'})
+        self.assertTrue(config['enabled']);self.assertFalse(config['record_scheduled_outputs'])
+        self.assertEqual(setup['plugin_directory'],'astrbot_plugin_love_house')
+        self.assertEqual(setup['config_filename'],'astrbot_plugin_love_house_config.json')
+        self.assertFalse(setup['writes_astrbot_install']);self.assertTrue(setup['requires_reload'])
+        generated=Path(setup['config_path'])
+        self.assertTrue(generated.is_relative_to(self.host.sources.directory))
+        self.assertEqual(json.loads(generated.read_text()),config)
+        cfg=json.loads(Path(bundle['private_path']).read_text())
+        self.assertNotIn(cfg['token'],json.dumps(bundle))
+        # Construct the actual isolated plugin bridge from the generated data;
+        # configured identity and source path are usable without hand editing.
+        import importlib.util
+        spec=importlib.util.spec_from_file_location('fast_setup_bridge_test',ROOT/'extensions/astrbot-love-house/bridge.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        client=SourceClient(binding['source_config_path'],timeout=1)
+        bridge=module.Bridge(self.root/'synthetic-journal',client,runtime_agent_id=binding['runtime_agent_id'],allowed_umos=binding['allowed_umos'],platform=binding['platform'])
+        bridge.stage_received(binding['allowed_umos'][0],'TEST-MESSAGE','合成测试约定')
+        bridge.stage_final(binding['allowed_umos'][0],'TEST-MESSAGE','合成最终回复')
+        self.assertEqual(bridge.flush()['queued'],1)
+        self.assertEqual(len(self.host.snapshot('default')['nodes']),1)
+        self.assertEqual(bridge.status()['pending'],0)
+        # New management action remains bound to the selected library.
+        endpoint='/api/agent/sources/'+bundle['source']['id']+'/astrbot-setup'
+        self.assertEqual(self.api(endpoint,data['astrbot_setup'],lib=self.other)[0],400)
+        changed={**data['astrbot_setup'],'allowed_umos':['synthetic-instance:GroupMessage:TEST-GROUP']}
+        code,updated=self.api(endpoint,changed)
+        self.assertEqual(code,200,updated)
+        self.assertEqual(updated['astrbot_setup']['config']['bindings'][0]['allowed_umos'],changed['allowed_umos'])
+        # A source credential never becomes management authorization.
+        request=Request(self.base+endpoint,data=json.dumps(changed).encode(),headers={'Content-Type':'application/json','Authorization':'Bearer '+cfg['token']})
+        with self.assertRaises(HTTPError) as denied:self.http.open(request)
+        self.assertIn(denied.exception.code,(401,403));denied.exception.close()
+        self.model.assert_not_called()
+
+    def test_fast_setup_rejects_remote_and_bad_sid_before_registering_a_source(self):
+        base={'name':'合成快速配置','adapter':'astrbot','runtime_agent_id':'synthetic-fish','platforms':['qq']}
+        setup={'same_machine':True,'platform':'qq','allowed_umos':['synthetic-instance:FriendMessage:TEST']}
+        for extra in [{'same_machine':False},{'platform':'*'},{'allowed_umos':[]},{'allowed_umos':['guess']},
+                      {'allowed_umos':['synthetic-instance:FriendMessage:TEST\nBODY']},
+                      {'allowed_umos':['synthetic-instance:FriendMessage:TEST']*2},{'platform':'browser'}, {'token':'fake'}]:
+            with self.subTest(extra=extra):
+                code,result=self.api('/api/agent/sources',{**base,'astrbot_setup':{**setup,**extra}})
+                self.assertEqual(code,400,result)
+        self.assertEqual(self.host.sources.list('default'),[])
+        self.assertEqual(list(self.host.sources.directory.glob('*.json')),[])
+
+    def test_fast_setup_file_failure_preserves_registered_source_for_retry(self):
+        data={'name':'合成快速配置','adapter':'astrbot','runtime_agent_id':'synthetic-fish','platforms':['qq'],
+              'astrbot_setup':{'same_machine':True,'platform':'qq','allowed_umos':['synthetic-instance:FriendMessage:TEST']}}
+        with patch('nkb.service.astrbot_setup.build_setup',side_effect=OSError('fake disk full')):
+            code,result=self.api('/api/agent/sources',data)
+        self.assertEqual(code,200,result);self.assertIn('不必重复创建来源',result['astrbot_setup_error'])
+        self.assertEqual(len(self.host.sources.list('default')),1)
+        code,retried=self.api('/api/agent/sources/'+result['source']['id']+'/astrbot-setup',data['astrbot_setup'])
+        self.assertEqual(code,200,retried);self.assertTrue(Path(retried['astrbot_setup']['config_path']).is_file())
+
     def test_sdk_context_uses_only_the_bound_library_and_new_session(self):
         _,cfg,client=self.source()
         self.host.transact('default',lambda brain:brain.add('合成旧约定','约好周六去看海。'))

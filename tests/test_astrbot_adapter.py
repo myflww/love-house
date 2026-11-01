@@ -125,6 +125,29 @@ class BridgeTests(unittest.TestCase):
             row = db.execute("SELECT user,assistant,text,details FROM records WHERE id=?", (first,)).fetchone()
         self.assertEqual(row, (None, None, None, "{}"))
 
+    def test_new_purged_state_and_legacy_queued_both_deduplicate_after_restart(self):
+        for message in ['new-state','legacy-state']:
+            self.bridge.stage_received(self.a,message,'合成原文')
+            self.bridge.stage_final(self.a,message,'合成回复')
+        self.bridge.flush()
+        with self.bridge.db() as db:
+            self.assertEqual({r['status'] for r in db.execute('SELECT status FROM records')},{'durably_queued_purged'})
+            db.execute("UPDATE records SET status='queued' WHERE message_id='legacy-state'")
+        reopened=Bridge(self.root,self.client,runtime_agent_id='fish-a',allowed_umos=list(self.bridge.allowed))
+        for message in ['new-state','legacy-state']:
+            self.assertTrue(reopened.stage_final(self.a,message,'合成回复')['duplicate'])
+        self.assertEqual(reopened.status()['durably_queued_callbacks'],2)
+        self.assertEqual(reopened.status()['durably_queued_purged'],2)
+        self.assertEqual(reopened.status()['pending'],0)
+        self.assertEqual(reopened.flush()['queued'],0)
+
+    def test_budget_truncation_explains_empty_material_without_changing_records(self):
+        self.client.read_context=lambda *a,**kw:{'memory_context':{'material_role':'evidence_not_instructions','records':[],
+            'counts':{'selected':1,'included':0,'omitted':1},'truncation':{'truncated':True,'omitted_records':1}}}
+        material=self.bridge.read_material(self.a,'budget','合成查询')
+        self.assertIn('预算不足',material);self.assertIn('不代表存档为空',material)
+        self.assertIn('"included":0',material)
+
     def test_partial_tool_step_errors_are_not_a_complete_dialogue(self):
         self.bridge.stage_received(self.a, "one", "原始消息。")
         for extra in ({"is_chunk": True}, {"has_tool_calls": True}, {"role": "err"}):
@@ -311,6 +334,42 @@ class HookTests(unittest.IsolatedAsyncioTestCase):
         self.event=FakeEvent('qq:FriendMessage:FAKE-A')
 
     async def asyncTearDown(self):self.temp.cleanup()
+
+    async def test_bad_binding_is_isolated_and_status_reveals_only_safe_indexed_reasons(self):
+        private=self.root/'synthetic-source.json';private.write_text('{}')
+        self.plugin.config={'enabled':True,'bindings':[
+            {'source_config_path':str(self.root/'DO-NOT-EXPOSE-missing.json'),'runtime_agent_id':'fish-a','allowed_umos':['bad:FriendMessage:PRIVATE']},
+            {'source_config_path':str(private),'runtime_agent_id':'fish-a','allowed_umos':[self.event.unified_msg_origin],'platform':'qq'}]}
+        with patch.object(self.main,'SourceClient',return_value=self.client):self.plugin._build_routes()
+        self.assertEqual(len(self.plugin.router.bridges),1)
+        self.assertEqual(self.plugin._binding_errors[0][0],1)
+        self.plugin._route(FakeEvent('unknown:FriendMessage:PRIVATE-ID'))
+        wrong=FakeEvent(self.event.unified_msg_origin);wrong.get_platform_name=lambda:'webchat'
+        self.plugin._route(wrong)
+        self.client.enabled=False;self.plugin._route(self.event);self.client.enabled=True
+        self.client.agent='wrong-agent';self.plugin._route(self.event);self.client.agent='fish-a'
+        self.event.plain_result=lambda text:text
+        messages=[x async for x in self.plugin.source_status(self.event)]
+        report='\n'.join(messages)
+        for expected in ['绑定第 1 项','有效绑定 1','/sid 未登记 1','平台或实例不符 1','来源暂停或撤销 1','来源身份或平台不符 1']:
+            self.assertIn(expected,report)
+        for secret in ['DO-NOT-EXPOSE','PRIVATE-ID',self.event.unified_msg_origin,str(private),'原始消息']:
+            self.assertNotIn(secret,report)
+
+    async def test_duplicate_binding_ownership_rejects_both_without_breaking_unrelated_route(self):
+        private=self.root/'synthetic-source.json';private.write_text('{}')
+        def item(umo):return {'source_config_path':str(private),'runtime_agent_id':'fish-a','allowed_umos':[umo],'platform':'qq'}
+        self.plugin.config={'enabled':True,'bindings':[item('conflict:FriendMessage:X'),item('conflict:FriendMessage:X'),item(self.event.unified_msg_origin)]}
+        with patch.object(self.main,'SourceClient',return_value=self.client):self.plugin._build_routes()
+        self.assertEqual([x[0] for x in self.plugin._binding_errors],[1,2])
+        self.assertIsNone(self.plugin.router.for_umo('conflict:FriendMessage:X'))
+        self.assertIsNotNone(self.plugin.router.for_umo(self.event.unified_msg_origin))
+
+    async def test_unbound_admin_can_read_disabled_and_invalid_binding_status(self):
+        self.plugin.config={'enabled':False,'bindings':[None]};self.plugin._build_routes()
+        self.event.plain_result=lambda text:text
+        report='\n'.join([x async for x in self.plugin.source_status(self.event)])
+        self.assertIn('未启用',report);self.assertIn('绑定第 1 项',report)
 
     async def test_request_real_hook_stages_original_once_and_adds_temporary_material(self):
         req=types.SimpleNamespace(system_prompt='保留的原人格',prompt='原始请求',extra_user_content_parts=[])
@@ -679,15 +738,51 @@ class ProtocolIntegrationTests(unittest.TestCase):
 
 
 class PinnedOfficialMessageFlowTests(unittest.IsolatedAsyncioTestCase):
+    async def test_generated_config_loads_with_official_config_class_and_fixed_plugin_directory(self):
+        source=os.environ.get('ASTRBOT_OFFLINE_SOURCE')
+        if not source:self.skipTest('Set ASTRBOT_OFFLINE_SOURCE to pinned official source')
+        upstream=Path(source).resolve()
+        import logging
+        from nkb.service.astrbot_setup import build_setup
+        from nkb.service.agent_sources import AgentSourceRegistry
+        from nkb.service.connections import ConnectionStore
+        # Compile the exact official class, excluding module imports that
+        # initialize AstrBot's real data directory and dashboard credentials.
+        path=upstream/'astrbot/core/config/astrbot_config.py'
+        tree=ast.parse(path.read_text(encoding='utf-8'))
+        owner=next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='AstrBotConfig')
+        defaults=ast.parse((upstream/'astrbot/core/config/default.py').read_text(encoding='utf-8'))
+        value_map=ast.literal_eval(next(n.value for n in defaults.body if isinstance(n,ast.Assign)
+                                      and any(isinstance(t,ast.Name) and t.id=='DEFAULT_VALUE_MAP' for t in n.targets)))
+        fragment=ast.Module(body=[ast.ImportFrom(module='__future__',names=[ast.alias(name='annotations')],level=0),owner],type_ignores=[])
+        ast.fix_missing_locations(fragment)
+        with tempfile.TemporaryDirectory(prefix='love-house-official-config-') as folder:
+            root=Path(folder);registry=AgentSourceRegistry(root,ConnectionStore(root))
+            bundle=registry.register('synthetic',{'name':'合成来源','adapter':'astrbot','runtime_agent_id':'synthetic-fish','platforms':['qq']})
+            generated=build_setup(registry,bundle['source']['id'],{'same_machine':True,'platform':'qq','allowed_umos':['synthetic-instance:FriendMessage:TEST']})['astrbot_setup']
+            namespace={'copy':copy,'json':json,'os':os,'asyncio':asyncio,'threading':threading,'tempfile':tempfile,'Path':Path,
+                       'logger':logging.getLogger('lovehouse-official-config-test'),'DEFAULT_CONFIG':{},'DEFAULT_VALUE_MAP':value_map,
+                       'ASTRBOT_CONFIG_PATH':str(root/'unused.json'),'DASHBOARD_RESET_PASSWORD_ENV':'LOVEHOUSE_SYNTHETIC_UNUSED_RESET'}
+            exec(compile(fragment,str(path),'exec'),namespace)
+            config=namespace['AstrBotConfig'](config_path=generated['config_path'],schema=json.loads((PLUGIN/'_conf_schema.json').read_text(encoding='utf-8')))
+            self.assertEqual(dict(config),generated['config'])
+            self.assertEqual(config['bindings'][0]['source_config_path'],bundle['private_path'])
+            main,_=load_main();plugin=main.LoveHousePlugin.__new__(main.LoveHousePlugin)
+            plugin.config=config;plugin._build_routes()
+            self.assertEqual(len(plugin.router.bridges),1);self.assertEqual(plugin._binding_errors,[])
+            self.assertEqual(plugin.router.bridges[0].runtime_agent_id,'synthetic-fish')
+            manager=(upstream/'astrbot/core/star/star_manager.py').read_text(encoding='utf-8')
+            self.assertIn('f"{root_dir_name}_config.json"',manager)
+
     async def test_default_tool_loop_provider_payload_keeps_temporary_material_but_history_does_not(self):
         source=os.environ.get('ASTRBOT_OFFLINE_SOURCE')
         if not source:
-            self.skipTest('Set ASTRBOT_OFFLINE_SOURCE to a pinned v4.29.3 checkout for offline upstream API verification')
+            self.skipTest('Set ASTRBOT_OFFLINE_SOURCE to a pinned v4.29.3 or v4.29.4 checkout for offline upstream API verification')
         upstream=Path(source).resolve()
         # Explicit upstream code only: never import astrbot.__init__, create a
         # provider instance, inspect runtime configuration, or open HTTP sockets.
         import tomllib
-        self.assertEqual(tomllib.loads((upstream/'pyproject.toml').read_text())['project']['version'],'4.29.3')
+        self.assertIn(tomllib.loads((upstream/'pyproject.toml').read_text())['project']['version'],('4.29.3','4.29.4'))
         modules={name:types.ModuleType(name) for name in ('astrbot','astrbot.core','astrbot.core.agent','astrbot.core.provider')}
         modules['astrbot'].logger=types.SimpleNamespace(debug=lambda *a,**k:None)
         with patch.dict(sys.modules,modules):

@@ -557,13 +557,16 @@ def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=F
                     window.show()
                     result['latest_features'],expected=verify_latest_ui(window,runtime)
                     from windows_0102_smoke import verify as verify_0102
-                    result['release_0102']=verify_0102(window,expected['library'])
+                    result['release_0102_environment']={}
+                    result['release_0102']=verify_0102(window,expected['library'],environment=result['release_0102_environment'])
                     if smoke_expected is not None:smoke_expected.update(expected)
                     result.update(ok=True,webview=value,phase='native_checks_passed')
                 except Exception as exc:
                     result.update(failure=smoke_failure(exc),phase='native_checks_failed')
                     from windows_0102_smoke import Release0102Failure
-                    if isinstance(exc,Release0102Failure):result['release_0102_checkpoint']=exc.code
+                    if isinstance(exc,Release0102Failure):
+                        result['release_0102_checkpoint']=exc.code
+                        result['release_0102_environment']=exc.motion_diag
                     from windows_latest_smoke import NativeFeatureFailure
                     if isinstance(exc,NativeFeatureFailure):
                         result['smoke_checkpoint']=exc.code

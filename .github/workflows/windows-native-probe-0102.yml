@@ -1,0 +1,42 @@
+name: Windows 0102 native environment acceptance probe
+on:
+  push:
+    branches: [codex/windows-0102-native-probe]
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Install pinned native inputs
+        run: |
+          python -m pip install -r desktop/requirements-windows.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned native inputs failed' }
+          python -m pip install -e .
+          if ($LASTEXITCODE -ne 0) { throw 'Project installation failed' }
+      - name: Actual native window with isolated synthetic profile and motion diagnostics
+        run: |
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP '0102-owned-localappdata'
+          $env:TEMP = Join-Path $env:RUNNER_TEMP '0102-owned-temp'
+          $env:TMP = $env:TEMP
+          New-Item -ItemType Directory -Force $env:LOCALAPPDATA,$env:TEMP | Out-Null
+          python desktop/windows_app.py --smoke-test --data-dir "$env:RUNNER_TEMP/0102-owned-launch" --report "$env:RUNNER_TEMP/0102-native.json"
+          if ($LASTEXITCODE -ne 0) { throw 'Native acceptance failed; review bounded JSON evidence' }
+      - name: Preserve bounded native proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-0102-native-probe
+          path: ${{ runner.temp }}/0102-native.json
+          if-no-files-found: ignore

@@ -38,8 +38,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 18325,
-      "sha256": "5615e0a778a24fd0f409d7876cedb226edd7b4cfc463365a8b020716ff6caf6e"
+      "bytes": 18904,
+      "sha256": "ad0e67c5e5a8b9c09ae6fd052e879c1be7213457e693b340f8c6ad5356820ffa"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -63,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 16454,
-      "sha256": "d70d631ab183c00d3cc01a7505d1344a588bef23b95a7a4ccb75c1014e731fb2"
+      "bytes": 17165,
+      "sha256": "03bf9f924953dcb749d9bba4266957f961f6cb4e5c8dabf3cd85b3bee582bff2"
     },
     {
       "path": "ROADMAP.md",
@@ -338,8 +338,8 @@
     },
     {
       "path": "desktop/AtlasApp.swift",
-      "bytes": 64289,
-      "sha256": "0eef45107fa3b5d0688168acad48cb8d8511b69690df1209f0fc1da99d61a4dd"
+      "bytes": 66406,
+      "sha256": "dd182cd19a66b6cc0886d7ead15acd38615cabbced4b63f36ca7d91790bb61b7"
     },
     {
       "path": "desktop/Icon.swift",
@@ -413,8 +413,8 @@
     },
     {
       "path": "docs/API.md",
-      "bytes": 18387,
-      "sha256": "c2e28bfa60489e564d0b0352af464e8c3e9d3c6a706eaa97b0a93426ffba913d"
+      "bytes": 19098,
+      "sha256": "9430f3c8acc56b238249bc0b86fc9c6ab05a392aa3fed8af928ac8d37e569d7e"
     },
     {
       "path": "docs/APPROVED-ATLAS-PROVENANCE.json",
@@ -440,6 +440,11 @@
       "path": "docs/MACOS-010-PERSONA.md",
       "bytes": 5038,
       "sha256": "f813f0074d5dc99af7f1b3ac449786ae65cec52ceb458406f4fc0b7a8e261f40"
+    },
+    {
+      "path": "docs/MACOS-0101-INDEPENDENT-MEMORIES.md",
+      "bytes": 3200,
+      "sha256": "ac8f59050e23c0198a7adefd497bec48d43bf8d6310495ee9db6eefa256f6972"
     },
     {
       "path": "docs/MACOS-060-HANDOFF.md",
@@ -507,6 +512,11 @@
       "sha256": "592a5d8f4f4736c17f31167f7861b8cfce4dcc1b0e94d2e4dabcfa00c94d3151"
     },
     {
+      "path": "docs/WINDOWS-0101-HANDOFF.md",
+      "bytes": 2601,
+      "sha256": "77132986f1d242e5d8b1467e0e3a5cc8905ac43c6402500e6c304fb4a918039f"
+    },
+    {
       "path": "docs/WINDOWS-090-HANDOFF.md",
       "bytes": 11869,
       "sha256": "8f36eac8abf0422200782051488afeefc41883827efcb307859f9e076e807ddc"
@@ -529,7 +539,7 @@
     {
       "path": "docs/下载与系统支持.md",
       "bytes": 5919,
-      "sha256": "d84d4439df4a14ac0aa9a19d360a6a58c7228c20763e15d072d3c735787e9203"
+      "sha256": "6aff2e02467fefb0dda1289d7377b357ee12f51c75ddb5ebd45f537bd59539ed"
     },
     {
       "path": "docs/发布与许可.md",
@@ -789,7 +799,7 @@
     {
       "path": "nkb/_version.py",
       "bytes": 23,
-      "sha256": "bf8ce62a3b0a38f65ba7a06b5a8cfb88ae124f4b1d65d521f5b41226696e679a"
+      "sha256": "bfb1b2a7cf6e985cc3b58e39b538c2757a999d0d91374d4089b75837112fc58a"
     },
     {
       "path": "nkb/adapters/__init__.py",
@@ -798,13 +808,13 @@
     },
     {
       "path": "nkb/adapters/http.py",
-      "bytes": 38041,
-      "sha256": "2e9215d951e41f0e65696288de6b3d17abdef6b641261348328a57cbb79b72c7"
+      "bytes": 38508,
+      "sha256": "e5599c5cdeaaf9262901149e0aec51e63c05a3e52c844a814d028b6110f32e67"
     },
     {
       "path": "nkb/adapters/mcp.py",
-      "bytes": 11179,
-      "sha256": "35f7ec17392676e40c3eebae8629044bfb68d52d7f36dc0c5520e67ca7628c31"
+      "bytes": 11609,
+      "sha256": "859a1d54db68506b4615483d55ad48d66acdaca02659b819b8655959ae3f7aa5"
     },
     {
       "path": "nkb/bench.py",
@@ -823,8 +833,8 @@
     },
     {
       "path": "nkb/cli/main.py",
-      "bytes": 20526,
-      "sha256": "17678fcaf1fdf947745da6d16ba40f60081d22abe5bc0c8dc75cd18743a8ab86"
+      "bytes": 20983,
+      "sha256": "360cf03917239a377a2cd56f0de33c4eb43cb722246491e891bc35ca98a0038f"
     },
     {
       "path": "nkb/companion/RECORDING_DEDUP.md",
@@ -863,8 +873,8 @@
     },
     {
       "path": "nkb/companion/memory.py",
-      "bytes": 23869,
-      "sha256": "d292397c913425f408a03a336ec3e1153fa9f743f3498187dad1b083a080db80"
+      "bytes": 23837,
+      "sha256": "723fec7ff2c92b7d9b6ff77d21961b66bf8636b7433253eaa4193675823631d0"
     },
     {
       "path": "nkb/companion/persona.py",
@@ -898,8 +908,8 @@
     },
     {
       "path": "nkb/core/brain.py",
-      "bytes": 57474,
-      "sha256": "ca657571771cfd8279e87641d71a22a76da4617601c348dd0acbe4d27f931104"
+      "bytes": 58706,
+      "sha256": "8467c786f3acddbe0d1790cd6ed73f6b195ad02216725cc496bb849d7907e535"
     },
     {
       "path": "nkb/core/lifecycle.py",
@@ -933,8 +943,8 @@
     },
     {
       "path": "nkb/ingest/markdown.py",
-      "bytes": 3261,
-      "sha256": "ddbbbbc30fd40b6f6e6001112db3b21daf430b21641bd0313b4acea5bb11696e"
+      "bytes": 3554,
+      "sha256": "a5258c248f4b04b9123d26430be81319af6578c0145db2553b5643b61a3b05f7"
     },
     {
       "path": "nkb/ingest/notes.py",
@@ -973,8 +983,8 @@
     },
     {
       "path": "nkb/organizer/engine.py",
-      "bytes": 43696,
-      "sha256": "e6ef5ac4bbcf3599c00713a20deb3cad2a5c062fe6ead550dd2061cc3526117a"
+      "bytes": 43919,
+      "sha256": "78562e7d2e55ce7e190b34becce0a3ac2afe8bd85d69635ed0a5b08e37608465"
     },
     {
       "path": "nkb/organizer/experiences.py",
@@ -988,13 +998,13 @@
     },
     {
       "path": "nkb/organizer/rules.py",
-      "bytes": 16013,
-      "sha256": "0062c62ab65684eef8ce80548d4b6bc11b026b1464014f82b9a492a1f8a43360"
+      "bytes": 16378,
+      "sha256": "fc35cd3c174132b23c03931fe241b99a5de31b789ca85e2cdbdd06b7a51536a2"
     },
     {
       "path": "nkb/organizer/state.py",
-      "bytes": 56020,
-      "sha256": "8a3e5187125ae8b5b8519f49b9a80a34d08f09ea371cab118e851ed5ecc4b1f7"
+      "bytes": 57531,
+      "sha256": "fbab41e4c9bc1934f262887c06e9a36fd728bece9d6b3b17b363ebaa743a0a0b"
     },
     {
       "path": "nkb/py.typed",
@@ -1369,7 +1379,7 @@
     {
       "path": "scripts/build_macos.py",
       "bytes": 36774,
-      "sha256": "bf41d9aa8b4df9b12e3871de0da95a3357e66ddc306884abea23226f77f3e2e2"
+      "sha256": "b761e5e7fabc7528c7dba2da3ee5bfd053796a26bc4fba55fabb1896cb03447b"
     },
     {
       "path": "scripts/build_windows.py",
@@ -1593,8 +1603,8 @@
     },
     {
       "path": "tests/test_core.py",
-      "bytes": 10021,
-      "sha256": "24bc27a56bc8b94a46529cb2c2ecaa96870d55230df21d2c8e1642d83ab693d3"
+      "bytes": 10181,
+      "sha256": "5801cdf860f2462d0438e34754d55afb551b66e0bbcc433093d08b008eff5d6f"
     },
     {
       "path": "tests/test_credentials_windows.py",
@@ -1648,8 +1658,13 @@
     },
     {
       "path": "tests/test_http.py",
-      "bytes": 13662,
-      "sha256": "f0f758c05bbceee3b09c6ec587003d8fc726116dd38a516311bd7986ec535d76"
+      "bytes": 16075,
+      "sha256": "1fc4984046eaf30dea96e5366640de41d3d57aeaadea2d6459904ba95baac3cf"
+    },
+    {
+      "path": "tests/test_independent_memory_links.py",
+      "bytes": 17693,
+      "sha256": "4c1b06ce8c1f38e0806d54173105a1891d42a49732f2e525cada541876334e74"
     },
     {
       "path": "tests/test_libraries.py",
@@ -1728,8 +1743,8 @@
     },
     {
       "path": "tests/test_organizer_atom_fallback.py",
-      "bytes": 10678,
-      "sha256": "1f5ac022967790ba0815f3b74b9f44423af51da4e83af3543b92df16a5b44e9d"
+      "bytes": 11253,
+      "sha256": "c5fa52e4694dfe60e08ae5a5103e1b71fe70bd1a37fd856d4c55c1d22f17b448"
     },
     {
       "path": "tests/test_organizer_configuration_repair.py",

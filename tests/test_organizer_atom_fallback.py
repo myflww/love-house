@@ -111,6 +111,14 @@ class OrganizerAtomFallbackTests(unittest.TestCase):
                 before = deepcopy(self.brain.nodes[target]); edges = deepcopy(self.brain.edges)
                 plan, result = self.apply([nid], [self.op(nid, action=action, target_id=target,
                     related_ids=[target], text='应当抛弃的覆盖摘要')], target=target, job='fallback-'+action)
+                if action=='relate':
+                    # Automatic relation proposals are now discarded before
+                    # optional machine extraction; no candidate may revive it.
+                    self.assertEqual(plan['operations'],[])
+                    self.assertEqual(result['created'],[]);self.assertEqual(result['candidates'],[])
+                    self.assertEqual(result['relations']['skipped_operations'],1)
+                    self.assertEqual(self.brain.nodes[target],before);self.assertEqual(self.brain.edges,edges)
+                    continue
                 op = plan['operations'][0]
                 self.assertEqual(op['action'], 'candidate'); self.assertNotIn('target_id', op)
                 self.assertEqual(op['related_ids'], [])

@@ -13,7 +13,7 @@ from ..errors import ValidationError
 from .config import get_profile
 from .model import (OrganizerConflict, OrganizerError, call_model, failure_message,
                     resolve_model, transport as default_transport)
-from .state import build_input, validate_plan, raw_node, disabled, archive_roles, RAW_SOURCES, _roles, _persona_roles, persona_result_view
+from .state import build_input, validate_plan, raw_node, disabled, archive_roles, RAW_SOURCES, _roles, _persona_roles, persona_result_view, relation_result_view
 
 
 class Organizer:
@@ -453,6 +453,8 @@ class Organizer:
                 except (TypeError,ValueError):result={}
                 persona_result=persona_result_view(result.get('persona')) if isinstance(result,dict) else None
                 if persona_result is not None:job['persona_result']=persona_result
+                relation_result=relation_result_view(result.get('relations')) if isinstance(result,dict) else None
+                if relation_result is not None:job['relation_result']=relation_result
             used = self._budget(db,library_id)
         return {"library_id":library_id,"counts":counts,"jobs":jobs,"usage_24h":used,"trigger":trigger}
 

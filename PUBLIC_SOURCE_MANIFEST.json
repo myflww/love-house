@@ -63,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 14864,
-      "sha256": "fa49430fb863142dc5f09c9307c1a21e92d6f885f7810371c371c28c38a7962a"
+      "bytes": 16493,
+      "sha256": "9467ba28b92845ed1135ee2845634fea4852866f788f62c517c078b967ab0d45"
     },
     {
       "path": "ROADMAP.md",
@@ -247,6 +247,16 @@
       "sha256": "fb098bfb75532f101f31a38e9a093e31c43c50bf1d83f4def3c463a8749f5c61"
     },
     {
+      "path": "assets/screenshots/neural-flat-010.png",
+      "bytes": 54500,
+      "sha256": "c57fe84ee9c26f28b59bcc213b2cf16510b58c88a09a0286e920cc4308b3441b"
+    },
+    {
+      "path": "assets/screenshots/neural-nebula-010.png",
+      "bytes": 79644,
+      "sha256": "1ebf671bfe7f3c7aadeed4763709a68f4bd4b24fd6b467623c823ae1b108a48c"
+    },
+    {
       "path": "assets/screenshots/neural-nebula.png",
       "bytes": 54854,
       "sha256": "257865d99939bfebc727a4edffcd4276572585a91cd1a9b41c19d3063604fa33"
@@ -407,14 +417,29 @@
       "sha256": "c2e28bfa60489e564d0b0352af464e8c3e9d3c6a706eaa97b0a93426ffba913d"
     },
     {
+      "path": "docs/APPROVED-ATLAS-PROVENANCE.json",
+      "bytes": 5459,
+      "sha256": "db00ad26d330d008fe3c485c47afe13e5b5f8f14fe996143a8995af0463184ef"
+    },
+    {
       "path": "docs/DeepSeek与Harness接入.md",
       "bytes": 4290,
       "sha256": "43b22087da77377b42731c5e3aa19150b5a6dadfa5da0bf6616cdb414ad48cd9"
     },
     {
+      "path": "docs/MACOS-010-PERSONA.md",
+      "bytes": 5038,
+      "sha256": "f813f0074d5dc99af7f1b3ac449786ae65cec52ceb458406f4fc0b7a8e261f40"
+    },
+    {
       "path": "docs/MACOS-080RC2-WORKBUDDY-HANDOFF.md",
       "bytes": 5529,
       "sha256": "f5cb6fd68136d358a6b14010d7fcb7e00f39a7abaa5ceae7b9586eb65a747ff7"
+    },
+    {
+      "path": "docs/NEURAL-ATLAS-010.md",
+      "bytes": 4806,
+      "sha256": "b77a0137e7dda3d3a56e12a32a080944eb1e777cef5fb89ba64c7e713f114e6e"
     },
     {
       "path": "docs/RELEASE-080RC2.md",
@@ -425,6 +450,11 @@
       "path": "docs/ReleaseNotes-0.9.1rc1-Windows.md",
       "bytes": 2204,
       "sha256": "1b1c752540346e7e571cfce3e535eb83209d4b17509b02ca10638a0c91eafc82"
+    },
+    {
+      "path": "docs/WINDOWS-010-HANDOFF.md",
+      "bytes": 5584,
+      "sha256": "592a5d8f4f4736c17f31167f7861b8cfce4dcc1b0e94d2e4dabcfa00c94d3151"
     },
     {
       "path": "docs/WINDOWS-091-FIXES.md",
@@ -438,8 +468,8 @@
     },
     {
       "path": "docs/下载与系统支持.md",
-      "bytes": 6067,
-      "sha256": "ece73e07d190189efa3645ce1885bd61409b43c68b35dbab24e31a56603d8454"
+      "bytes": 7669,
+      "sha256": "87716d6324d4b2757aa5148bb5300b4806e30e586dc2e713a13e8e3b6fb9b4e1"
     },
     {
       "path": "docs/发布与许可.md",

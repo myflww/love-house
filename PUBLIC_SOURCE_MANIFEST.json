@@ -128,8 +128,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 19904,
-      "sha256": "60f738576192518e6c76504d617782079ebb03b113172062f63df8c950e74be9"
+      "bytes": 20538,
+      "sha256": "ddc26d15bf11314543acead8e9122d74e5ddb06d10f5077be812218f4984f348"
     },
     {
       "path": "ROADMAP.md",
@@ -713,8 +713,8 @@
     },
     {
       "path": "docs/MACOS-0102-HANDOFF.md",
-      "bytes": 4946,
-      "sha256": "b6f5a6338b500f87fd77a2b336e8d8e07a4775f1afa477ea5e7b46df8a668d7d"
+      "bytes": 6204,
+      "sha256": "9f053bd53e1cddeeab43cb371e5f15e91dc09fa6f9c72375bf308b2c284db4d8"
     },
     {
       "path": "docs/MACOS-060-HANDOFF.md",
@@ -2038,8 +2038,8 @@
     },
     {
       "path": "scripts/windows-0102-publication.json",
-      "bytes": 75,
-      "sha256": "9a72b3e44d54d2d90bf06505a5ec27a0252726ac57a5aed6a8b76f7c481dd706"
+      "bytes": 1847,
+      "sha256": "30547d2281f264cd50b0b298b08d7d6e23a99e44785f78a760e37add4054f65c"
     },
     {
       "path": "scripts/windows-091-publication.json",

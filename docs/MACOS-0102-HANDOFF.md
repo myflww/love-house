@@ -16,6 +16,10 @@ Windows 0.10.2rc1 以已发布的 Windows 0.10.1rc1 为基线，新增三项共�
 
 同步 `metadata.yaml`、包生成器、插件自报版本和 Mac 原生“导出插件”的默认文件名到 `LoveHouse-AstrBot-0.3.0-experimental.zip`。保持 `source_client.py` 与共享 SDK 字节一致及确定性 ZIP 白名单。不要提交配置、journal 或用户聊天数据库。
 
+同时核对 `scripts/build_macos.py` 的插件包资源输出，以及 `desktop/AtlasApp.swift` 的 Bundle 资源查找、保存面板默认文件名和读取路径；不能只改面板显示的版本而仍读取旧资源。目标分支中若有 0.1.0／0.2.0 的旧字样，应将这几个环节一起对齐到 0.3.0。
+
+生成的插件 JSON 字段为 `enabled:true`、`record_scheduled_outputs:false`、`record_observations:true`，以及 `bindings` 数组；每条绑定包含 `runtime_agent_id`、`source_config_path`、`allowed_umos`、`platform`。来源 token 不进入这份插件 JSON，而留在受权限保护的私有来源文件中。
+
 ## 2. 当前库整理 API 状态
 
 主要文件：`nkb/service/host.py` 的 `organizer_view`，`nkb/viz/web/memory-organizer-ui.js`，`tests/test_organizer_configuration_status.py`、`tests/js/organizer-configuration-ui.test.cjs`。
@@ -37,6 +41,17 @@ Windows 0.10.2rc1 以已发布的 Windows 0.10.1rc1 为基线，新增三项共�
 ## Mac 验证与交付
 
 运行 Python 项目回归及 `desktop` 适配回归；使用现有 Node 测试入口运行 JS 回归，`nkb/viz/art` 下 `npm ci`、`npm run build` 重建 bundle。新增配置状态及 AstrBot 测试必须保留旧来源鉴权、库隔离、失败降级与不泄露凭证的断言。
+
+可先在目标源码与开发虚拟环境执行：
+
+```sh
+python3 -m unittest discover -s tests -v
+(cd nkb/viz/art && npm ci && npm run build)
+node --test tests/js/*.test.cjs tests/js/*.test.mjs
+python3 extensions/astrbot-love-house/package.py --check
+```
+
+官方 AstrBot 离线契约测试需要将 `ASTRBOT_OFFLINE_SOURCE` 指向固定版本的官方源码，并准备对应测试依赖。未提供源码时的跳过不能算成兼容性通过；Windows 本轮对 4.29.3 和 4.29.4 分别验证了真实配置读取与临时模型消息契约，不能据此宣称真实 QQ 或其他宿主版本已测。
 
 在实际 Mac 原生窗口验证：向导生成的 JSON 能对齐 Mac 私有文件与唯一 UMO；状态在换库、保存失败、Keychain 锁定及重启后正确；星云缓慢左转、整画布悬停暂停、拖拽和平面切换自然，节点数据不变。真实 AstrBot 用测试机器人和测试会话完成重载、对话入库、召回、断线恢复；合成测试不能宣称真实 QQ 已验证。
 

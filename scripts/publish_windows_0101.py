@@ -65,7 +65,7 @@ UPGRADE_EXPECTED={
     'management_isolation':'passed','durable_attempts_and_budget':'passed','synthetic_ledger_fixture':True,
 }
 
-NATIVE_EXPORT_CHECKS={'json_original_roles','markdown','cancel','write_error','organizer_independent_preview','foreign_origin','astrbot_zip'}
+NATIVE_EXPORT_CHECKS={'json_original_roles','markdown','cancel','write_error','organizer_independent_preview','foreign_origin','astrbot_zip','optional_provider_rejected_and_pending'}
 ORGANIZER_REPORT={'status':'passed','transport':'loopback-http','fake_api_calls':1,
     'source_evidence_preserved':True,'session_only_credential':True,'real_model_calls':0,
     'real_credentials_accessed':False,'cleanup':'removed'}

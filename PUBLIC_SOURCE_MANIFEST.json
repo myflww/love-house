@@ -63,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 13055,
-      "sha256": "2244ad8b18ab33fa01c60a40460152b9bcc1ac4794dd77836e89f4f94007e7df"
+      "bytes": 14125,
+      "sha256": "c1e33d9d7ef1536c3841287d9806d67088172f150c941d9bc34e4db5032fe1fb"
     },
     {
       "path": "ROADMAP.md",
@@ -412,9 +412,34 @@
       "sha256": "43b22087da77377b42731c5e3aa19150b5a6dadfa5da0bf6616cdb414ad48cd9"
     },
     {
+      "path": "docs/MACOS-080RC2-WORKBUDDY-HANDOFF.md",
+      "bytes": 5529,
+      "sha256": "f5cb6fd68136d358a6b14010d7fcb7e00f39a7abaa5ceae7b9586eb65a747ff7"
+    },
+    {
+      "path": "docs/RELEASE-080RC2.md",
+      "bytes": 3908,
+      "sha256": "f4220e86d09b404bfbafcf2b9e8374a881d21171572c3580e97d28459d06963b"
+    },
+    {
+      "path": "docs/ReleaseNotes-0.9.1rc1-Windows.md",
+      "bytes": 2204,
+      "sha256": "1b1c752540346e7e571cfce3e535eb83209d4b17509b02ca10638a0c91eafc82"
+    },
+    {
+      "path": "docs/WINDOWS-091-FIXES.md",
+      "bytes": 5314,
+      "sha256": "3f341e427413cb4dce1a8209d5fbcaa2e5d9cc8f24c57c5193a2e4923fc4e9ff"
+    },
+    {
+      "path": "docs/WORKBUDDY-CONNECTION.md",
+      "bytes": 3369,
+      "sha256": "bc1438dd6aa97aea6c999275bc12c5aeba28017000e3f483a374a3e0b16d8e4b"
+    },
+    {
       "path": "docs/下载与系统支持.md",
-      "bytes": 6458,
-      "sha256": "db0443c3233e98e14a0346437ec5442e0e816165f3a4f8a93e9ea8a1d73f88b1"
+      "bytes": 5850,
+      "sha256": "81c510814e735374f35bf211efe27154f8f5163812539c89920b20edb99480b9"
     },
     {
       "path": "docs/发布与许可.md",
@@ -443,8 +468,8 @@
     },
     {
       "path": "docs/手机版安装与使用.md",
-      "bytes": 4775,
-      "sha256": "526a00e1f39ff300e7f1e313956efae0a9cdf5175cea1679af11a6008fc6bc92"
+      "bytes": 5503,
+      "sha256": "3386c2b76f5f365475496c4c2ee2934ca0108f7276c9a6bd12014bfc706440ac"
     },
     {
       "path": "docs/架构.md",

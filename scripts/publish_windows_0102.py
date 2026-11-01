@@ -65,6 +65,7 @@ UPGRADE_EXPECTED={
     'connections':'passed','credential_metadata':'passed','explicit_opt_out':'passed','restart':'passed',
     'source_library_contents':'passed','old_private_connection_file':'passed','recycle_bin':'passed',
     'management_isolation':'passed','durable_attempts_and_budget':'passed','synthetic_ledger_fixture':True,
+    'organizer_schema_upgrade':'existing_schema_preserved',
 }
 
 NATIVE_EXPORT_CHECKS={'json_original_roles','markdown','cancel','write_error','organizer_independent_preview','foreign_origin','astrbot_zip','optional_provider_rejected_and_pending'}

@@ -23,6 +23,15 @@ runtime_fetcher=load('love_house_runtime_fetcher','scripts/fetch_windows_runtime
 
 
 class WindowsPackagingTests(unittest.TestCase):
+    def test_native_motion_diagnostics_never_publish_arbitrary_error_or_private_values(self):
+        import windows_0102_smoke as release
+        error=release.Release0102Failure('PRIVATE synthetic response',{
+            'system_reduced_motion':True,'document_hidden':'false',
+            'auto_rotate_reason':'PRIVATE synthetic response','test_motion_preference':'reduce',
+            'token':'FAKE private token','path':'PRIVATE synthetic profile'})
+        self.assertEqual(error.code,'release_0102_response')
+        self.assertEqual(error.motion_diag,{'system_reduced_motion':True,'test_motion_preference':'reduce'})
+
     def test_gui_and_console_are_distinct_bundles_with_only_safe_assets(self):
         command=builder.freeze_command('LoveHouse',ROOT/'desktop/windows_app.py',Path('out'),Path('build'),Path('icon.ico'),console=False)
         self.assertIn('--windowed',command);self.assertNotIn('--console',command)

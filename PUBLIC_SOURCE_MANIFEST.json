@@ -1968,8 +1968,8 @@
     },
     {
       "path": "scripts/publish_windows_0102.py",
-      "bytes": 23544,
-      "sha256": "b3d679aff8348abe4108b0f725ffc70b54e5abf9918da6b823ec6a9aa05a6f93"
+      "bytes": 23604,
+      "sha256": "c6022b8c539a300f65cbd5280a116699a268fc9d5d743ed8e33000afd7179487"
     },
     {
       "path": "scripts/publish_windows_091.py",
@@ -2048,8 +2048,8 @@
     },
     {
       "path": "scripts/windows_upgrade_smoke.py",
-      "bytes": 28192,
-      "sha256": "74d1ae3a5b9da7e26c66034025830ed838c21f78c1e43aa29f081480700fe8e7"
+      "bytes": 29841,
+      "sha256": "7ebd5dac489e6593b35ae7e137920b542a7c9165702dcc06b5263c0bd9b0e2db"
     },
     {
       "path": "scripts/workbuddy-080rc2-publication.json",
@@ -2623,8 +2623,8 @@
     },
     {
       "path": "tests/test_windows_packaging.py",
-      "bytes": 40877,
-      "sha256": "78ba986efd36cd11f0b251b905b929af1e4573fdc6f45636cd340b8206a8c413"
+      "bytes": 41502,
+      "sha256": "e71e106be330b0070c15c0bb2c2255ba02cd5c7ae35bd71c916e067e4efb11b9"
     },
     {
       "path": "tests/test_windows_prerequisites.py",
@@ -2638,8 +2638,8 @@
     },
     {
       "path": "tests/test_windows_upgrade_smoke.py",
-      "bytes": 11504,
-      "sha256": "6342969fb3728ebb0c1193969b0fb819b7383d0fb7cb875e482085121d844823"
+      "bytes": 16030,
+      "sha256": "73a3fce6b8f7a57ee14b2de5378ec049df52534fbc507995949475ca5be51670"
     },
     {
       "path": "tests/test_workbuddy_connection_state.py",

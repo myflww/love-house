@@ -68,8 +68,8 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "bytes": 30912,
-      "sha256": "c22fbfbda7d58bcd0e2760de02c3a77241340d8989c2b1334477303c407cf915"
+      "bytes": 30964,
+      "sha256": "e8e126d9627762c1324262dc18285c86b8cf2ee77b6ae6940083e4a0b52b3af6"
     },
     {
       "path": ".github/workflows/verify-public-windows-mobile-preview.yml",
@@ -2578,8 +2578,8 @@
     },
     {
       "path": "tests/test_windows_upgrade_smoke.py",
-      "bytes": 9809,
-      "sha256": "aba151604f22cb18310caebba8da6a68ffd8ad9b486ac2c8f383454ad99a61cd"
+      "bytes": 9927,
+      "sha256": "87ccf8d605426c0fbb30e87eb338df5e341869265f94eaac475409017702448d"
     },
     {
       "path": "tests/test_workbuddy_connection_state.py",

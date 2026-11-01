@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -102,7 +103,8 @@ class UpgradeSmokeTests(unittest.TestCase):
             destination.mkdir(parents=True,exist_ok=True)
             (destination/'LoveHouse.exe').write_bytes(b'SYNTHETIC process substituted by Controller')
         with patch.object(smoke,'App',SourceApp),patch.object(smoke,'install',side_effect=install),\
-             patch.object(smoke,'digest',side_effect=digest),patch.object(smoke.sys,'platform','win32'),\
+             patch.object(smoke,'digest',side_effect=digest),\
+             patch.object(smoke,'sys',SimpleNamespace(platform='win32',version_info=sys.version_info,exc_info=sys.exc_info)),\
              patch.dict(os.environ,{'GITHUB_ACTIONS':'true','LOVE_HOUSE_DISPOSABLE_UPGRADE_RUNNER':'github-hosted'}),\
              patch('nkb.service.credentials.KeyStore',return_value=store):
             result=smoke.run(old,new)

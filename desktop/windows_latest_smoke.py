@@ -18,6 +18,10 @@ GRAPH_CHECKS=('graph_renderer','graph_empty','graph_sparse','graph_default_edges
     'graph_detail','graph_minimap_on','graph_minimap_off','graph_pause_on','graph_pause_off','graph_canvas',
     'graph_http_edges','graph_recall')
 GRAPH_WAITS=('empty','sparse-1','sparse-2','sparse-3','automatic-viewport','flat','nebula','restore-auto')
+GRAPH_STAGES=(*GRAPH_WAITS,'appearance','theme','theme-restore','manual','labels','detail','minimap','pause','canvas','recall')
+SAFE_STAGES=frozenset(('persona_stage_start','graph_stage_start',*(('graph_stage_'+stage) for stage in GRAPH_STAGES)))
+SAFE_ERROR_NAMES=frozenset(('Error','TypeError','ReferenceError','RangeError','SyntaxError','AbortError',
+    'NotSupportedError','InvalidStateError','SecurityError','OtherError'))
 SAFE_CODES=frozenset((*GRAPH_CHECKS,*(('graph_wait_'+stage) for stage in GRAPH_WAITS),
     *(('persona_'+check) for check in PERSONA_CHECKS),'persona_paid_requests','persona_library',
     'persona_evaluation','graph_evaluation','persona_response','graph_response',
@@ -26,8 +30,16 @@ SAFE_CODES=frozenset((*GRAPH_CHECKS,*(('graph_wait_'+stage) for stage in GRAPH_W
 
 class NativeFeatureFailure(AssertionError):
     """Only a fixed smoke-control code may appear in the public report."""
-    def __init__(self,code):
+    def __init__(self,code,diagnostic=None):
         self.code=code if isinstance(code,str) and code in SAFE_CODES else 'graph_response'
+        self.diagnostic={}
+        if isinstance(diagnostic,dict):
+            for name,allowed in (('stage',SAFE_STAGES),('error_name',SAFE_ERROR_NAMES)):
+                value=diagnostic.get(name)
+                if isinstance(value,str) and value in allowed:self.diagnostic[name]=value
+            for name in ('line','column'):
+                value=diagnostic.get(name)
+                if type(value) is int and 0<value<=1000000:self.diagnostic[name]=value
         super().__init__(self.code)
 
 PERSONA_SCRIPT = r"""
@@ -99,6 +111,8 @@ try {
 GRAPH_SCRIPT = r"""
 const check=(ok,message)=>{if(!ok)throw Error(message);};
 let stage='empty';
+const setStage=value=>{stage=value;smokeDiagnostic.stage='graph_stage_'+value;};
+setStage('empty');
 const graphDeadline=performance.now()+75000;
 const wait=async(predicate)=>{const end=Math.min(performance.now()+30000,graphDeadline);while(!predicate()){if(performance.now()>end)throw Error('graph_wait_'+stage);await new Promise(r=>setTimeout(r,30));}};
 const paint=async()=>{schedule();await new Promise(r=>setTimeout(r,80));await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));};
@@ -113,7 +127,7 @@ try{
   check(Number(c.dataset.viewCount)===0,'graph_empty');
   const counts=[0];
   for(const text of texts){
-    stage='sparse-'+counts.length;
+    setStage('sparse-'+counts.length);
     await api('add',{label:text,text,kind:'fact'});
     // A library switch intentionally resets its visible-kind filters. A plain
     // preserving refresh of a previously empty graph keeps the empty filter.
@@ -122,7 +136,7 @@ try{
     counts.push(S.nodes.length);
     check(S.edges.length===0,'graph_default_edges');
   }
-  stage='automatic-viewport';
+  setStage('automatic-viewport');
   await wait(()=>S.sim===0&&S.view.mode==='auto'&&!!S.view.target&&Math.abs(Math.log(S.cam.k/S.view.target.k))<.01);
   await paint();
   check(counts.join(',')==='0,1,2,3','graph_sparse');
@@ -130,48 +144,58 @@ try{
   check(Number(artist.dataset.fiberEdges)===S.edges.length,'graph_fibers');
   check(!document.querySelector('#approvedAtlasModes,#nebula-mode,#flat-mode'),'graph_controls');
   const canonical=JSON.stringify(S.nodes.map(n=>[n.id,n.x,n.y,n.recalls]));
+  setStage('appearance');
   const uiAppearance=()=>JSON.stringify({tokens:['--bg','--paper','--panel','--soft','--line','--ink','--muted','--accent','--accent-soft','--gold','--danger','--shadow'].map(k=>getComputedStyle(document.documentElement).getPropertyValue(k)),elements:['header','#settings','#addBtn','#themeBtn','#tooltip','#aiPanel','#q','#personaText','#personaEnabled','#newLibraryDialog'].map(selector=>{const e=document.querySelector(selector);check(!!e,'graph_appearance_target');return ['', '::before','::after',...(selector==='#newLibraryDialog'?['::backdrop']:[])].map(pseudo=>{const s=getComputedStyle(e,pseudo||null);return [s.backgroundColor,s.color,s.borderColor,s.backgroundImage,s.filter,s.fontFamily,s.boxShadow,s.accentColor,s.colorScheme];});})});
   const appearance=uiAppearance(),theme=document.documentElement.dataset.theme;
+  setStage('theme');
   document.getElementById('themeBtn').click();await paint();
   check(document.documentElement.dataset.theme!==theme&&uiAppearance()===appearance,'graph_theme_ui');
+  setStage('theme-restore');
   document.getElementById('themeBtn').click();await paint();
   check(document.documentElement.dataset.theme===theme&&uiAppearance()===appearance,'graph_theme_reverse');
   document.getElementById('viewBtn').click();
-  stage='flat';
+  setStage('flat');
   await wait(()=>S.graphMode==='flat'&&!artRenderer.isTransitioning());await paint();
   check(c.dataset.graphMode==='flat'&&Number(c.dataset.viewCount)===3,'graph_flat');
   document.getElementById('viewBtn').click();
-  stage='nebula';
-  await wait(()=>S.graphMode==='nebula'&&!artRenderer.isTransitioning()&&Math.abs(Math.log(S.cam.k/S.view.target.k))<.01);await paint();
+  setStage('nebula');
+  await wait(()=>S.graphMode==='nebula'&&!artRenderer.isTransitioning()&&!!S.view.target&&Math.abs(Math.log(S.cam.k/S.view.target.k))<.01);await paint();
   check(c.dataset.graphMode==='nebula'&&Number(c.dataset.viewCount)===3,'graph_nebula');
   check(canonical===JSON.stringify(S.nodes.map(n=>[n.id,n.x,n.y,n.recalls])),'graph_canonical');
+  setStage('manual');
   document.getElementById('zoomIn').click();await paint();
   const manual={x:S.cam.x,y:S.cam.y,k:S.cam.k};
   await reload();await paint();
   check(c.dataset.viewMode==='manual'&&Math.abs(S.cam.k-manual.k)<.000001&&Math.abs(S.cam.x-manual.x)<.000001&&Math.abs(S.cam.y-manual.y)<.000001,'graph_manual');
+  setStage('labels');
   check(c.dataset.labelMode==='focus','graph_labels_default');
   document.getElementById('labelToggle').click();await wait(()=>c.dataset.labelMode==='auto');await paint();
   check(c.dataset.labelMode==='auto','graph_labels_on');
   document.getElementById('labelToggle').click();await wait(()=>c.dataset.labelMode==='focus');await paint();
   check(c.dataset.labelMode==='focus','graph_labels_off');
   document.getElementById('fitBtn').click();await paint();
-  stage='restore-auto';
+  setStage('restore-auto');
   await wait(()=>S.view.mode==='auto'&&!!S.view.target);
   const first=S.nodes.find(n=>n.text===texts[0]);
   check(!!first,'graph_original');
+  setStage('detail');
   select(first.id);await paint();
   check(S.selected===first.id&&!document.getElementById('inspector').hidden&&document.getElementById('detail').textContent.includes('火山'),'graph_detail');
+  setStage('minimap');
   document.getElementById('minimapBtn').click();await paint();
   check(!document.getElementById('miniPanel').hidden&&document.getElementById('minimap').width>0,'graph_minimap_on');
   document.getElementById('minimapBtn').click();await paint();
   check(document.getElementById('miniPanel').hidden,'graph_minimap_off');
+  setStage('pause');
   const paused=S.paused;
   document.getElementById('pauseBtn').click();await paint();
   check(S.paused!==paused&&document.getElementById('pauseBtn').getAttribute('aria-pressed')===String(S.paused),'graph_pause_on');
   document.getElementById('pauseBtn').click();await paint();check(S.paused===paused,'graph_pause_off');
+  setStage('canvas');
   check(Number.isFinite(S.dpr)&&S.dpr>0&&c.width>0&&c.height>0,'graph_canvas');
   const graphBefore=await api('graph');
   check(graphBefore.nodes.length===3&&graphBefore.edges.length===0,'graph_http_edges');
+  setStage('recall');
   const recall=await api('recall',{query:texts.join(' '),k:3,learn:true});
   const graphAfter=await api('graph');
   check(recall.hits.length===3&&recall.reinforced.pairs===0&&graphAfter.edges.length===0,'graph_recall');
@@ -189,8 +213,10 @@ def evaluate(window, script, *, name='graph', timeout=90):
     # JS exception text can contain API responses. Keep only exact, reviewed
     # control names; no arbitrary error text crosses into a smoke report.
     allowed=json.dumps(sorted(SAFE_CODES))
+    allowed_stages=json.dumps(sorted(SAFE_STAGES))
+    allowed_names=json.dumps(sorted(SAFE_ERROR_NAMES))
     fallback=json.dumps(name+'_script_error')
-    wrapped="(async()=>{try{return {ok:true,value:await(async()=>{"+script+"})()};}catch(e){const allowed="+allowed+";return {ok:false,code:allowed.includes(e.message)?e.message:"+fallback+"};}})()"
+    wrapped="(async()=>{const smokeDiagnostic={stage:"+json.dumps(name+'_stage_start')+"};try{return {ok:true,value:await(async()=>{"+script+"})()};}catch(e){const allowed="+allowed+",stages="+allowed_stages+",names="+allowed_names+";const match=String(e.stack||'').match(/<anonymous>:(\\d+):(\\d+)/);return {ok:false,code:allowed.includes(e.message)?e.message:"+fallback+",stage:stages.includes(smokeDiagnostic.stage)?smokeDiagnostic.stage:"+json.dumps(name+'_stage_start')+",error_name:names.includes(e.name)?e.name:'OtherError',line:match?Number(match[1]):null,column:match?Number(match[2]):null};}})()"
     try:window.evaluate_js(wrapped,received)
     except Exception:raise NativeFeatureFailure(name+'_evaluation') from None
     if not ready.wait(timeout):raise NativeFeatureFailure(name+'_evaluation')
@@ -198,7 +224,7 @@ def evaluate(window, script, *, name='graph', timeout=90):
     if not isinstance(result,dict):raise NativeFeatureFailure(name+'_response')
     if result.get('ok') is not True:
         code=result.get('code')
-        raise NativeFeatureFailure(code if isinstance(code,str) and code in SAFE_CODES else name+'_response')
+        raise NativeFeatureFailure(code if isinstance(code,str) and code in SAFE_CODES else name+'_response',result)
     return result['value']
 
 

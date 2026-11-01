@@ -561,7 +561,9 @@ def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=F
                 except Exception as exc:
                     result.update(failure=smoke_failure(exc),phase='native_checks_failed')
                     from windows_latest_smoke import NativeFeatureFailure
-                    if isinstance(exc,NativeFeatureFailure):result['smoke_checkpoint']=exc.code
+                    if isinstance(exc,NativeFeatureFailure):
+                        result['smoke_checkpoint']=exc.code
+                        if exc.diagnostic:result['smoke_diagnostic']=exc.diagnostic
                 finally:native_checks_finished.set();window.destroy()
             window.events.loaded+=verify
             threading.Thread(target=native_deadline,daemon=True).start()

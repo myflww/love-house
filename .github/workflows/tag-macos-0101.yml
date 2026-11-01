@@ -1,0 +1,51 @@
+name: Create verified macOS 0.10.1 source tag
+on:
+  push:
+    branches: [codex/tag-macos-0101]
+permissions:
+  contents: write
+jobs:
+  create-source-tag:
+    if: github.repository == 'myflww/love-house' && github.actor == 'myflww'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Create only the absent fixed verified source tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import os, json, urllib.request, urllib.error, base64, ast
+          base='https://api.github.com/repos/myflww/love-house/git/'
+          target='b2279da12c3b14d4708595343433849f3f8f2911'
+          expected_tree='9c1c469e88700d40d022be0d0b19f92c404d32d8'
+          previous='74a58ed33afda24d58353971930419a59d4d296a'
+          def call(path, method='GET', body=None):
+              request=urllib.request.Request(base+path, method=method, data=None if body is None else json.dumps(body).encode(), headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(request, timeout=25) as response: return json.load(response)
+          pure=call('commits/'+target)
+          assert pure['tree']['sha']==expected_tree and [p['sha'] for p in pure['parents']]==[previous], 'Source commit does not match the fixed verified tree and parent'
+          assert call('refs/heads/codex/orphan-memory-0101')['object']['sha']==target, 'Published source branch differs from the fixed target'
+          entries=call('trees/'+expected_tree+'?recursive=1')
+          assert entries['truncated'] is False and not any(e['path']=='.github/workflows/tag-macos-0101.yml' for e in entries['tree']), 'Pure source contains the maintenance workflow'
+          version_entry=next(e for e in entries['tree'] if e['path']=='nkb/_version.py' and e['type']=='blob')
+          version_blob=call('blobs/'+version_entry['sha'])
+          version_ast=ast.parse(base64.b64decode(version_blob['content']).decode('utf-8'))
+          versions=[ast.literal_eval(node.value) for node in version_ast.body if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='__version__' for t in node.targets)]
+          assert versions==['0.10.1'], 'Pure source version is not 0.10.1'
+          assert call('refs/tags/v0.10.0')['object']['sha']==previous, 'Previous stable tag does not match expected source'
+          original090=call('refs/tags/v0.9.0')['object']['sha']
+          created=False
+          try: before=call('refs/tags/v0.10.1')
+          except urllib.error.HTTPError as error:
+              if error.code!=404: raise
+              call('refs','POST',{'ref':'refs/tags/v0.10.1','sha':target})
+              created=True
+          else:
+              assert before['ref']=='refs/tags/v0.10.1' and before['object']['type']=='commit' and before['object']['sha']==target, 'Tag already exists at another target; no overwrite performed'
+          after=call('refs/tags/v0.10.1')
+          assert after['ref']=='refs/tags/v0.10.1' and after['object']['type']=='commit' and after['object']['sha']==target, 'New source tag target not verified'
+          assert call('refs/tags/v0.10.0')['object']['sha']==previous, 'Previous stable source tag changed independently'
+          assert call('refs/tags/v0.9.0')['object']['sha']==original090, 'Previous source tag changed independently'
+          print(json.dumps({'ref':after['ref'],'created':created,'verified_target':after['object']['sha'],'verified_tree':expected_tree,'previous_release_tags_unchanged':True,'release_assets_untouched':True}))
+          PY

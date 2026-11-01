@@ -3,6 +3,7 @@ from .client import CompanionError, DeepSeekClient
 from .memory import build_context, get_profile, history, record_turn, remember, save_profile, turn_id
 from .ingestion import connected_session_id, ingest_event
 from .persona import (PersonaConflict, accept_persona, get_persona, import_persona,
+                      apply_learned_traits, normalize_persona_trait, remove_learned_trait, rebind_formed_persona_after_import,
                       learn_from_dialogue, persona_state, propose_persona, reject_persona,
                       review_candidate, rollback_persona, set_persona_enabled, set_persona_learning)
 
@@ -10,4 +11,5 @@ __all__ = ["build_context", "get_profile", "save_profile", "remember", "record_t
            "turn_id", "DeepSeekClient", "CompanionError", "ingest_event", "connected_session_id",
            "persona_state", "get_persona", "import_persona", "propose_persona", "accept_persona",
            "reject_persona", "review_candidate", "rollback_persona", "set_persona_enabled",
-           "set_persona_learning", "learn_from_dialogue", "PersonaConflict"]
+           "set_persona_learning", "learn_from_dialogue", "PersonaConflict",
+           "apply_learned_traits", "normalize_persona_trait", "remove_learned_trait", "rebind_formed_persona_after_import"]

@@ -11,14 +11,45 @@ from ..utils import now
 from .config import get_profile
 from .model import OrganizerConflict, OrganizerError
 from .atoms import normalize_atom,make_atom,atom_signature,source_references,evidence_event_at
-from .rules import RULES_VERSION, runtime_policy
+from .rules import RULES_VERSION, PERSONA_RULES_VERSION, runtime_policy
 from .experiences import normalize_episode,episode_key,episode_conflicts,make_experience,merge_experience,render_experience,SCHEMA as EXPERIENCE_SCHEMA
 
 LAYERS = {"fact": "fact", "preference": "preference", "experience": "episode", "commitment": "commitment", "persona": None}
 ACTIONS = {"remember", "merge", "supersede", "relate", "candidate"}
-RAW_SOURCES = {"conversation_turn", "tool_observation", "harness_recorded", "persona_import_source", "agent_output"}
+RAW_SOURCES = {"conversation_turn", "tool_observation", "harness_recorded", "persona_import_source", "agent_output", "history_import"}
+PERSONA_STATE_KEYS=('learned','formed_traits','enabled','learning_enabled','user_disabled',
+                    'blocked_trait_ids','blocked_trait_evidence','learning_ignored_ids')
+PERSONA_REJECTION_REASONS=frozenset(('schema','dimension','value','value_policy','evidence_schema',
+    'evidence_count','evidence_role','evidence_id','evidence_quote','evidence_duplicate',
+    'trait_collection','learning_disabled','evidence_source','evidence_quote_mismatch',
+    'evidence_unavailable','evidence_truncated','evidence_current_batch','evidence_revalidation'))
+PERSONA_RESULT_STATUSES=frozenset(('formed','partial','unchanged','empty','rejected','skipped','invalid'))
+PERSONA_SKIP_REASONS=frozenset(('persona_disabled','learning_disabled','persona_revision_changed',
+    'persona_evidence_changed','unchanged_or_suppressed','evidence_revalidation'))
 HYPOTHETICAL = re.compile(r"假设|假如|如果|角色扮演|小说|想象|扮演|比如|例如|他说|她说|引用|骗你的|导入人格|人格设定")
 RELATIONSHIP_ATTRIBUTE = re.compile(r"(?:^|[./:_-])(?:relationship|relation|bond|milestone|anniversary)(?:$|[./:_-])|关系状态|关系阶段|里程碑|纪念日|相识日", re.I)
+
+
+def persona_result_view(result):
+    """Safe aggregate for task status/errors, never model text or proof IDs."""
+    if not isinstance(result,dict) or not isinstance(result.get('status'),str) or result['status'] not in PERSONA_RESULT_STATUSES:
+        return None
+    view={'status':result['status'],'changed':result.get('changed') is True}
+    for key in ('accepted_count','applied_count','rejected_count'):
+        value=result.get(key,0)
+        view[key]=value if type(value) is int and 0<=value<=100000 else 0
+    reasons=result.get('reasons',{})
+    view['reasons']={key:value for key,value in reasons.items()
+                     if key in PERSONA_REJECTION_REASONS and type(value) is int and 0<value<=100000} if isinstance(reasons,dict) else {}
+    if isinstance(result.get('reason'),str) and result['reason'] in PERSONA_SKIP_REASONS:view['reason']=result['reason']
+    if type(result.get('revision')) is int and result['revision']>=0:view['revision']=result['revision']
+    return view
+
+
+def _persona_summary(accepted, rejections, *, status=None):
+    rejected=sum(rejections.values())
+    return {'status':status or ('rejected' if rejected and not accepted else 'empty' if not accepted else 'unchanged'),
+            'accepted_count':accepted,'applied_count':0,'rejected_count':rejected,'reasons':dict(rejections),'changed':False}
 
 
 def fingerprint(node):
@@ -33,10 +64,33 @@ def _roles(node):
     metadata = node.get("meta", {})
     source = metadata.get("source")
     if source == "conversation_turn":
-        return {"user": node["text"], "assistant": metadata.get("assistant_reply", "")}
+        return {"user":node["text"],"assistant":metadata.get('assistant_reply','')}
     if source == "agent_output":
-        return {"assistant": node["text"]}
+        return {"assistant":node["text"]}
+    if source == 'history_import':
+        messages=metadata.get('import_messages')
+        if (metadata.get('speaker')=='assistant' and metadata.get('provenance')=='imported_record'
+                and isinstance(messages,list) and messages and all(isinstance(m,dict) and m.get('role')=='assistant'
+                    and isinstance(m.get('text'),str) for m in messages)):
+            return {'assistant':node['text']}
+        return {}
     return {"tool" if source == "tool_observation" else "assistant": node["text"]}
+
+
+def _persona_roles(node):
+    """Personality proof additionally rejects explicit role inconsistencies.
+
+    Ordinary raw-output provenance remains source-owned: arbitrary speaker
+    metadata must never turn historical assistant output into a user fact.
+    """
+    roles=_roles(node)
+    meta=node.get('meta',{});source=meta.get('source')
+    declared=meta.get('roles')
+    conflict=(source=='agent_output' and meta.get('speaker') not in (None,'assistant')
+              or source=='conversation_turn' and declared is not None
+              and (not isinstance(declared,dict) or declared.get('assistant_reply','assistant')!='assistant'))
+    if conflict:roles.pop('assistant',None)
+    return roles
 
 
 def disabled(node):
@@ -71,7 +125,7 @@ def archive_roles(archive):
     return {k: normalized[k] for k in ("user", "assistant") if isinstance(normalized.get(k), str)}
 
 
-def build_input(brain, library_id, items, profile, archives=None):
+def build_input(brain, library_id, items, profile, archives=None, *, purpose='memory'):
     """Only unfinished slices plus a small related-memory neighborhood, never the full archive."""
     from ..companion.dedup import is_duplicate,canonical_id
     budget = profile["max_input_chars"]
@@ -100,6 +154,23 @@ def build_input(brain, library_id, items, profile, archives=None):
         if truncated and not archive:
             raise OrganizerError("原文节点只是截断摘录，需完整归档才能继续整理", "missing_archive")
         roles = archive_roles(archive) if archive else _roles(node)
+        persona_right=True
+        if purpose=='persona':
+            graph_text=_persona_roles(node).get('assistant','')
+            actual=roles.get('assistant','')
+            # A persona profile must remain checkable in its live graph anchor.
+            # Sample only the graph-backed original prefix, never an archive-only
+            # continuation or a fabricated user/assistant pair.
+            start=actual.find(graph_text) if graph_text else -1
+            if start>=0:available=graph_text
+            else:
+                actual=actual.lstrip();start=0;length=0
+                for left,right in zip(graph_text,actual):
+                    if left!=right:break
+                    length+=1
+                available=graph_text[:length]
+            persona_right=bool(available and start+len(available)>=len(actual))
+            roles={'assistant':available}
         if node['meta']['source']=='agent_output' and set(roles)!={'assistant'}:
             raise OrganizerError('助手输出档案必须只有assistant原文，不能补入用户或工具角色','invalid_raw')
         if not roles or not any(isinstance(text,str) and text for text in roles.values()):
@@ -112,7 +183,7 @@ def build_input(brain, library_id, items, profile, archives=None):
             if piece:
                 selected[role] = piece
                 boundaries[role] = {"left":offset == 0 or text[offset-1] in "。！？!?；;\n",
-                                    "right":offset+len(piece) == len(text) or piece[-1] in "。！？!?；;\n"}
+                                    "right":(offset+len(piece) == len(text) and (purpose!='persona' or persona_right)) or piece[-1] in "。！？!?；;\n"}
                 cursors[role] = offset + len(piece)
                 room -= len(piece)
         records.append({"id": nid, "receipt_id": (evidence_meta.get('archive_receipt_id') if isinstance(evidence_meta,dict) else None) or receipt_id, "roles": selected, "boundaries":boundaries,
@@ -130,6 +201,9 @@ def build_input(brain, library_id, items, profile, archives=None):
                         "fiction_or_hypothesis_hint": bool(HYPOTHETICAL.search(roles.get("user", "") or
                             (roles.get('assistant','') if node['meta']['source']=='agent_output' else ''))),
                         "context_prefix": roles.get("user", "")[:160]})
+        graph_assistant=_persona_roles(node).get('assistant','')
+        records[-1]['persona_evidence_available']=bool(selected.get('assistant') and selected['assistant'] in graph_assistant
+            and not node.get('superseded_by') and (node.get('valid_to') is None or node['valid_to']>now()))
         if isinstance(evidence_meta,dict) and evidence_meta.get('participant_scope')=='external_participant':
             records[-1]['participant_scope']='external_participant'
             participant=evidence_meta.get('participant_id')
@@ -150,12 +224,52 @@ def build_input(brain, library_id, items, profile, archives=None):
         if isinstance(node.get('meta',{}).get('experience'),dict):
             entry['episode']={key:deepcopy(node['meta']['experience'].get(key)) for key in ('what','reason','outcome','event_at','status')}
         related.append(entry)
-    payload = {"library_id": library_id, "memory_policy": runtime_policy(brain), "raw": records, "related": related}
+    payload = {"library_id": library_id, "memory_policy": runtime_policy(brain), "raw": records, "related": [] if purpose=='persona' else related}
+    if purpose=='persona':payload['purpose']='persona'
+    from ..companion.persona import persona_state
+    persona=persona_state(brain,library_id=library_id)
+    payload['memory_policy'].update(persona_learning=bool(persona['enabled'] and persona['learning_enabled']),
+                                    persona_revision=persona['revision'],persona_rules_version=PERSONA_RULES_VERSION)
     while related and len(json.dumps(payload, ensure_ascii=False)) > budget:
         related.pop()
     if len(json.dumps(payload, ensure_ascii=False)) > budget:
         raise OrganizerError("本批输入超过预算，未发送", "input_budget")
+    persona_fingerprints={}
+    # Session cadence can have just one new turn. One older live assistant
+    # record supplies personality context in this SAME request, never a second
+    # fact source and never a re-run of completed ordinary queue items.
+    if purpose=='memory' and payload['memory_policy']['persona_learning'] and sum(bool(r.get('persona_evidence_available')) for r in records)==1:
+        current_ids={r['recording_group']['canonical_id'] for r in records}
+        latest_current=max((r.get('created',0) for r in records),default=0)
+        tomb=brain.meta.get('memory_tombstones') or {}
+        for node in reversed(brain.nodes.values()):
+            meta=node.get('meta',{});cid=canonical_id(brain,node)
+            body=_persona_roles(node).get('assistant','')
+            if (cid in current_ids or disabled(node) or is_duplicate(node,brain)
+                    or node.get('created',0)>latest_current
+                    or node.get('superseded_by') or node.get('valid_to') is not None and node['valid_to']<=now()
+                    or meta.get('source') not in ('conversation_turn','agent_output','history_import')
+                    or meta.get('library_id') not in (None,library_id)
+                    or not body or node['id'] in tomb.get('node_ids',[])
+                    or sha256(body.encode()).hexdigest() in tomb.get('text_hashes',[])
+                    or not brain._node_state(node,now()).get('recoverable')):continue
+            piece=body[:500]
+            if len(body)>500:
+                end=max((piece.rfind(c) for c in '。！？!?；;\n'),default=-1)
+                if end<0:continue
+                piece=piece[:end+1]
+            proof=meta.get('evidence')
+            context={'id':node['id'],'roles':{'assistant':piece},'source_kind':meta['source'],
+                'source_recoverable':True,'persona_evidence_available':True,
+                'boundaries':{'assistant':{'left':True,'right':len(piece)==len(body) and not (isinstance(proof,dict) and proof.get('content_truncated')) or piece[-1] in '。！？!?；;\n'}},
+                'recording_group':{'canonical_id':cid},'receipt_id':proof.get('archive_receipt_id') if isinstance(proof,dict) else node['id']}
+            payload['persona_context']=[context]
+            if len(json.dumps(payload,ensure_ascii=False))<=budget:
+                persona_fingerprints[node['id']]=fingerprint(node)
+                break
+            payload.pop('persona_context',None)
     return payload, {"raw_fingerprints": raw_hashes,
+                     'persona_fingerprints':persona_fingerprints,
                      "existing_fingerprints": {r["id"]: fingerprint(brain.get(r["id"])) for r in related},
                      "progress": progress, "complete_ids": consumed,"alias_ids":aliases}
 
@@ -189,11 +303,13 @@ def _sentence(record, role, quote):
 
 
 def validate_plan(output, payload, guards, job_id, profile):
-    if not isinstance(output, dict) or set(output) - {"version", "operations"} or type(output.get("version")) is not int or output.get("version") != 1:
+    if not isinstance(output, dict) or set(output) - {"version", "operations", "persona_traits"} or type(output.get("version")) is not int or output.get("version") != 1:
         raise OrganizerError("模型JSON顶层schema不合法", "invalid_output")
     operations = output.get("operations")
     if not isinstance(operations, list) or len(operations) > profile["max_ops"]:
         raise OrganizerError("模型操作数量不合法", "invalid_output")
+    if payload.get('purpose')=='persona' and operations:
+        raise OrganizerError('快速人格任务不能重写普通记忆','invalid_output')
     raw = {r["id"]: r for r in payload["raw"]}
     related = {r["id"] for r in payload["related"]}
     normalized = []
@@ -310,8 +426,53 @@ def validate_plan(output, payload, guards, job_id, profile):
             atom_review=True
         op['requires_review']=op['requires_review'] or atom_review
         normalized.append(op)
+    persona_raw={**raw,**{r['id']:r for r in payload.get('persona_context',[])}}
+    traits=output.get('persona_traits',[])
+    rejected={}
+    def reject_trait(reason,count=1):
+        reason=reason if isinstance(reason,str) and reason in PERSONA_REJECTION_REASONS else 'schema'
+        rejected[reason]=rejected.get(reason,0)+count
+    # Optional model material cannot invalidate otherwise valid factual work.
+    # Invalid material is omitted from the cached plan, retaining only counts.
+    if not isinstance(traits,list) or len(traits)>8:
+        reject_trait('trait_collection',len(traits) if isinstance(traits,list) else 1)
+        traits=[]
+    if traits and not payload.get('memory_policy',{}).get('persona_learning'):
+        reject_trait('learning_disabled',len(traits));traits=[]
+    from ..companion.persona import normalize_persona_trait
+    checked_traits=[]
+    for trait in traits:
+        try:trait=normalize_persona_trait(trait)
+        except ValidationError as error:
+            reject_trait(getattr(error,'persona_trait_reason','schema'));continue
+        independent=set()
+        reason=None
+        for evidence in trait['evidence']:
+            record=persona_raw.get(evidence['id'])
+            if record is None or record.get('source_kind') not in ('conversation_turn','agent_output','history_import'):
+                reason='evidence_source';break
+            if evidence['quote'] not in record.get('roles',{}).get('assistant',''):
+                reason='evidence_quote_mismatch';break
+            if not record.get('source_recoverable') or not record.get('persona_evidence_available'):
+                reason='evidence_unavailable';break
+            if not _sentence(record,'assistant',evidence['quote'])[1]:
+                reason='evidence_truncated';break
+            independent.add(record.get('recording_group',{}).get('canonical_id') or evidence['id'])
+        if not reason and len(independent)<2:reason='evidence_duplicate'
+        if not reason and not any(e['id'] in raw for e in trait['evidence']):reason='evidence_current_batch'
+        if reason:
+            reject_trait(reason);continue
+        checked_traits.append(trait)
+    persona_validation=_persona_summary(len(checked_traits),rejected)
+    if payload.get('purpose')=='persona' and rejected and not checked_traits:
+        error=OrganizerError('人格特征均未通过校验，未形成人格；原文仍保留，请检查资料后明确重试','invalid_persona_traits')
+        error.persona_result={**persona_validation,'status':'invalid'}
+        raise error
     return {"version": 1, "rules_version": RULES_VERSION, "job_id": job_id, "library_id": payload["library_id"],
-            "profile": deepcopy(profile), "operations": normalized, **deepcopy(guards)}
+            "profile": deepcopy(profile), "operations": normalized, 'persona_traits':checked_traits,
+            'persona_validation':persona_validation,
+            'persona_revision':payload.get('memory_policy',{}).get('persona_revision'),
+            'persona_rules_version':PERSONA_RULES_VERSION,'purpose':payload.get('purpose','memory'), **deepcopy(guards)}
 
 
 def _check(brain, plan, library_id):
@@ -319,6 +480,10 @@ def _check(brain, plan, library_id):
         raise OrganizerConflict("整理结果属于另一个库，未应用")
     if plan.get("rules_version") != RULES_VERSION:
         raise OrganizerConflict("整理准则已更新，旧缓存结果需按当前规则重新校验")
+    if (plan.get('persona_traits') or plan.get('purpose')=='persona') and plan.get('persona_rules_version')!=PERSONA_RULES_VERSION:
+        raise OrganizerConflict('人格准则已更新，未应用旧人格计划')
+    if plan.get('purpose')=='persona' and plan.get('operations'):
+        raise OrganizerConflict('快速人格计划不能修改普通记忆')
     if get_profile(brain) != plan["profile"] or not get_profile(brain)["enabled"]:
         raise OrganizerConflict("整理配置已改变或已关闭，未应用旧结果")
     for nid, digest in {**plan["raw_fingerprints"], **plan["existing_fingerprints"]}.items():
@@ -455,6 +620,39 @@ def apply_plan(brain, plan, library_id):
                     brain.link(nid, other, .35)
                     touched.add(other)
         brain.meta["organizer_candidates"] = candidates
+        persona_before=None
+        if 'persona_validation' in plan or plan.get('persona_traits') or plan.get('purpose')=='persona':
+            validation=persona_result_view(plan.get('persona_validation')) or _persona_summary(len(plan.get('persona_traits',[])),{})
+            result['persona']={**validation,'accepted_count':len(plan.get('persona_traits',[])),
+                               'applied_count':0,'changed':False}
+        if plan.get('persona_traits'):
+            from ..companion.persona import apply_learned_traits,PersonaConflict,_state as persona_record_state
+            persona_before={key:deepcopy(value) for key,value in persona_record_state(brain).items() if key in PERSONA_STATE_KEYS}
+            context_changed=False
+            try:
+                for nid,digest in plan.get('persona_fingerprints',{}).items():
+                    node=brain.get(nid)
+                    if (node is None or disabled(node) or fingerprint(node)!=digest
+                            or not brain._node_state(node,now()).get('recoverable')
+                            or node.get('valid_to') is not None and node['valid_to']<=now()):
+                        context_changed=True
+                        raise PersonaConflict('补充人格依据已变化，未应用旧人格资料')
+                learned=apply_learned_traits(brain,plan['persona_traits'],
+                    source={'origin':'organizer_persona','job_id':plan['job_id']},
+                    expected_revision=plan.get('persona_revision'),library_id=library_id)
+                result['persona'].update(learned)
+                result['persona']['applied_count']=len(learned.get('applied_ids',[]))
+                result['persona']['status']=('partial' if result['persona']['rejected_count'] else 'formed') if learned.get('changed') else (
+                    'skipped' if learned.get('reason') in ('persona_disabled','learning_disabled','persona_revision_changed') else 'unchanged')
+            except PersonaConflict:
+                result['persona'].update(status='skipped',changed=False,
+                    reason='persona_evidence_changed' if context_changed else 'persona_revision_changed')
+            except ValidationError:
+                # Live proof is rechecked by the helper. Rejecting this optional
+                # component must not roll back valid, independent factual work.
+                reasons={**result['persona']['reasons'],'evidence_revalidation':len(plan['persona_traits'])}
+                result['persona']=_persona_summary(0,reasons,status='rejected')
+                result['persona']['reason']='evidence_revalidation'
         changed_nodes = {i for i in before["nodes"].keys() | brain.nodes.keys() if before["nodes"].get(i) != brain.nodes.get(i)}
         changed_edges = {k for k in before["edges"].keys() | brain.edges.keys() if before["edges"].get(k) != brain.edges.get(k)}
         entry = {"job_id": plan["job_id"], "library_id":library_id,"rules_version": RULES_VERSION,"at": now(), "result": deepcopy(result), "rolled_back": False,
@@ -462,6 +660,9 @@ def apply_plan(brain, plan, library_id):
                  "before_edges": {k: deepcopy(before["edges"].get(k)) for k in changed_edges},
                  "after_nodes": {i: fingerprint(brain.nodes[i]) for i in changed_nodes if i in brain.nodes},
                  "after_edges": {k: deepcopy(brain.edges.get(k)) for k in changed_edges}}
+        if result.get('persona',{}).get('changed'):
+            entry['before_persona']=deepcopy(persona_before)
+            entry['after_persona_hash']=sha256(json.dumps(brain.meta.get('companion_persona'),ensure_ascii=False,sort_keys=True).encode()).hexdigest()
         brain.meta["organizer_log"] = (deepcopy(log) + [entry])[-20:]
         return result
     except Exception:
@@ -482,6 +683,10 @@ def rollback(brain, job_id):
     entry = next((r for r in brain.meta.get("organizer_log", []) if r["job_id"] == job_id), None)
     if entry is None or entry.get("rolled_back"):
         raise OrganizerConflict("该整理任务不可回滚或已回滚")
+    if 'after_persona_hash' in entry:
+        current_hash=sha256(json.dumps(brain.meta.get('companion_persona'),ensure_ascii=False,sort_keys=True).encode()).hexdigest()
+        if current_hash!=entry['after_persona_hash']:
+            raise OrganizerConflict('人格在整理后已有新变化，未覆盖后续选择')
     for nid, digest in entry["after_nodes"].items():
         if brain.get(nid) is None or fingerprint(brain.get(nid)) != digest:
             raise OrganizerConflict("整理结果之后已被修改，未覆盖后续变更")
@@ -510,6 +715,17 @@ def rollback(brain, job_id):
         if edge is None: brain.edges.pop(key, None)
         else: brain.edges[key] = deepcopy(edge)
     brain.meta["organizer_candidates"] = [c for c in candidates if c["job_id"] != job_id]
+    if 'after_persona_hash' in entry:
+        # Undo is a NEW user choice, not an ABA reset to an old revision number.
+        # Keep the monotonic revision/history and current manual text while
+        # restoring only the learned state which this organizer job changed.
+        from ..companion.persona import _state as persona_record_state,_commit as persona_record_commit
+        from ..companion.memory import get_profile as persona_profile
+        current=persona_record_state(brain);old=entry['before_persona']
+        for key in PERSONA_STATE_KEYS:
+            current[key]=deepcopy(old[key])
+        persona_record_commit(brain,current,persona_profile(brain),raw_text='',
+            source={'origin':'organizer_undo','job_id':job_id},explicit=True)
     entry["rolled_back"] = True
     return {"job_id": job_id, "rolled_back": True}
 

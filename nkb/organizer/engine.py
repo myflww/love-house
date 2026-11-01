@@ -13,7 +13,7 @@ from ..errors import ValidationError
 from .config import get_profile
 from .model import (OrganizerConflict, OrganizerError, call_model, failure_message,
                     resolve_model, transport as default_transport)
-from .state import build_input, validate_plan, raw_node, disabled, archive_roles, RAW_SOURCES
+from .state import build_input, validate_plan, raw_node, disabled, archive_roles, RAW_SOURCES, _roles, _persona_roles, persona_result_view
 
 
 class Organizer:
@@ -43,6 +43,8 @@ class Organizer:
                 CREATE TABLE IF NOT EXISTS drain_items(library_id TEXT,raw_id TEXT,created REAL,
                   PRIMARY KEY(library_id,raw_id));
             ''')
+            if 'purpose' not in {row[1] for row in db.execute('PRAGMA table_info(jobs)')}:
+                db.execute("ALTER TABLE jobs ADD COLUMN purpose TEXT NOT NULL DEFAULT 'memory'")
         self.path.chmod(0o600)
 
     @contextmanager
@@ -129,13 +131,17 @@ class Organizer:
                 'threshold':threshold,'pending':pending,'cohort_pending':cohort,'partial_pending':partial,'eligible':eligible,'draining':bool(remaining or partial),
                 'remaining':max(remaining,partial),'below_threshold':max(0,threshold-pending) if strict and not remaining and not partial else 0}
 
-    def _claim(self, library_id, profile, flush):
+    def _claim(self, library_id, profile, flush, job_id=None):
         stamp = time.time()
         with self.db() as db:
             db.execute("BEGIN IMMEDIATE")
-            db.execute("UPDATE jobs SET status='retry',next_run=?,error_code='interrupted',error='进程中断，等待安全重试' WHERE status='running' AND lease_until<?", (stamp, stamp))
-            db.execute("UPDATE items SET status='retry' WHERE status='running' AND job_id IN (SELECT id FROM jobs WHERE status='retry')")
-            old = db.execute("SELECT * FROM jobs WHERE library_id=? AND status='retry' AND next_run<=? ORDER BY created LIMIT 1", (library_id, stamp)).fetchone()
+            if not job_id:
+                db.execute("UPDATE jobs SET status='failed',error_code='interrupted',error='快速人格任务中断，请明确重试' WHERE purpose='persona' AND status='running' AND lease_until<?",(stamp,))
+                db.execute("UPDATE jobs SET status='retry',next_run=?,error_code='interrupted',error='进程中断，等待安全重试' WHERE purpose='memory' AND status='running' AND lease_until<?", (stamp, stamp))
+                db.execute("UPDATE items SET status='retry' WHERE status='running' AND job_id IN (SELECT id FROM jobs WHERE status='retry')")
+            old = db.execute("SELECT * FROM jobs WHERE library_id=? AND status='retry' AND next_run<=?"+
+                (" AND id=?" if job_id else "")+" ORDER BY CASE WHEN purpose='persona' THEN 0 ELSE 1 END,created LIMIT 1",
+                (library_id,stamp,job_id) if job_id else (library_id,stamp)).fetchone()
             if old:
                 job = dict(old)
                 db.execute("UPDATE jobs SET status='running',attempts=attempts+1,lease_until=?,updated=? WHERE id=?", (stamp+120,stamp,job["id"]))
@@ -143,6 +149,7 @@ class Organizer:
                 job["attempts"] += 1
                 job["_epoch"] = self._epoch(db,library_id)
                 return job
+            if job_id:return None
             desired = 1 if profile["cadence"] == "session" else profile["batch_size"]
             size = min(desired, max(1, profile["max_input_chars"] // 2500))
             strict=profile['cadence']=='batch' and profile['auto_trigger_count']>0
@@ -167,24 +174,88 @@ class Organizer:
                 return None
             jid = "organizer_" + uuid.uuid4().hex
             ids = [r["raw_id"] for r in rows]
-            db.execute("INSERT INTO jobs VALUES(?,?,?,'running',1,0,?,?,?,NULL,NULL,NULL,NULL,NULL,NULL)",
+            db.execute("INSERT INTO jobs(id,library_id,raw_ids,status,attempts,next_run,lease_until,created,updated,input_json,guards_json,plan_json,result_json,error_code,error) VALUES(?,?,?,'running',1,0,?,?,?,NULL,NULL,NULL,NULL,NULL,NULL)",
                        (jid,library_id,json.dumps(ids),stamp+120,stamp,stamp))
             for rid in ids: db.execute("UPDATE items SET status='running',job_id=? WHERE library_id=? AND raw_id=?", (jid,library_id,rid))
             result = dict(db.execute("SELECT * FROM jobs WHERE id=?", (jid,)).fetchone())
             result["_epoch"] = self._epoch(db,library_id)
             return result
 
-    def run_once(self, library_id=None, *, flush=True):
+    def persona_selection(self, library_id, *, max_records=60):
+        """Bounded representative assistant evidence, without touching ordinary items."""
+        library_id=self._library(library_id)
+        if type(max_records) is not int or not 2<=max_records<=120:
+            raise ValidationError('人格抽样上限须为2~120条')
+        from ..companion.dedup import canonical_id,is_duplicate
+        brain=self._snapshot(library_id);profile=get_profile(brain);eligible=[];seen=set()
+        with self.db() as db:
+            tombs={row[0] for row in db.execute('SELECT item_id FROM tombstones WHERE library_id=?',(library_id,))}
+            usage=self._budget(db,library_id)
+        stamp=time.time()
+        for node in brain.nodes.values():
+            meta=node.get('meta',{});kind=meta.get('source')
+            if (kind not in ('conversation_turn','agent_output','history_import') or disabled(node) or is_duplicate(node,brain)
+                    or node.get('superseded_by') or node.get('valid_to') is not None and node['valid_to']<=stamp
+                    or meta.get('library_id') not in (None,library_id)
+                    or not brain._node_state(node,stamp).get('recoverable')):continue
+            text=_persona_roles(node).get('assistant')
+            if not isinstance(text,str) or not text.strip():continue
+            proof=meta.get('evidence')
+            rid=(proof.get('archive_receipt_id') if isinstance(proof,dict) else None) or node['id']
+            cid=canonical_id(brain,node)
+            if rid in tombs or node['id'] in tombs or cid in seen:continue
+            seen.add(cid);eligible.append(rid)
+        available=min(profile['max_input_chars'],max(0,profile['daily_char_limit']-usage['chars']))
+        cap=min(max_records,len(eligible),8,max(2,available//2500)) if available>=3000 else 0
+        selected=[]
+        while cap>=2:
+            selected=[eligible[round(i*(len(eligible)-1)/(cap-1))] for i in range(cap)]
+            rows=[];archives={}
+            try:
+                for rid in selected:
+                    node=raw_node(brain,rid);archive=self.read_archive(library_id,rid) if self.read_archive else None
+                    if archive is not None:archives[rid]=archive
+                    roles=archive_roles(archive) if archive else _roles(node)
+                    rows.append({'raw_id':rid,'progress':json.dumps({role:len(value) for role,value in roles.items() if role!='assistant'})})
+                payload,_=build_input(brain,library_id,rows,{**profile,'max_input_chars':available},archives,purpose='persona')
+                if all(record.get('roles',{}).get('assistant') for record in payload['raw']):break
+            except (ValidationError,TypeError,ValueError,AttributeError):pass
+            cap-=1;selected=[]
+        return {'eligible_records':len(eligible),'selected_records':len(selected),'selected_ids':selected,
+                'coverage':'complete' if len(selected)==len(eligible) else 'sampled',
+                'source_scope':'graph_backed_assistant_records','total_nodes':len(brain.nodes),
+                'max_model_requests':1,'budget_available':usage['count']<profile['daily_call_limit'] and available>=3000,
+                'will_call_model':False,'read_only':True}
+
+    def enqueue_persona(self,library_id,raw_ids):
+        library_id=self._library(library_id)
+        if not isinstance(raw_ids,list) or not 2<=len(raw_ids)<=8 or len(set(raw_ids))!=len(raw_ids):
+            raise ValidationError('快速人格需要2~8条独立助手来源')
+        stamp=time.time()
+        with self.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            active=db.execute("SELECT id,raw_ids FROM jobs WHERE library_id=? AND purpose='persona' AND (status='retry' OR (status='running' AND lease_until>?)) ORDER BY created LIMIT 1",(library_id,stamp)).fetchone()
+            if active:return {'job_id':active['id'],'queued':False,'reused':True,'selected_records':len(json.loads(active['raw_ids']))}
+            if any(db.execute('SELECT 1 FROM tombstones WHERE library_id=? AND item_id=?',(library_id,rid)).fetchone() for rid in raw_ids):
+                raise OrganizerError('选定来源已遗忘，请重新预览','source_deleted')
+            jid='organizer_'+uuid.uuid4().hex
+            db.execute("INSERT INTO jobs(id,library_id,raw_ids,status,attempts,next_run,lease_until,created,updated,purpose) VALUES(?,?,?,'retry',0,0,0,?,?,'persona')",(jid,library_id,json.dumps(raw_ids),stamp,stamp))
+        return {'job_id':jid,'queued':True,'reused':False,'selected_records':len(raw_ids)}
+
+    def run_once(self, library_id=None, *, flush=True, job_id=None):
         if not self._run_lock.acquire(False): return {"status": "busy"}
         job = None
         try:
             if self._stopping.is_set(): return {"status":"stopped"}
             # Only an explicit per-library run repairs old false deletion
             # failures. The background worker never repeatedly revives them.
-            if library_id is not None and flush:self.repair_source_jobs(library_id)
+            if job_id and library_id is None:raise ValidationError('快速人格任务必须指定当前存档')
+            if library_id is not None and flush and not job_id:self.repair_source_jobs(library_id)
             with self.db() as db:
-                db.execute("UPDATE jobs SET status='retry',next_run=?,error_code='interrupted',error='进程中断，等待安全重试' WHERE status='running' AND lease_until<?",(time.time(),time.time()))
-                db.execute("UPDATE items SET status='retry' WHERE status='running' AND job_id IN (SELECT id FROM jobs WHERE status='retry')")
+                if not job_id:
+                    db.execute("UPDATE jobs SET status='failed',error_code='interrupted',error='快速人格任务中断，请明确重试' WHERE purpose='persona' AND status='running' AND lease_until<?",(time.time(),))
+                    db.execute("UPDATE jobs SET status='retry',next_run=?,error_code='interrupted',error='进程中断，等待安全重试' WHERE purpose='memory' AND status='running' AND lease_until<?",(time.time(),time.time()))
+                    db.execute("UPDATE items SET status='retry' WHERE status='running' AND job_id IN (SELECT id FROM jobs WHERE status='retry')")
             brain = None
             if library_id is None:
                 with self.db() as db:
@@ -205,8 +276,10 @@ class Organizer:
                         with self.db() as db:
                             usage=self._budget(db,candidate_id)
                             cached=db.execute("SELECT 1 FROM jobs WHERE library_id=? AND status='retry' AND next_run<=? AND plan_json IS NOT NULL LIMIT 1",(candidate_id,time.time())).fetchone()
-                        with self.db() as db: trigger=self._trigger(db,candidate_id,settings)
-                        if not flush and not trigger['eligible']:
+                        with self.db() as db:
+                            trigger=self._trigger(db,candidate_id,settings)
+                            persona_waiting=db.execute("SELECT 1 FROM jobs WHERE library_id=? AND purpose='persona' AND status='retry' AND next_run<=? LIMIT 1",(candidate_id,time.time())).fetchone()
+                        if not flush and not trigger['eligible'] and not persona_waiting:
                             threshold_blocked=True
                             continue
                         if not cached and (usage["count"]>=settings["daily_call_limit"] or settings["daily_char_limit"]-usage["chars"]<3000):
@@ -220,17 +293,18 @@ class Organizer:
                 if library_id is None: return {"status":"budget_limited" if budget_blocked else "waiting_threshold" if threshold_blocked else "paused"}
             library_id = self._library(library_id)
             brain = brain or self._snapshot(library_id)
-            self._settle_aliases(library_id,brain)
+            if not job_id:self._settle_aliases(library_id,brain)
             profile = get_profile(brain)
             if not profile["enabled"]: return {"status": "paused", "library_id": library_id}
             with self.db() as db:
                 used = self._budget(db, library_id)
-                cached_ready = db.execute("SELECT 1 FROM jobs WHERE library_id=? AND status='retry' AND next_run<=? AND plan_json IS NOT NULL LIMIT 1",(library_id,time.time())).fetchone()
+                cached_ready = db.execute("SELECT 1 FROM jobs WHERE library_id=? AND status='retry' AND next_run<=? AND plan_json IS NOT NULL"+
+                    (" AND id=?" if job_id else "")+" LIMIT 1",(library_id,time.time(),job_id) if job_id else (library_id,time.time())).fetchone()
             remaining = profile["daily_char_limit"] - used["chars"]
             if not cached_ready and (used["count"] >= profile["daily_call_limit"] or remaining < 3000):
                 return {"status": "budget_limited", "library_id": library_id, "used": used}
             request_profile = {**profile, "max_input_chars": min(profile["max_input_chars"],remaining)}
-            job = self._claim(library_id, request_profile, flush)
+            job = self._claim(library_id, request_profile, flush,job_id) if job_id else self._claim(library_id, request_profile, flush)
             if job is None:
                 with self.db() as db: trigger=self._trigger(db,library_id,profile)
                 return {"status":"waiting_threshold" if trigger['mode']=='strict' and not trigger['eligible'] else "waiting", "library_id":library_id, "trigger":trigger}
@@ -242,6 +316,12 @@ class Organizer:
             brain=self._snapshot(library_id)
             if get_profile(brain)!=profile:
                 raise OrganizerConflict("整理配置已变化，按新配置安全重试")
+            persona_only=job.get('purpose')=='persona'
+            if persona_only:
+                from ..companion.persona import persona_state
+                persona=persona_state(brain,library_id=library_id)
+                if not persona['enabled'] or not persona['learning_enabled']:
+                    raise OrganizerError('当前存档已关闭人格或学习，未发送资料','persona_learning_disabled')
             # Do not replay even a cached result after its source was removed/disabled.
             if self._deleted(library_id,ids,brain):
                 raise OrganizerError("来源已删除或遗忘，未重放整理结果", "source_deleted")
@@ -260,10 +340,23 @@ class Organizer:
                         raise OrganizerError("原始归档已删除，未重放整理结果", "source_deleted")
                     if archive is not None: archives[rid] = archive
             plan = json.loads(job["plan_json"]) if job.get("plan_json") else None
+            if persona_only and plan is not None and (plan.get('purpose')!='persona' or plan.get('operations')):
+                raise OrganizerError('缓存人格计划不属于本任务用途','invalid_persona_plan')
             if plan is None:
-                with self.db() as db:
-                    rows = [dict(db.execute("SELECT * FROM items WHERE library_id=? AND raw_id=?", (library_id,rid)).fetchone()) for rid in ids]
-                payload, guards = build_input(brain, library_id, rows, request_profile, archives)
+                if persona_only:
+                    rows=[]
+                    for rid in ids:
+                        source=raw_node(brain,rid)
+                        roles=archive_roles(archives[rid]) if rid in archives else _roles(source)
+                        rows.append({'raw_id':rid,'progress':json.dumps({role:len(text) for role,text in roles.items() if role!='assistant'})})
+                else:
+                    with self.db() as db:
+                        rows = [dict(db.execute("SELECT * FROM items WHERE library_id=? AND raw_id=?", (library_id,rid)).fetchone()) for rid in ids]
+                payload, guards = build_input(brain, library_id, rows, request_profile, archives,purpose='persona' if persona_only else 'memory')
+                if persona_only:
+                    payload['purpose']='persona'
+                    payload['related']=[]
+                    guards['existing_fingerprints']={}
                 if not payload['raw']:
                     plan=validate_plan({'version':1,'operations':[]},payload,guards,job['id'],profile)
                     plan['model_called']=False
@@ -273,6 +366,11 @@ class Organizer:
                     # Missing/invalid credentials or model names never reserve a
                     # billable request. These failures happen before transport.
                     resolve_model(profile, credential)
+                    if persona_only:
+                        from ..companion.persona import persona_state
+                        latest=persona_state(self._snapshot(library_id),library_id=library_id)
+                        if not latest['enabled'] or not latest['learning_enabled'] or latest['revision']!=payload['memory_policy']['persona_revision']:
+                            raise OrganizerConflict('人格开关或版本已变化，未预留快速整理请求')
                     with self.db() as db:
                         db.execute("BEGIN IMMEDIATE")
                         if not self._valid_job(db,job): return {"status":"cancelled","job_id":job["id"]}
@@ -286,6 +384,11 @@ class Organizer:
                         with self.db() as db:
                             if not self._valid_job(db,job):
                                 raise OrganizerError("任务已取消，不再发送材料", "cancelled")
+                        if persona_only:
+                            from ..companion.persona import persona_state
+                            latest=persona_state(self._snapshot(library_id),library_id=library_id)
+                            if not latest['enabled'] or not latest['learning_enabled'] or latest['revision']!=payload['memory_policy']['persona_revision']:
+                                raise OrganizerConflict('人格开关或版本已变化，未发送快速整理资料')
                         return self.transport(request, timeout=timeout)
                     output = call_model(profile, credential, payload, guarded_transport)
                     plan = validate_plan(output, payload, guards, job["id"], profile)
@@ -304,7 +407,7 @@ class Organizer:
             with self.db() as db:
                 db.execute("BEGIN IMMEDIATE")
                 if not self._valid_job(db,job): return {"status":"cancelled","job_id":job["id"]}
-                for rid in ids:
+                for rid in ([] if persona_only else ids):
                     done = rid in plan["complete_ids"]
                     db.execute("UPDATE items SET status=?,progress=?,job_id=NULL WHERE library_id=? AND raw_id=?",
                                ("done_alias" if rid in plan.get('alias_ids',[]) else "done" if done else "pending",json.dumps(plan["progress"][rid]),library_id,rid))
@@ -313,6 +416,7 @@ class Organizer:
             return {"status": "done", "job_id": job["id"], "library_id": library_id, "result": result}
         except Exception as exc:
             code = getattr(exc, "code", "organizer_failed")
+            persona_result=persona_result_view(getattr(exc,'persona_result',None))
             # Never echo exception/server text: it may contain provider credentials or private full input.
             message = {"source_deleted":"来源已删除，未重新整理", "stale_input":"来源或配置已变化，待重新生成计划",
                        "missing_raw":"原始记录暂不可用", "missing_archive":"需要完整归档，不能把摘录当全文",
@@ -320,16 +424,17 @@ class Organizer:
                        "budget_limited":"达到近24小时整理预算，原文和任务仍保留",
                        "invalid_evidence":"模型证据校验失败，原文仍保留"}.get(code,failure_message(code))
             if job:
-                terminal = code == "source_deleted" or job["attempts"] >= profile["max_attempts"]
+                terminal = job.get('purpose')=='persona' or code == "source_deleted" or job["attempts"] >= profile["max_attempts"]
                 with self.db() as db:
                     db.execute("BEGIN IMMEDIATE")
                     if not self._valid_job(db,job): return {"status":"cancelled","job_id":job["id"]}
-                    db.execute("UPDATE jobs SET status=?,updated=?,next_run=?,error_code=?,error=?,plan_json=CASE WHEN ? THEN NULL ELSE plan_json END WHERE id=?",
+                    db.execute("UPDATE jobs SET status=?,updated=?,next_run=?,error_code=?,error=?,result_json=?,plan_json=CASE WHEN ? THEN NULL ELSE plan_json END WHERE id=?",
                                ("failed" if terminal else "retry",time.time(),time.time()+min(300,5*2**(job["attempts"]-1)),code,message,
-                                isinstance(exc,OrganizerConflict),job["id"]))
+                                json.dumps({'persona':persona_result}) if persona_result else None,isinstance(exc,OrganizerConflict),job["id"]))
                     db.execute("UPDATE items SET status=? WHERE job_id=?",("failed" if terminal else "retry",job["id"]))
-                return {"status":"failed" if terminal else "retry","job_id":job["id"],"code":code,"error":message}
-            return {"status":"error","code":code,"error":message}
+                return {"status":"failed" if terminal else "retry","job_id":job["id"],"code":code,"error":message,
+                        **({'persona_result':persona_result} if persona_result else {})}
+            return {"status":"error","code":code,"error":message,**({'persona_result':persona_result} if persona_result else {})}
         finally:
             self._active_job = None
             self._run_lock.release()
@@ -341,8 +446,13 @@ class Organizer:
         with self.db() as db:
             trigger=self._trigger(db,library_id,profile)
             counts = {r["status"]:r["count"] for r in db.execute("SELECT status,COUNT(*) AS count FROM items WHERE library_id=? GROUP BY status",(library_id,))}
-            jobs = [dict(r) for r in db.execute("SELECT id,raw_ids,status,attempts,next_run,created,updated,error_code,error FROM jobs WHERE library_id=? ORDER BY created DESC LIMIT 30",(library_id,))]
-            for job in jobs: job["raw_ids"] = json.loads(job["raw_ids"])
+            jobs = [dict(r) for r in db.execute("SELECT id,raw_ids,status,attempts,next_run,created,updated,error_code,error,purpose,result_json FROM jobs WHERE library_id=? ORDER BY created DESC LIMIT 30",(library_id,))]
+            for job in jobs:
+                job["raw_ids"] = json.loads(job["raw_ids"])
+                try:result=json.loads(job.pop('result_json') or '{}')
+                except (TypeError,ValueError):result={}
+                persona_result=persona_result_view(result.get('persona')) if isinstance(result,dict) else None
+                if persona_result is not None:job['persona_result']=persona_result
             used = self._budget(db,library_id)
         return {"library_id":library_id,"counts":counts,"jobs":jobs,"usage_24h":used,"trigger":trigger}
 
@@ -425,7 +535,7 @@ class Organizer:
         self._stopping.set()
         if self._active_job:
             with self.db() as db:
-                db.execute("UPDATE jobs SET status='retry',next_run=?,lease_until=0,error_code='interrupted',error='整理已停止，等待安全重试' WHERE id=? AND status='running'",(time.time()+60,self._active_job))
+                db.execute("UPDATE jobs SET status=CASE WHEN purpose='persona' THEN 'failed' ELSE 'retry' END,next_run=?,lease_until=0,error_code='interrupted',error='整理已停止，快速人格任务需明确重试' WHERE id=? AND status='running'",(time.time()+60,self._active_job))
                 db.execute("UPDATE items SET status='retry' WHERE job_id=?",(self._active_job,))
         if self._thread and self._thread is not threading.current_thread(): self._thread.join(timeout=2)
 
@@ -440,7 +550,7 @@ class Organizer:
         with self.db() as db:
             epoch=self._epoch(db,library_id)
             jobs=[dict(row) for row in db.execute("SELECT id,raw_ids FROM jobs WHERE library_id=? "
-                "AND status='failed' AND error_code='source_deleted' AND plan_json IS NULL",(library_id,))]
+                "AND status='failed' AND purpose='memory' AND error_code='source_deleted' AND plan_json IS NULL",(library_id,))]
         if not jobs:return 0
         brain=self._snapshot(library_id);repaired=0
         for job in jobs:
@@ -485,7 +595,7 @@ class Organizer:
                  "provider_authentication", "provider_access_denied", "provider_not_found")
         with self.db() as db:
             db.execute("BEGIN IMMEDIATE")
-            rows = db.execute("SELECT id FROM jobs WHERE library_id=? AND status IN ('failed','retry') "
+            rows = db.execute("SELECT id FROM jobs WHERE library_id=? AND purpose='memory' AND status IN ('failed','retry') "
                               "AND error_code IN (?,?,?,?,?,?) AND plan_json IS NULL", (library_id,*codes)).fetchall()
             for row in rows:
                 db.execute("UPDATE jobs SET status='retry',next_run=0,error_code=NULL,error=NULL,updated=? WHERE id=?",

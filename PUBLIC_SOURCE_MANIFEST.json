@@ -38,8 +38,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 17310,
-      "sha256": "c7289a35334096f789b82bcc592b9d60b43c851d52e92ef589294ad87cd0deb7"
+      "bytes": 18325,
+      "sha256": "5615e0a778a24fd0f409d7876cedb226edd7b4cfc463365a8b020716ff6caf6e"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -63,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 15337,
-      "sha256": "85222243bc8454c4d4419556808fc0b4e066ac4aeb30e119c15561701a53a4b7"
+      "bytes": 16454,
+      "sha256": "d70d631ab183c00d3cc01a7505d1344a588bef23b95a7a4ccb75c1014e731fb2"
     },
     {
       "path": "ROADMAP.md",
@@ -247,6 +247,16 @@
       "sha256": "fb098bfb75532f101f31a38e9a093e31c43c50bf1d83f4def3c463a8749f5c61"
     },
     {
+      "path": "assets/screenshots/neural-flat-010.png",
+      "bytes": 54500,
+      "sha256": "c57fe84ee9c26f28b59bcc213b2cf16510b58c88a09a0286e920cc4308b3441b"
+    },
+    {
+      "path": "assets/screenshots/neural-nebula-010.png",
+      "bytes": 79644,
+      "sha256": "1ebf671bfe7f3c7aadeed4763709a68f4bd4b24fd6b467623c823ae1b108a48c"
+    },
+    {
       "path": "assets/screenshots/neural-nebula.png",
       "bytes": 54854,
       "sha256": "257865d99939bfebc727a4edffcd4276572585a91cd1a9b41c19d3063604fa33"
@@ -328,8 +338,8 @@
     },
     {
       "path": "desktop/AtlasApp.swift",
-      "bytes": 52874,
-      "sha256": "2be8403e2839787c7fe71b09e1e333ee4f15b0ddba84ca694315aad527c871e0"
+      "bytes": 64289,
+      "sha256": "0eef45107fa3b5d0688168acad48cb8d8511b69690df1209f0fc1da99d61a4dd"
     },
     {
       "path": "desktop/Icon.swift",
@@ -407,6 +417,11 @@
       "sha256": "c2e28bfa60489e564d0b0352af464e8c3e9d3c6a706eaa97b0a93426ffba913d"
     },
     {
+      "path": "docs/APPROVED-ATLAS-PROVENANCE.json",
+      "bytes": 5459,
+      "sha256": "db00ad26d330d008fe3c485c47afe13e5b5f8f14fe996143a8995af0463184ef"
+    },
+    {
       "path": "docs/Agent身份与全活动记忆.md",
       "bytes": 10141,
       "sha256": "bbbc12ca85839210cfa48dbc0ae789d1a27be9f618ec4e2506c959cb64f4b8ba"
@@ -420,6 +435,11 @@
       "path": "docs/KIMI-REVIEW-20261030.md",
       "bytes": 6847,
       "sha256": "b58113d12ecc67b608307583cf2a8a4b9adfa1d5a9c3a49ff813122fd6677d8b"
+    },
+    {
+      "path": "docs/MACOS-010-PERSONA.md",
+      "bytes": 5038,
+      "sha256": "f813f0074d5dc99af7f1b3ac449786ae65cec52ceb458406f4fc0b7a8e261f40"
     },
     {
       "path": "docs/MACOS-060-HANDOFF.md",
@@ -457,6 +477,11 @@
       "sha256": "7e47e4f13326c39d389fc2394707732958223fa678ee72b816417f02c554a80c"
     },
     {
+      "path": "docs/NEURAL-ATLAS-010.md",
+      "bytes": 4806,
+      "sha256": "b77a0137e7dda3d3a56e12a32a080944eb1e777cef5fb89ba64c7e713f114e6e"
+    },
+    {
       "path": "docs/QQ-AstrBot-云端接入方案.md",
       "bytes": 2647,
       "sha256": "3359da3518d3e088d4705b702a0b53f51745806f9bf7f9a8035a241771bf60ec"
@@ -475,6 +500,11 @@
       "path": "docs/ReleaseNotes-0.9.1rc1-Windows.md",
       "bytes": 2204,
       "sha256": "1b1c752540346e7e571cfce3e535eb83209d4b17509b02ca10638a0c91eafc82"
+    },
+    {
+      "path": "docs/WINDOWS-010-HANDOFF.md",
+      "bytes": 5584,
+      "sha256": "592a5d8f4f4736c17f31167f7861b8cfce4dcc1b0e94d2e4dabcfa00c94d3151"
     },
     {
       "path": "docs/WINDOWS-090-HANDOFF.md",
@@ -498,8 +528,8 @@
     },
     {
       "path": "docs/下载与系统支持.md",
-      "bytes": 5869,
-      "sha256": "b3bebc876e48151771b9ac907dc14995f0c95dfa07a2aa4ff1d6a517037d5a45"
+      "bytes": 5919,
+      "sha256": "d84d4439df4a14ac0aa9a19d360a6a58c7228c20763e15d072d3c735787e9203"
     },
     {
       "path": "docs/发布与许可.md",
@@ -758,8 +788,8 @@
     },
     {
       "path": "nkb/_version.py",
-      "bytes": 22,
-      "sha256": "82a4fe046a1e108b5d6bd7c80900ef2dbc448d6448061149c4fc712af9872d4a"
+      "bytes": 23,
+      "sha256": "bf8ce62a3b0a38f65ba7a06b5a8cfb88ae124f4b1d65d521f5b41226696e679a"
     },
     {
       "path": "nkb/adapters/__init__.py",
@@ -803,13 +833,13 @@
     },
     {
       "path": "nkb/companion/__init__.py",
-      "bytes": 1054,
-      "sha256": "b2a23e163a05da4fdc35b4f25dafd30937aff471890b833949910d1e5cf4bb97"
+      "bytes": 1305,
+      "sha256": "8a7dbcc0d3955d6e98d52c727be82b7fddc13eac2db4f3bac443a4e9870cd70d"
     },
     {
       "path": "nkb/companion/catalog.py",
-      "bytes": 8516,
-      "sha256": "103e2edc65305523d1b3e079df615f9a954b829cd9f93b9c55fecce8fccc8204"
+      "bytes": 8528,
+      "sha256": "3e2d2851e6152e0ce155b4cbad375ab93683712bb99471c4359899adf3d286a3"
     },
     {
       "path": "nkb/companion/client.py",
@@ -823,8 +853,8 @@
     },
     {
       "path": "nkb/companion/handoff.py",
-      "bytes": 6273,
-      "sha256": "cd9fef516d7fe4676e66f2687834b8bdcec29228b8e054773c607f3d251a0958"
+      "bytes": 6489,
+      "sha256": "cd790c0f270524b565f9126f4c168f0094e1720ae88855e98fff3bf6cf44e8d2"
     },
     {
       "path": "nkb/companion/ingestion.py",
@@ -833,13 +863,13 @@
     },
     {
       "path": "nkb/companion/memory.py",
-      "bytes": 23516,
-      "sha256": "7feb22134d75f94c24904c8a7b0f3666b2c6f1d5f926fbdd742ca870690cc6d4"
+      "bytes": 23869,
+      "sha256": "d292397c913425f408a03a336ec3e1153fa9f743f3498187dad1b083a080db80"
     },
     {
       "path": "nkb/companion/persona.py",
-      "bytes": 16167,
-      "sha256": "1770f6f9e656536dc1234687eb8c64ef58bc9d354f5c26f88a0958d780d76c39"
+      "bytes": 43457,
+      "sha256": "882da4ebfb2e0eb364eb611cbbf23f27aa50c6f5df8ba7952db57713b6e48ddc"
     },
     {
       "path": "nkb/companion/retention.py",
@@ -848,8 +878,8 @@
     },
     {
       "path": "nkb/companion/structured.py",
-      "bytes": 26351,
-      "sha256": "bb79f4ab5d09d2f15e3bafd3eeb8a1291b9f1496b3684bebd2adc7784186c8be"
+      "bytes": 27583,
+      "sha256": "d1bb657ec1bc6a8c2e7c74828cd72828282a7fa120ff99a3067033206b67d0c4"
     },
     {
       "path": "nkb/config.py",
@@ -923,8 +953,8 @@
     },
     {
       "path": "nkb/organizer/README.md",
-      "bytes": 7970,
-      "sha256": "1deeb56959c8925b1ca90202537f46b3e9c90b47f2e3e83542b9e062a9fa1735"
+      "bytes": 10681,
+      "sha256": "fbe669a1f6c4e03057dae2a7c67d9e5bbacd9e48353e4ee75479738e5fec3d03"
     },
     {
       "path": "nkb/organizer/__init__.py",
@@ -943,8 +973,8 @@
     },
     {
       "path": "nkb/organizer/engine.py",
-      "bytes": 34337,
-      "sha256": "a51d2ef7e598e6c756e7da11bee03e8b043186bd2a027fb137e3dd2e9f683ea2"
+      "bytes": 43696,
+      "sha256": "e6ef5ac4bbcf3599c00713a20deb3cad2a5c062fe6ead550dd2061cc3526117a"
     },
     {
       "path": "nkb/organizer/experiences.py",
@@ -953,18 +983,18 @@
     },
     {
       "path": "nkb/organizer/model.py",
-      "bytes": 8270,
-      "sha256": "059ecb333e5cddc1b3b222ba32c696bd8ad59f9cf6af65ff60ec30f9ed944ff8"
+      "bytes": 8805,
+      "sha256": "266bcd6186306e1c8e2857ed07e8604e912dfd9e23a329a997c4f0c07ce1fb37"
     },
     {
       "path": "nkb/organizer/rules.py",
-      "bytes": 12256,
-      "sha256": "cb0ce1093aa761a7eed933f3d3bbcd0ec436101d35fd0fdbe560b62e2abfb601"
+      "bytes": 16013,
+      "sha256": "0062c62ab65684eef8ce80548d4b6bc11b026b1464014f82b9a492a1f8a43360"
     },
     {
       "path": "nkb/organizer/state.py",
-      "bytes": 41117,
-      "sha256": "830ab7cd1147d038e52323d089207905064786ac640d3153a92bbeb36e3c35ae"
+      "bytes": 56020,
+      "sha256": "8a3e5187125ae8b5b8519f49b9a80a34d08f09ea371cab118e851ed5ecc4b1f7"
     },
     {
       "path": "nkb/py.typed",
@@ -1088,8 +1118,8 @@
     },
     {
       "path": "nkb/service/host.py",
-      "bytes": 83152,
-      "sha256": "fb9db1247f248a479bf7056f214c2757303b49a1d6a442b288b95818f04b1db3"
+      "bytes": 87343,
+      "sha256": "2482d240c3a97e79d3cb5436f7b0da9eaa1c956119d04cf61f2e5593b0c79ce2"
     },
     {
       "path": "nkb/service/providers.py",
@@ -1108,8 +1138,8 @@
     },
     {
       "path": "nkb/service/sharing.py",
-      "bytes": 26810,
-      "sha256": "a400b5a5a73e10494dceb1fbaf6012ef7f86215605cb0ab527167eb38b349a57"
+      "bytes": 28302,
+      "sha256": "07f1a5b5b63986cbab20b8031627fec60ae6d696a4cb255d3c40c76428e8a317"
     },
     {
       "path": "nkb/service/source_client.py",
@@ -1182,6 +1212,21 @@
       "sha256": "224b8f045cd0109605b65810e4d5ed6969e5f88414a450190ed966b95b58a975"
     },
     {
+      "path": "nkb/viz/art/approved-atlas-data.js",
+      "bytes": 3975,
+      "sha256": "b5a042232b187c69be8e38d1b1bed5460708849a7b95e5dceb7d9db0314d6eb3"
+    },
+    {
+      "path": "nkb/viz/art/approved-atlas-painter.js",
+      "bytes": 19384,
+      "sha256": "de68a8c8394e1bf840903b289f29d5b5732f0221f1da7150415c7ec94b4199d5"
+    },
+    {
+      "path": "nkb/viz/art/approved-atlas-renderer.js",
+      "bytes": 12509,
+      "sha256": "4ccd0231945f684632cfba9a9e80c1c09f7b839b4861590eb51afe436fe0277a"
+    },
+    {
       "path": "nkb/viz/art/build.mjs",
       "bytes": 925,
       "sha256": "06b719d864c4ebf89c52ad70eddbf1507b99815f2c4155874f76bfdb76c1688b"
@@ -1193,13 +1238,18 @@
     },
     {
       "path": "nkb/viz/art/neural-art.bundle.js",
-      "bytes": 539249,
-      "sha256": "5af0d133652cc19f6a5600e11fa9e6cd7d02554d3c4ebfd17040446386e0098d"
+      "bytes": 567061,
+      "sha256": "b2763b1e7a8888dde651afa6b0d2d6f2fdd671c9d7fba0dd1921f9fdc80182fa"
     },
     {
       "path": "nkb/viz/art/neural-art.js",
-      "bytes": 23365,
-      "sha256": "31a6e647235172e198c54ded56eafa24d4625808e672e0a93eae63c90d20e876"
+      "bytes": 23635,
+      "sha256": "468e898fb1ea6a7132a088c36c503fd72fd48f982f093ad4397103c7232deb57"
+    },
+    {
+      "path": "nkb/viz/art/neural-fibers.js",
+      "bytes": 13492,
+      "sha256": "ac0cd928379c2cecfcc4fc38598caaef5fb92103ab7c0ee46ec5c2107a37d258"
     },
     {
       "path": "nkb/viz/art/package-lock.json",
@@ -1212,14 +1262,19 @@
       "sha256": "6c37201fb78c4f668114fdaae66dad484b1664985248481623c4ed66f3b73495"
     },
     {
+      "path": "nkb/viz/art/synapse-dynamics.js",
+      "bytes": 8827,
+      "sha256": "ce24e201b040b3e9b2c4d6dfced9ecf9c9aa0bfb92874ae4c2786068f5699442"
+    },
+    {
       "path": "nkb/viz/art/viewport-policy.js",
       "bytes": 6528,
       "sha256": "3ca17ac506df19e6f9aac2463761625989874a1c8f4e5b23c509cad7dfbe8956"
     },
     {
       "path": "nkb/viz/builder.py",
-      "bytes": 2414,
-      "sha256": "94fb7e817602721744a89b42d082210f9a83db66fa6e56c947ebdf0780d46996"
+      "bytes": 2438,
+      "sha256": "b717deb2e717c77d427d45b97025e917f3fb814cb546d67ca9e3abf94303bdf6"
     },
     {
       "path": "nkb/viz/web/agent-sources-ui.js",
@@ -1243,8 +1298,8 @@
     },
     {
       "path": "nkb/viz/web/dialogue-import-ui.js",
-      "bytes": 11882,
-      "sha256": "9ed8d2192f2f8f86b9649ca3749bce88ca510093a9a51a9dd34d9eb2729eaad3"
+      "bytes": 12020,
+      "sha256": "39b4553576e130421953819eaaf2a138d6bf7eb4d94c6f79525695ea88fb02c7"
     },
     {
       "path": "nkb/viz/web/experience-ui.js",
@@ -1253,8 +1308,8 @@
     },
     {
       "path": "nkb/viz/web/index.html",
-      "bytes": 1691209,
-      "sha256": "faf01ef0c58506a38039f20a0e92aa3eba3bff9e67b731a57afb9ea4b5e2829d"
+      "bytes": 1695170,
+      "sha256": "ea899b78510534355056854fc90381e4669b61fc2486be20c3e25aa1027b2bc6"
     },
     {
       "path": "nkb/viz/web/library-manager-ui.js",
@@ -1268,18 +1323,23 @@
     },
     {
       "path": "nkb/viz/web/memory-organizer-ui.js",
-      "bytes": 24411,
-      "sha256": "8019c01cf6953d7f7bceea19e855075348dfe2abdc86a1a80ede9fb9b8570d30"
+      "bytes": 24586,
+      "sha256": "5148c0537b809d22f54385cd5b78d42313f8f568b32f78cbf0fb1e1f0114eb8b"
     },
     {
       "path": "nkb/viz/web/memory-portability-ui.js",
-      "bytes": 19531,
-      "sha256": "fb51ce5b5d5eebc808790f5e54b271b342d3c84c348401e21766999672d3e364"
+      "bytes": 19654,
+      "sha256": "fadc40b0366f944e2535463f08a94932ff35489cbe7426bb83182a5e9daa66e8"
     },
     {
       "path": "nkb/viz/web/organizer-rules-ui.js",
       "bytes": 3273,
       "sha256": "686e5b49335ef29e1bdc3df6b8ee59564c5220b20ce00673b0e300795ba780ee"
+    },
+    {
+      "path": "nkb/viz/web/persona-growth-ui.js",
+      "bytes": 26556,
+      "sha256": "d990b2376391b963a9d20971f5da5d9f69f5629bd92da37a7efbc3d8bcb3d71b"
     },
     {
       "path": "nkb/viz/web/retention-ui.js",
@@ -1293,8 +1353,8 @@
     },
     {
       "path": "nkb/viz/web/warm-theme.js",
-      "bytes": 4366965,
-      "sha256": "98f538b33bd2bea38756c40057d4b6608e74e7524bae32bb7884fcf64fd64ecb"
+      "bytes": 4368264,
+      "sha256": "5100b0438dab5e2a522a56aef4e0e665218a850f6ab0311cab33224255d4966a"
     },
     {
       "path": "nkb/viz/web/window-handoff-ui.js",
@@ -1308,8 +1368,8 @@
     },
     {
       "path": "scripts/build_macos.py",
-      "bytes": 36772,
-      "sha256": "d31cfc31095b464fb7b9ada1ec6dedda8bb9462cbf21da19c65a67e937ced1b6"
+      "bytes": 36774,
+      "sha256": "bf41d9aa8b4df9b12e3871de0da95a3357e66ddc306884abea23226f77f3e2e2"
     },
     {
       "path": "scripts/build_windows.py",
@@ -1347,6 +1407,11 @@
       "sha256": "06aa2fd1d17126b456d1d8259e6d94f1045b2a3d3409ca8a0a0aeea643933b6e"
     },
     {
+      "path": "tests/fixtures/approved-neural-atlas-demo.source.txt",
+      "bytes": 29023,
+      "sha256": "dd31e23f5834b83bdf0c1b881bf2302852747d927834b326a9014fc2b9740090"
+    },
+    {
       "path": "tests/js/agent-connect-ui.test.cjs",
       "bytes": 16368,
       "sha256": "2385d6d6c0a67a33e89dffc2172ab14b92467ad96102a419f4190419e920089e"
@@ -1355,6 +1420,16 @@
       "path": "tests/js/agent-sources-ui.test.cjs",
       "bytes": 14427,
       "sha256": "e82994b798c94bf999c5ae1cc13cb028e2803ae9f734379a4c5e195dda876c57"
+    },
+    {
+      "path": "tests/js/approved-atlas-painter.test.mjs",
+      "bytes": 10562,
+      "sha256": "497e2af5d3f7de3af92ab86486107ee7837fa29f8663dc8c2c6efdb8d6673617"
+    },
+    {
+      "path": "tests/js/approved-atlas-renderer.test.mjs",
+      "bytes": 10442,
+      "sha256": "da5feae965c3d52cfe7dc123034d0a85c0b92eab1c44e07e7d2bbb4ad1c2df85"
     },
     {
       "path": "tests/js/button-hints.test.cjs",
@@ -1377,9 +1452,19 @@
       "sha256": "485863529b11bfea8f606a53e4ca5ed43871007112aceed696aaf8b76f167400"
     },
     {
+      "path": "tests/js/graph-view-state.test.cjs",
+      "bytes": 13253,
+      "sha256": "150a91ee71474085911d1352de35566d20cf28d27aace69e4c91c892ef7999d6"
+    },
+    {
       "path": "tests/js/memory-portability-ui.test.cjs",
       "bytes": 14692,
       "sha256": "ac998afbdc8411cc1eac129502e317ad6793e3ee2b333a4717b91ab95df261cf"
+    },
+    {
+      "path": "tests/js/neural-fibers.test.mjs",
+      "bytes": 8267,
+      "sha256": "e4f9f8e61e75e8e8ed14eb538b062e0756d90259f3868184f66a10727906928e"
     },
     {
       "path": "tests/js/node-visibility.test.mjs",
@@ -1392,9 +1477,19 @@
       "sha256": "b732c97ef15454b2ece035617793ac7520988083ac41238eac9e862962f1d55d"
     },
     {
+      "path": "tests/js/persona-growth-ui.test.cjs",
+      "bytes": 19497,
+      "sha256": "60050dd32043ec1b18a4952bb0315b5aa6e8d9a8a4032f54bd130156ae05830f"
+    },
+    {
       "path": "tests/js/retention-ui.test.cjs",
       "bytes": 14671,
       "sha256": "2c29facc181a7413ca18ec8708fcce87dad55a01c160a854027bb5a4aa2db0b7"
+    },
+    {
+      "path": "tests/js/synapse-dynamics.test.mjs",
+      "bytes": 8376,
+      "sha256": "5719e7c37b16842f0ecc8d761951f7cf61512a0e560d8424fa966c4ec16f2c26"
     },
     {
       "path": "tests/js/update-checker-ui.test.cjs",
@@ -1405,6 +1500,11 @@
       "path": "tests/js/viewport-policy.test.cjs",
       "bytes": 7130,
       "sha256": "742596bdd28e6da83f0f61d050c6b7ce3250b044171d7bbfda12289fc6b3ed41"
+    },
+    {
+      "path": "tests/js/warm-theme.test.cjs",
+      "bytes": 7726,
+      "sha256": "9515f995118c3b0395fece07583745c546eb50f34ba86cbff5c310639c93070e"
     },
     {
       "path": "tests/js/window-handoff-ui.test.cjs",
@@ -1602,6 +1702,11 @@
       "sha256": "b6f8c7efc694a08144a555eabb7cf14ca85e43ca6193438b5362770cd81db5c4"
     },
     {
+      "path": "tests/test_neural_atlas.py",
+      "bytes": 2305,
+      "sha256": "47575987169a70ad65fbe5e722ea71b4f21f81094b98867f9347e3dd3d5db973"
+    },
+    {
       "path": "tests/test_node_visibility.py",
       "bytes": 953,
       "sha256": "c91120adf91918d06d894edcc76a7ca69431a3782908d4d0722300a591628cff"
@@ -1663,8 +1768,23 @@
     },
     {
       "path": "tests/test_passive_ingestion.py",
-      "bytes": 16870,
-      "sha256": "fce762acb3d7e80c66ca4e399360d376348d1f595f9c10b36241a9c9c1fe1e45"
+      "bytes": 16846,
+      "sha256": "7faac1f2ab2791b43dbac433fee79b85abcda2784de63e47ac3f510bed062d1f"
+    },
+    {
+      "path": "tests/test_persona_formation.py",
+      "bytes": 15811,
+      "sha256": "f6f1bd5a49ce61664fc3c2d9c4a2663f63a8ae8c2a0e1fd5430cf067e556be7c"
+    },
+    {
+      "path": "tests/test_persona_growth_ui.py",
+      "bytes": 1773,
+      "sha256": "7a8d6bf9e8c2814c5c1be0a64a78a184b3f0bc2b5cad0c5fc56ea66b24ba6778"
+    },
+    {
+      "path": "tests/test_persona_organizer.py",
+      "bytes": 33227,
+      "sha256": "310045b674d9caba1c631c8b10f7a28e01b4fc689feb0da64eae16fa94779f9e"
     },
     {
       "path": "tests/test_platform_recent_recall.py",
@@ -1708,8 +1828,8 @@
     },
     {
       "path": "tests/test_structured_context.py",
-      "bytes": 14174,
-      "sha256": "e0a11c1dfd3d9d39de30d90297b44819110d623157d7833e8cc6ad558157daaf"
+      "bytes": 14173,
+      "sha256": "28d4930184589aad07272e83c2433f281e5bf6380347e651a37494c7614406da"
     },
     {
       "path": "tests/test_temporal_retention.py",

@@ -1,0 +1,328 @@
+/* Isolated, offline visual experiment. All memories and metrics below are synthetic. */
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const canvas = $('universe'), ctx = canvas.getContext('2d', { alpha: false });
+  const fiber = $('fiber'), fctx = fiber.getContext('2d');
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const mix = (a, b, t) => a + (b - a) * t;
+  let seed = 170101;
+  const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const normal = () => Math.sqrt(-2 * Math.log(Math.max(.00001, random()))) * Math.cos(2 * Math.PI * random());
+  const groups = [
+    { name:'日常与陪伴', title:'一起度过的日常', desc:'那些平常的小事，慢慢成为最牢固的连接。', pos:[-.06,.02,.16], f:86, s:.92, words:['清晨的一声问候','晚饭后的散步','一起看的那场电影','习惯说一句晚安','窗边的午后','雨天共用一把伞','分享今天的小事','熟悉的回家路','周末慢慢吃早餐','杯子里的热茶','等你回来的灯','偶然听到的旋律','阳台上的植物','路过街角的面包店'] },
+    { name:'创作与灵感', title:'灵感闪现的瞬间', desc:'散落的想法在这里相遇，一条新的线索正在形成。', pos:[-.55,-.33,-.12], f:65, s:.8, words:['半夜冒出的点子','记在纸上的一句话','未完成的小画','喜欢的电影镜头','第一次做出作品','收集光影的形状','改了三次的标题','故事的另一个结尾','旧笔记的新发现','突如其来的好奇心','随手拍下的云','一张空白的画布','不一样的配色','藏在梦里的场景'] },
+    { name:'计划与成长', title:'慢慢成为更好的自己', desc:'一次次练习与小小的进步，连接成前行的方向。', pos:[.53,-.32,.04], f:74, s:.86, words:['开始一个新计划','完成第一步','把目标拆小一点','复盘今天的收获','学会一项新技能','允许自己慢一点','清单上的一个勾','终于理解的难题','想尝试的新方向','记录每一点进步','想坚持的小习惯','给未来的一封信','越过心里的那道坎','准备下一段旅程'] },
+    { name:'情绪与感受', title:'被理解的那一刻', desc:'有些话说出口后，心里的结便悄悄松开了。', pos:[.47,.39,-.16], f:55, s:.76, words:['有人认真听我说','终于松了一口气','把难过写下来','一次温柔的安慰','无缘由的小开心','想念远方的朋友','听见自己的心跳','和不完美和解','那天很勇敢','心情放晴的傍晚','安心待着的地方','还没说出口的话','一个长长的拥抱','终于放下的心事'] },
+    { name:'偏好与习惯', title:'关于我的小偏好', desc:'微小而独特的选择，勾勒出一个人的轮廓。', pos:[-.49,.39,.06], f:79, s:.88, words:['喜欢少糖的咖啡','反复播放的歌','钟爱的那一种蓝','习惯坐在窗边','想重读的那本书','喜欢散步的节奏','收藏小小的票根','睡前翻几页书','偏爱的木质香气','喜欢留白的设计','最舒服的天气','舍不得换的旧物','安静专注的时间','独处也自在'] },
+    { name:'远方与回忆', title:'风吹过的旧时光', desc:'有些记忆很少被唤起，却依然与此刻的自己相连。', pos:[.02,-.64,-.2], f:23, s:.41, words:['记忆里的旧街道','夏天傍晚的风','曾经去过的小城','一张泛黄的照片','很久没联系的人','旧校门口的树','第一次看见大海','车窗外的远山','遗忘了一半的梦','小时候的秘密基地','一封没有寄出的信','某年冬天的雪','一段模糊的对白','陌生又熟悉的站台'] }
+  ];
+  const nodes = [], edges = [], dust = [], pulses = [];
+  groups.forEach((g, group) => {
+    for (let j=0;j<15;j++) {
+      const a=j*2.399963+group*.6, r=.115+random()*.155;
+      const p = j===0 ? g.pos.slice() : [g.pos[0]+Math.cos(a)*r,g.pos[1]+Math.sin(a)*r*.83,g.pos[2]+(random()-.5)*.34];
+      const freq = j===0 ? g.f : Math.round(3+random()*67);
+      const strength=j===0?g.s:.19+random()*.75;
+      nodes.push({ id:nodes.length, group, hub:j===0, name:j===0?g.title:g.words[j-1], desc:j===0?g.desc:`这是一段与「${g.name}」相连的示例记忆。每一次回想，都会让它与周围记忆的连接发生变化。`, p, freq, strength, baseFreq:freq, baseStrength:strength, phase:random()*Math.PI*2, screen:{x:0,y:0,z:0}, size:j===0?4.8:1.7+random()*1.3 });
+    }
+  });
+  function addEdge(a,b,s) {
+    if(a===b || edges.some(e=>(e.a===a&&e.b===b)||(e.a===b&&e.b===a))) return;
+    edges.push({id:edges.length,a,b,strength:s,phase:random()*Math.PI*2,bend:(random()-.5)*1.4});
+  }
+  groups.forEach((g,k)=>{
+    const hub=k*15;
+    for(let j=1;j<15;j++) {
+      addEdge(hub,hub+j,.3+random()*.66);
+      if(j>1) addEdge(hub+j-1,hub+j,.2+random()*.62);
+    }
+  });
+  [[0,15,.92],[0,30,.94],[0,45,.81],[0,60,.92],[0,75,.42],[15,30,.78],[15,75,.31],[30,60,.77],[45,60,.82],[45,75,.35],[15,45,.55],[30,75,.37]].forEach(e=>addEdge(...e));
+  for(let i=0;i<14;i++){const a=Math.floor(random()*nodes.length),b=Math.floor(random()*nodes.length);if(nodes[a].group!==nodes[b].group)addEdge(a,b,.17+random()*.36);}
+  // Cloud particles are distributed in coherent spiral lobes around each memory.
+  nodes.forEach(n=>{
+    const count=n.hub?950:38;
+    for(let j=0;j<count;j++){
+      const a=random()*Math.PI*2,r=Math.pow(random(),1.25)*(n.hub?.27:.06);
+      const curl=a+r*22;
+      dust.push({node:n.id,offset:[Math.cos(curl)*r*1.25,Math.sin(curl)*r*.61,normal()*r*.48],phase:random()*6.28,size:.3+random()*.8,alpha:.1+random()*.37});
+    }
+  });
+  const stars=Array.from({length:180},()=>({x:random(),y:random(),r:random()*.7+.2,alpha:.04+random()*.11}));
+  const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
+  const state={theme:'dark',mode:'nebula',flat:0,selected:0,hover:-1,focus:false,paused:reduced.matches,time:0,zoom:1,zoomTarget:1,yaw:-.09,pitch:.07,panX:0,panY:0,query:'',width:1,height:1,dpr:1,scale:1,frame:0};
+  let ink='242,242,239', bg='#08090b', lastTime=0, dragging=null, needsPaint=true;
+  const rgba = a=>`rgba(${ink},${clamp(a,0,1)})`;
+  const adjacent=id=>edges.filter(e=>e.a===id||e.b===id).map(e=>e.a===id?e.b:e.a);
+  function edgeStyle(e) {
+    const a=nodes[e.a],b=nodes[e.b];
+    // User changes tune incident links; intrinsic association remains distinct per edge.
+    const tuningA=a.strength/a.baseStrength,tuningB=b.strength/b.baseStrength;
+    const association=clamp(e.strength*tuningA*tuningB,0,1);
+    const frequency=Math.sqrt(a.freq*b.freq)/100;
+    const stability=association*.78+frequency*.22;
+    return {association,frequency,stability,width:.28+association*association*2.15+frequency*.55,alpha:.075+association*.39+frequency*.13,amplitude:2.2+Math.pow(1-stability,1.65)*43,speed:.36+(1-stability)*.9};
+  }
+  function selectNode(id){state.selected=id;updatePanel();renderList();}
+  function updatePanel(){
+    const n=nodes[state.selected];
+    $('memory-category').textContent=groups[n.group].name;
+    $('memory-id').textContent=`M—${String(n.id+1).padStart(3,'0')}`;
+    $('memory-title').textContent=n.name;$('memory-description').textContent=n.desc;
+    $('recall-count').innerHTML=`${n.freq}<small>次</small>`;
+    $('link-count').innerHTML=`${adjacent(n.id).length}<small>条</small>`;
+    $('strength').value=Math.round(n.strength*100);$('strength-value').textContent=`${Math.round(n.strength*100)}%`;
+    $('frequency').value=n.freq;$('frequency-value').textContent=`${n.freq} 次 / 月`;
+    const styles=edges.filter(e=>e.a===n.id||e.b===n.id).map(edgeStyle);
+    const stability=styles.reduce((sum,s)=>sum+s.stability,0)/Math.max(1,styles.length);
+    $('fiber-character').textContent=stability>.66?'粗而稳定 · 轻微呼吸':stability>.4?'柔韧牵引 · 自然摆动':'纤细轻盈 · 自由游移';
+    $('recall-status').textContent='点击后，观察脉冲沿着关联传递';
+  }
+  function renderList(){
+    const q=state.query.trim().toLowerCase();
+    const shown=q?nodes.filter(n=>(n.name+groups[n.group].name).toLowerCase().includes(q)):nodes.filter(n=>n.hub);
+    $('memory-list').replaceChildren();
+    if(!shown.length){const el=document.createElement('div');el.className='empty-search';el.textContent='没有找到这段记忆，试试“晚安”或“灵感”。';$('memory-list').append(el);}
+    shown.forEach(n=>{const b=document.createElement('button');b.className=`memory-item${state.selected===n.id?' active':''}`;b.setAttribute('aria-pressed',String(state.selected===n.id));b.innerHTML=`<span>${n.name}</span><small>${n.freq} 次</small>`;b.addEventListener('click',()=>selectNode(n.id));$('memory-list').append(b);});
+    $('visible-count').textContent=q?`${shown.length} 段记忆`:'6 个记忆簇';
+  }
+  function resize(){
+    needsPaint=true;
+    const rect=canvas.getBoundingClientRect();state.width=rect.width;state.height=rect.height;state.dpr=Math.min(window.devicePixelRatio||1,2);
+    canvas.width=Math.round(rect.width*state.dpr);canvas.height=Math.round(rect.height*state.dpr);
+    ctx.setTransform(state.dpr,0,0,state.dpr,0,0);
+    const f=fiber.getBoundingClientRect();fiber.width=Math.round(f.width*state.dpr);fiber.height=Math.round(f.height*state.dpr);fctx.setTransform(state.dpr,0,0,state.dpr,0,0);
+  }
+  function project(p,extra=0){
+    const y=state.yaw+Math.sin(state.time*.055)*.065*(1-state.flat),x=state.pitch;
+    const rx=p[0]*Math.cos(y)-p[2]*Math.sin(y),rz=p[0]*Math.sin(y)+p[2]*Math.cos(y);
+    const ry=p[1]*Math.cos(x)-rz*Math.sin(x),zz=p[1]*Math.sin(x)+rz*Math.cos(x);
+    const perspective=2.9/(2.9+zz);
+    return {x:state.width*.5+(rx*state.scale+state.panX)*perspective,y:state.height*.54+(ry*state.scale+state.panY)*perspective,z:zz,ratio:perspective};
+  }
+  function flatPosition(n){
+    const g=n.group, local=n.id%15;
+    const angle=-Math.PI*.5+g*Math.PI/3+(local===0?0:(local-7.5)*.048);
+    const radius=.135+Math.pow(1-n.freq/110,.85)*.78+(local===0?-.035:0);
+    return [Math.cos(angle)*radius,Math.sin(angle)*radius,0];
+  }
+  function getPosition(n){
+    const t=state.time, f=state.flat;
+    const drift=.007+(1-n.strength)*.014;
+    const raw=[n.p[0]+Math.sin(t*.31+n.phase)*drift,n.p[1]+Math.cos(t*.27+n.phase)*drift,n.p[2]+Math.sin(t*.21+n.phase)*.014];
+    const flat=n.flatCurrent||flatPosition(n);
+    return raw.map((v,i)=>mix(v,flat[i],f));
+  }
+  function curveFor(e,s){
+    const a=nodes[e.a].screen,b=nodes[e.b].screen;
+    const dx=b.x-a.x,dy=b.y-a.y,len=Math.max(1,Math.hypot(dx,dy));
+      const amplitude=s.amplitude*state.zoom*(.78+state.flat*.22);
+    const wave=Math.sin(state.time*s.speed+e.phase)*amplitude;
+    const offset=e.bend*Math.min(len*.33,80)*mix(1,.35,state.flat);
+    const nx=-dy/len,ny=dx/len;
+    return {a,b,c:{x:a.x+dx*.33+nx*(wave+offset),y:a.y+dy*.33+ny*(wave+offset)},d:{x:a.x+dx*.68-nx*(wave*.63-offset),y:a.y+dy*.68-ny*(wave*.63-offset)}};
+  }
+  function pointAt(c,t){const u=1-t;return{x:u*u*u*c.a.x+3*u*u*t*c.c.x+3*u*t*t*c.d.x+t*t*t*c.b.x,y:u*u*u*c.a.y+3*u*u*t*c.c.y+3*u*t*t*c.d.y+t*t*t*c.b.y};}
+  function path(c,offset=0){ctx.beginPath();ctx.moveTo(c.a.x,c.a.y);ctx.bezierCurveTo(c.c.x+offset,c.c.y-offset,c.d.x+offset,c.d.y-offset,c.b.x,c.b.y);}
+  function drawFlatGuide(){
+    if(state.flat<.01)return;
+    ctx.save();const a=state.flat;
+    const center={x:state.width*.5+state.panX,y:state.height*.54+state.panY};
+    const r=state.scale;
+    [.27,.47,.67,.87].forEach((radius,i)=>{
+      ctx.beginPath();ctx.arc(center.x,center.y,r*radius,0,Math.PI*2);ctx.strokeStyle=rgba(a*.075);ctx.lineWidth=1;ctx.stroke();
+      ctx.fillStyle=rgba(a*.38);ctx.font='9px -apple-system, sans-serif';ctx.textAlign='left';ctx.fillText(['高频 · 内圈','经常想起','偶尔想起','遥远 · 外圈'][i],center.x+9,center.y-radius*r-5);
+    });
+    groups.forEach((g,i)=>{
+      const angle=-Math.PI/2+i*Math.PI/3;
+      const x=center.x+Math.cos(angle)*r*1.02,y=center.y+Math.sin(angle)*r*1.02;
+      ctx.font='10px -apple-system, sans-serif';ctx.textAlign='center';ctx.fillStyle=rgba(a*.55);ctx.fillText(g.name,x,y);
+      ctx.save();ctx.setLineDash([2,7]);ctx.strokeStyle=rgba(a*.055);ctx.beginPath();ctx.moveTo(center.x,center.y);ctx.lineTo(center.x+Math.cos(angle+Math.PI/6)*r*.93,center.y+Math.sin(angle+Math.PI/6)*r*.93);ctx.stroke();ctx.restore();
+    });
+    ctx.restore();
+  }
+  function drawCloud(related){
+    const flatDim=1-state.flat*.88;
+    for(const d of dust){
+      const n=nodes[d.node],p=n.current;
+      const swirl=state.time*.035+d.phase;
+      const cos=Math.cos(swirl)*.013, sn=Math.sin(swirl)*.013;
+      const collapse=mix(1,.25,state.flat);
+      const pp=project([p[0]+(d.offset[0]+cos)*collapse,p[1]+(d.offset[1]+sn)*collapse,p[2]+d.offset[2]*collapse]);
+      let alpha=d.alpha*flatDim;
+      if(state.focus&&!related.has(n.id))alpha*=.075;
+      if(state.query&&!n.name.includes(state.query)&&!groups[n.group].name.includes(state.query))alpha*=.18;
+      ctx.fillStyle=rgba(alpha);const r=d.size*pp.ratio*state.zoom;
+      ctx.fillRect(pp.x,pp.y,r,r);
+    }
+  }
+  function drawEdges(related){
+    const selected=state.selected;
+    for(const e of edges){
+      const s=edgeStyle(e),incident=e.a===selected||e.b===selected,c=curveFor(e,s);e.curve=c;
+      let alpha=s.alpha*(incident?1.24:.6);
+      if(state.focus&&!incident)alpha*=.065;
+      if(state.query&&!nodes[e.a].name.includes(state.query)&&!nodes[e.b].name.includes(state.query)&&!groups[nodes[e.a].group].name.includes(state.query)&&!groups[nodes[e.b].group].name.includes(state.query))alpha*=.14;
+      // A soft outer sheath and multiple fine fibers keep strong synapses organic.
+      if(incident&&s.association>.65){path(c);ctx.lineWidth=s.width*state.zoom*5;ctx.strokeStyle=rgba(alpha*.04);ctx.stroke();}
+      path(c);ctx.lineWidth=s.width*state.zoom*(incident?1:.7);ctx.strokeStyle=rgba(alpha);ctx.stroke();
+      if(s.association>.69){for(const off of [-2.7,-1.3,1.3,2.7]){path(c,off*state.zoom);ctx.lineWidth=.3*state.zoom;ctx.strokeStyle=rgba(alpha*.26);ctx.stroke();}}
+      // Small flowing filaments form a visible point-cloud sheath, derived only
+      // from real demo edges. These are decoration, never additional memories.
+      if(state.flat<.98){
+        const len=Math.hypot(c.b.x-c.a.x,c.b.y-c.a.y),count=Math.ceil(len*.24);
+        for(let j=0;j<count;j++){
+          const t=(j/count+state.time*.006*(1+s.frequency)+e.phase*.07)%1;
+          const p=pointAt(c,t),q=pointAt(c,Math.min(.999,t+.01));
+          const dx=q.x-p.x,dy=q.y-p.y,l=Math.max(.001,Math.hypot(dx,dy));
+          const spread=Math.sin(t*Math.PI)*(1.5+s.association*4.7)*state.zoom;
+          const noise=Math.sin(j*91.73+e.phase)*spread;
+          ctx.fillStyle=rgba(alpha*(1-state.flat)*(.17+Math.sin(j*7.3)**2*.4));
+          ctx.fillRect(p.x-dy/l*noise,p.y+dx/l*noise,.65*state.zoom,.65*state.zoom);
+        }
+      }
+      if(!state.paused){
+        const period=mix(18,5,s.frequency),t=(state.time/period+e.phase)%1;
+        if(t<.88){const p=pointAt(c,t/.88);const brightness=alpha*.72*Math.sin(t/.88*Math.PI);ctx.beginPath();ctx.arc(p.x,p.y,(incident?1.4:.7)*state.zoom,0,Math.PI*2);ctx.fillStyle=rgba(brightness);ctx.fill();}
+      }
+    }
+  }
+  function drawNodes(related){
+    const placed=[],labels=[];
+    for(const n of [...nodes].sort((a,b)=>b.screen.z-a.screen.z)){
+      const p=n.screen, selected=n.id===state.selected, hover=n.id===state.hover;
+      let alpha=n.hub?.88:.48;
+      if(state.focus&&!related.has(n.id))alpha*=.1;
+      if(state.query&&!n.name.includes(state.query)&&!groups[n.group].name.includes(state.query))alpha*=.16;
+      const breathing=1+Math.sin(state.time*.7+n.phase)*.07;
+      const size=n.size*p.ratio*state.zoom*breathing;
+      const glow=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,size*7);
+      glow.addColorStop(0,rgba(alpha*.2));glow.addColorStop(.26,rgba(alpha*.045));glow.addColorStop(1,rgba(0));
+      ctx.fillStyle=glow;ctx.fillRect(p.x-size*7,p.y-size*7,size*14,size*14);
+      ctx.beginPath();ctx.arc(p.x,p.y,selected?size*1.1:size,0,Math.PI*2);ctx.fillStyle=rgba(alpha);ctx.fill();
+      if(n.hub){ctx.beginPath();ctx.arc(p.x,p.y,size*2.15,0,Math.PI*2);ctx.lineWidth=.5;ctx.strokeStyle=rgba(alpha*.28);ctx.stroke();}
+      if(selected||hover){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(state.time*.08);ctx.setLineDash([14,9,4,9]);ctx.beginPath();ctx.arc(0,0,size+13,0,Math.PI*2);ctx.strokeStyle=rgba(.65);ctx.lineWidth=.7;ctx.stroke();ctx.restore();}
+      // Labels are collision-checked, with the selected memory always taking priority.
+      if(n.hub||selected||hover||(state.flat>.9&&related.has(n.id))||(state.query&&n.name.includes(state.query))){
+        labels.push({n,p,selected,hover,alpha,size});
+      }
+    }
+    labels.sort((a,b)=>(b.selected*10+b.hover*5+b.n.hub)-(a.selected*10+a.hover*5+a.n.hub));
+    for(const {n,p,selected,hover,alpha,size} of labels){
+        const text=n.name,fs=selected?12:n.hub?11:9;
+        ctx.font=`${fs}px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif`;
+        const tw=ctx.measureText(text).width, tx=p.x+size+11, ty=p.y-7;
+        const bounds={x:tx-4,y:ty-11,w:tw+8,h:selected?34:19};
+        if(tx+tw>state.width-30||tx<8||ty<175||ty>state.height-125)continue;
+        if(placed.some(b=>bounds.x<b.x+b.w&&bounds.x+bounds.w>b.x&&bounds.y<b.y+b.h&&bounds.y+bounds.h>b.y))continue;
+        placed.push(bounds);ctx.fillStyle=bg;ctx.globalAlpha=.8;ctx.fillRect(bounds.x,bounds.y,bounds.w,bounds.h);ctx.globalAlpha=1;
+        ctx.fillStyle=rgba(selected?1:alpha*.85);ctx.textAlign='left';ctx.fillText(text,tx,ty+2);
+        if(selected){ctx.fillStyle=rgba(.4);ctx.font='8px -apple-system,sans-serif';ctx.fillText(`M—${String(n.id+1).padStart(3,'0')}  /  ${n.freq} 次调用`,tx,ty+17);}
+    }
+  }
+  function drawPulses(){
+    pulses.forEach(p=>{
+      const elapsed=state.time-p.start;
+      const n=nodes[p.node],q=n.screen;
+      if(elapsed<2.1){const radius=elapsed*52*state.zoom;ctx.beginPath();ctx.arc(q.x,q.y,radius,0,Math.PI*2);ctx.strokeStyle=rgba((1-elapsed/2.1)*.32);ctx.lineWidth=1;ctx.stroke();}
+      edges.forEach(e=>{
+        if(e.a!==p.node&&e.b!==p.node)return;
+        const duration=1.25+(1-edgeStyle(e).association)*1.4,t=elapsed/duration;
+        if(t<0||t>1||!e.curve)return;
+        const c=e.curve,at=e.a===p.node?t:1-t,pos=pointAt(c,at);
+        path(c);ctx.lineWidth=edgeStyle(e).width*1.35*state.zoom;ctx.strokeStyle=rgba(Math.sin(t*Math.PI)*.36);ctx.stroke();
+        const glow=ctx.createRadialGradient(pos.x,pos.y,0,pos.x,pos.y,13*state.zoom);glow.addColorStop(0,rgba(.7));glow.addColorStop(.22,rgba(.2));glow.addColorStop(1,rgba(0));ctx.fillStyle=glow;ctx.fillRect(pos.x-13*state.zoom,pos.y-13*state.zoom,26*state.zoom,26*state.zoom);ctx.fillStyle=rgba(.98);ctx.beginPath();ctx.arc(pos.x,pos.y,2.2*state.zoom,0,Math.PI*2);ctx.fill();
+      });
+    });
+    while(pulses.length&&state.time-pulses[0].start>4)pulses.shift();
+  }
+  function drawFiber(){
+    const w=fiber.width/state.dpr,h=fiber.height/state.dpr;
+    fctx.clearRect(0,0,w,h);
+    const styles=edges.filter(e=>e.a===state.selected||e.b===state.selected).map(edgeStyle);
+    const avg=key=>styles.reduce((sum,s)=>sum+s[key],0)/Math.max(1,styles.length);
+    const strong=avg('association'),stable=avg('stability');
+    const amp=avg('amplitude')*.47,width=avg('width');
+    for(let k=-1;k<=1;k++){
+      fctx.beginPath();
+      for(let i=0;i<=75;i++){const x=14+(w-28)*i/75,t=i/75;const y=h*.48+Math.sin(t*6.28+state.time*(.6+1-stable))*Math.sin(t*Math.PI)*amp+k*1.8; i===0?fctx.moveTo(x,y):fctx.lineTo(x,y);}
+      fctx.strokeStyle=rgba(k===0?.3+strong*.5:.14*strong);fctx.lineWidth=k===0?width:.4;fctx.stroke();
+    }
+  }
+  function draw(now){
+    const dt=Math.min((now-lastTime)/1000||0,.05);lastTime=now;
+    if(!state.paused&&!document.hidden)state.time+=dt;
+    state.flat=mix(state.flat,state.mode==='flat'?1:0,reduced.matches?1:1-Math.exp(-dt*4.4));
+    state.zoom=mix(state.zoom,state.zoomTarget,1-Math.exp(-dt*10));
+    const transitioning=Math.abs(state.flat-(state.mode==='flat'?1:0))>.0001||Math.abs(state.zoom-state.zoomTarget)>.0001||nodes.some(n=>n.flatCurrent&&n.flatCurrent.some((v,i)=>Math.abs(v-flatPosition(n)[i])>.0001));
+    if(document.hidden||(state.paused&&!needsPaint&&!transitioning)){requestAnimationFrame(draw);return;}
+    needsPaint=false;
+    state.scale=Math.min(state.width*.455,state.height*.425)*state.zoom;
+    ctx.fillStyle=bg;ctx.fillRect(0,0,state.width,state.height);
+    stars.forEach(s=>{ctx.fillStyle=rgba(s.alpha*(1-state.flat*.8));ctx.fillRect(s.x*state.width,s.y*state.height,s.r,s.r);});
+    const related=new Set([state.selected,...adjacent(state.selected)]);
+    nodes.forEach(n=>{
+      const target=flatPosition(n);
+      n.flatCurrent=n.flatCurrent?target.map((v,i)=>mix(n.flatCurrent[i],v,reduced.matches?1:1-Math.exp(-dt*5))):target;
+      n.current=getPosition(n);const pp=project(n.current);const flat=n.flatCurrent;
+      n.screen={x:mix(pp.x,state.width*.5+flat[0]*state.scale+state.panX,state.flat),y:mix(pp.y,state.height*.54+flat[1]*state.scale+state.panY,state.flat),z:mix(pp.z,0,state.flat),ratio:mix(pp.ratio,1,state.flat)};
+    });
+    drawFlatGuide();drawCloud(related);drawEdges(related);drawNodes(related);drawPulses();drawFiber();
+    state.frame++;
+    const styles=edges.filter(e=>e.a===state.selected||e.b===state.selected).map(edgeStyle);
+    canvas.dataset.diagnostics=JSON.stringify({mode:state.mode,theme:state.theme,paused:state.paused,frame:state.frame,time:+state.time.toFixed(3),flat:+state.flat.toFixed(3),nodes:nodes.length,edges:edges.length,particles:dust.length,selected:state.selected,frequency:nodes[state.selected].freq,strength:nodes[state.selected].strength,meanWidth:+(styles.reduce((sum,s)=>sum+s.width,0)/styles.length).toFixed(3),meanAmplitude:+(styles.reduce((sum,s)=>sum+s.amplitude,0)/styles.length).toFixed(3)});
+    requestAnimationFrame(draw);
+  }
+  function setMode(mode){
+    state.mode=mode;state.panX=state.panY=0;state.yaw=-.09;state.pitch=.07;
+    $('nebula-mode').classList.toggle('active',mode==='nebula');$('nebula-mode').setAttribute('aria-pressed',String(mode==='nebula'));
+    $('flat-mode').classList.toggle('active',mode==='flat');$('flat-mode').setAttribute('aria-pressed',String(mode==='flat'));
+    $('view-caption').textContent=mode==='flat'?'以调用频率为半径，让关联有迹可循。':'每一次想起，都让彼此更靠近。';
+    $('view-number').textContent=mode==='flat'?'02':'01';$('view-name').textContent=mode==='flat'?'有迹可循的记忆引力图':'自由生长的神经星云';
+    $('gesture-hint').textContent=mode==='flat'?'拖动平移 · 滚轮缩放 · 点击探索':'拖动旋转 · 滚轮缩放 · 点击探索';
+    canvas.setAttribute('aria-label',mode==='flat'?'平面记忆引力图。内圈记忆调用更频繁，同类记忆按扇区聚合；原有全部关联保留。':'可交互记忆星云。点击记忆节点查看关联，拖动旋转，滚轮缩放。');
+  }
+  function setPaused(paused){state.paused=paused;$('pause-symbol').textContent=paused?'▷':'Ⅱ';$('pause').setAttribute('aria-label',paused?'继续动画':'暂停动画');}
+  function setZoom(z){state.zoomTarget=clamp(z,.55,2.25);$('zoom-value').textContent=`${Math.round(state.zoomTarget*100)}%`;}
+  $('nebula-mode').addEventListener('click',()=>setMode('nebula'));$('flat-mode').addEventListener('click',()=>setMode('flat'));
+  $('theme-toggle').addEventListener('click',()=>{
+    state.theme=state.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=state.theme;
+    const style=getComputedStyle(document.documentElement);ink=style.getPropertyValue('--canvas-ink').trim();bg=style.getPropertyValue('--bg').trim();
+    $('theme-label').textContent=state.theme==='dark'?'黑色':'白色';$('theme-toggle').setAttribute('aria-label',state.theme==='dark'?'切换到白色主题':'切换到黑色主题');
+  });
+  $('pause').addEventListener('click',()=>setPaused(!state.paused));
+  $('zoom-in').addEventListener('click',()=>setZoom(state.zoomTarget+.15));$('zoom-out').addEventListener('click',()=>setZoom(state.zoomTarget-.15));
+  $('reset-view').addEventListener('click',()=>{state.yaw=-.09;state.pitch=.07;state.panX=state.panY=0;setZoom(1);});
+  $('focus-toggle').addEventListener('click',()=>{state.focus=!state.focus;$('focus-toggle').setAttribute('aria-pressed',String(state.focus));$('focus-label').textContent=state.focus?'开启':'关闭';});
+  $('strength').addEventListener('input',e=>{nodes[state.selected].strength=+e.target.value/100;updatePanel();});
+  $('frequency').addEventListener('input',e=>{nodes[state.selected].freq=+e.target.value;updatePanel();renderList();});
+  $('reset-params').addEventListener('click',()=>{const n=nodes[state.selected];n.strength=n.baseStrength;n.freq=n.baseFreq;updatePanel();renderList();});
+  $('memory-search').addEventListener('input',e=>{state.query=e.target.value.trim();renderList();});
+  $('recall').addEventListener('click',()=>{const n=nodes[state.selected];n.freq=Math.min(100,n.freq+1);if(state.paused&&!reduced.matches)setPaused(false);pulses.push({node:n.id,start:state.time});updatePanel();renderList();$('recall-status').textContent=reduced.matches?'已调用 +1 · 已尊重系统减少动态效果设置':'记忆已唤醒 · 脉冲正沿关联传递';});
+  $('fullscreen').addEventListener('click',async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{$('fullscreen').setAttribute('aria-label','当前环境不支持全屏');}});
+  document.addEventListener('fullscreenchange',()=>{$('fullscreen').setAttribute('aria-label',document.fullscreenElement?'退出全屏':'进入全屏');});
+  reduced.addEventListener('change',e=>{if(e.matches)setPaused(true);});
+  function nearest(x,y){let best=-1,dist=20;for(const n of nodes){if(state.focus&&n.id!==state.selected&&!adjacent(state.selected).includes(n.id))continue;const d=Math.hypot(n.screen.x-x,n.screen.y-y);if(d<dist){dist=d;best=n.id;}}return best;}
+  canvas.addEventListener('pointerdown',e=>{dragging={x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,moved:0};canvas.setPointerCapture(e.pointerId);$('node-tooltip').hidden=true;});
+  canvas.addEventListener('pointermove',e=>{
+    const rect=canvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;needsPaint=true;
+    if(dragging){const dx=e.clientX-dragging.lastX,dy=e.clientY-dragging.lastY;dragging.moved+=Math.hypot(dx,dy);if(state.mode==='flat'){state.panX+=dx;state.panY+=dy;}else{state.yaw+=dx*.004;state.pitch=clamp(state.pitch+dy*.004,-1.1,1.1);}dragging.lastX=e.clientX;dragging.lastY=e.clientY;return;}
+    const id=nearest(x,y);state.hover=id;canvas.style.cursor=id<0?'grab':'pointer';const tip=$('node-tooltip');
+    if(id>=0){const n=nodes[id];tip.innerHTML=`${n.name}<small>${groups[n.group].name} · ${n.freq} 次调用</small>`;tip.hidden=false;tip.style.left=`${clamp(x+15,10,state.width-225)}px`;tip.style.top=`${clamp(y+15,10,state.height-70)}px`;}else tip.hidden=true;
+  });
+  canvas.addEventListener('pointerup',e=>{if(!dragging)return;if(dragging.moved<6){const rect=canvas.getBoundingClientRect(),id=nearest(e.clientX-rect.left,e.clientY-rect.top);if(id>=0)selectNode(id);}dragging=null;});
+  canvas.addEventListener('pointercancel',()=>{dragging=null;});
+  canvas.addEventListener('pointerleave',()=>{state.hover=-1;$('node-tooltip').hidden=true;});
+  canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(state.zoomTarget*Math.exp(-e.deltaY*.001));},{passive:false});
+  canvas.addEventListener('keydown',e=>{
+    if(e.key===' '){e.preventDefault();setPaused(!state.paused);}if(e.key==='+'||e.key==='=')setZoom(state.zoomTarget+.15);if(e.key==='-')setZoom(state.zoomTarget-.15);
+    if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();selectNode((state.selected+(e.key==='ArrowLeft'||e.key==='ArrowUp'?-1:1)+nodes.length)%nodes.length);}
+  });
+  $('graph-count').textContent=`${nodes.length} 个记忆 · ${edges.length} 条关联`;
+  ['input','click','keydown','pointerup','pointerleave'].forEach(type=>$('atlas').addEventListener(type,()=>{needsPaint=true;}));
+  new ResizeObserver(resize).observe($('map-area'));new ResizeObserver(resize).observe(fiber);
+  setPaused(state.paused);updatePanel();renderList();resize();requestAnimationFrame(draw);
+  // Read-only diagnostics for local review; no production data, network, or storage.
+  window.neuralAtlasDemo={getSnapshot:()=>({mode:state.mode,theme:state.theme,paused:state.paused,flat:state.flat,selected:state.selected,nodeCount:nodes.length,edgeCount:edges.length,particleCount:dust.length,zoom:state.zoomTarget,focus:state.focus,frames:state.frame,time:state.time,nodes:nodes.map(n=>({id:n.id,name:n.name,freq:n.freq,strength:n.strength,x:n.screen.x,y:n.screen.y})),incidentStyles:edges.filter(e=>e.a===state.selected||e.b===state.selected).map(e=>({id:e.id,...edgeStyle(e)}))})};
+})();

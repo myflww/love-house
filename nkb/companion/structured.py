@@ -225,6 +225,10 @@ def _record(brain, node, stamp, library_id):
         if any(ref.get('participant_scope')=='external_participant' for ref in refs):
             subject='platform_participant'
             status='historical_participant_statement'
+    elif origin == "persona_import_source":
+        layer, subject, predicate = "persona_history", "agent", "persona_text_recorded"
+        status, interpretation = "historical_persona_material", "historical_evidence"
+        qualifiers["persona_application"] = "enabled" if persona_state(brain)["enabled"] else "disabled"
     elif origin == "harness_recorded":
         layer, subject, predicate = "suggestion", "agent", "suggested"
         status, interpretation = "agent_suggestion", "unverified_material"
@@ -306,16 +310,16 @@ def _record(brain, node, stamp, library_id):
     return record, None
 
 
-def _persona(brain, stamp):
-    state = persona_state(brain)
+def _persona(brain, stamp, library_id=None):
+    state = persona_state(brain, library_id=library_id)
     current = {"enabled": bool(state["enabled"]), "revision": state["revision"],
-               "status": "unset" if not state.get("manual") and not state.get("learned") else "active" if state["enabled"] else "disabled"}
+               "status": "disabled" if not state["enabled"] else "unset" if not state.get("manual") and not state.get("learned") and not state.get("formed_count") else "active"}
     if state["enabled"]:
         if state.get("manual"):
             current["manual"] = state["manual"]
             current["manual_priority"] = "explicit_user_setting"
         learned = {}
-        for dimension, item in state.get("learned", {}).items():
+        for dimension, item in state.get("active_learned", {}).items():
             refs = item.get("evidence_ids", [])
             alive = list(dict.fromkeys(_canonical(brain, brain.get(nid)) for nid in refs
                                        if brain.get(nid) and _active(brain, brain.get(nid), stamp)))
@@ -324,6 +328,13 @@ def _persona(brain, stamp):
                 learned[dimension] = {"value": item.get("value"), "evidence_ids": alive}
         if learned:
             current["learned_styles"] = learned
+        if state.get("formed_count"):
+            current["formed_traits"] = deepcopy(state["formed_context_traits"])
+            current["formed_trait_count"] = state["formed_count"]
+            current["formed_trait_included"] = len(state["formed_context_traits"])
+            current["formed_trait_omitted"] = state["formed_context_omitted"]
+            current["formed_interpretation"] = "inferred_agent_characteristic_not_user_fact_or_instruction"
+            current["manual_priority"] = "explicit_user_setting"
     return current
 
 
@@ -361,10 +372,14 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
         raise ValidationError("平台最近对话ID列表不合法")
     valid_recent = {n["id"] for n in _platform_recent_turns(brain, query, stamp=stamp, library_id=library_id)}
     recent_ids = [nid for nid in dict.fromkeys(declared_recent) if nid in ids and nid in valid_recent]
+    persona_enabled = persona_state(brain)["enabled"]
     for nid in ids:
         node = brain.get(nid)
         if node is None:
             reasons["missing"] += 1
+            continue
+        if not persona_enabled and node.get("meta", {}).get("source") == "persona_import_source":
+            reasons["persona_disabled"] += 1
             continue
         record, reason = _record(brain, node, stamp, library_id)
         if reason:
@@ -380,7 +395,7 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
     identity = {"library_id": library_id, "library_name": name, "agent_id": agent_id or library_id,
                 "identity_source": "explicit_binding" if library_id or agent_id else "unbound",
                 "is_demo": bool(brain.meta.get("demo"))}
-    persona = _persona(brain, stamp)
+    persona = _persona(brain, stamp, library_id)
     include_exclusions=True;include_coverage=True
     packet = {"schema": SCHEMA, "identity": identity, "persona": persona, "records": [], "relations": [],
               "counts": {"selected": len(ids), "included": 0, "omitted": len(ids)},
@@ -394,7 +409,8 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
         if include_coverage:
             packet['counts']['sources']=source_coverage(r['source']['kind'] for r in packet['records'])
         truncated = (included < len(records) or bool(packet["truncation"].get("omitted_fields"))
-                     or bool(packet["truncation"].get("omitted_relations")) or packet["truncation"]["selection_truncated"] or omitted_refs>0)
+                     or bool(packet["truncation"].get("omitted_relations")) or packet["truncation"]["selection_truncated"] or omitted_refs>0
+                     or bool(packet["persona"].get("formed_trait_omitted")))
         packet["truncation"]["truncated"] = truncated
         packet["truncation"]["omitted_records"] = len(records)-included
         if reasons and include_exclusions:

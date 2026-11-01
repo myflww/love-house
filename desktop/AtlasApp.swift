@@ -25,6 +25,7 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
     private var smokeExpectedIDs: Set<String> = []
     private var smokeLibraryA = ""
     private var smokeLibraryB = ""
+    private var smokePersonaOptoutLibrary = ""
     private var smokeConnectionID = ""
     private var smokeConnectionToken = ""
     private var smokeControllerPort: Int?
@@ -464,6 +465,80 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
             do {
                 let libraries = try await smokeRequest("api/libraries")
                 try requireSmoke(libraries["selected_id"] as? String == "default", "First GUI selection was not default")
+                let personaUI = try await webView.callAsyncJavaScript("""
+                    /* Suggested WKWebView acceptance code. Run only inside the app's smokeMode,
+                       whose data directory and libraries are disposable. This file is not executed here. */
+                    const getPersonaControl=id=>document.getElementById(id);
+                    const originalPersonaAPI=api;
+                    const originalPersonaLibrary=S.libraryId;
+                    let paidPersonaRequests=0;
+                    let optoutLibrary=null;
+                    const personaMetrics={};
+                    try {
+                      api=async function(route,...args){
+                        if(['persona/organize','organizer/run','sharing/summary'].includes(route)){
+                          paidPersonaRequests++;
+                          throw new Error('A read-only native persona acceptance attempted a model action');
+                        }
+                        const result=await originalPersonaAPI(route,...args);
+                        if(route==='persona/organize-preview')personaMetrics.previewReadOnly=result.library_id===originalPersonaLibrary&&result.will_call_model===false&&result.read_only===true&&result.model_ready===false&&result.credential_ready===false;
+                        return result;
+                      };
+
+                      setPanelOpen('aiPanel',true,{focus:false});
+                      memoryTab('persona');
+                      await refreshPersona({force:true});
+                      const defaultPersona=await api('persona');
+                      personaMetrics.defaultPersonaOn=defaultPersona.enabled===true&&defaultPersona.learning_enabled===true;
+                      personaMetrics.defaultTogglesOn=getPersonaControl('personaEnabled').checked===true&&getPersonaControl('personaLearning').checked===true;
+                      personaMetrics.manualEmpty=getPersonaControl('personaText').value==='';
+                      personaMetrics.manualFolded=getPersonaControl('personaManualSettings').open===false;
+                      personaMetrics.formedLayerPrimary=!!(getPersonaControl('personaFormedTraits').compareDocumentPosition(getPersonaControl('personaManualSettings'))&Node.DOCUMENT_POSITION_FOLLOWING);
+                      personaMetrics.apiRecommendation=getPersonaControl('personaApiRecommendation').textContent.includes('强烈建议')&&getPersonaControl('organizerApiRecommendation').textContent.includes('强烈建议');
+
+                      await window.LoveHousePersonaGrowth.openQuick();
+                      personaMetrics.noKeyPreviewOpen=getPersonaControl('personaFormationDialog').open===true;
+                      personaMetrics.noKeyCannotStart=getPersonaControl('confirmPersonaFormation').disabled===true;
+                      personaMetrics.noKeyCanConfigure=getPersonaControl('configurePersonaFormationAPI').hidden===false;
+                      personaMetrics.noKeyPreviewHonest=!getPersonaControl('personaFormationStatus').textContent.includes('已完成人格');
+                      getPersonaControl('closePersonaFormation').click();
+
+                      const created=await api('libraries',{name:'原生人格开关隔离自检'},{scope:false});
+                      optoutLibrary=created.library?.id||created.library_id||created.selected_id;
+                      if(typeof optoutLibrary!=='string'||!optoutLibrary)throw new Error('Missing temporary opt-out library identity');
+                      await refreshLibraries();
+                      await selectMemoryLibrary(optoutLibrary,{alreadySelected:true});
+                      setPanelOpen('aiPanel',true,{focus:false});memoryTab('persona');await refreshPersona({force:true});
+                      personaMetrics.newLibraryDefaultsOn=getPersonaControl('personaEnabled').checked===true&&getPersonaControl('personaLearning').checked===true;
+                      getPersonaControl('personaEnabled').checked=false;await getPersonaControl('personaEnabled').onchange();
+                      getPersonaControl('personaLearning').checked=false;await getPersonaControl('personaLearning').onchange();
+                      const explicitlyOff=await api('persona');
+                      personaMetrics.optoutSaved=explicitlyOff.enabled===false&&explicitlyOff.learning_enabled===false;
+
+                      await selectMemoryLibrary(originalPersonaLibrary);
+                      setPanelOpen('aiPanel',true,{focus:false});memoryTab('persona');await refreshPersona({force:true});
+                      personaMetrics.originalLibraryStillOn=getPersonaControl('personaEnabled').checked===true&&getPersonaControl('personaLearning').checked===true;
+                      await selectMemoryLibrary(optoutLibrary);
+                      setPanelOpen('aiPanel',true,{focus:false});memoryTab('persona');await refreshPersona({force:true});
+                      personaMetrics.optoutSurvivesSwitch=getPersonaControl('personaEnabled').checked===false&&getPersonaControl('personaLearning').checked===false;
+                      personaMetrics.paidRequests=paidPersonaRequests;
+                      personaMetrics.optoutLibraryId=optoutLibrary;
+                      return personaMetrics;
+                    } finally {
+                      api=originalPersonaAPI;
+                      if(getPersonaControl('personaFormationDialog').open)getPersonaControl('closePersonaFormation').click();
+                      if(S.libraryId!==originalPersonaLibrary){await selectMemoryLibrary(originalPersonaLibrary);}
+                      memoryTab('connect');
+                      setPanelOpen('aiPanel',false,{restore:false});
+                    }
+                    """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                for key in ["defaultPersonaOn", "defaultTogglesOn", "manualEmpty", "manualFolded", "formedLayerPrimary", "apiRecommendation", "noKeyPreviewOpen", "noKeyCannotStart", "noKeyCanConfigure", "noKeyPreviewHonest", "previewReadOnly", "newLibraryDefaultsOn", "optoutSaved", "originalLibraryStillOn", "optoutSurvivesSwitch"] {
+                    try requireSmoke(personaUI?[key] as? Bool == true, "Native persona control failed: " + key)
+                }
+                try requireSmoke(personaUI?["paidRequests"] as? Int == 0, "Native read-only persona controls attempted a paid model action")
+                smokePersonaOptoutLibrary = personaUI?["optoutLibraryId"] as? String ?? ""
+                try requireSmoke(!smokePersonaOptoutLibrary.isEmpty, "Native persona opt-out library missing")
+                print("Native 0.10: default persona and learning ON with empty core; manual editor folded; API guidance and no-key preview; actual opt-out controls persist across library switches; no model action")
                 let organizerUI = try await webView.callAsyncJavaScript(
                     "setPanelOpen('organizerPanel',true,{focus:false}); await refreshOrganizer(); const panel=document.getElementById('organizerPanel'); const enabled=document.getElementById('organizerEnabled'); const result={open:!!panel&&!panel.hidden, enabled:enabled?.checked===true, preview:!!document.getElementById('previewOrganizer')}; setPanelOpen('organizerPanel',false,{restore:false}); return result;",
                     arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
@@ -603,7 +678,29 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                     const paint=async()=>{schedule();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));};
                     await wait(()=>S.view.mode==='auto'&&S.sim===0&&S.view.target&&Math.abs(Math.log(S.cam.k/S.view.target.k))<.01);
                     await paint();
-                    const initial={mode:c.dataset.viewMode,scale:Number(c.dataset.viewScale),count:Number(c.dataset.viewCount),core:Number(c.dataset.nodeCoreMin),art:S.art,labels:c.dataset.labelMode};
+                    const artist=document.getElementById('artCanvas');
+                    const noExtraModeControls=!document.querySelector('#approvedAtlasModes,#nebula-mode,#flat-mode');
+                    const initial={mode:c.dataset.viewMode,scale:Number(c.dataset.viewScale),count:Number(c.dataset.viewCount),core:Number(c.dataset.nodeCoreMin),art:S.art,labels:c.dataset.labelMode,painter:artist.dataset.painter,particles:Number(artist.dataset.particleCount),edges:Number(artist.dataset.fiberEdges),actualEdges:S.edges.length};
+                    const canonical=JSON.stringify(S.nodes.map(n=>[n.id,n.x,n.y,n.recalls]));
+                    const originalTheme=document.documentElement.dataset.theme;
+                    const uiAppearance=()=>JSON.stringify({tokens:['--bg','--paper','--panel','--soft','--line','--ink','--muted','--accent','--accent-soft','--gold','--danger','--shadow'].map(k=>getComputedStyle(document.documentElement).getPropertyValue(k)),elements:['header','#settings','#addBtn','#themeBtn','#tooltip','#aiPanel','#q','#personaText','#personaEnabled','#newLibraryDialog'].map(selector=>{const e=document.querySelector(selector);if(!e)throw new Error('UI appearance proof target missing');return ['', '::before','::after',...(selector==='#newLibraryDialog'?['::backdrop']:[])].map(pseudo=>{const s=getComputedStyle(e,pseudo||null);return [s.backgroundColor,s.color,s.borderColor,s.backgroundImage,s.filter,s.fontFamily,s.boxShadow,s.accentColor,s.colorScheme];});})});
+                    const originalUI=uiAppearance();
+                    document.getElementById('themeBtn').click();await paint();
+                    const reversedTheme=document.documentElement.dataset.theme;
+                    const uiUnchangedInLight=originalUI===uiAppearance();
+                    document.getElementById('themeBtn').click();await paint();
+                    const themeReversible=reversedTheme!==originalTheme&&document.documentElement.dataset.theme===originalTheme;
+                    const uiAppearancePreserved=uiUnchangedInLight&&originalUI===uiAppearance();
+                    let graphModes=false;
+                    if(S.art){
+                      document.getElementById('viewBtn').click();
+                      await wait(()=>S.graphMode==='flat'&&!artRenderer.isTransitioning());await paint();
+                      const flatVisible=Number(c.dataset.viewCount)===4&&c.dataset.graphMode==='flat';
+                      document.getElementById('viewBtn').click();
+                      await wait(()=>S.graphMode==='nebula'&&!artRenderer.isTransitioning()&&S.view.target&&Math.abs(Math.log(S.cam.k/S.view.target.k))<.01);await paint();
+                      graphModes=flatVisible&&c.dataset.graphMode==='nebula';
+                    }
+                    const canonicalPreserved=canonical===JSON.stringify(S.nodes.map(n=>[n.id,n.x,n.y,n.recalls]));
                     document.getElementById('zoomIn').click();await paint();
                     const manual={mode:c.dataset.viewMode,x:S.cam.x,y:S.cam.y,k:S.cam.k};
                     await reload();await paint();
@@ -614,21 +711,32 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                     const labelsOff=c.dataset.labelMode==='focus';
                     document.getElementById('fitBtn').click();await paint();
                     await wait(()=>S.view.mode==='auto'&&c.dataset.viewMode==='auto'&&!!S.view.target);
-                    return {initial,manualMode:manual.mode,preserved,restored:c.dataset.viewMode,labelsOn,labelsOff};
+                    return {initial,manualMode:manual.mode,preserved,restored:c.dataset.viewMode,labelsOn,labelsOff,themeReversible,graphModes,canonicalPreserved,uiAppearancePreserved,noExtraModeControls};
                     """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
                 let initial = result?["initial"] as? [String: Any]
+                try requireSmoke(result?["noExtraModeControls"] as? Bool == true, "Duplicate mode controls were added instead of reusing the pixel view button")
                 try requireSmoke(initial?["mode"] as? String == "auto" && initial?["count"] as? Int == 4,
                                  "Four-node graph did not start in automatic viewport")
                 try requireSmoke((initial?["scale"] as? Double ?? 0) > 0.8, "Sparse graph remained too far away")
                 if initial?["art"] as? Bool == true {
-                    try requireSmoke((initial?["core"] as? Double ?? 0) >= 9, "Sparse WebGL nodes were not clearly sized")
+                    try requireSmoke((initial?["core"] as? Double ?? 0) >= 9, "Sparse approved-art nodes were not clearly sized")
+                    try requireSmoke(initial?["painter"] as? String == "approved-canvas" && (initial?["particles"] as? Int ?? 0) > 0,
+                                     "Native graph did not use the approved original Canvas particle painter")
+                    try requireSmoke((initial?["edges"] as? Int ?? -1) == (initial?["actualEdges"] as? Int ?? -2),
+                                     "Native original painter lost or invented graph edges")
                 }
                 try requireSmoke(initial?["labels"] as? String == "focus" && result?["labelsOn"] as? Bool == true && result?["labelsOff"] as? Bool == true,
                                  "Node labels did not default to focus or toggle reliably")
                 try requireSmoke(result?["manualMode"] as? String == "manual" && result?["preserved"] as? Bool == true,
                                  "Zoom button failed to lock the manual viewport across graph refresh")
                 try requireSmoke(result?["restored"] as? String == "auto", "Fit button did not restore automatic viewport")
+                try requireSmoke(result?["themeReversible"] as? Bool == true && result?["canonicalPreserved"] as? Bool == true && result?["uiAppearancePreserved"] as? Bool == true,
+                                 "Graph theme changed UI appearance, canonical positions or recall counts")
+                if initial?["art"] as? Bool == true {
+                    try requireSmoke(result?["graphModes"] as? Bool == true, "Native approved graph modes did not switch between nebula and flat")
+                }
                 print("Native viewport: sparse four-node close view; manual zoom survives real graph reload; fit restores auto; node labels toggle without writes")
+                print("Native 0.10: graph-only black/white theme preserves warm pixel UI; nebula/flat mode switch preserves visible nodes, canonical coordinates and cumulative recalls")
                 smokeStage = 5
                 smokeControllerPort = serviceURL?.port
                 startServer()
@@ -650,6 +758,10 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                 let connection = (connections["connections"] as? [[String: Any]] ?? []).first { $0["id"] as? String == smokeConnectionID }
                 try requireSmoke(connection?["library_id"] as? String == smokeLibraryA, "Persisted binding changed")
                 print("Native restart: stable Controller port, isolated graph, original dialogue and activity restored")
+                let optoutPersona = try await smokeRequest("api/persona", libraryID: smokePersonaOptoutLibrary)
+                try requireSmoke(optoutPersona["enabled"] as? Bool == false && optoutPersona["learning_enabled"] as? Bool == false,
+                                 "Explicit persona opt-out did not survive the native backend restart")
+                print("Native 0.10: explicit persona and learning opt-out survive clean backend restart")
                 smokeExitCode = 0
                 NSApp.terminate(nil)
             } catch { failSmoke(error) }

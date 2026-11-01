@@ -1,0 +1,43 @@
+name: Windows 0101 native acceptance probe
+on:
+  push:
+    branches: [codex/windows-0101-native-probe]
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+          cache: pip
+          cache-dependency-path: desktop/requirements-windows.txt
+      - name: Install pinned native inputs
+        run: |
+          python -m pip install -r desktop/requirements-windows.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned native inputs failed' }
+          python -m pip install -e .
+          if ($LASTEXITCODE -ne 0) { throw 'Project installation failed' }
+      - name: Exercise actual WebView2 with isolated synthetic data
+        run: |
+          New-Item -ItemType Directory -Force build/native-probe | Out-Null
+          python desktop/windows_app.py --smoke-test --report build/native-probe/native.json
+          $code = $LASTEXITCODE
+          if (Test-Path -LiteralPath build/native-probe/native.json) { Get-Content -LiteralPath build/native-probe/native.json -Raw }
+          if ($code -ne 0) { throw 'Actual native acceptance failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-0101-native-probe
+          path: build/native-probe/
+          if-no-files-found: ignore
+          retention-days: 3

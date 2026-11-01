@@ -494,7 +494,7 @@ def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=F
     runtime=ControllerRuntime(data_dir,testing=smoke).start()
     if result is None:result={}
     result.update(ok=False,version=__version__,renderer='edgechromium',phase='window_start',process_complete=False)
-    finished=threading.Event()
+    finished=threading.Event();native_checks_finished=threading.Event()
     try:
         dotnet=dotnet_status()
         if log:log.write('prerequisites',phase='dotnet_check',dotnet=dotnet)
@@ -538,6 +538,10 @@ def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=F
                 if log:log.write('failure',phase='webview2_initialization_timeout')
                 window.destroy()
         if smoke:
+            def native_deadline():
+                if not native_checks_finished.wait(120):
+                    result.update(ok=False,smoke_timeout=True,smoke_checkpoint='native_deadline',phase='native_checks_timeout')
+                    window.destroy()
             def verify():
                 try:
                     ready=threading.Event();box={}
@@ -554,19 +558,24 @@ def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=F
                     result['latest_features'],expected=verify_latest_ui(window,runtime)
                     if smoke_expected is not None:smoke_expected.update(expected)
                     result.update(ok=True,webview=value,phase='native_checks_passed')
-                except Exception as exc:result.update(failure=smoke_failure(exc),phase='native_checks_failed')
-                finally:window.destroy()
+                except Exception as exc:
+                    result.update(failure=smoke_failure(exc),phase='native_checks_failed')
+                    from windows_latest_smoke import NativeFeatureFailure
+                    if isinstance(exc,NativeFeatureFailure):result['smoke_checkpoint']=exc.code
+                finally:native_checks_finished.set();window.destroy()
             window.events.loaded+=verify
+            threading.Thread(target=native_deadline,daemon=True).start()
         guard=threading.Thread(target=watchdog,daemon=True);guard.start()
         result['phase']='webview2_initialization'
         webview.start(gui='edgechromium',debug=False,private_mode=False,storage_path=str(Path(data_dir)/'WebView2'))
         finished.set();guard.join(timeout=1)
+        if result.get('smoke_timeout'):raise RuntimeError('Owned native checks exceeded their deadline')
         if result.get('startup_timeout'):raise NativeStartupTimeout()
         if log:log.write('window',phase='window_closed',renderer=result.get('renderer'))
         if result.get('error') and not result['ok']:
             raise WebView2Unavailable({'available':False,'renderer':result.get('renderer'),'checked':webview2_status()})
     finally:
-        finished.set()
+        finished.set();native_checks_finished.set()
         result['window_phase']=result.get('phase')
         result['phase']='controller_shutdown'
         try:runtime.stop();result['controller_stopped']=True
@@ -676,7 +685,8 @@ def main():
         if smoke or args.runtime_status or args.repair_runtime:
             try:
                 previous=json.loads(args.report.read_text('utf-8')) if args.report.exists() else {}
-                previous.update(ok=False,process_complete=False,failure=record)
+                previous.update(ok=False,process_complete=False)
+                previous.setdefault('failure',record)
                 if previous.get('phase') in (None,'complete'):previous['phase']='process_finalization_failed'
                 smoke_report(args.report,previous)
             except Exception:pass  # The nonzero exit remains mandatory even if disk reporting fails.

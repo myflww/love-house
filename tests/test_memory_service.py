@@ -20,6 +20,7 @@ class ServiceTests(unittest.TestCase):
   headers={'Content-Type':'application/json'}
   if lib:headers['X-NKB-Library']=lib
   if token:headers['Authorization']='Bearer '+token
+  else:headers['X-LoveHouse-Management']=self.host.management_token
   request=urllib.request.Request(f'http://127.0.0.1:{self.server.server_port}'+path,data=json.dumps(data).encode() if data is not None else None,headers=headers)
   try:
    with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(request,timeout=10) as r:return r.status,json.load(r)
@@ -52,7 +53,8 @@ class ServiceTests(unittest.TestCase):
  def test_specific_and_next_session_scope_enforced(self):
   cid,token=self.connection(scope='next_session')
   self.assertEqual(self.event(cid,token,sid='window-a')[0],200)
-  self.assertEqual(self.host.connections.get(cid)['session_scope'],'window-a')
+  self.assertEqual(self.host.connections.get(cid)['session_scope'],'next_session')
+  self.assertEqual(self.host.connections.get(cid)['bound_session_id'],'window-a')
   self.assertEqual(self.event(cid,token,sid='window-b')[0],400)
   self.assertEqual(len(self.req('/api/graph')[1]['nodes']),1)
  def test_partial_stays_archive_and_does_not_fake_memory(self):

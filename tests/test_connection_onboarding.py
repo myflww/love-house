@@ -54,6 +54,8 @@ class ConnectionOnboardingTests(unittest.TestCase):
             headers["X-NKB-Library"] = library
         if token:
             headers["Authorization"] = "Bearer " + token
+        else:
+            headers["X-LoveHouse-Management"] = self.host.management_token
         request = Request(f"http://127.0.0.1:{self.server.server_port}" + path,
                           data=None if body is None else json.dumps(body, ensure_ascii=False).encode(), headers=headers)
         try:
@@ -118,7 +120,8 @@ class ConnectionOnboardingTests(unittest.TestCase):
         # window can be the first human-message session after loading the plugin.
         self.assertEqual(self.event(cid, token)[0], 200)
         bound = self.host.connections.get(cid)
-        self.assertEqual(bound["session_scope"], "existing-window-123")
+        self.assertEqual(bound["session_scope"], "next_session")
+        self.assertEqual(bound["bound_session_id"], "existing-window-123")
         self.assertEqual(bound["archive_status"], "automatic_connected")
         self.assertEqual(self.event(cid, token, sid="unrelated-window", event="two")[0], 400)
         self.assertEqual(len(self.req("/api/graph")[1]["nodes"]), 1)

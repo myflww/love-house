@@ -5,8 +5,9 @@ if(typeof S==='undefined'||!document.getElementById('connectionsPanel'))return;
 const by=id=>document.getElementById(id),make=(tag,cls,text)=>el(tag,cls,text);
 const routes={
  harness:{name:'DeepSeek Harness',recipient:'Harness 的连接器／插件设置',place:'使用专用连接向导。若由助手代装，把安装说明交给能修改 Harness 设置的后台配置助手。',proof:'插件加载后完成一轮真实对话；爱之屋出现“已收到自动记录”，才验证了这一条记录通路。',key:'连接记忆不需要模型厂商 Key。',limit:'旧的目标窗口范围保持。其他窗口或独立执行器需要明确登记。'},
+ workbuddy:{name:'WorkBuddy',recipient:'WorkBuddy 的后台配置助手或自定义连接器设置',place:'先在爱之屋生成配置，复制实际私有文件路径或 MCP 配置。可预览并备份合并到 WorkBuddy；随后在 WorkBuddy 中信任连接器，工具未出现时重载或重启。',proof:'分别核对 memory_status、memory_bootstrap 的存档身份、可读／可写和窗口绑定。一次手动 Hook 只证明该次资料收到，不证明以后每轮自动上报。',key:'记忆工具连接不需要模型厂商 Key。',limit:'WorkBuddy 桌面端用户 hooks 支持尚未确认；不能把 CodeBuddy CLI 的 Hook 文档或文件回读当作自动记录已支持的证据。'},
  astrbot:{name:'AstrBot',recipient:'AstrBot 的爱之屋插件设置',place:'先导出并安装实验插件，再把来源配置文件路径填入插件。QQ 的 SnowLuma、NapCat 或官方接口仍由 AstrBot 配置。',proof:'插件已启用、目标来源已登记，实际产生一条输出后，再核对爱之屋的接收记录。',key:'记忆来源配置不是聊天模型 API Key。',limit:'QQ 官方接口／WebChat 已做首轮实测；SnowLuma、NapCat、云端及其他版本仍需对应验收。'},
- agent:{name:'其他程序（MCP）',recipient:'运行程序的工具连接设置（MCP）',place:'自己填写时使用“复制 MCP 配置”。让助手代装时使用“复制给配置助手”，交给能修改该程序设置的后台 Agent。',proof:'工具在线表示能查、写记忆；自动记录还要运行程序的输出采集连接器。请核对真实输出回执。',key:'生成记忆连接配置不需要厂商 Key。',limit:'只有聊天能力的 QQ 或网页窗口无法替你安装。单独复制文字不等于程序已经加载配置。'},
+ agent:{name:'其他程序（MCP）',recipient:'运行程序的工具连接设置（MCP）',place:'自己填写时使用“复制 MCP 配置”。让助手代装时使用“复制给配置助手”，交给能修改该程序设置的后台 Agent。',proof:'分别核对可读、可写与窗口绑定。工具在线不等于每项能力都就绪；自动记录还需要真实来源回调，请核对接收时间与原文。',key:'生成记忆连接配置不需要厂商 Key。',limit:'只有聊天能力的 QQ 或网页窗口无法替你安装。单独复制文字不等于程序已经加载配置。'},
  key:{name:'整理模型 Key',recipient:'爱之屋自己的“记忆整理”设置',place:'填写你选定的整理模型地址、名称和 Key，再按预算启用。聊天模型继续使用原程序已有设置。',proof:'“整理批次完成”只表示资料已处理；候选需要核对，只有实际生成的可用记忆才能进入整理记忆召回。',key:'这份 Key 只让爱之屋整理已收到的资料。',limit:'它不会自动连接 QQ、Harness 或收集其他软件。'}
 };
 const state={owner:null,route:'harness',returnId:null};

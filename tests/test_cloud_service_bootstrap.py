@@ -15,7 +15,8 @@ import tempfile
 import time
 import unittest
 from unittest.mock import Mock
-from urllib.request import ProxyHandler, build_opener
+from urllib.request import ProxyHandler, HTTPCookieProcessor, build_opener
+from http.cookiejar import CookieJar
 import uuid
 
 from nkb.service.credentials import KeyStore
@@ -165,7 +166,7 @@ class CloudServiceProcessTests(unittest.TestCase):
         self.log = None
         self.starts = 0
         self.base_url = 'https://'+uuid.uuid4().hex+'.invalid/v1'
-        self.client = build_opener(ProxyHandler({}))
+        self.client = build_opener(ProxyHandler({}), HTTPCookieProcessor(CookieJar()))
 
     def tearDown(self):
         self.stop()
@@ -197,6 +198,9 @@ class CloudServiceProcessTests(unittest.TestCase):
             self.fail('Disposable cloud process failed: '+self.log_path.read_text())
         self.ready = json.loads(ready.read_text())
         self.base = 'http://127.0.0.1:'+str(self.ready['controller_port'])
+        # Bootstrap a normal local UI session for this disposable process.
+        with self.client.open(self.base+'/', timeout=5) as response:
+            self.assertEqual(response.status, 200); response.read()
 
     def stop(self):
         if self.process is not None:

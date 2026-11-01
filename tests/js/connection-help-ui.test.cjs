@@ -34,7 +34,7 @@ function fixture(){
 test('route selection shows the correct installation destination without generating or sending configuration',()=>{
  const c=fixture();c.get('showConnectionHelp').click();assert(c.get('connectionHelpDialog').open);assert(words(c.get('connectionHelpBody')).includes('Harness 的连接器'));
  c.get('connectionHelpRoute-astrbot').click();const text=words(c.get('connectionHelpBody'));assert(text.includes('AstrBot 的爱之屋插件设置'));assert(text.includes('配置文件路径'));assert(text.includes('QQ 官方接口'));assert(!text.includes('MCP 设置'));
- c.get('connectionHelpRoute-agent').click();const other=words(c.get('connectionHelpBody'));assert(other.includes('能修改该程序设置'));assert(other.includes('输出采集连接器'));assert(!other.includes('Harness 的连接器'));assert.deepEqual(c.calls,[]);
+ c.get('connectionHelpRoute-agent').click();const other=words(c.get('connectionHelpBody'));assert(other.includes('能修改该程序设置'));assert(other.includes('真实来源回调'));assert(!other.includes('Harness 的连接器'));assert.deepEqual(c.calls,[]);
 });
 
 test('organizer key help cannot be mistaken for a connection or completed capture',()=>{
@@ -78,9 +78,24 @@ test('actual registered source cards do not present themselves as MCP or all-win
  for(const id of ['connectionSummary','connectionsList']){const e=make('div');e.id=id;body.append(e);}const target=make('div');body.append(target);
  const source={id:'conn-a',name:'已登记的程序',host:'agent',library_id:'fish-a',enabled:true,host_online:false,session_scope:'connection',archive_status:'waiting',registered_source:{id:'source-a',adapter:'astrbot',library_id:'fish-a',runtime_agent_id:'runtime-a'}};
  const calls=[],context={S:{libraryId:'fish-a'},MEMORY:{connections:[source],libraries:[{id:'fish-a',name:'泡泡'}]},renderKey:'',target,by:get,make,libraryName:id=>id,num:x=>String(x||0),date:String,trimText:String,loadConnectionConfig:id=>calls.push(id),selectMemoryLibrary(){},openProviderEditor(){},setConnectionEnabled(){},openDisconnect(){},refreshGuide(){},updateMemoryButtons(){}};
- const helpers=['registeredSource','windowScopeCaption','connectionCaption','connectionGuideCaption','connectionState','action'].map(name=>wizard.match(new RegExp('function '+name+'\\([^]*?\\n\\}'))?.[0]||wizard.match(new RegExp('function '+name+'\\([^\\n]+'))[0]).join('\n');
+ const helpers=['connectionPolicy','boundSession','savedDialogue','connectionCapabilities','hookReceiptCaption','registeredSource','windowScopeCaption','connectionCaption','connectionGuideCaption','connectionState','action'].map(name=>wizard.match(new RegExp('function '+name+'\\([^]*?\\n\\}'))?.[0]||wizard.match(new RegExp('function '+name+'\\([^\\n]+'))[0]).join('\n');
  const render=wizard.match(/renderConnections=function\(\)\{[\s\S]*?\n\};/)[0];vm.runInNewContext(helpers+'\n'+render,context);context.renderConnections();
  let text=words(get('connectionsList'));assert(text.includes('AstrBot 活动来源'));assert(text.includes('已登记'));assert(text.includes('配置 AstrBot 插件'));for(const forbidden of ['通用 Agent 记忆','多个窗口','继续连接 Agent','记忆工具已连接'])assert(!text.includes(forbidden));
  const guide=all(get('connectionsList')).find(e=>e.dataset.connectionAction==='config');guide.click();assert.deepEqual(calls,['conn-a']);
  source.archive_status='outputs_only';source.capture={outputs_saved:2,complete_dialogues_saved:0};context.renderConnections();text=words(get('connectionsList'));assert(text.includes('查看来源配置'));assert(text.includes('独立输出 2 条'));assert(!text.includes('多个窗口'));assert(get('connectionSummary').textContent.includes('独立输出'));
+});
+
+test('WorkBuddy explanation separates host trust, read/write readiness and one-event receipt from automatic capture',()=>{
+ const c=fixture();c.get('showConnectionHelp').click();c.get('connectionHelpRoute-workbuddy').click();const text=words(c.get('connectionHelpBody'));
+ for(const phrase of ['WorkBuddy 的后台配置助手','实际私有文件路径','信任连接器','可读／可写','一次手动 Hook','以后每轮自动上报','CodeBuddy CLI'])assert(text.includes(phrase),phrase);
+ assert.equal(c.get('connectionHelpRoute-workbuddy').attributes['aria-pressed'],'true');assert.deepEqual(c.calls,[]);
+});
+
+test('WorkBuddy wizard uses the generic scoped memory protocol and does not create a connection on selection',()=>{
+ const snippet=wizard.match(/const workbuddyChoice=[\s\S]*?screens\[0\]\.append\(workbuddyChoice\);/)[0];
+ for(const flag of ['ready','busy','demo','changing','denied']){
+  const screen=new Element('div'),host=new Element('select'),key=new Element('input');key.value='FAKE-old-model';let changed=0,step=0;
+  const c={agentProgram:'generic',screens:[screen],make:(t,cl,s)=>{const e=new Element(t);e.className=cl||'';e.textContent=s||'';return e;},MEMORY:{busy:flag==='busy'},S:{isDemo:flag==='demo',libraryChanging:flag==='changing'},writeBusy:false,canManageMemory:()=>flag!=='denied',by:id=>id==='connectionHost'?host:key,connectionHostChanged(){changed++;},go:n=>step=n,api(){throw Error('Selecting a host must not save a connection');}};
+  vm.runInNewContext(snippet,c);screen.children[0].click();assert.equal(changed,flag==='ready'?1:0);assert.equal(step,flag==='ready'?2:0);if(flag==='ready'){assert.equal(host.value,'agent');assert.equal(c.agentProgram,'workbuddy');assert.equal(key.value,'');}
+ }
 });

@@ -28,6 +28,8 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
     private var smokeConnectionID = ""
     private var smokeConnectionToken = ""
     private var smokeControllerPort: Int?
+    private lazy var smokeSession = URLSession(configuration: .ephemeral)
+    private var smokeCookieGeneration: UUID?
     private let files = FileManager.default
     private let appName = "爱之屋"
     private lazy var smokeDirectory = files.temporaryDirectory.appendingPathComponent("neural-atlas-native-" + UUID().uuidString)
@@ -392,17 +394,33 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         guard let base = serviceURL, let url = URL(string: path, relativeTo: base) else {
             throw NSError(domain: "NeuralAtlasSmoke", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing Controller URL"])
         }
+        if token == nil && smokeCookieGeneration != generation {
+            var anonymous = URLRequest(url: base.appendingPathComponent("api/connections"))
+            anonymous.httpShouldHandleCookies = false
+            let (_, untrustedResponse) = try await smokeSession.data(for: anonymous)
+            guard (untrustedResponse as? HTTPURLResponse)?.statusCode == 401 else {
+                throw NSError(domain: "NeuralAtlasSmoke", code: 3,
+                              userInfo: [NSLocalizedDescriptionKey: "Anonymous management enumeration was accepted"])
+            }
+            let (_, bootstrapResponse) = try await smokeSession.data(from: base)
+            guard (bootstrapResponse as? HTTPURLResponse)?.statusCode == 200 else {
+                throw NSError(domain: "NeuralAtlasSmoke", code: 4,
+                              userInfo: [NSLocalizedDescriptionKey: "Local UI bootstrap failed"])
+            }
+            smokeCookieGeneration = generation
+        }
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.timeoutInterval = 10
         request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.httpShouldHandleCookies = token == nil
         if let id = libraryID { request.setValue(id, forHTTPHeaderField: "X-NKB-Library") }
         if let token = token { request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization") }
         if let payload = payload {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: payload)
         }
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await smokeSession.data(for: request)
         guard let response = response as? HTTPURLResponse, response.statusCode == 200,
               let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw NSError(domain: "NeuralAtlasSmoke", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
@@ -474,12 +492,50 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                     arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
                 try requireSmoke(helpUI?["open"] as? Bool == true && helpUI?["recipient"] as? Bool == true && helpUI?["scope"] as? Bool == true && helpUI?["closed"] as? Bool == true, "Connection recipient guide is not usable in native UI")
                 print("Native 0.9: connection recipients and configuration locations open and close without model calls")
+                let workbuddyConnection = try await smokeRequest("api/connections", method: "POST", payload: [
+                    "name":"原生 WorkBuddy 配置自检", "host":"agent", "library_id":"default", "session_scope":"next_session"])
+                guard let workbuddyID = (workbuddyConnection["connection"] as? [String:Any])?["id"] as? String else {
+                    throw NSError(domain:"NeuralAtlasSmoke",code:5,userInfo:[NSLocalizedDescriptionKey:"Missing Agent connection identity"])
+                }
+                let workbuddyConfig = try await smokeRequest("api/connections/\(workbuddyID)/config")
+                guard let privatePath = workbuddyConfig["private_path"] as? String,
+                      URL(fileURLWithPath:privatePath).resolvingSymlinksInPath().path.hasPrefix(dataURL.resolvingSymlinksInPath().path + "/"),
+                      let privateObject = try JSONSerialization.jsonObject(with:Data(contentsOf:URL(fileURLWithPath:privatePath))) as? [String:Any] else {
+                    throw NSError(domain:"NeuralAtlasSmoke",code:6,userInfo:[NSLocalizedDescriptionKey:"Generated private config was unavailable"])
+                }
+                try requireSmoke(privateObject["library_id"] as? String == "default", "Generated MCP config belongs to another library")
+                let workbuddyUI = try await webView.callAsyncJavaScript(
+                    "showConnectionConfig(cfg); const path=document.getElementById('agentConnectionConfigPath'); const choice=document.getElementById('connectionWorkBuddyChoice'); const result={path:path?.value===expected,choice:!!choice,merge:!!document.getElementById('connectWorkBuddyNow')}; window.LoveHouseConnectionHelp.open('workbuddy'); const dialog=document.getElementById('connectionHelpDialog'); const body=document.getElementById('connectionHelpBody').textContent; result.help=dialog.open&&body.includes('WorkBuddy')&&body.includes('信任'); document.getElementById('closeConnectionHelp').click(); document.getElementById('closeMemoryPanel').click(); return result;",
+                    arguments:["cfg":workbuddyConfig,"expected":privatePath], in:nil, contentWorld:.page) as? [String:Any]
+                try requireSmoke(workbuddyUI?["path"] as? Bool == true && workbuddyUI?["choice"] as? Bool == true && workbuddyUI?["merge"] as? Bool == true && workbuddyUI?["help"] as? Bool == true, "WorkBuddy path/help controls were not usable in native UI")
+                print("Native 0.9.1: anonymous management rejected; ephemeral UI bootstrap works; real private MCP path and WorkBuddy help verified without reading or changing WorkBuddy settings")
+                let sharingUI = try await webView.callAsyncJavaScript(
+                    """
+                    const originalAPI=api; let calls=0; const checks=[];
+                    try {
+                      for (const kind of ['rejected','pending']) {
+                        api=function(route,...args){if(route==='organizer'){calls++;return kind==='rejected'?Promise.reject(new Error('SYNTHETIC_OPTIONAL_STATUS_ERROR')):new Promise(()=>{});}return originalAPI(route,...args);};
+                        await window.LoveHousePortability.openShare();
+                        const consent=document.getElementById('sharePersonalConsent');consent.checked=true;consent.dispatchEvent(new Event('change',{bubbles:true}));
+                        const details=document.getElementById('shareAIOptions');
+                        const toggled=new Promise(resolve=>details.addEventListener('toggle',resolve,{once:true}));details.open=true;
+                        await Promise.race([toggled,new Promise((_,reject)=>setTimeout(()=>reject(new Error('Optional AI details did not open')),1500))]);
+                        await Promise.resolve();await Promise.resolve();
+                        checks.push(!document.getElementById('downloadMemoryJSON').disabled&&!document.getElementById('downloadMemoryMarkdown').disabled&&document.getElementById('generateShareSummary').dataset.ready==='false');
+                        document.getElementById('close-memoryShareDialog').click();
+                      }
+                      return {exportsAvailable:checks.every(Boolean),cases:checks.length,optionalQueries:calls};
+                    } finally {api=originalAPI;const dialog=document.getElementById('memoryShareDialog');if(dialog.open)document.getElementById('close-memoryShareDialog').click();}
+                    """,
+                    arguments:[:], in:nil, contentWorld:.page) as? [String:Any]
+                try requireSmoke(sharingUI?["exportsAvailable"] as? Bool == true && sharingUI?["cases"] as? Int == 2 && sharingUI?["optionalQueries"] as? Int == 2, "Optional organizer failure blocked native JSON/Markdown export controls")
+                print("Native 0.9.2: rejected and pending optional organizer status leave complete JSON/Markdown export available; no model or file export attempted")
                 let life = try await smokeRequest("api/experiences")
                 try requireSmoke(life["read_only"] as? Bool == true && life["will_call_model"] as? Bool == false, "Experience view is not read-only")
                 let source = try await smokeRequest("api/agent/sources", method:"POST", payload:["name":"原生合成来源","adapter":"sdk","runtime_agent_id":"SYNTHETIC-NATIVE-FISH","platforms":["qq","browser"]])
                 try requireSmoke(source["config_ready"] as? Bool == true && (source["source"] as? [String:Any])?["full_activity_coverage_verified"] as? Bool == false, "Source configuration claimed unsupported coverage")
                 let packageURL = serviceURL!.appendingPathComponent("api/adapters/astrbot/package")
-                let (pluginData, pluginResponse) = try await URLSession.shared.data(from:packageURL)
+                let (pluginData, pluginResponse) = try await smokeSession.data(from:packageURL)
                 let bundled = try Data(contentsOf:Bundle.main.resourceURL!.appendingPathComponent("Adapters/LoveHouse-AstrBot-0.2.0-experimental.zip"))
                 try requireSmoke((pluginResponse as? HTTPURLResponse)?.statusCode == 200 && pluginData == bundled && pluginData.prefix(2) == Data([0x50,0x4b]), "Experimental adapter export bytes differ from the bundled source package")
                 print("Native 0.8: human experience/source controls, fixed-source registration and exact experimental plugin ZIP verified; no external Agent or model used")

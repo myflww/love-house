@@ -112,17 +112,20 @@ def configure(connection_config, apply=False, app_path=None):
     extra = connection_config.get("host_options", {})
     if not isinstance(extra, dict):
         extra = {}
-    detected = detect(app_path, extra.get("profile_dir"))
+    detected = detect(app_path or extra.get("app_path"), extra.get("profile_dir"))
     supplied = connection_config.get("config", connection_config)
     connection = {"connection_id": supplied.get("connection_id", supplied.get("connectionId")),
                   "connection_token": supplied.get("connection_token", supplied.get("connectionToken")),
                   "library_id": supplied.get("library_id", supplied.get("libraryId")),
                   "session_scope": supplied.get("session_scope", supplied.get("sessionScope", "connection")),
+                  "connection_host": supplied.get("connection_host", supplied.get("connectionHost", "harness")),
                   "enabled": connection_config.get("connection", {}).get("enabled", True),
                   "runtime_dir": supplied.get("runtime_dir", supplied.get("runtimeDir", "~/Library/Application Support/NeuralKnowledge/.runtime"))}
     for key in ("base_url", "allow_remote"):
         if key in supplied:
             connection[key] = supplied[key]
+    if connection['connection_host'] not in ('harness','agent'):
+        raise ValueError("宿主插件只支持Harness或Agent连接")
     if any(not isinstance(connection[k], str) or not connection[k].strip() for k in ("connection_id", "connection_token", "library_id")):
         raise ValueError("缺少后端创建的连接标识、token或library_id")
     profile = Path(extra.get("profile_dir", detected["profile_dir"])).expanduser().resolve()

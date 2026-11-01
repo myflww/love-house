@@ -2,14 +2,17 @@
 from __future__ import annotations
 
 import json
+import io
 import socket
+import ssl
 import unittest
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError, URLError
 from urllib.request import Request
 
 from nkb.errors import ValidationError
-from nkb.organizer.model import NoRedirect, OrganizerError, call_model, transport
+from nkb.organizer.model import (NoRedirect, OrganizerError, call_model, transport,
+                                 resolve_model, validate_key, failure_message)
 from nkb.organizer.rules import SYSTEM_GUIDANCE
 
 
@@ -44,7 +47,7 @@ class OrganizerTransportTests(unittest.TestCase):
         return request, json.loads(request.data)
 
     def test_official_supported_models_disable_thinking_but_keep_bounded_json_contract(self):
-        for model in ('deepseek-flash', 'deepseek-v4-pro', 'deepseek-chat'):
+        for model in ('deepseek-flash', 'deepseek-v4-pro'):
             for base in ('https://api.deepseek.com', 'https://api.deepseek.com/v1',
                          'https://API.DEEPSEEK.COM:443/v1/chat/completions'):
                 with self.subTest(model=model, base=base):
@@ -74,6 +77,11 @@ class OrganizerTransportTests(unittest.TestCase):
             with self.subTest(model=model):
                 _, data = self.request_data(profile(model=model))
                 self.assertNotIn('thinking', data)
+
+    def test_legacy_deepseek_chat_model_is_not_rewritten_or_given_vendor_extension(self):
+        _, data=self.request_data(profile(model='deepseek-chat'))
+        self.assertEqual(data['model'],'deepseek-chat')
+        self.assertNotIn('thinking',data)
 
     def test_runtime_credential_endpoint_and_model_are_the_only_resolved_vendor_boundary(self):
         _, enabled = self.request_data(profile('https://another-provider.example/v1', 'another-model'),
@@ -117,9 +125,16 @@ class OrganizerTransportTests(unittest.TestCase):
         _, data = self.request_data(reply=reply)
         self.assertNotIn('PRIVATE-REASONING-NOT-MEMORY', json.dumps(data))
 
+    def test_malformed_chat_response_is_output_failure_rather_than_network_failure(self):
+        for reply in ({}, {'choices': []}, {'choices': [{'message': {}}]}, {'choices': 'invalid'}):
+            with self.subTest(reply=reply):
+                with self.assertRaises(OrganizerError) as caught:
+                    call_model(profile(), KEY, PAYLOAD, send=lambda *args, **kwargs: reply)
+                self.assertEqual(caught.exception.code, 'invalid_output')
+
     def test_invalid_secret_echo_or_oversized_output_still_cannot_be_applied(self):
         for content, expected in ((42, 'invalid_output'), ('x'*100001, 'invalid_output'),
-                                  (json.dumps({'leak': KEY}), 'invalid_output'), ('invalid JSON', 'provider_error')):
+                                  (json.dumps({'leak': KEY}), 'invalid_output'), ('invalid JSON', 'invalid_output')):
             with self.subTest(expected=expected, content_type=type(content).__name__):
                 with self.assertRaises(OrganizerError) as caught:
                     call_model(profile(), KEY, PAYLOAD,
@@ -129,7 +144,7 @@ class OrganizerTransportTests(unittest.TestCase):
 
     def test_existing_http_timeout_and_connection_error_codes_remain_sanitized(self):
         for error, expected in ((HTTPError('https://example.invalid', 302, KEY, {}, None), 'redirect_blocked'),
-                               (HTTPError('https://example.invalid', 401, KEY, {}, None), 'provider_http_error'),
+                               (HTTPError('https://example.invalid', 401, KEY, {}, None), 'provider_authentication'),
                                (TimeoutError(KEY), 'timeout'), (socket.timeout(KEY), 'timeout'),
                                (URLError(KEY), 'provider_error')):
             with self.subTest(expected=expected):
@@ -137,6 +152,58 @@ class OrganizerTransportTests(unittest.TestCase):
                     call_model(profile(), KEY, PAYLOAD, send=Mock(side_effect=error))
                 self.assertEqual(caught.exception.code, expected)
                 self.assertNotIn(KEY, str(caught.exception))
+
+    def test_effective_key_and_model_preflight_rejects_bad_settings_without_transport(self):
+        for value, code in ((None, 'missing_credential'), ('', 'missing_credential'),
+                            (KEY+'中文', 'invalid_credential'), (KEY+'\x7f', 'invalid_credential'),
+                            ('x'*4097, 'invalid_credential')):
+            with self.subTest(code=code):
+                with self.assertRaises(OrganizerError) as caught:validate_key(value)
+                self.assertEqual(caught.exception.code, code)
+                self.assertNotIn(KEY, str(caught.exception))
+        self.assertEqual(validate_key(' \n'+KEY+'\n '), KEY)
+        resolved, key, url=resolve_model(profile('https://gateway.example/v1', 'old'),
+            {'api_key':KEY,'base_url':'https://api.deepseek.com/v1','model':'deepseek-flash','daily_call_limit':1000})
+        self.assertEqual((resolved['model'],key,url), ('deepseek-flash',KEY,'https://api.deepseek.com/v1/chat/completions'))
+        self.assertNotIn('daily_call_limit',resolved)
+        with self.assertRaises(OrganizerError) as caught:resolve_model({'base_url':'https://gateway.example/v1'}, KEY)
+        self.assertEqual(caught.exception.code,'missing_model')
+
+    def test_http_failure_codes_never_read_or_expose_provider_body(self):
+        codes={400:'provider_request_rejected',401:'provider_authentication',402:'provider_insufficient_balance',
+               403:'provider_access_denied',404:'provider_not_found',422:'provider_request_rejected',
+               429:'rate_limited',500:'provider_unavailable',503:'provider_unavailable'}
+        for status, code in codes.items():
+            with self.subTest(status=status):
+                body=Mock(read=Mock(side_effect=AssertionError('Do not read private provider bodies')))
+                error=HTTPError('https://example.invalid/'+KEY,status,KEY,{},body)
+                with self.assertRaises(OrganizerError) as caught:
+                    call_model(profile(), KEY, PAYLOAD, send=Mock(side_effect=error))
+                self.assertEqual(caught.exception.code,code)
+                self.assertEqual(str(caught.exception),failure_message(code))
+                self.assertNotIn(KEY,str(caught.exception))
+                body.read.assert_not_called()
+
+    def test_certificate_and_nested_timeout_failures_keep_private_details_out(self):
+        for failure, code in ((ssl.SSLCertVerificationError(KEY),'tls_error'),
+                              (URLError(ssl.SSLCertVerificationError(KEY)),'tls_error'),
+                              (URLError(TimeoutError(KEY)),'timeout')):
+            with self.subTest(code=code):
+                with self.assertRaises(OrganizerError) as caught:
+                    call_model(profile(),KEY,PAYLOAD,send=Mock(side_effect=failure))
+                self.assertEqual(caught.exception.code,code)
+                self.assertNotIn(KEY,str(caught.exception))
+
+    def test_malformed_http_json_envelope_is_invalid_output(self):
+        opener=Mock()
+        for raw in (b'not-json', b'\xffinvalid-utf8'):
+            with self.subTest(raw=raw):
+                opener.open.return_value.__enter__=Mock(return_value=io.BytesIO(raw))
+                opener.open.return_value.__exit__=Mock(return_value=False)
+                with patch('nkb.organizer.model.urllib.request.build_opener',return_value=opener):
+                    with self.assertRaises(OrganizerError) as caught:transport(Request('https://example.invalid'),timeout=45)
+                self.assertEqual(caught.exception.code,'invalid_output')
+                self.assertNotIn(raw.decode('utf-8',errors='ignore'),str(caught.exception))
 
     def test_response_byte_budget_and_redirect_handler_still_fail_closed(self):
         opener = Mock()

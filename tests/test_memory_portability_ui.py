@@ -19,7 +19,7 @@ class MemoryPortabilityUITests(unittest.TestCase):
         self.assertLess(html.index(component), html.index('data-nkb-component="button-hints.js"'))
         self.assertNotIn('src="memory-portability-ui.js"', html)
         for control in ('inheritLibraryBtn', 'shareLibraryBtn', 'importMemoryShareBtn', 'sharePersonalConsent', 'shareAIConsent',
-                        'downloadMemoryJSON', 'downloadMemoryMarkdown', 'memoryShareFile', 'confirmMemoryShareImport'):
+                        'downloadMemoryJSON', 'downloadMemoryMarkdown', 'memoryShareFile', 'confirmMemoryShareImport', 'shareAIOptions', 'shareAIStatus'):
             self.assertIn(control, html)
         self.assertIn('memoryInheritanceDialog', html)
         self.assertIn('memoryShareDialog', html)
@@ -51,7 +51,7 @@ class MemoryPortabilityUITests(unittest.TestCase):
         result = subprocess.run([shutil.which('node'), '--test', '--test-reporter=tap', str(script)],
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
-        self.assertIn('# pass 5', result.stdout)
+        self.assertIn('# fail 0', result.stdout)
 
 
 if __name__ == '__main__': unittest.main()

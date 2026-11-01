@@ -410,7 +410,7 @@ $('#checkHarness').onclick=checkHarness;$('#copyHarness').onclick=async()=>{cons
 for(const ids of [['allTab','recallTab'],['directTab','packetTab']])for(const id of ids)$('#'+id).addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const at=ids.indexOf(id),next=e.key==='Home'?0:e.key==='End'?ids.length-1:(at+(e.key==='ArrowRight'?1:-1)+ids.length)%ids.length;$('#'+ids[next]).click();$('#'+ids[next]).focus();});
 
 const MEMORY={libraries:[],connections:[],tab:'connect',persona:null,personaDirty:false,personaDraftRevision:null,rawVersion:0,drafts:new Map(),config:null,providerTarget:null,disconnectTarget:null,configVersion:0,detect:null,busy:false,catalogReady:false,refreshVersion:0,personaVersion:0,activityVersion:0,lastRevision:null,polling:false,pollTimer:null};
-const ARCHIVE_STATUS={archive_failed:'存档失败',automatic_connected:'自动存档已接入',tools_only:'仅工具可用',waiting:'等待接入'};
+const ARCHIVE_STATUS={archive_failed:'存档失败',automatic_connected:'已收到适配器记录',host_reported:'已收到宿主记录',outputs_only:'已收到输出',observations_only:'已收到观察',partial_only:'等待完整记录',tools_only:'仅工具可用',waiting:'等待接入'};
 function libraryName(id){return MEMORY.libraries.find(x=>x.id===id)?.name||id||'未选择';}
 function selectedLibrary(){return MEMORY.libraries.find(x=>x.id===S.libraryId);}
 function textSource(source){if(!source)return '未记录';if(typeof source==='string')return source==='ui'?'粘贴导入':source;const names={ui:'粘贴导入',manual_profile:'明确设置',existing_profile:'已有设置',persona_toggle:'启用开关',learning_toggle:'学习开关',dialogue_style_learning:'多轮用户反馈',user_approved_proposal:'已采用候选',rollback:'版本撤回'};return source.label||source.kind||source.name||names[source.origin]||source.origin||'已记录来源';}

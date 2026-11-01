@@ -67,6 +67,8 @@ class RetentionServiceTests(unittest.TestCase):
             headers["Content-Type"] = "application/json"
         if token:
             headers["Authorization"] = "Bearer " + token
+        else:
+            headers["X-LoveHouse-Management"] = self.host.management_token
         request = Request(f"http://127.0.0.1:{self.server.server_port}" + path,
                           data=None if body is None else json.dumps(body, ensure_ascii=False).encode(), headers=headers)
         try:

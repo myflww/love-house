@@ -15,7 +15,8 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from urllib.request import Request, urlopen
+from urllib.request import Request, urlopen, build_opener, HTTPCookieProcessor, ProxyHandler
+from http.cookiejar import CookieJar
 from urllib.error import HTTPError
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -45,6 +46,19 @@ def clean_environment(python_home):
         env.pop(key, None)
     env.update(PYTHONHOME=str(python_home), PYTHONDONTWRITEBYTECODE="1", PYTHONNOUSERSITE="1")
     return env
+
+
+def management_opener(base):
+    """Use the same local UI bootstrap as the app; keep its cookie in memory."""
+    opener = build_opener(ProxyHandler({}), HTTPCookieProcessor(CookieJar()))
+    try:
+        with opener.open(base + "/api/connections", timeout=5):
+            raise AssertionError("Anonymous management enumeration was accepted")
+    except HTTPError as error:
+        assert error.code == 401, error.code
+    with opener.open(base + "/", timeout=5) as response:
+        assert response.status == 200 and b"<html" in response.read()
+    return opener
 
 
 def harness_overlay(app):
@@ -120,13 +134,14 @@ def smoke_test(resources):
                         assert old_port == state["controller_port"], "Controller port was not reused"
                     old_port = state["controller_port"]
                     base = f"http://127.0.0.1:{old_port}"
+                    opener = management_opener(base)
 
                     def api(path, body=None, library=None, credential=None):
                         headers = {"Content-Type": "application/json"}
                         if library: headers["X-NKB-Library"] = library
                         if credential: headers["Authorization"] = "Bearer " + credential
                         request = Request(base + path, data=None if body is None else json.dumps(body, ensure_ascii=False).encode(), headers=headers)
-                        with urlopen(request, timeout=12) as response:
+                        with (urlopen(request, timeout=12) if credential else opener.open(request, timeout=12)) as response:
                             return json.load(response)
 
                     def capture(event_id, user):
@@ -219,11 +234,12 @@ def smoke_harness(resources):
                 while not ready.exists() and child.poll() is None and time.monotonic() < deadline: time.sleep(.05)
                 assert ready.exists(), (temp / "backend.log").read_text()
                 port = json.loads(ready.read_text())["controller_port"]
+                opener = management_opener(f"http://127.0.0.1:{port}")
                 def api(path, body=None, library=None):
                     headers = {"Content-Type": "application/json"}
                     if library: headers["X-NKB-Library"] = library
                     req = Request(f"http://127.0.0.1:{port}" + path, data=None if body is None else json.dumps(body).encode(), headers=headers)
-                    with urlopen(req, timeout=8) as response: return json.load(response)
+                    with opener.open(req, timeout=8) as response: return json.load(response)
                 other = api("/api/libraries", {"name": "GUI正在查看的另一库"})["library"]["id"]
                 def rpc(name, args, library="default"):
                     messages = [{"jsonrpc":"2.0","id":1,"method":"initialize"},
@@ -266,9 +282,10 @@ def smoke_agent(resources):
         log = (temp / "backend.log").open("ab")
         child = None
         base = ""
+        opener = None
 
         def start():
-            nonlocal child, base
+            nonlocal child, base, opener
             child = subprocess.Popen([str(python), "-s", "-u", str(backend / "desktop_server.py"),
                                       "--data-dir", str(data), "--ready-file", str(ready),
                                       "--parent-pid", str(os.getpid())], cwd=backend, env=env, stdout=log, stderr=log)
@@ -276,6 +293,7 @@ def smoke_agent(resources):
             while not ready.exists() and child.poll() is None and time.monotonic() < deadline: time.sleep(.05)
             assert ready.exists(), (temp / "backend.log").read_text()
             base = "http://127.0.0.1:" + str(json.loads(ready.read_text())["controller_port"])
+            opener = management_opener(base)
 
         def stop():
             nonlocal child
@@ -290,7 +308,7 @@ def smoke_agent(resources):
             headers = {"Content-Type": "application/json"}
             if library: headers["X-NKB-Library"] = library
             request = Request(base + path, data=None if body is None else json.dumps(body, ensure_ascii=False).encode(), headers=headers)
-            with urlopen(request, timeout=12) as response: return json.load(response)
+            with opener.open(request, timeout=12) as response: return json.load(response)
 
         def execute(command, payload, *, lines=False):
             assert command["command"] == str(python), command["command"]
@@ -340,7 +358,8 @@ def smoke_agent(resources):
             complete = {**partial, "status":"complete", "assistant":"原生钩子完整助手回复"}
             result = execute(hook, json.dumps(complete, ensure_ascii=False))
             assert result["accepted"] and result["saved"] and not result["queued"]
-            assert rpc("memory_status")["automatic_memory"] is True
+            reported = rpc("memory_status")
+            assert reported["automatic_memory"] is False and reported["connection"]["archive_status"] == "host_reported"
             assert len(api("/api/graph", library=library)["nodes"]) == 2
             assert api("/api/graph")["nodes"] == []
             stop()
@@ -359,7 +378,7 @@ def smoke_agent(resources):
             outbox = data / "agent-outbox" / cid
             assert not list(outbox.glob("*.json"))
             assert api("/api/graph")["nodes"] == []
-            print("Bundled Agent MCP: generated command/PYTHONHOME works; no vendor key; manual/partial stays tools_only; complete hook records automatically; offline queue/reconnect preserves fixed library")
+            print("Bundled Agent MCP: generated command/PYTHONHOME works; no vendor key; manual/partial stays tools_only; one hook is host_reported without ongoing-auto claim; offline queue/reconnect preserves fixed library")
 
             single_library = api("/api/libraries", {"name":"打包默认单窗口隐私库"})["library"]["id"]
             single = api("/api/connections", {"name":"默认只记所选窗口", "host":"agent", "library_id":single_library})
@@ -384,7 +403,8 @@ def smoke_agent(resources):
             assert all(foreign_marker.encode() not in p.read_bytes() for p in data.rglob("*") if p.is_file())
             stop(); start()
             refreshed = api(f"/api/connections/{single_cid}/config")
-            assert refreshed["connection"]["session_scope"] == own["session_id"]
+            assert refreshed["connection"]["session_scope_policy"] == "next_session"
+            assert refreshed["connection"]["bound_session_id"] == own["session_id"]
             assert refreshed["connection_config_public"]["bound_session_id"] == own["session_id"]
             assert json.loads(private.read_text())["bound_session_id"] == own["session_id"]
             graph = api("/api/graph", library=single_library)
@@ -406,8 +426,8 @@ def main():
     icon = args.icon.expanduser().resolve()
     if not icon.is_file():
         raise SystemExit(f"Approved Love House icon PNG is required: {icon}")
-    if project_version() != "0.9.0":
-        raise SystemExit("Freeze project version at 0.9.0 before creating this desktop candidate")
+    if project_version() != "0.9.2":
+        raise SystemExit("Freeze project version at 0.9.2 before creating this desktop candidate")
     extension = ROOT / "extensions/deepseek-harness"
     if not (extension / "dist/index.js").is_file() or not (extension / "configure.py").is_file():
         raise SystemExit("Automatic-capture extension is not built/frozen: dist/index.js and configure.py are required")
@@ -508,7 +528,7 @@ def main():
         "CFBundleName": APP_NAME, "CFBundleDisplayName": APP_NAME,
         "CFBundleIdentifier": BUNDLE_ID, "CFBundleExecutable": "NeuralAtlas",
         "CFBundlePackageType": "APPL", "CFBundleShortVersionString": project_version(),
-        "CFBundleVersion": "12", "CFBundleIconFile": "LoveHouse",
+        "CFBundleVersion": "14", "CFBundleIconFile": "LoveHouse",
         "LSMinimumSystemVersion": "13.0", "NSHighResolutionCapable": True,
         "NSSupportsAutomaticGraphicsSwitching": True,
         "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},

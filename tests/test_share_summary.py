@@ -9,6 +9,7 @@ import unittest
 import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
+from unittest.mock import patch
 
 from nkb.errors import ValidationError
 from nkb.service.credentials import KeyStore
@@ -201,8 +202,9 @@ class ShareHTTPTests(unittest.TestCase):
 
     def test_http_preview_download_summary_and_new_library_import_are_wired(self):
         status, preview = self.req('/api/sharing/preview', {})
-        self.assertEqual(status, 200, preview); self.assertFalse(preview['summary_provider']['credential_ready'])
+        self.assertEqual(status, 200, preview); self.assertNotIn('summary_provider',preview)
         self.assertEqual(self.calls, [])
+
         self.assertEqual(self.req('/api/sharing/download', {'expected_revision': preview['content_revision']})[0], 400)
         status, download = self.req('/api/sharing/download', {'confirm': True, 'expected_revision': preview['content_revision']})
         self.assertEqual(status, 200, download); self.assertIn('这是本库的一句真实验收文字。', download['content'])
@@ -212,6 +214,25 @@ class ShareHTTPTests(unittest.TestCase):
         self.assertEqual(status, 200, imported); self.assertNotEqual(imported['library']['id'], 'default')
         self.assertFalse(imported['connections_rebound']); self.assertFalse(imported['organizer_enabled'])
         self.assertEqual(self.calls, [])
+
+
+    def test_full_preview_and_both_downloads_do_not_inspect_optional_organizer(self):
+        with patch.object(self.host,'organizer_view',side_effect=AssertionError('optional model pane must not run')) as view, \
+             patch.object(self.host.organizer,'status',side_effect=AssertionError('optional queue status must not run')) as status, \
+             patch.object(self.host.keys,'metadata',side_effect=AssertionError('optional credential metadata must not run')) as metadata:
+            code,preview=self.req('/api/sharing/preview',{})
+            self.assertEqual(code,200,preview)
+            self.assertEqual(len(preview['content_revision']),64)
+            self.assertNotIn('summary_provider',preview)
+            for format in ('json','markdown'):
+                code,download=self.req('/api/sharing/download',{'confirm':True,'format':format,
+                    'expected_revision':preview['content_revision']})
+                self.assertEqual(code,200,download)
+                self.assertIn('这是本库的一句真实验收文字。',download['content'])
+                if format=='json':self.assertEqual(json.loads(download['content'])['scope'],'single_library')
+                else:self.assertTrue(download['filename'].endswith('.md'))
+            view.assert_not_called();status.assert_not_called();metadata.assert_not_called()
+        self.assertEqual(self.calls,[])
 
     def test_agent_bearer_cannot_export_import_or_trigger_model(self):
         config = self.host.new_connection({'name': '绑定的Agent', 'host': 'agent', 'library_id': 'default'})
@@ -237,7 +258,8 @@ class ShareHTTPTests(unittest.TestCase):
         self.host.organizer_settings('default', {'enabled': False, 'provider_mode': 'separate', 'base_url': 'https://reading.invalid/v1',
                                                'model': 'FAKE-READING-MODEL', 'api_key': KEY, 'save_key': False})
         status, preview = self.req('/api/sharing/preview', {}); self.assertEqual(status, 200, preview)
-        self.assertTrue(preview['summary_provider']['credential_ready']); self.assertNotIn(KEY, json.dumps(preview))
+        self.assertNotIn('summary_provider',preview); self.assertNotIn(KEY, json.dumps(preview))
+        self.assertIs(self.host.organizer_view('default')['provider']['model_ready'],True)
         status, summary = self.req('/api/sharing/summary', {'confirm': True, 'expected_revision': preview['content_revision']})
         self.assertEqual(status, 200, summary); self.assertNotIn(KEY, json.dumps(summary))
         status, download = self.req('/api/sharing/download', {'confirm': True, 'expected_revision': preview['content_revision'], 'summary_id': summary['summary_id']})

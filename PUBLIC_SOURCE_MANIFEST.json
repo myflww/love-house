@@ -68,8 +68,8 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "bytes": 30912,
-      "sha256": "c22fbfbda7d58bcd0e2760de02c3a77241340d8989c2b1334477303c407cf915"
+      "bytes": 30964,
+      "sha256": "e8e126d9627762c1324262dc18285c86b8cf2ee77b6ae6940083e4a0b52b3af6"
     },
     {
       "path": ".github/workflows/verify-public-windows-mobile-preview.yml",
@@ -633,8 +633,8 @@
     },
     {
       "path": "desktop/windows_app.py",
-      "bytes": 41776,
-      "sha256": "82ed9c331c918eb7f70370ec4a2c1ec536a6341613b8f4ccf6414e274d423040"
+      "bytes": 42649,
+      "sha256": "9c4e1c0552a8b679fb5b4c4d2c1dac5ff7c6a2e8282802d05abe39c8d647c9d1"
     },
     {
       "path": "desktop/windows_diagnostics.py",
@@ -643,8 +643,8 @@
     },
     {
       "path": "desktop/windows_latest_smoke.py",
-      "bytes": 17707,
-      "sha256": "36d8244b09cd4f26d7f5ce3019f6314430f96672d16ee56b74cb07f6577cc6e4"
+      "bytes": 20843,
+      "sha256": "2ccbc6a681ac13c0b4c0b6a1a31192a26b0467970131784bdab8a14bc240d76c"
     },
     {
       "path": "desktop/windows_organizer_smoke.py",
@@ -1633,8 +1633,8 @@
     },
     {
       "path": "nkb/service/usage.py",
-      "bytes": 9239,
-      "sha256": "c4b26bd6abc4c1e23838b8fdd5e9c28e2e1e029f90a869fcec2af09b7146456a"
+      "bytes": 10178,
+      "sha256": "263103ab6da2a6252606937ed3dc639e285a81b3c056c43d56853d0ad93a4429"
     },
     {
       "path": "nkb/service/windows_credentials.py",
@@ -1928,8 +1928,8 @@
     },
     {
       "path": "scripts/publish_windows_0101.py",
-      "bytes": 22924,
-      "sha256": "7300b62a340d10d9f991dcc2a0f669aa9f8fe71b3496571f2fdd0d3da6ac721e"
+      "bytes": 22965,
+      "sha256": "1f7b467c29f3c73feb6404daefd9677fc493fbcce26ec716b5a4a8ccdce556dc"
     },
     {
       "path": "scripts/publish_windows_091.py",
@@ -2003,8 +2003,8 @@
     },
     {
       "path": "scripts/windows_upgrade_smoke.py",
-      "bytes": 20498,
-      "sha256": "13a0f063c9026537d1466a6ab46be55eb3a065b54410d5e4a87e230dc74ca975"
+      "bytes": 26678,
+      "sha256": "03cbc689ac801d6894f03cef501668a108b207c239b31808db1671771da43941"
     },
     {
       "path": "scripts/workbuddy-080rc2-publication.json",
@@ -2533,8 +2533,8 @@
     },
     {
       "path": "tests/test_usage_journal.py",
-      "bytes": 9254,
-      "sha256": "81f0d741690ebaa10cf4b35d9319125b02f99afb2528626d9aa2f97253381bd9"
+      "bytes": 10888,
+      "sha256": "b8fe346b4da34fe00284e90b7e270e4fe827ae94a22c5df5da96dd4707b46e46"
     },
     {
       "path": "tests/test_verify_signed_080rc2.py",
@@ -2563,8 +2563,8 @@
     },
     {
       "path": "tests/test_windows_packaging.py",
-      "bytes": 35039,
-      "sha256": "48ed745fffc2941fad152aaf982831151301aa25ea8d9ac8da13e76febf20503"
+      "bytes": 40728,
+      "sha256": "e192161660d9dfd26a7aea413fc86172f52cc52bc1d0a63df0bb4b3b1a17b512"
     },
     {
       "path": "tests/test_windows_prerequisites.py",
@@ -2575,6 +2575,11 @@
       "path": "tests/test_windows_startup_regressions.py",
       "bytes": 18317,
       "sha256": "95f19123adb7dda54a4cc8a9572a5eb064db4b97ba4564087ca4440e6a571393"
+    },
+    {
+      "path": "tests/test_windows_upgrade_smoke.py",
+      "bytes": 10201,
+      "sha256": "435b5e5009ceb9513be52cc0d176d6dbb23f7d75f908553ef7788a7db6193e2d"
     },
     {
       "path": "tests/test_workbuddy_connection_state.py",

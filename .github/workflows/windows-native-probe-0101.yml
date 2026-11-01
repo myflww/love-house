@@ -27,6 +27,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Pinned native inputs failed' }
           python -m pip install -e .
           if ($LASTEXITCODE -ne 0) { throw 'Project installation failed' }
+      - name: Verify upgrade contracts and journal concurrency before native checks
+        run: |
+          python -m unittest tests.test_usage_journal tests.test_windows_upgrade_smoke -v
+          if ($LASTEXITCODE -ne 0) { throw 'Upgrade or journal regression failed' }
+          python -c "import unittest; from tests.test_usage_journal import UsageJournalTests; suite=unittest.TestSuite(UsageJournalTests('test_parallel_duplicate_enqueues_accept_once_and_all_handles_close') for _ in range(20)); result=unittest.TextTestRunner().run(suite); raise SystemExit(not result.wasSuccessful())"
+          if ($LASTEXITCODE -ne 0) { throw 'Repeated journal contention check failed' }
       - name: Exercise actual WebView2 with isolated synthetic data
         run: |
           New-Item -ItemType Directory -Force build/native-probe | Out-Null

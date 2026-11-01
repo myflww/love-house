@@ -319,6 +319,92 @@ class WindowsPackagingTests(unittest.TestCase):
             self.assertNotIn('FAKE-PRIVATE-KEY',report.read_text('utf-8'))
             self.assertEqual(value['cleanup']['status'],'removed')
 
+    def test_native_latest_failure_reports_only_fixed_control_codes(self):
+        import windows_latest_smoke as latest
+        for code,expected in [('graph_labels_on','graph_labels_on'),
+                              ('FAKE-PRIVATE-KEY from JavaScript','graph_response'),
+                              (['FAKE-PRIVATE-KEY'],'graph_response')]:
+            window=MagicMock()
+            window.evaluate_js.side_effect=lambda script,callback:callback({'ok':False,'code':code})
+            with self.assertRaises(latest.NativeFeatureFailure) as raised:
+                latest.evaluate(window,'throw Error("synthetic")',timeout=.1)
+            self.assertEqual(raised.exception.code,expected)
+            self.assertNotIn('FAKE-PRIVATE-KEY',str(raised.exception))
+
+    def test_native_nebula_wait_accepts_a_target_created_by_a_later_frame(self):
+        import shutil
+        import subprocess
+        import windows_latest_smoke as latest
+        node=shutil.which('node')
+        if not node:self.skipTest('Node is required for the real JS predicate check')
+        line=next(line for line in latest.GRAPH_SCRIPT.splitlines() if "await wait(()=>S.graphMode==='nebula'" in line)
+        expression=line.split('await wait(()=>',1)[1].split(');await paint()',1)[0]
+        script="const assert=require('node:assert/strict');const S={graphMode:'nebula',view:{target:null},cam:{k:1}};const artRenderer={isTransitioning:()=>false};const ready=()=>"+expression+";assert.equal(ready(),false);S.view.target={k:2};assert.equal(ready(),false);S.view.target={k:1};assert.equal(ready(),true);"
+        subprocess.run([node,'-e',script],check=True,capture_output=True,timeout=10)
+
+    def test_main_preserves_initial_native_failure_instead_of_final_runtime_wrapper(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report=Path(directory)/'native.json'
+            original={'type':'NativeFeatureFailure','kind':'unexpected','at':{'file':'desktop/windows_latest_smoke.py','function':'evaluate','line':1}}
+            def failed(*arguments,**keywords):
+                report.write_text(json.dumps({'ok':False,'process_complete':False,'phase':'profile_cleanup',
+                    'failure':original,'smoke_checkpoint':'graph_wait_automatic-viewport'}),encoding='utf-8')
+                raise RuntimeError('FAKE-PRIVATE-KEY final wrapper')
+            with patch.object(windows,'native_smoke',side_effect=failed),patch.object(sys,'argv',
+                    ['LoveHouse.exe','--smoke-test','--data-dir',directory,'--report',str(report)]):
+                self.assertEqual(windows.main(),1)
+            value=json.loads(report.read_text('utf-8'))
+            self.assertEqual(value['failure'],original)
+            self.assertEqual(value['smoke_checkpoint'],'graph_wait_automatic-viewport')
+            self.assertFalse(value['ok']);self.assertFalse(value['process_complete'])
+            self.assertNotIn('FAKE-PRIVATE-KEY',report.read_text('utf-8'))
+
+    def test_loaded_releases_startup_watchdog_before_independent_native_checks_deadline(self):
+        import threading
+        import windows_latest_smoke as latest
+        events=[];threads=[]
+        class Signal:
+            def __init__(self):self.handlers=[]
+            def __iadd__(self,callback):self.handlers.append(callback);return self
+        class Event:
+            def __init__(self):self.ready=False;self.waits=[];events.append(self)
+            def set(self):self.ready=True
+            def wait(self,timeout):self.waits.append(timeout);return self.ready
+        class Thread:
+            def __init__(self,*,target,daemon):self.target=target;threads.append(self)
+            def start(self):pass
+            def join(self,timeout):pass
+        window=MagicMock()
+        window.events=SimpleNamespace(loaded=Signal(),closed=Signal(),initialized=Signal())
+        value={'health':{'ok':True,'version':windows.__version__},'save_bridge':True,'graph':True,
+               'webgl':True,'latest_controls':True}
+        window.evaluate_js.side_effect=lambda script,callback:callback(value)
+        browser=SimpleNamespace(settings={},create_window=lambda *args,**kwargs:window)
+        def start(**kwargs):
+            window.events.loaded.handlers[0]()
+            self.assertTrue(events[0].ready)
+            self.assertFalse(events[1].ready)
+            next(t for t in threads if t.target.__name__=='watchdog').target()
+            self.assertEqual(events[0].waits,[60])
+            window.destroy.assert_not_called()
+            window.events.loaded.handlers[1]()
+            self.assertTrue(events[1].ready)
+            next(t for t in threads if t.target.__name__=='native_deadline').target()
+            self.assertEqual(events[1].waits,[120])
+        browser.start=start
+        runtime=MagicMock();runtime.start.return_value=runtime
+        runtime.url='http://127.0.0.1:12345/'
+        thread_api=SimpleNamespace(Event=Event,Thread=Thread,Lock=threading.Lock)
+        with tempfile.TemporaryDirectory() as directory,patch.dict(sys.modules,{'webview':browser}),\
+             patch.object(windows,'threading',thread_api),patch.object(windows,'ControllerRuntime',return_value=runtime),\
+             patch.object(windows,'dotnet_status',return_value={'ok':True}),\
+             patch.object(windows,'runtime_status',return_value={'available':True}),\
+             patch.object(windows,'verify_native_exports',return_value={}),\
+             patch.object(latest,'verify_latest_ui',return_value=({'status':'passed'},{})):
+            result=windows.run_window(directory,smoke=True)
+        self.assertTrue(result['ok']);self.assertNotIn('smoke_timeout',result)
+        runtime.stop.assert_called_once()
+
     def test_nonzero_exit_is_rejected_even_with_success_report(self):
         with tempfile.TemporaryDirectory() as directory:
             report=Path(directory)/'native.json'

@@ -7,6 +7,7 @@ Manager and that exact synthetic scope is deleted before reporting completion.
 from __future__ import annotations
 
 import argparse
+from contextlib import closing, contextmanager
 import ctypes
 from ctypes import wintypes
 import hashlib
@@ -15,6 +16,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -28,6 +30,7 @@ NEW_VERSION = '0.10.1rc1'
 OLD_SETUP_SHA256 = '56634d8e63e806c5d988302ed01678d2881a40e4c12f836a08ae1b361bccdad6'
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+FIXTURE_PREFIX='love-house-upgrade-中文 空格-'
 
 
 def digest(path):
@@ -69,15 +72,16 @@ class App:
                     continue
                 self.base = 'http://127.0.0.1:' + str(ready['controller_port'])
                 health = self.request('/api/health')
-                if health['ok'] is True and health['version'] == version:
+                if health['ok'] is True and health['version'] == version and window_ready(self.data,self.process.pid):
                     response = self.client.open(self.base + '/', timeout=15)
                     require(response.status == 200, 'Disposable UI session was not issued')
+                    response.read()
                     response.close()
                     return self
             except (OSError, ValueError, KeyError):
                 pass
             time.sleep(.1)
-        raise AssertionError('Disposable app Controller startup timed out')
+        raise AssertionError('Disposable app native-window startup timed out')
 
     def request(self, path, payload=None, *, library=None, bearer=None, anonymous=False, status=200):
         headers = {'Origin': self.base, 'Content-Type': 'application/json'}
@@ -93,11 +97,14 @@ class App:
                 code, raw = response.status, response.read(4 * 1024 * 1024)
         except HTTPError as exc:
             code, raw = exc.code, exc.read(4 * 1024 * 1024)
-        require(code == status, 'Disposable Controller returned an unexpected HTTP status')
+        require(code == status, 'Disposable Controller expected HTTP '+str(status)+' but received '+str(code)+' for '+path)
         return json.loads(raw)
 
     def close(self, *, strict=True):
-        if not self.process or self.process.poll() is not None:
+        if not self.process:
+            return
+        if self.process.poll() is not None:
+            if strict:require(self.process.returncode==0,'Disposable app exited unsuccessfully')
             return
         user32 = ctypes.WinDLL('user32', use_last_error=True)
         callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
@@ -140,11 +147,85 @@ def graph_originals(value):
     return {node['id']: (node['text'], node.get('meta', {}).get('assistant_reply')) for node in value['nodes']}
 
 
+def window_ready(data,pid):
+    try:lines=(Path(data)/'logs/startup.log').read_text('utf-8').splitlines()
+    except OSError:return False
+    current=False
+    for line in lines:
+        try:item=json.loads(line)
+        except ValueError:continue
+        # The start event carries pid; subsequent window events share that
+        # process's log segment but do not duplicate pid on every line.
+        if item.get('event')=='start':current=item.get('pid')==pid
+        if current and item.get('event')=='window' and item.get('phase')=='window_ready':return True
+    return False
+
+
 def queue_state(data):
-    with sqlite3.connect(data / 'organizer.sqlite3') as db:
+    with closing(sqlite3.connect(data / 'organizer.sqlite3')) as db:
         return {name: db.execute('SELECT ' + fields + ' FROM ' + name + ' ORDER BY 1').fetchall()
             for name, fields in (('items', 'library_id,raw_id,status,progress,job_id'),
                 ('jobs', 'id,library_id,raw_ids,status,attempts,error_code'), ('calls', 'id,library_id,at,chars'))}
+
+
+def connection_token(connection,data):
+    """The HTTP config intentionally contains a path rather than its token.
+
+    Read only the just-created fixture's private file, after checking its exact
+    owned data directory and the server-issued connection/library identities.
+    """
+    private=Path(connection['private_path']).resolve()
+    require(private.is_relative_to(Path(data).resolve()),'Synthetic private configuration escaped the owned fixture')
+    value=json.loads(private.read_text('utf-8'))
+    require(value.get('connection_id')==connection['connection']['id'] and
+        value.get('library_id')==connection['connection']['library_id'],
+        'Synthetic private configuration belongs to another connection')
+    token=value.get('token')
+    require(isinstance(token,str) and bool(token),'Synthetic connection token is missing')
+    return token
+
+
+def cleanup_fixture(directory,attempts=12):
+    """Retry only WebView2 descendant races in our explicitly owned scratch."""
+    root=Path(directory).resolve()
+    require(root.parent==Path(tempfile.gettempdir()).resolve() and root.name.startswith(FIXTURE_PREFIX),
+        'Refusing upgrade cleanup outside the owned temporary scratch')
+    marker=json.loads((root/'.upgrade-owner.json').read_text('utf-8'))
+    require(marker=={'schema':'love-house-upgrade-owner/v1','pid':os.getpid(),'name':root.name},
+        'Upgrade scratch owner marker does not match')
+    profile=root/'合成 数据'/'WebView2'
+    def vanished(function,path,exc):
+        target=Path(path).resolve()
+        if isinstance(exc,FileNotFoundError) and target.is_relative_to(profile) and not os.path.lexists(path):return
+        raise exc
+    def legacy_vanished(function,path,exc_info):return vanished(function,path,exc_info[1])
+    for attempt in range(1,attempts+1):
+        try:
+            options={'onexc':vanished} if sys.version_info>=(3,12) else {'onerror':legacy_vanished}
+            shutil.rmtree(root,**options)
+            return
+        except OSError as exc:
+            name=getattr(exc,'filename',None)
+            if (getattr(exc,'winerror',None) not in (32,33) or not name or
+                not Path(name).resolve().is_relative_to(profile) or attempt==attempts):raise
+            time.sleep(.2*attempt)
+
+
+@contextmanager
+def owned_fixture():
+    root=Path(tempfile.mkdtemp(prefix=FIXTURE_PREFIX)).resolve()
+    (root/'.upgrade-owner.json').write_text(json.dumps({'schema':'love-house-upgrade-owner/v1',
+        'pid':os.getpid(),'name':root.name}),encoding='utf-8')
+    primary=None
+    try:yield root
+    except BaseException as exc:
+        primary=exc
+        raise
+    finally:
+        try:cleanup_fixture(root)
+        except Exception:
+            if primary is None:raise
+            primary.add_note('Owned upgrade scratch cleanup also failed; the initial test failure is preserved.')
 
 
 def run(old_setup, new_setup):
@@ -163,12 +244,12 @@ def run(old_setup, new_setup):
     result = {'ok': False, 'process_complete': False, 'schema': 'love-house-windows-upgrade/v1',
         'from_version': OLD_VERSION, 'to_version': NEW_VERSION, 'old_setup_sha256': OLD_SETUP_SHA256,
         'new_setup_sha256': new_sha, 'real_model_calls': 0, 'real_credentials_accessed': False}
-    with tempfile.TemporaryDirectory(prefix='love-house-upgrade-中文 空格-') as directory:
-        root = Path(directory)
+    with owned_fixture() as root:
         data, target = root / '合成 数据', root / '安装 App'
         try:
             install(old_setup, target)
-            old = App(target / 'LoveHouse.exe', data).start(OLD_VERSION)
+            old = App(target / 'LoveHouse.exe', data)
+            old.start(OLD_VERSION)
             library = old.request('/api/libraries', {'name': 'SYNTHETIC_UPGRADE_' + marker})['library']['id']
             second = old.request('/api/libraries', {'name': 'SYNTHETIC_SECOND_' + marker})['library']['id']
             trashed = old.request('/api/libraries', {'name': 'SYNTHETIC_TRASH_' + marker})['library']['id']
@@ -176,7 +257,7 @@ def run(old_setup, new_setup):
             old.request('/api/library/select', {'library_id': library})
             connection = old.request('/api/connections', {'host': 'agent', 'name': 'SYNTHETIC_UPGRADE_AGENT',
                 'library_id': library, 'session_scope': 'next_session'})
-            cid, token = connection['connection']['id'], connection['config']['connectionToken']
+            cid, token = connection['connection']['id'], connection_token(connection,data)
             original = 'SYNTHETIC_UPGRADE_USER_原文_' + marker
             assistant = 'SYNTHETIC_UPGRADE_ASSISTANT_回复_' + marker
             event = {'session_id': 'SYNTHETIC_WINDOW_' + marker, 'event_id': 'SYNTHETIC_EVENT_' + marker,
@@ -187,7 +268,7 @@ def run(old_setup, new_setup):
             require(saved['status'] == 'saved', 'Old application did not store the synthetic original turn')
             second_connection = old.request('/api/connections', {'host': 'agent',
                 'name': 'SYNTHETIC_SECOND_AGENT', 'library_id': second, 'session_scope': 'next_session'})
-            second_cid, second_token = second_connection['connection']['id'], second_connection['config']['connectionToken']
+            second_cid, second_token = second_connection['connection']['id'], connection_token(second_connection,data)
             second_event = {'session_id': 'SYNTHETIC_SECOND_WINDOW_' + marker, 'event_id': 'SYNTHETIC_SECOND_EVENT_' + marker,
                 'record': {'schema': 'love-house-agent-hook/v1'},
                 'normalized': {'type': 'turn', 'status': 'complete', 'origin': 'agent_host_hook', 'turn_id': 'SYNTHETIC_SECOND_TURN_' + marker,
@@ -221,16 +302,23 @@ def run(old_setup, new_setup):
             expected['second'] = {'nodes': graph_originals(old.request('/api/graph', library=second)),
                 'connection': second_config['connection'], 'private': digest(second_private),
                 'provider': old.request('/api/organizer', library=second)['provider']}
+            require(bool(expected['nodes']) and (original,assistant) in expected['nodes'].values(),
+                'Old fixture is missing its exact original user and assistant roles')
+            require(bool(expected['second']['nodes']) and
+                (second_event['normalized']['user'],second_event['normalized']['assistant']) in expected['second']['nodes'].values(),
+                'Old second-library fixture is missing its exact original roles')
             old.close()
             # Deliberately seeded durable old-schema fixtures exercise migration
             # preservation; these are not real model calls or model results.
-            with sqlite3.connect(data / 'organizer.sqlite3') as db:
+            with closing(sqlite3.connect(data / 'organizer.sqlite3')) as db, db:
                 require('purpose' not in {r[1] for r in db.execute('PRAGMA table_info(jobs)')},
                     'Old application fixture unexpectedly already has the new purpose column')
+                job_ids=[]
                 for index, identity in enumerate((library, second)):
                     item = db.execute('SELECT raw_id FROM items WHERE library_id=?', (identity,)).fetchone()
                     require(item is not None, 'Old capture was not enqueued durably')
                     job = 'SYNTHETIC_JOB_' + str(index) + marker
+                    job_ids.append(job)
                     stamp = time.time()
                     db.execute('INSERT INTO jobs(id,library_id,raw_ids,status,attempts,next_run,lease_until,created,updated,error_code,error) VALUES(?,?,?,\'rejected\',3,0,0,?,?,\'synthetic_fixture\',\'synthetic fixture\')',
                         (job, identity, json.dumps([item[0]]), stamp, stamp))
@@ -238,7 +326,8 @@ def run(old_setup, new_setup):
                     db.execute('INSERT INTO calls VALUES(?,?,?,?)', ('SYNTHETIC_CALL_' + str(index) + marker, identity, stamp, 123))
             durable = queue_state(data)
             install(new_setup, target)
-            new = App(target / 'LoveHouse.exe', data).start(NEW_VERSION)
+            new = App(target / 'LoveHouse.exe', data)
+            new.start(NEW_VERSION)
             require(new.request('/api/libraries')['selected_id'] == library, 'Selected library changed during upgrade')
             require(graph_originals(new.request('/api/graph', library=library)) == expected['nodes'], 'Original roles changed during upgrade')
             require(graph_originals(new.request('/api/graph', library=second)) == expected['second']['nodes'], 'Second-library original roles changed during upgrade')
@@ -248,33 +337,48 @@ def run(old_setup, new_setup):
             current = new.request('/api/organizer', library=library)
             require(current['settings'] == expected['settings'] and current['provider'] == expected['provider'], 'Organizer configuration or secure credential metadata changed')
             after = new.request('/api/connections/' + cid + '/config')
-            for field in ('id', 'library_id', 'session_scope', 'bound_session_id', 'enabled', 'revoked', 'rebind_generation'):
-                require(after['connection'].get(field) == expected['connection'].get(field), 'Fixed connection scope changed')
+            for field in ('id', 'library_id', 'session_scope', 'session_scope_policy','bound_session_id', 'enabled', 'revoked', 'binding_revision'):
+                require(field in after['connection'] and field in expected['connection'] and
+                    after['connection'][field] == expected['connection'][field], 'Fixed connection scope changed')
             require(Path(after['private_path']).resolve() == private and digest(private) == expected['private'], 'Old private connection configuration changed')
             second_after = new.request('/api/connections/' + second_cid + '/config')
-            for field in ('id', 'library_id', 'session_scope', 'bound_session_id', 'enabled', 'revoked', 'rebind_generation'):
-                require(second_after['connection'].get(field) == expected['second']['connection'].get(field), 'Second fixed connection scope changed')
+            for field in ('id', 'library_id', 'session_scope', 'session_scope_policy','bound_session_id', 'enabled', 'revoked', 'binding_revision'):
+                require(field in second_after['connection'] and field in expected['second']['connection'] and
+                    second_after['connection'][field] == expected['second']['connection'][field], 'Second fixed connection scope changed')
             require(Path(second_after['private_path']).resolve() == second_private and digest(second_private) == expected['second']['private'], 'Second private configuration changed')
             require(new.request('/api/organizer', library=second)['provider'] == expected['second']['provider'], 'Synthetic credential leaked to another library')
             second_persona = new.request('/api/persona', library=second)
             require(second_persona['enabled'] is False and second_persona['learning_enabled'] is False, 'Second explicit opt-out changed')
             require([v['id'] for v in new.request('/api/libraries/trash')['libraries']] == expected['trash'], 'Recycle bin changed')
             require(queue_state(data) == durable, 'Durable jobs, attempts or budget ledger changed during migration')
-            with sqlite3.connect(data / 'organizer.sqlite3') as db:
+            with closing(sqlite3.connect(data / 'organizer.sqlite3')) as db:
                 require('purpose' in {r[1] for r in db.execute('PRAGMA table_info(jobs)')}, 'Purpose column was not migrated')
-                require(db.execute('SELECT purpose FROM jobs WHERE id=?', (job,)).fetchone()[0] == 'memory', 'Old job was not migrated to factual purpose')
+                require(dict(db.execute('SELECT id,purpose FROM jobs')) == {identity:'memory' for identity in job_ids},
+                    'Old jobs were not migrated to factual purpose')
             new.request('/api/connections', anonymous=True, status=401)
-            new.request('/api/persona', library=library, bearer=token, status=403)
-            new.request('/api/connections/' + cid + '/context', {}, library=second, bearer=token, status=403)
+            new.request('/api/persona', library=library, bearer=token, anonymous=True, status=403)
+            new.request('/api/connections/' + cid + '/context', {}, library=second, bearer=token, anonymous=True, status=403)
             other = new.request('/api/libraries', {'name': 'SYNTHETIC_SECOND_LIBRARY_' + marker})['library']['id']
             require(new.request('/api/graph', library=other)['nodes'] == [], 'Another library acquired old memories')
             new.request('/api/library/select', {'library_id': library})
             new.close()
-            restarted = App(target / 'LoveHouse.exe', data).start(NEW_VERSION)
+            restarted = App(target / 'LoveHouse.exe', data)
+            restarted.start(NEW_VERSION)
             require(restarted.request('/api/libraries')['selected_id'] == library, 'Upgrade restart lost selection')
             require(graph_originals(restarted.request('/api/graph', library=library)) == expected['nodes'], 'Upgrade restart lost originals')
             require(graph_originals(restarted.request('/api/graph', library=second)) == expected['second']['nodes'], 'Upgrade restart lost second-library originals')
-            require(restarted.request('/api/persona', library=library)['enabled'] is False, 'Upgrade restart lost opt-out')
+            for identity,manual in ((library,expected['persona']['manual']),(second,'')):
+                persona=restarted.request('/api/persona', library=identity)
+                require(persona['enabled'] is False and persona['learning_enabled'] is False and persona['manual']==manual,
+                    'Upgrade restart changed manual persona or explicit opt-out')
+            for identity,prior,path,sha in ((cid,expected['connection'],private,expected['private']),
+                    (second_cid,expected['second']['connection'],second_private,expected['second']['private'])):
+                config=restarted.request('/api/connections/'+identity+'/config')
+                for field in ('id','library_id','session_scope','session_scope_policy','bound_session_id','enabled','revoked','binding_revision'):
+                    require(field in config['connection'] and field in prior and config['connection'][field]==prior[field],
+                        'Upgrade restart changed a fixed connection scope')
+                require(Path(config['private_path']).resolve()==path and digest(path)==sha,
+                    'Upgrade restart changed a private connection file')
             require(restarted.request('/api/organizer', library=library)['provider'] == expected['provider'], 'Upgrade restart lost secure credential metadata')
             require(queue_state(data) == durable, 'Upgrade restart changed durable budget fixtures')
             restarted.close()
@@ -283,14 +387,22 @@ def run(old_setup, new_setup):
                 source_library_contents='passed', old_private_connection_file='passed', recycle_bin='passed',
                 management_isolation='passed', durable_attempts_and_budget='passed', synthetic_ledger_fixture=True)
         finally:
+            primary=sys.exc_info()[1];cleanup_failures=[]
             for app in (restarted, new, old):
                 if app:
-                    app.close(strict=False)
+                    try:app.close(strict=False)
+                    except Exception as exc:cleanup_failures.append(exc)
             if credential_ref:
                 from nkb.service.credentials import KeyStore
-                metadata = KeyStore(allow_source_build=False).delete(credential_ref)
-                require(metadata['credential_ready'] is False and metadata['key_saved'] is False,
-                    'Synthetic secure credential cleanup failed')
+                try:
+                    metadata = KeyStore(allow_source_build=False).delete(credential_ref)
+                    require(metadata['credential_ready'] is False and metadata['key_saved'] is False,
+                        'Synthetic secure credential cleanup failed')
+                except Exception as exc:cleanup_failures.append(exc)
+            if cleanup_failures:
+                if primary is None:raise cleanup_failures[0]
+                primary.add_note('Owned upgrade app or credential cleanup also failed; the initial test failure is preserved.')
+    require(not root.exists(),'Owned upgrade scratch still exists after cleanup')
     result.update(ok=True, process_complete=True, phase='complete', cleanup={'status': 'removed', 'isolated': True})
     return result
 

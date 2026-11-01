@@ -1,9 +1,10 @@
 """Usage receipts are metadata-only, scoped and compare-and-ack durable."""
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from contextlib import closing
 from pathlib import Path
 import sqlite3
 import tempfile
+import threading
 import time
 import unittest
 from unittest.mock import patch
@@ -133,6 +134,34 @@ class UsageJournalTests(unittest.TestCase):
         moved = self.root / "moved.sqlite3"
         self.journal.path.rename(moved)
         moved.rename(self.journal.path)
+
+    def test_new_instance_waits_for_local_writer_without_blocking_another_database(self):
+        holding, release, recording = threading.Event(), threading.Event(), threading.Event()
+        def hold_writer():
+            with self.journal.db() as db:
+                db.execute('BEGIN IMMEDIATE')
+                holding.set()
+                self.assertTrue(release.wait(5), 'Local writer was not released')
+        def record():
+            recording.set()
+            return UsageJournal(self.root / '..' / self.root.name).enqueue('one',['a'],'recall',at=self.stamp)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            writer=pool.submit(hold_writer)
+            self.assertTrue(holding.wait(5))
+            pending=pool.submit(record)
+            try:
+                self.assertTrue(recording.wait(5))
+                # More than the 50ms SQLite busy budget: a local instance must
+                # wait for the writer instead of losing this use as "busy".
+                with self.assertRaises(FutureTimeoutError):pending.result(timeout=.15)
+                independent=UsageJournal(self.root/'another-database')
+                self.assertEqual(independent.enqueue('other',['b'],'mention',at=self.stamp),{'queued':1,'ignored':0})
+            finally:
+                release.set()
+            writer.result(timeout=5)
+            self.assertEqual(pending.result(timeout=5),{'queued':1,'ignored':0})
+        self.assertEqual(self.journal.enqueue('one',['a'],'recall'),{'queued':0,'ignored':1})
+        self.assertEqual(len(self.journal.pending('one')),1)
 
     def test_applied_batch_validates_every_row_before_touching_any(self):
         self.journal.enqueue("one", ["a", "b"], "recall")

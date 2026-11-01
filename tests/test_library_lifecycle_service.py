@@ -19,6 +19,7 @@ class LibraryLifecycleServiceTests(unittest.TestCase):
   headers={'Content-Type':'application/json'}
   if lib:headers['X-NKB-Library']=lib
   if token:headers['Authorization']='Bearer '+token
+  else:headers['X-LoveHouse-Management']=self.host.management_token
   req=urllib.request.Request(f'http://127.0.0.1:{self.server.server_port}'+path,data=json.dumps(data).encode() if data is not None else None,headers=headers)
   try:
    with urllib.request.urlopen(req,timeout=8) as r:return r.status,json.load(r)

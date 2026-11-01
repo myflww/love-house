@@ -7,7 +7,7 @@ import sys
 HERE=Path(__file__).resolve().parent
 BACKEND=HERE if (HERE/'nkb').is_dir() else HERE.parent
 sys.path.insert(0,str(BACKEND));sys.path.insert(0,str(HERE))
-from nkb.service.agent_client import AgentClient,AgentConnectionError,_unique
+from nkb.service.agent_client import AgentClient,AgentConnectionError,_unique,connection_config_diagnostic
 from harness_bridge import Bridge,_validate_args,_error,_constant,MAX_MESSAGE
 
 class AgentMemoryBridge(Bridge):
@@ -53,8 +53,8 @@ def main():
     parser.add_argument('--connection-config',required=True,type=Path)
     args=parser.parse_args()
     try:bridge=AgentMemoryBridge(args.connection_config)
-    except AgentConnectionError:
-        print('爱之屋记忆连接配置不可读。请在爱之屋重新复制本机配置。',file=sys.stderr);return 2
+    except AgentConnectionError as exc:
+        print(json.dumps(connection_config_diagnostic(args.connection_config,exc.code),ensure_ascii=False),file=sys.stderr);return 2
     try:
         while True:
             line=sys.stdin.buffer.readline(MAX_MESSAGE+1)

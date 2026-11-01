@@ -16,9 +16,9 @@
 
 ---
 
-## macOS 0.9.0
+## macOS 0.9.2
 
-本轮聚焦三件事：接收已适配运行程序的可见输出，在下一次处理前自动返回相关整理记忆，并清楚说明配置应填到哪里。独立输出不需要补造用户消息；取回资料会区分整理记忆与原始资料。macOS版已完成本机安装、重启和原存档保留核验，详见 [macOS 0.9 验证记录](docs/MACOS-090-VERIFICATION.md)。Windows共享功能更新见 [0.9交接书](docs/WINDOWS-090-HANDOFF.md)。
+本轮聚焦三件事：接收已适配运行程序的可见输出，在下一次处理前自动返回相关整理记忆，并清楚说明配置应填到哪里。独立输出不需要补造用户消息；取回资料会区分整理记忆与原始资料。macOS版已完成本机安装、重启和原存档保留核验，详见 [macOS 0.9 验证记录](docs/MACOS-090-VERIFICATION.md)。新增 WorkBuddy 配置预览与回读、固定窗口重绑及防混库保护。完整导出不依赖整理模型状态，整理队列与安全错误诊断同步修复。详见 [0.9.2 验证记录](docs/MACOS-092-RELIABILITY.md) 和 [Windows 后续交接](docs/WINDOWS-092-HANDOFF.md)。
 
 ## 0.8.0 基础能力
 
@@ -62,24 +62,24 @@
 
 ## 下载
 
-**macOS 为 0.9.0；Windows 与 Android 继续使用另一发布分支提供的 0.8.0rc2 预览包。各系统分别验证，请按系统和芯片选包。**
+**Windows 提供 0.9.1rc1 修复预览；macOS 为 0.9.2，Android / iPhone 主屏幕版继续使用 0.8.0rc2。请按系统选择下载。**
 
 | 你的系统 | 版本与下载 | 使用要求与验证状态 |
 |---|---|---|
-| Windows x64 · Intel / AMD 64 位 | [安装版 EXE](https://github.com/myflww/love-house/releases/download/v0.8.0rc2/LoveHouse-Setup-0.8.0rc2-Windows-x64.exe) · [便携版 ZIP](https://github.com/myflww/love-house/releases/download/v0.8.0rc2/LoveHouse-0.8.0rc2-Windows-x64.zip) | 0.8.0rc2 预览；技术最低 Win10 2004/19041 或 Win11。Windows实机结果由对应发布分支单列 |
-| macOS · Apple Silicon（M 系列） | [0.9.0 ZIP](https://github.com/myflww/love-house/releases/download/v0.9.0/LoveHouse-0.9.0-macOS-arm64.zip) | macOS 13.0+；解压后把“爱之屋.app”放入应用程序目录 |
+| Windows x64 · Intel / AMD 64 位 | [安装版 EXE](https://github.com/myflww/love-house/releases/download/v0.9.1rc1/LoveHouse-Setup-0.9.1rc1-Windows-x64.exe) · [便携版 ZIP](https://github.com/myflww/love-house/releases/download/v0.9.1rc1/LoveHouse-0.9.1rc1-Windows-x64.zip) | 0.9.1rc1 分享导出与整理修复预览；技术最低 Win10 2004/19041 或 Win11。Win11 x64 已实测，Win10 待实机验收 |
+| macOS · Apple Silicon（M 系列） | [0.9.2 稳定版 ZIP](https://github.com/myflww/love-house/releases/download/v0.9.2/LoveHouse-0.9.2-macOS-arm64.zip) | macOS 13.0+；解压后把“爱之屋.app”放入应用程序目录 |
 | 主流 Android 手机 | [0.8.0rc2 APK](https://github.com/myflww/love-house/releases/download/v0.8.0rc2/LoveHouse-0.8.0rc2-Android.apk) · [发布与校验](https://github.com/myflww/love-house/releases/tag/v0.8.0rc2) | 技术最低 Android 8.0；保持系统 WebView 更新。通用已签名 APK，真实手机待验收 |
-| iPhone | [打开主屏幕版](https://love-house-mobile-myflww.sharp-rice-0090.chatgpt.site) | Safari 打开 → 分享 → 添加到主屏幕；技术最低 iOS 15.4。PWA 网页应用，无 IPA；真机待验收 |
+| iPhone | [打开主屏幕版](https://love-house-mobile-myflww.haixiac34.chatgpt.site) | Safari 打开 → 分享 → 添加到主屏幕；技术最低 iOS 15.4。PWA 网页应用，无 IPA；真机待验收 |
 | macOS Intel / Windows ARM64 / Windows 32 位 | 暂无对应原生桌面包 | 当前不承诺这些架构的兼容性 |
 | Linux / 源码开发 | [源码](https://github.com/myflww/love-house) | 暂无 Linux 桌面包；Python 3.11+ 可运行本地服务 |
 
-手机版支持手动记录、检索、多库、标签星图及桌面分享 JSON 导入导出，记忆保存在各自设备；目前不包含桌面 Agent / Harness 自动接入或模型整理。安装、离线使用与备份方法见 [手机版安装与使用](docs/手机版安装与使用.md)。
+手机版支持手动记录、检索、多库、标签星图及桌面分享 JSON 导入导出，记忆保存在各自设备；也可打开个人 HTTPS 服务管理 Agent 连接；电脑宿主仍需自行配置。安装、离线使用与备份方法见 [手机版安装与使用](docs/手机版安装与使用.md)。
 
 桌面包不需要自行安装 Python 或 Node。Windows 安装版按当前用户安装；便携版须完整解压后打开 `LoveHouse.exe`。新版携带经过微软签名与 SHA256 验证的离线 WebView2 修复组件，缺失时明确询问后安装。
 
-Windows 使用 [Windows-SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.8.0rc2/Windows-SHA256SUMS.txt)，macOS 使用 [SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.9.0/SHA256SUMS.txt)。GitHub 的自动 Source code 文件不是桌面安装包；旧 Windows 0.5.0 存在启动兼容反馈，请改用上面的修复预览。
+Windows 使用 [Windows-SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.9.1rc1/Windows-SHA256SUMS.txt)，macOS 使用 [SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.9.2/SHA256SUMS.txt)。GitHub 的自动 Source code 文件不是桌面安装包；旧 Windows 0.5.0 存在启动兼容反馈，请改用上面的修复预览。
 
-Windows修复及实机验证状态以对应发布分支报告为准；本次macOS发布不覆盖已有Windows或Android安装包。
+Windows 0.9.1rc1 修复分享预览被整理设置阻断、导出保存与整理任务来源误判，并同步 macOS 0.9 的共享功能。完整验证、升级步骤与限制见 [本次修复说明](docs/WINDOWS-091-FIXES.md)。Win10、运行时缺失/损坏和用户实际 DeepSeek 账户仍需分别验收。
 
 完整安装步骤、系统/芯片范围、验证结果和 Agent 接入差异见 [下载与系统支持](docs/下载与系统支持.md)。主程序签名状态：macOS 为本地签名、未公证，Windows 未附发行商代码签名；请核对来源与校验值，保留系统安全保护。
 
@@ -166,7 +166,7 @@ Agent 读取 `love-house-memory-context/v1` 结构化 JSON，包含角色、类�
 
 ## 源码运行
 
-Windows 修复预览的源码对应 [v0.5.1rc1 标签](https://github.com/myflww/love-house/tree/v0.5.1rc1) 与 [PR #1](https://github.com/myflww/love-house/pull/1)。Windows 开发者请检出该标签构建；`main` 当前保留 0.5.0 稳定代码基线，首页下载说明独立更新。
+Windows 当前修复源码见 [v0.9.1rc1 标签](https://github.com/myflww/love-house/tree/v0.9.1rc1)。移动版仍对应 [v0.8.0rc2](https://github.com/myflww/love-house/tree/v0.8.0rc2)；`main` 审阅合并前可能与发布分支不同。
 
 ```bash
 git clone https://github.com/myflww/love-house.git

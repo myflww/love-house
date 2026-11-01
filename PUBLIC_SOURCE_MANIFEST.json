@@ -38,8 +38,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 15402,
-      "sha256": "d96638b0e378889181c9c9dc7a389c204b0d6c93a04642de6a09d2e66e7b611f"
+      "bytes": 17310,
+      "sha256": "c7289a35334096f789b82bcc592b9d60b43c851d52e92ef589294ad87cd0deb7"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -63,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 14964,
-      "sha256": "c10763d823dca2d07b5380da14d19509534662b5f5199f0304a3a859b0e990b9"
+      "bytes": 15337,
+      "sha256": "85222243bc8454c4d4419556808fc0b4e066ac4aeb30e119c15561701a53a4b7"
     },
     {
       "path": "ROADMAP.md",
@@ -328,8 +328,8 @@
     },
     {
       "path": "desktop/AtlasApp.swift",
-      "bytes": 46779,
-      "sha256": "c78ec368a211082ac3c7dbd7f641e0b18e33de050f56321e2139b53cf93d914e"
+      "bytes": 52874,
+      "sha256": "2be8403e2839787c7fe71b09e1e333ee4f15b0ddba84ca694315aad527c871e0"
     },
     {
       "path": "desktop/Icon.swift",
@@ -348,13 +348,13 @@
     },
     {
       "path": "desktop/agent_memory_bridge.py",
-      "bytes": 4785,
-      "sha256": "9b302c32e8821fb52aa8e6c6af6f1cbafad7f39902fbb5d7b2fe7faf6ca230bc"
+      "bytes": 4830,
+      "sha256": "6f78337465f4ebe3c3acbb1a6f78cbabca4282fa9e8c89b121bc039089a4fa02"
     },
     {
       "path": "desktop/agent_memory_hook.py",
-      "bytes": 1439,
-      "sha256": "2d17d5a725bcb4f0c6b261e79f45bae26524211576f1b86923c8e04b906da29c"
+      "bytes": 1858,
+      "sha256": "692d76d55369e0a2d1885a74b8aeb72f9f4186dbd051e01f503173002e7b8091"
     },
     {
       "path": "desktop/deepseek-harness-overlay.example.yaml",
@@ -368,8 +368,8 @@
     },
     {
       "path": "desktop/harness_bridge.py",
-      "bytes": 22699,
-      "sha256": "e7ce0882d2b64a6d2cd42141ff08f4bbadd8ee1d8818963c6caf24580c40db2a"
+      "bytes": 22464,
+      "sha256": "4bea72c1c5dcf51e460a537f25fcac9003c00abc498b5fd7968f5afe498fe15f"
     },
     {
       "path": "desktop/requirements-windows.txt",
@@ -388,8 +388,8 @@
     },
     {
       "path": "desktop/test_harness_bridge.py",
-      "bytes": 10605,
-      "sha256": "cb14a0ba064e60ea60269af45e288e768d6544219d50ac0715145551fd9b2806"
+      "bytes": 12387,
+      "sha256": "9caaa507c66345874eb2ad1d3857f3435571fc29b581627a56c00b65f5a56230"
     },
     {
       "path": "desktop/windows-installer.iss",
@@ -437,9 +437,24 @@
       "sha256": "1eee2626c33c651233af5f41359aceff4f53768b87be6701941424a247826165"
     },
     {
+      "path": "docs/MACOS-080RC2-WORKBUDDY-HANDOFF.md",
+      "bytes": 5529,
+      "sha256": "f5cb6fd68136d358a6b14010d7fcb7e00f39a7abaa5ceae7b9586eb65a747ff7"
+    },
+    {
       "path": "docs/MACOS-090-VERIFICATION.md",
       "bytes": 5528,
       "sha256": "1d22182969718a04f468742d29335b7c3180095d5cc3ca7e60ddd2184020fba4"
+    },
+    {
+      "path": "docs/MACOS-091-WORKBUDDY.md",
+      "bytes": 4440,
+      "sha256": "1087753180192327f126b1cbbf55e78ce295c226ce6710c9ed48715bee205930"
+    },
+    {
+      "path": "docs/MACOS-092-RELIABILITY.md",
+      "bytes": 2707,
+      "sha256": "7e47e4f13326c39d389fc2394707732958223fa678ee72b816417f02c554a80c"
     },
     {
       "path": "docs/QQ-AstrBot-云端接入方案.md",
@@ -447,9 +462,19 @@
       "sha256": "3359da3518d3e088d4705b702a0b53f51745806f9bf7f9a8035a241771bf60ec"
     },
     {
+      "path": "docs/RELEASE-080RC2.md",
+      "bytes": 3908,
+      "sha256": "f4220e86d09b404bfbafcf2b9e8374a881d21171572c3580e97d28459d06963b"
+    },
+    {
       "path": "docs/ReleaseNotes-0.9.0-macOS.md",
       "bytes": 1727,
       "sha256": "af00cc15a58e58bf3b9f6f1e6aab71b46174f8ef55a514a9ae8bc1d3049e4a4f"
+    },
+    {
+      "path": "docs/ReleaseNotes-0.9.1rc1-Windows.md",
+      "bytes": 2204,
+      "sha256": "1b1c752540346e7e571cfce3e535eb83209d4b17509b02ca10638a0c91eafc82"
     },
     {
       "path": "docs/WINDOWS-090-HANDOFF.md",
@@ -457,14 +482,29 @@
       "sha256": "8f36eac8abf0422200782051488afeefc41883827efcb307859f9e076e807ddc"
     },
     {
+      "path": "docs/WINDOWS-091-FIXES.md",
+      "bytes": 5314,
+      "sha256": "3f341e427413cb4dce1a8209d5fbcaa2e5d9cc8f24c57c5193a2e4923fc4e9ff"
+    },
+    {
+      "path": "docs/WINDOWS-092-HANDOFF.md",
+      "bytes": 2595,
+      "sha256": "715e0851990d986348caaccefd1a408abd2ef9055bb55094b300b036028b1357"
+    },
+    {
+      "path": "docs/WORKBUDDY-CONNECTION.md",
+      "bytes": 3369,
+      "sha256": "bc1438dd6aa97aea6c999275bc12c5aeba28017000e3f483a374a3e0b16d8e4b"
+    },
+    {
       "path": "docs/下载与系统支持.md",
-      "bytes": 6458,
-      "sha256": "db0443c3233e98e14a0346437ec5442e0e816165f3a4f8a93e9ea8a1d73f88b1"
+      "bytes": 5869,
+      "sha256": "b3bebc876e48151771b9ac907dc14995f0c95dfa07a2aa4ff1d6a517037d5a45"
     },
     {
       "path": "docs/发布与许可.md",
-      "bytes": 5463,
-      "sha256": "79e623f90d6384f136e82d00d871462810bd74daa736c293ad391e9f87e578fa"
+      "bytes": 6419,
+      "sha256": "b765a1e1b0f48e602642ddbc85dfdb5ae4a1947d70ef3e1b673a40dd2c75a2d3"
     },
     {
       "path": "docs/可视化.md",
@@ -493,8 +533,8 @@
     },
     {
       "path": "docs/手机版安装与使用.md",
-      "bytes": 4775,
-      "sha256": "526a00e1f39ff300e7f1e313956efae0a9cdf5175cea1679af11a6008fc6bc92"
+      "bytes": 5503,
+      "sha256": "3386c2b76f5f365475496c4c2ee2934ca0108f7276c9a6bd12014bfc706440ac"
     },
     {
       "path": "docs/架构.md",
@@ -623,8 +663,8 @@
     },
     {
       "path": "extensions/deepseek-harness/configure.py",
-      "bytes": 14224,
-      "sha256": "f7724a5092a3429b0e138c6a9fc9e757dace318f869de5c2fc1a65ed4f1250a2"
+      "bytes": 14498,
+      "sha256": "cc97241a53115efadef1b58278ceac959c4796aaedfef094b8cdd0012dd3bbb6"
     },
     {
       "path": "extensions/deepseek-harness/dist/THIRD_PARTY_LICENSES.txt",
@@ -719,7 +759,7 @@
     {
       "path": "nkb/_version.py",
       "bytes": 22,
-      "sha256": "1fd3564596fb35b79144f2cffd5d5f01198b357ada9e8ad533e38e63ef3fdae8"
+      "sha256": "82a4fe046a1e108b5d6bd7c80900ef2dbc448d6448061149c4fc712af9872d4a"
     },
     {
       "path": "nkb/adapters/__init__.py",
@@ -903,8 +943,8 @@
     },
     {
       "path": "nkb/organizer/engine.py",
-      "bytes": 29990,
-      "sha256": "cc4088751f0918fdcaace01ae4110433c5ef739157f4b035764b8e931fea7cd6"
+      "bytes": 34337,
+      "sha256": "a51d2ef7e598e6c756e7da11bee03e8b043186bd2a027fb137e3dd2e9f683ea2"
     },
     {
       "path": "nkb/organizer/experiences.py",
@@ -913,8 +953,8 @@
     },
     {
       "path": "nkb/organizer/model.py",
-      "bytes": 4440,
-      "sha256": "857333d915acf76b4bc6ad3cafb8be5518b3d005fe0589ef3250660c65329dd9"
+      "bytes": 8270,
+      "sha256": "059ecb333e5cddc1b3b222ba32c696bd8ad59f9cf6af65ff60ec30f9ed944ff8"
     },
     {
       "path": "nkb/organizer/rules.py",
@@ -973,13 +1013,13 @@
     },
     {
       "path": "nkb/service/agent_client.py",
-      "bytes": 32220,
-      "sha256": "ec2277d38cd6f0ff62d9f2fa8b3329e6149758cf9c27eeeab9aa198c4f4edbd1"
+      "bytes": 45067,
+      "sha256": "ed25ec8112504ec048cc569806dac7a35e4b33eaf00410b9f375486cb60973d9"
     },
     {
       "path": "nkb/service/agent_sources.py",
-      "bytes": 15322,
-      "sha256": "481267f8d41411c802f4ad0a588c6c148583617efcb33659282ddb497215851f"
+      "bytes": 15342,
+      "sha256": "1fc97e5a9368b3cc59962cf1dbc3a90d7f795833cf64d74f12df2079d5ae24de"
     },
     {
       "path": "nkb/service/backups.py",
@@ -988,8 +1028,8 @@
     },
     {
       "path": "nkb/service/connections.py",
-      "bytes": 20959,
-      "sha256": "62d9ded673c66903a8315791fbf041936c56f1ac5d9a6e613d5aa01032ec78b1"
+      "bytes": 28700,
+      "sha256": "8038dd98eebc11eee8feb398e0ab109d607138317a80ffaf78d9b9c84f9bcd1d"
     },
     {
       "path": "nkb/service/controls.py",
@@ -1018,8 +1058,8 @@
     },
     {
       "path": "nkb/service/harness/configure.py",
-      "bytes": 14224,
-      "sha256": "f7724a5092a3429b0e138c6a9fc9e757dace318f869de5c2fc1a65ed4f1250a2"
+      "bytes": 14498,
+      "sha256": "cc97241a53115efadef1b58278ceac959c4796aaedfef094b8cdd0012dd3bbb6"
     },
     {
       "path": "nkb/service/harness/dist/THIRD_PARTY_LICENSES.txt",
@@ -1048,8 +1088,8 @@
     },
     {
       "path": "nkb/service/host.py",
-      "bytes": 72113,
-      "sha256": "0a043edcbdb752bae3c6d9dfe88e91105b72bac6d30662cfeb0cdae0277f8ed0"
+      "bytes": 83152,
+      "sha256": "fb9db1247f248a479bf7056f214c2757303b49a1d6a442b288b95818f04b1db3"
     },
     {
       "path": "nkb/service/providers.py",
@@ -1058,8 +1098,8 @@
     },
     {
       "path": "nkb/service/proxy.py",
-      "bytes": 12176,
-      "sha256": "46a3d33a1f5c458de348d7e1c29bda2d74f48f5975b28c40a87fb2413ae84abb"
+      "bytes": 12169,
+      "sha256": "dc0283d9b1a3ad0885533718ca4648e103777786496c1a055ee64e8392ddbdc8"
     },
     {
       "path": "nkb/service/share_summary.py",
@@ -1193,13 +1233,13 @@
     },
     {
       "path": "nkb/viz/web/connection-help-ui.js",
-      "bytes": 7973,
-      "sha256": "4221ee6b09c38d3a74a9b4a69fe23b586724f3ec2bcce7d81613500f58f3a93d"
+      "bytes": 8715,
+      "sha256": "3e95468092478bb5dd0532772c471d1622f4dbcc67f6e2469b8bea0fb7348130"
     },
     {
       "path": "nkb/viz/web/connection-ux.js",
-      "bytes": 43315,
-      "sha256": "37e578f2c21ca3b163149a6031322a94012f31201f30f565237e6f9b59eeb3f5"
+      "bytes": 57565,
+      "sha256": "0e08e55d2781c0ce5d4852848df3f4b3994960e04683dcf146a15fe494d12dae"
     },
     {
       "path": "nkb/viz/web/dialogue-import-ui.js",
@@ -1213,8 +1253,8 @@
     },
     {
       "path": "nkb/viz/web/index.html",
-      "bytes": 1691067,
-      "sha256": "66d3fc102c69bb2a045d743b5c13ad6e53f8705a8049ab248b6b68d91d29d79d"
+      "bytes": 1691209,
+      "sha256": "faf01ef0c58506a38039f20a0e92aa3eba3bff9e67b731a57afb9ea4b5e2829d"
     },
     {
       "path": "nkb/viz/web/library-manager-ui.js",
@@ -1233,8 +1273,8 @@
     },
     {
       "path": "nkb/viz/web/memory-portability-ui.js",
-      "bytes": 17007,
-      "sha256": "7ce678221ec0d6bbe172139a927c8b3134ac550a345432c8c195669d6bc75e66"
+      "bytes": 19531,
+      "sha256": "fb51ce5b5d5eebc808790f5e54b271b342d3c84c348401e21766999672d3e364"
     },
     {
       "path": "nkb/viz/web/organizer-rules-ui.js",
@@ -1268,8 +1308,8 @@
     },
     {
       "path": "scripts/build_macos.py",
-      "bytes": 35657,
-      "sha256": "b4340bf17d5996583c1b1ef4d0d19d8c53e903193c600a358012dcb93917a9bf"
+      "bytes": 36772,
+      "sha256": "d31cfc31095b464fb7b9ada1ec6dedda8bb9462cbf21da19c65a67e937ced1b6"
     },
     {
       "path": "scripts/build_windows.py",
@@ -1278,8 +1318,8 @@
     },
     {
       "path": "scripts/configure_agent_source.py",
-      "bytes": 2948,
-      "sha256": "76dce9f8cc5db2a07125c4e8cd59e35476d0cbbcf264bfe335498dbf5bd52638"
+      "bytes": 3528,
+      "sha256": "8ccbeb3261734d334284371e38397be37420c499e7f50208242b2122e6025394"
     },
     {
       "path": "scripts/launch.py",
@@ -1308,8 +1348,8 @@
     },
     {
       "path": "tests/js/agent-connect-ui.test.cjs",
-      "bytes": 7074,
-      "sha256": "5a6c7d1c624a4600cf58c0550ac74e9318166441aa97348003e05bc5ad3b1577"
+      "bytes": 16368,
+      "sha256": "2385d6d6c0a67a33e89dffc2172ab14b92467ad96102a419f4190419e920089e"
     },
     {
       "path": "tests/js/agent-sources-ui.test.cjs",
@@ -1323,8 +1363,8 @@
     },
     {
       "path": "tests/js/connection-help-ui.test.cjs",
-      "bytes": 9547,
-      "sha256": "7210b7da12b2cb1cd35e06c0bd4d5ae4554ca473a8dac69df479b0372abd14ef"
+      "bytes": 11381,
+      "sha256": "09b6e9b3cebafb4d3e6374c5b5ccdb467a5846daf76b2875bb062019b74ba211"
     },
     {
       "path": "tests/js/dialogue-import-ui.test.cjs",
@@ -1338,8 +1378,8 @@
     },
     {
       "path": "tests/js/memory-portability-ui.test.cjs",
-      "bytes": 5349,
-      "sha256": "51f4c5fd344fd3ceaf13c86e05fb5f9ed4b946d0d1957044186ab92b0101d8c4"
+      "bytes": 14692,
+      "sha256": "ac998afbdc8411cc1eac129502e317ad6793e3ee2b333a4717b91ab95df261cf"
     },
     {
       "path": "tests/js/node-visibility.test.mjs",
@@ -1378,23 +1418,23 @@
     },
     {
       "path": "tests/test_agent_memory_client.py",
-      "bytes": 20879,
-      "sha256": "c1bc9d5a87929be46510d8e789397c39b3d9bbf47f5e6840348040e28150d74f"
+      "bytes": 21017,
+      "sha256": "125285756ec9b49bae941562568d12c9a8943a69ffcbc322fa039f18e610c9c4"
     },
     {
       "path": "tests/test_agent_session_privacy.py",
-      "bytes": 11628,
-      "sha256": "856c908579d36c5c8e39f64f1cc841b0ffcaa15416d484a51b403b1fe967e7cd"
+      "bytes": 11847,
+      "sha256": "bf4c8c6f491b62d566d88f93be500d8f2b42d515a2bf4d9e3a48b488cc42d6d5"
     },
     {
       "path": "tests/test_agent_source_service.py",
-      "bytes": 16018,
-      "sha256": "7f3d3edfb2da6397ac6bd5a2741475dff79d592371603db25760df4453ea142a"
+      "bytes": 16396,
+      "sha256": "7efab6c0e0b9289154182c2eb148cc162aaa8d479c19e237e3d2a46e032af6e9"
     },
     {
       "path": "tests/test_agent_sources.py",
-      "bytes": 16848,
-      "sha256": "bd9e7a5c8e423401986a2eca9650e77baba47a441751a46fe17044dd93f5c1fc"
+      "bytes": 16930,
+      "sha256": "213f7c0997780c660880f715ab57a462d44732214bd6200a422c8558d76c0de6"
     },
     {
       "path": "tests/test_agent_sources_ui.py",
@@ -1403,8 +1443,8 @@
     },
     {
       "path": "tests/test_agent_window_privacy.py",
-      "bytes": 12219,
-      "sha256": "cc9247d0147069c6cd2349c125041a0d18fa720931027def2bcdc4af9b5ff265"
+      "bytes": 12387,
+      "sha256": "8e99dd3e0c470b6b9f118352679a88a88f0e63d1fd268d4c7542532836dd2ebc"
     },
     {
       "path": "tests/test_ai_http.py",
@@ -1413,8 +1453,8 @@
     },
     {
       "path": "tests/test_api_window_privacy.py",
-      "bytes": 7205,
-      "sha256": "f800e6b43dba46458175658c6a4010cf971114e550df45cd184dd80c7717f2fb"
+      "bytes": 7736,
+      "sha256": "7adf09c0bd4f7e42f20a2346744c2410484052edbea0790e9f92126b15a7aadc"
     },
     {
       "path": "tests/test_astrbot_adapter.py",
@@ -1433,8 +1473,8 @@
     },
     {
       "path": "tests/test_cloud_service_bootstrap.py",
-      "bytes": 13156,
-      "sha256": "1c5e32168b7540877d22ebbc3aea4ad3ee31b976514dd8cbd801aee56bb897d7"
+      "bytes": 13460,
+      "sha256": "e91c5abac85f90733fd0d66a0914de86e5396f20c185448a4df46ba96dd0ddf1"
     },
     {
       "path": "tests/test_companion.py",
@@ -1448,8 +1488,8 @@
     },
     {
       "path": "tests/test_connection_onboarding.py",
-      "bytes": 11734,
-      "sha256": "a4aed3efe5467fec0d6cb87b5563823b99a7b0e419840e17077aebbe7373c0ec"
+      "bytes": 11891,
+      "sha256": "14b1649c4dd0ac0077df4c4260e5246caad12abfb4c3c27d57be943ff7ca6b7f"
     },
     {
       "path": "tests/test_core.py",
@@ -1498,8 +1538,8 @@
     },
     {
       "path": "tests/test_fish_life_workflow.py",
-      "bytes": 8801,
-      "sha256": "119191353fe043ce85c0eb4420b89cd1f96dbaba8c3cb1086322ef08bea2ffdb"
+      "bytes": 8875,
+      "sha256": "0733e3f59b892b9da157960edad717521970ee92523ac3910f71ce98d2ed943b"
     },
     {
       "path": "tests/test_harness_legacy_detection.py",
@@ -1518,8 +1558,8 @@
     },
     {
       "path": "tests/test_library_lifecycle_service.py",
-      "bytes": 5663,
-      "sha256": "485cdcafe38d2effbe8f4c8b0722e67464ff486d6e8cbc746eab289b917281e3"
+      "bytes": 5731,
+      "sha256": "5153e305d17a76e52eb05c71aa8a1f6d511a0d4d28063bf509eee6741002b9fb"
     },
     {
       "path": "tests/test_library_trash.py",
@@ -1533,8 +1573,8 @@
     },
     {
       "path": "tests/test_memory_inheritance.py",
-      "bytes": 16008,
-      "sha256": "461444e73d44f7d5fb0794a6f416ad1951b343d3dccd3941cc440638bd785571"
+      "bytes": 16085,
+      "sha256": "281b0ddd5790f93c399c940a58300311ab11b6a86f590ad9094bfdc24175ae77"
     },
     {
       "path": "tests/test_memory_lifecycle.py",
@@ -1548,13 +1588,13 @@
     },
     {
       "path": "tests/test_memory_portability_ui.py",
-      "bytes": 3225,
-      "sha256": "0fb9b11e0385c74d6e32f1d08451d5cc0057c9c60b9a562c4380b5b2f763e5ab"
+      "bytes": 3260,
+      "sha256": "f1c382d4a8a5b144932618d932f8b042535f6902f9256bbb36adab01177c288c"
     },
     {
       "path": "tests/test_memory_service.py",
-      "bytes": 10869,
-      "sha256": "a481c915d5f20fd3dd7bb11b8c1a7ee9946900b140f9339890b054bc32fe0d57"
+      "bytes": 11023,
+      "sha256": "4536d5298557663d918a89a2a06f19be913dcf2327f5dcfff62f7ee81e43576e"
     },
     {
       "path": "tests/test_memory_sharing.py",
@@ -1587,6 +1627,11 @@
       "sha256": "1f5ac022967790ba0815f3b74b9f44423af51da4e83af3543b92df16a5b44e9d"
     },
     {
+      "path": "tests/test_organizer_configuration_repair.py",
+      "bytes": 15172,
+      "sha256": "d5121073519d16e83c85d2b3fe5e6154460b77cd61db6798e70ce6952f7adc2f"
+    },
+    {
       "path": "tests/test_organizer_rules.py",
       "bytes": 14918,
       "sha256": "21060cf788b74971ee392c95c6f72ec40547c7a322ed8d2ac2e154d31875e808"
@@ -1608,8 +1653,8 @@
     },
     {
       "path": "tests/test_organizer_transport.py",
-      "bytes": 8927,
-      "sha256": "7c38805444111c2af19938bb4e8817626774dc8bf663d056060a8b7339268d79"
+      "bytes": 13391,
+      "sha256": "1179ef000ccaba718b48a3b5b241a66ed8d736420e1c8538205658b337d6c39f"
     },
     {
       "path": "tests/test_output_memory_organizer.py",
@@ -1628,8 +1673,8 @@
     },
     {
       "path": "tests/test_product_delivery.py",
-      "bytes": 16859,
-      "sha256": "e86bbfe505d6c5cd7ff216d884206c3fe9e510cca5c6a72866d8aa653e18f6ef"
+      "bytes": 17053,
+      "sha256": "bb3c378338f638677af0710966ed4e62766bc29ed1da68fc92cd20d69a91264e"
     },
     {
       "path": "tests/test_product_memory_context.py",
@@ -1648,8 +1693,8 @@
     },
     {
       "path": "tests/test_retention_service.py",
-      "bytes": 16106,
-      "sha256": "849137561c045e00dd66f6bf5a94e86c39989ca969ab8e91a60fc0011bda5f46"
+      "bytes": 16195,
+      "sha256": "2676086a3d1b84edb31f5c3b03f0b07bab32a225dd4f7f43e28509b6a5c2412e"
     },
     {
       "path": "tests/test_retention_ui.py",
@@ -1658,8 +1703,8 @@
     },
     {
       "path": "tests/test_share_summary.py",
-      "bytes": 17402,
-      "sha256": "8eb6b80bda8b0c6444ff2ab41b7fe0ecbdc770bc48fca16b9e2c028c9d47737e"
+      "bytes": 18883,
+      "sha256": "01441d2d45a2c8cf84149ddf82c4dba73c4a829d786a0f83928552137b4105df"
     },
     {
       "path": "tests/test_structured_context.py",
@@ -1710,6 +1755,16 @@
       "path": "tests/test_windows_packaging.py",
       "bytes": 16785,
       "sha256": "8ac9174f3cf1d3d8b0b8d16a98cef4368a5f6bc695af7d6b9c5a163112fa9a13"
+    },
+    {
+      "path": "tests/test_workbuddy_connection_state.py",
+      "bytes": 17877,
+      "sha256": "68e9af2bb451340a6366358771c243de83bf24f9a3a395c951a0ae101b6f6988"
+    },
+    {
+      "path": "tests/test_workbuddy_connector.py",
+      "bytes": 17048,
+      "sha256": "f9d5027c0c61c3ecea9d2daa4c248c0af54e0005c4e86709d6192fcc8f9408e7"
     },
     {
       "path": "启动爱之屋.command",

@@ -33,13 +33,13 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "bytes": 2752,
-      "sha256": "390e069199acb9fd52c7aa91f23227ae269488a14579f520e350a2189e0e761d"
+      "bytes": 2780,
+      "sha256": "908793d832d1c7a6ffb6ed2f33d38a10bb6c6481ac4dddbb0c5b4ade9e992809"
     },
     {
       "path": ".github/workflows/cross-platform-connect.yml",
-      "bytes": 2711,
-      "sha256": "caa0cf322cc84822d1c51c6184c44a0b9f4d3322de2cd2fbf82e600374c158be"
+      "bytes": 2739,
+      "sha256": "a467cda74669aef8fbae598f0f332f9f807e41830721c5314e3693cecaa1d5f5"
     },
     {
       "path": ".github/workflows/ios-portal.yml",
@@ -50,6 +50,11 @@
       "path": ".github/workflows/publish-windows-0101.yml",
       "bytes": 1385,
       "sha256": "2eedbed9136ba7e9ee9e91ff3dc5959ae480c86b83b9909819785479fe396711"
+    },
+    {
+      "path": ".github/workflows/publish-windows-0102.yml",
+      "bytes": 1385,
+      "sha256": "f84ed4951ad8d824407125e62a714bed641a19fdaa6fd9239bf99aa3c440dc1f"
     },
     {
       "path": ".github/workflows/publish-windows-091.yml",
@@ -68,8 +73,8 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "bytes": 31203,
-      "sha256": "4cec0573f73ebab4425cde3e6ea939683ef1d77c90fa47863d1848678bb2625d"
+      "bytes": 31348,
+      "sha256": "3bb154faf727deee778211cdee0d27fca334aadd1f3bfac8d5759bc4434c996d"
     },
     {
       "path": ".github/workflows/verify-public-windows-mobile-preview.yml",
@@ -637,9 +642,14 @@
       "sha256": "9bae852634e41a247197c6a86f2ba2626b0035a5cc10d013b725788bc050a3f7"
     },
     {
+      "path": "desktop/windows_0102_smoke.py",
+      "bytes": 10724,
+      "sha256": "8fa048a091c9eb4ce19ebceda2dccf042967d9d9e42bfbf5d32c8846e151b08a"
+    },
+    {
       "path": "desktop/windows_app.py",
-      "bytes": 42649,
-      "sha256": "9c4e1c0552a8b679fb5b4c4d2c1dac5ff7c6a2e8282802d05abe39c8d647c9d1"
+      "bytes": 43181,
+      "sha256": "7aa4ed862db034bd03303beb0554b05edb382df82b4c081d6a3595261fafe33f"
     },
     {
       "path": "desktop/windows_diagnostics.py",
@@ -702,6 +712,11 @@
       "sha256": "ac8f59050e23c0198a7adefd497bec48d43bf8d6310495ee9db6eefa256f6972"
     },
     {
+      "path": "docs/MACOS-0102-HANDOFF.md",
+      "bytes": 4946,
+      "sha256": "b6f5a6338b500f87fd77a2b336e8d8e07a4775f1afa477ea5e7b46df8a668d7d"
+    },
+    {
       "path": "docs/MACOS-060-HANDOFF.md",
       "bytes": 3825,
       "sha256": "2941434727bbb4b8d6a73a13a794e7207986951f9327915c84a7b4f09efe49a4"
@@ -757,6 +772,11 @@
       "sha256": "00cfc9fc0ce4117c8ad404c2f07a74cbd8662f86c9ff46c0abcf75d044a2c6ac"
     },
     {
+      "path": "docs/ReleaseNotes-0.10.2rc1-Windows.md",
+      "bytes": 3333,
+      "sha256": "b9afd4871e25c525e98d68b6b115e40f1ffefecfdf04b0f866d519d255287142"
+    },
+    {
       "path": "docs/ReleaseNotes-0.9.0-macOS.md",
       "bytes": 1727,
       "sha256": "af00cc15a58e58bf3b9f6f1e6aab71b46174f8ef55a514a9ae8bc1d3049e4a4f"
@@ -780,6 +800,11 @@
       "path": "docs/WINDOWS-0101-UPDATE.md",
       "bytes": 6657,
       "sha256": "0b43b91d96527ec98fbfc4f4ffaa44e4a04ac09473acf0e1e72eea2dd662d5a2"
+    },
+    {
+      "path": "docs/WINDOWS-0102-UPDATE.md",
+      "bytes": 4442,
+      "sha256": "2c284da6e13bb11dda2752b08e2edfaf3ed06740c99baad308aff6360d38e4d3"
     },
     {
       "path": "docs/WINDOWS-080-HANDOFF.md",
@@ -973,8 +998,8 @@
     },
     {
       "path": "extensions/astrbot-love-house/README.md",
-      "bytes": 12445,
-      "sha256": "24453addc9e94bd05e246bf95e53d83150e0152200e5247cef9416bbb1b56f0f"
+      "bytes": 16228,
+      "sha256": "99e8e0813977ed72ba0ec056b3474f57b3302776418b9925e210732db1f34c9d"
     },
     {
       "path": "extensions/astrbot-love-house/__init__.py",
@@ -988,23 +1013,23 @@
     },
     {
       "path": "extensions/astrbot-love-house/bridge.py",
-      "bytes": 17230,
-      "sha256": "5125597db1c634844bfa99a33235ea13864320ed128b22468ec409e3f1571088"
+      "bytes": 17744,
+      "sha256": "3fa3770c0762fc53b98b14f128ad50fee87cc629f2edf3f350b0ee97dc9f84d1"
     },
     {
       "path": "extensions/astrbot-love-house/main.py",
-      "bytes": 15204,
-      "sha256": "0cd056a3f48db5363e25fb5c6a846c814504cdd7c5e503fe05f03ee686a91f9a"
+      "bytes": 17972,
+      "sha256": "5eaf1f2152541cbef9825c29f4b7ce216f47403a3bad4950e361ecb0a53487ba"
     },
     {
       "path": "extensions/astrbot-love-house/metadata.yaml",
       "bytes": 359,
-      "sha256": "2519e5c68dbb4ee18d5b2cfb25a9eb0d32a04c48b3b38727271d7020f097c125"
+      "sha256": "7dad7a4e19040ffb4c131d24095bfd0b65cc1550dd0aea38c8f48ec68efcf925"
     },
     {
       "path": "extensions/astrbot-love-house/package.py",
       "bytes": 4632,
-      "sha256": "39d794965f292060727187db4c22d6873c458cdf15416260030aa154222a0397"
+      "sha256": "0065d41c1c3aea6b73f09272af50df77efb08698f8ae4fb9f1f6de21b8416ed0"
     },
     {
       "path": "extensions/astrbot-love-house/source_client.py",
@@ -1254,7 +1279,7 @@
     {
       "path": "nkb/_version.py",
       "bytes": 26,
-      "sha256": "0fa872ee7af6281ca27c5ec6602494cd853e7e87ee78f3a488ebeea010d0e38a"
+      "sha256": "b210c5d48a0a57b6b45b82dbf44e092c5d2e0a589b4cca508c30d837a4535231"
     },
     {
       "path": "nkb/adapters/__init__.py",
@@ -1517,6 +1542,11 @@
       "sha256": "1fc97e5a9368b3cc59962cf1dbc3a90d7f795833cf64d74f12df2079d5ae24de"
     },
     {
+      "path": "nkb/service/astrbot_setup.py",
+      "bytes": 4658,
+      "sha256": "f99a61c78e4c94161fc55aaca7fd423087dbcbb6966829aff77233702e9be72b"
+    },
+    {
       "path": "nkb/service/backups.py",
       "bytes": 7015,
       "sha256": "ab4cf34bb14f233138f044c60f043be884f3141d50a86f003bfc722fb2b569dd"
@@ -1588,8 +1618,8 @@
     },
     {
       "path": "nkb/service/host.py",
-      "bytes": 88531,
-      "sha256": "1dd48025eec7885ec955d4a812cec0dde2efacdcd068fe7875b3d19bfe83d46f"
+      "bytes": 91090,
+      "sha256": "81c2c251ae1592bf00897b9a8db414183ba222c335610834ea3cba070e164b78"
     },
     {
       "path": "nkb/service/httpd.py",
@@ -1703,8 +1733,8 @@
     },
     {
       "path": "nkb/viz/art/approved-atlas-renderer.js",
-      "bytes": 12509,
-      "sha256": "4ccd0231945f684632cfba9a9e80c1c09f7b839b4861590eb51afe436fe0277a"
+      "bytes": 16728,
+      "sha256": "851d819b7c7f0fc31e1e2f2529fea637e7397384540a75fa9b36f5df0324aab4"
     },
     {
       "path": "nkb/viz/art/build.mjs",
@@ -1718,8 +1748,8 @@
     },
     {
       "path": "nkb/viz/art/neural-art.bundle.js",
-      "bytes": 567061,
-      "sha256": "b2763b1e7a8888dde651afa6b0d2d6f2fdd671c9d7fba0dd1921f9fdc80182fa"
+      "bytes": 569767,
+      "sha256": "826fe21e495bb350423e7a787b6af1f9401b66934dace59344dc1d1c64372fdc"
     },
     {
       "path": "nkb/viz/art/neural-art.js",
@@ -1758,8 +1788,8 @@
     },
     {
       "path": "nkb/viz/web/agent-sources-ui.js",
-      "bytes": 16213,
-      "sha256": "8741374240684f7df5cbf6b39395f518ab8700a9161555d97a7510dd4da5f3fd"
+      "bytes": 24095,
+      "sha256": "29f4b04ee04815e6905a413f83714722863f2e8ff281f6dea7f1f1bfefe25c4f"
     },
     {
       "path": "nkb/viz/web/button-hints.js",
@@ -1803,8 +1833,8 @@
     },
     {
       "path": "nkb/viz/web/memory-organizer-ui.js",
-      "bytes": 24586,
-      "sha256": "5148c0537b809d22f54385cd5b78d42313f8f568b32f78cbf0fb1e1f0114eb8b"
+      "bytes": 34515,
+      "sha256": "82bbcf14137606585aa4dd48f239b594a12475387b6cd89d10de73ef0cfc2c0f"
     },
     {
       "path": "nkb/viz/web/memory-portability-ui.js",
@@ -1878,8 +1908,8 @@
     },
     {
       "path": "scripts/build_windows.py",
-      "bytes": 12368,
-      "sha256": "6ed505eb8b46bbc68285e6c9f08bfb1b209ed7edd45aed0f06b04e07b95813e8"
+      "bytes": 12421,
+      "sha256": "0c802584b866c18c869737023291c7840095d4cb2ca476e04afe1bb0d0b4c2db"
     },
     {
       "path": "scripts/check_android_remote_reports.py",
@@ -1935,6 +1965,11 @@
       "path": "scripts/publish_windows_0101.py",
       "bytes": 22965,
       "sha256": "1f7b467c29f3c73feb6404daefd9677fc493fbcce26ec716b5a4a8ccdce556dc"
+    },
+    {
+      "path": "scripts/publish_windows_0102.py",
+      "bytes": 23604,
+      "sha256": "c6022b8c539a300f65cbd5280a116699a268fc9d5d743ed8e33000afd7179487"
     },
     {
       "path": "scripts/publish_windows_091.py",
@@ -2002,14 +2037,19 @@
       "sha256": "ac001be7d01c9a28b8f8bfe75283a6a6fd252662072488f65224d140c3f7e590"
     },
     {
+      "path": "scripts/windows-0102-publication.json",
+      "bytes": 75,
+      "sha256": "9a72b3e44d54d2d90bf06505a5ec27a0252726ac57a5aed6a8b76f7c481dd706"
+    },
+    {
       "path": "scripts/windows-091-publication.json",
       "bytes": 1653,
       "sha256": "022e3ecbc6eaf61f4a21e7e5ce4cb64bd3667454cba33ab31e1deeeeda8c71ab"
     },
     {
       "path": "scripts/windows_upgrade_smoke.py",
-      "bytes": 28191,
-      "sha256": "06492db6e161b9178cd80d66db3e33c9cc4c59a0f3f36c8aaaa4851a4152cf8c"
+      "bytes": 29841,
+      "sha256": "7ebd5dac489e6593b35ae7e137920b542a7c9165702dcc06b5263c0bd9b0e2db"
     },
     {
       "path": "scripts/workbuddy-080rc2-publication.json",
@@ -2028,8 +2068,8 @@
     },
     {
       "path": "tests/js/agent-sources-ui.test.cjs",
-      "bytes": 15224,
-      "sha256": "50e6120373cabd1c939b8d1436cb22b4a82df840266a0d81271e7dd6ccb140e5"
+      "bytes": 21239,
+      "sha256": "5ead309bfb63ef96330e5fbc726e0cbeb8428588b024a07d5e54f1d1235fbf88"
     },
     {
       "path": "tests/js/approved-atlas-painter.test.mjs",
@@ -2038,8 +2078,8 @@
     },
     {
       "path": "tests/js/approved-atlas-renderer.test.mjs",
-      "bytes": 10442,
-      "sha256": "da5feae965c3d52cfe7dc123034d0a85c0b92eab1c44e07e7d2bbb4ad1c2df85"
+      "bytes": 17592,
+      "sha256": "f78a338db95d8d6f5f5d33a59341fea584ff6ff84b4a7faad5ed82932b44b24d"
     },
     {
       "path": "tests/js/button-hints.test.cjs",
@@ -2082,6 +2122,11 @@
       "sha256": "386000a9a4782fd7f8c83d75aafeac2fa741454282d0fd986788f7cd8b03666c"
     },
     {
+      "path": "tests/js/organizer-configuration-ui.test.cjs",
+      "bytes": 9278,
+      "sha256": "dd7d7b9261b3a951a01c70e37b7f04c053ab558213b813c9494f70a58ae9ffca"
+    },
+    {
       "path": "tests/js/organizer-readiness.test.cjs",
       "bytes": 1548,
       "sha256": "762682273bc1ab1c706c178a931eb1ccd7d47e0e093fcc057c2e474a4ea01948"
@@ -2093,8 +2138,8 @@
     },
     {
       "path": "tests/js/persona-growth-ui.test.cjs",
-      "bytes": 19497,
-      "sha256": "60050dd32043ec1b18a4952bb0315b5aa6e8d9a8a4032f54bd130156ae05830f"
+      "bytes": 19554,
+      "sha256": "c834e2036b3c1a82b82258ac53a3e6c14e76abf007b424cd2ff61dcfb8c51000"
     },
     {
       "path": "tests/js/remote-mobile.test.mjs",
@@ -2158,8 +2203,8 @@
     },
     {
       "path": "tests/test_agent_source_service.py",
-      "bytes": 16831,
-      "sha256": "a12a3bfa198d567c1a897dda773c62e73a8ed6a2e031438cd41912437409b1d9"
+      "bytes": 22131,
+      "sha256": "300eef0ee155c4876e0496bdfafbf8475e5d113014bfb1f41a10dc50570161af"
     },
     {
       "path": "tests/test_agent_sources.py",
@@ -2208,8 +2253,8 @@
     },
     {
       "path": "tests/test_astrbot_adapter.py",
-      "bytes": 50578,
-      "sha256": "6f8f5bec54a85a9cc0b4bc5fe2086f880782589eea295a9a1baa23b2f9085c13"
+      "bytes": 58242,
+      "sha256": "56fbcc2516cef9ff2890662194095fa0711de4a5ac4b115be9f180c4e0458f47"
     },
     {
       "path": "tests/test_button_hints.py",
@@ -2369,7 +2414,7 @@
     {
       "path": "tests/test_neural_atlas.py",
       "bytes": 2305,
-      "sha256": "47575987169a70ad65fbe5e722ea71b4f21f81094b98867f9347e3dd3d5db973"
+      "sha256": "00ff451e2449088497bb2afd7f263bad11e13d22700a4a77be8ad1b081c46a52"
     },
     {
       "path": "tests/test_node_visibility.py",
@@ -2400,6 +2445,11 @@
       "path": "tests/test_organizer_configuration_repair.py",
       "bytes": 15172,
       "sha256": "d5121073519d16e83c85d2b3fe5e6154460b77cd61db6798e70ce6952f7adc2f"
+    },
+    {
+      "path": "tests/test_organizer_configuration_status.py",
+      "bytes": 6334,
+      "sha256": "c956b42ac5e7f3429e1226e0da59d832ca042534f4eb787d557601608cd718c5"
     },
     {
       "path": "tests/test_organizer_rules.py",
@@ -2475,6 +2525,11 @@
       "path": "tests/test_publish_windows_0101.py",
       "bytes": 19673,
       "sha256": "03c8f793b4687895cf2842d7827600209167051f7d6557b890fe7624c355fa2d"
+    },
+    {
+      "path": "tests/test_publish_windows_0102.py",
+      "bytes": 20359,
+      "sha256": "8a45f9d537f51306f39873d546bc9cc43e210770643fc63552d83f444813c4bc"
     },
     {
       "path": "tests/test_publish_windows_091.py",
@@ -2568,8 +2623,8 @@
     },
     {
       "path": "tests/test_windows_packaging.py",
-      "bytes": 40728,
-      "sha256": "e192161660d9dfd26a7aea413fc86172f52cc52bc1d0a63df0bb4b3b1a17b512"
+      "bytes": 41502,
+      "sha256": "e71e106be330b0070c15c0bb2c2255ba02cd5c7ae35bd71c916e067e4efb11b9"
     },
     {
       "path": "tests/test_windows_prerequisites.py",
@@ -2583,8 +2638,8 @@
     },
     {
       "path": "tests/test_windows_upgrade_smoke.py",
-      "bytes": 11504,
-      "sha256": "6342969fb3728ebb0c1193969b0fb819b7383d0fb7cb875e482085121d844823"
+      "bytes": 16030,
+      "sha256": "73a3fce6b8f7a57ee14b2de5378ec049df52534fbc507995949475ca5be51670"
     },
     {
       "path": "tests/test_workbuddy_connection_state.py",

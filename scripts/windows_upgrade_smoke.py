@@ -25,9 +25,9 @@ from urllib.error import HTTPError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 import uuid
 
-OLD_VERSION = '0.9.1rc1'
-NEW_VERSION = '0.10.1rc1'
-OLD_SETUP_SHA256 = '56634d8e63e806c5d988302ed01678d2881a40e4c12f836a08ae1b361bccdad6'
+OLD_VERSION = '0.10.1rc1'
+NEW_VERSION = '0.10.2rc1'
+OLD_SETUP_SHA256 = '8a9d5dfe5bb1963dd215ba5d209107857a668027e2d7f4f1bf364eacf66134e9'
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 FIXTURE_PREFIX='love-house-upgrade-中文 空格-'
@@ -197,9 +197,57 @@ def window_ready(data,cursor,version):
 
 def queue_state(data):
     with closing(sqlite3.connect(data / 'organizer.sqlite3')) as db:
-        return {name: db.execute('SELECT ' + fields + ' FROM ' + name + ' ORDER BY 1').fetchall()
-            for name, fields in (('items', 'library_id,raw_id,status,progress,job_id'),
-                ('jobs', 'id,library_id,raw_ids,status,attempts,error_code'), ('calls', 'id,library_id,at,chars'))}
+        db.row_factory=sqlite3.Row
+        result={name:[dict(row) for row in db.execute('SELECT * FROM '+name+' ORDER BY '+order)]
+                for name,order in (('items','library_id,raw_id'),('jobs','id'),('calls','id'))}
+        # A pre-purpose database gains the factual default. Existing persona
+        # purposes and every payload/guard/plan/result field must remain exact.
+        for job in result['jobs']:job.setdefault('purpose','memory')
+        return result
+
+
+def queue_schema(data):
+    with closing(sqlite3.connect(data / 'organizer.sqlite3')) as db:
+        return {name:{row[1]:tuple(row[2:]) for row in db.execute('PRAGMA table_info('+name+')')}
+                for name in ('items','jobs','calls')}
+
+
+def seed_ledger(data,libraries,marker):
+    """Seed synthetic rejected work without altering the old app's schema."""
+    schema=queue_schema(data)
+    has_purpose='purpose' in schema['jobs']
+    purposes=('memory','persona') if has_purpose else ('memory',)
+    with closing(sqlite3.connect(data / 'organizer.sqlite3')) as db,db:
+        for index,identity in enumerate(libraries):
+            item=db.execute('SELECT raw_id FROM items WHERE library_id=? ORDER BY raw_id LIMIT 1',(identity,)).fetchone()
+            require(item is not None,'Old capture was not enqueued durably')
+            stamp=time.time()
+            for purpose in purposes:
+                job='SYNTHETIC_JOB_'+str(index)+'_'+purpose+'_'+marker
+                fields={'id':job,'library_id':identity,'raw_ids':json.dumps([item[0]]),'status':'rejected',
+                        'attempts':3 if purpose=='memory' else 4,'next_run':0,'lease_until':0,'created':stamp,'updated':stamp,
+                        'input_json':json.dumps({'purpose':purpose,'synthetic_input':marker}),
+                        'guards_json':json.dumps({'synthetic_guard':marker,'raw_id':item[0]}),
+                        'plan_json':json.dumps({'purpose':purpose,'synthetic_plan':marker}),
+                        'result_json':json.dumps({'purpose':purpose,'synthetic_result':marker}),
+                        'error_code':'synthetic_fixture','error':'synthetic fixture'}
+                if has_purpose:fields['purpose']=purpose
+                columns=','.join(fields);marks=','.join('?' for _ in fields)
+                db.execute('INSERT INTO jobs('+columns+') VALUES('+marks+')',tuple(fields.values()))
+                if purpose=='memory':
+                    db.execute("UPDATE items SET status='rejected',job_id=? WHERE library_id=? AND raw_id=?",(job,identity,item[0]))
+            db.execute('INSERT INTO calls VALUES(?,?,?,?)',('SYNTHETIC_CALL_'+str(index)+marker,identity,stamp,123+index))
+    return {'schema':schema,'state':queue_state(data),'purpose_column_before':has_purpose,
+            'mode':'existing_schema_preserved' if has_purpose else 'legacy_purpose_migrated'}
+
+
+def check_ledger(data,before):
+    schema=queue_schema(data)
+    require('purpose' in schema['jobs'],'Organizer purpose column is missing after upgrade')
+    require(all(schema[table].get(name)==definition for table,columns in before['schema'].items()
+                for name,definition in columns.items()),'Upgrade changed an existing queue schema field')
+    require(queue_state(data)==before['state'],
+            'Upgrade changed durable queue purposes, content, attempts or the budget ledger')
 
 
 def connection_token(connection,data):
@@ -342,23 +390,13 @@ def run(old_setup, new_setup):
                 (second_event['normalized']['user'],second_event['normalized']['assistant']) in expected['second']['nodes'].values(),
                 'Old second-library fixture is missing its exact original roles')
             old.close()
-            # Deliberately seeded durable old-schema fixtures exercise migration
-            # preservation; these are not real model calls or model results.
-            with closing(sqlite3.connect(data / 'organizer.sqlite3')) as db, db:
-                require('purpose' not in {r[1] for r in db.execute('PRAGMA table_info(jobs)')},
-                    'Old application fixture unexpectedly already has the new purpose column')
-                job_ids=[]
-                for index, identity in enumerate((library, second)):
-                    item = db.execute('SELECT raw_id FROM items WHERE library_id=?', (identity,)).fetchone()
-                    require(item is not None, 'Old capture was not enqueued durably')
-                    job = 'SYNTHETIC_JOB_' + str(index) + marker
-                    job_ids.append(job)
-                    stamp = time.time()
-                    db.execute('INSERT INTO jobs(id,library_id,raw_ids,status,attempts,next_run,lease_until,created,updated,error_code,error) VALUES(?,?,?,\'rejected\',3,0,0,?,?,\'synthetic_fixture\',\'synthetic fixture\')',
-                        (job, identity, json.dumps([item[0]]), stamp, stamp))
-                    db.execute('UPDATE items SET status=\'rejected\',job_id=? WHERE library_id=? AND raw_id=?', (job, identity, item[0]))
-                    db.execute('INSERT INTO calls VALUES(?,?,?,?)', ('SYNTHETIC_CALL_' + str(index) + marker, identity, stamp, 123))
-            durable = queue_state(data)
+            # 0.10.1 already has both queue purposes. Preserve that schema and
+            # seed both; never remove columns to manufacture a migration test.
+            # Older schemas are independently covered by the helper's default
+            # factual-purpose migration fixture. These are not model results.
+            durable=seed_ledger(data,(library,second),marker)
+            require(OLD_VERSION!='0.10.1rc1' or durable['purpose_column_before'],
+                    'Pinned 0.10.1 application is missing its existing purpose schema')
             install(new_setup, target)
             new = App(target / 'LoveHouse.exe', data)
             new.start(NEW_VERSION)
@@ -384,11 +422,7 @@ def run(old_setup, new_setup):
             second_persona = new.request('/api/persona', library=second)
             require(second_persona['enabled'] is False and second_persona['learning_enabled'] is False, 'Second explicit opt-out changed')
             require([v['id'] for v in new.request('/api/libraries/trash')['libraries']] == expected['trash'], 'Recycle bin changed')
-            require(queue_state(data) == durable, 'Durable jobs, attempts or budget ledger changed during migration')
-            with closing(sqlite3.connect(data / 'organizer.sqlite3')) as db:
-                require('purpose' in {r[1] for r in db.execute('PRAGMA table_info(jobs)')}, 'Purpose column was not migrated')
-                require(dict(db.execute('SELECT id,purpose FROM jobs')) == {identity:'memory' for identity in job_ids},
-                    'Old jobs were not migrated to factual purpose')
+            check_ledger(data,durable)
             new.request('/api/connections', anonymous=True, status=401)
             new.request('/api/persona', library=library, bearer=token, anonymous=True, status=403)
             new.request('/api/connections/' + cid + '/context', {}, library=second, bearer=token, anonymous=True, status=403)
@@ -414,12 +448,13 @@ def run(old_setup, new_setup):
                 require(Path(config['private_path']).resolve()==path and digest(path)==sha,
                     'Upgrade restart changed a private connection file')
             require(restarted.request('/api/organizer', library=library)['provider'] == expected['provider'], 'Upgrade restart lost secure credential metadata')
-            require(queue_state(data) == durable, 'Upgrade restart changed durable budget fixtures')
+            check_ledger(data,durable)
             restarted.close()
             result.update(same_install_path='passed', database_migration='passed', libraries='passed',
                 connections='passed', credential_metadata='passed', explicit_opt_out='passed', restart='passed',
                 source_library_contents='passed', old_private_connection_file='passed', recycle_bin='passed',
-                management_isolation='passed', durable_attempts_and_budget='passed', synthetic_ledger_fixture=True)
+                management_isolation='passed', durable_attempts_and_budget='passed', synthetic_ledger_fixture=True,
+                organizer_schema_upgrade=durable['mode'])
         finally:
             primary=sys.exc_info()[1];cleanup_failures=[]
             for app in (restarted, new, old):

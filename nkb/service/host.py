@@ -166,7 +166,23 @@ class MemoryHost:
     def register_agent_source(self,library_id,data):
         if self.library(library_id)['is_demo']:raise ValidationError('示例不能绑定实际活动来源')
         if not self.controller_port:raise ValidationError('请先启动本机记忆服务')
-        return self.sources.register(library_id,data,base_url=f'http://127.0.0.1:{self.controller_port}')
+        from .astrbot_setup import validate_setup,build_setup
+        setup=None
+        if isinstance(data,dict) and 'astrbot_setup' in data:
+            data=dict(data);setup=validate_setup(data.pop('astrbot_setup'))
+            if data.get('adapter')!='astrbot':raise ValidationError('仅 AstrBot 来源支持插件快速配置')
+            platforms=data.get('platforms',['*'])
+            if not isinstance(platforms,list) or setup['platform'] not in platforms and '*' not in platforms:
+                raise ValidationError('插件平台不在来源允许范围内')
+        bundle=self.sources.register(library_id,data,base_url=f'http://127.0.0.1:{self.controller_port}')
+        if setup:
+            try:return build_setup(self.sources,bundle['source']['id'],setup)
+            except (OSError,ValidationError):
+                # Registration is already durable. Preserve the exact source
+                # for retry instead of reporting a failed create that would
+                # encourage users to register it again.
+                return {**bundle,'astrbot_setup_error':'来源已登记，但插件配置尚未保存。请检查磁盘与权限，再为此来源生成插件配置，不必重复创建来源。'}
+        return bundle
     def agent_source_action(self,library_id,source_id,action,data=None):
         source=self.sources.get(source_id)
         if source['library_id']!=library_id:raise ValidationError('活动来源不属于当前 Agent')
@@ -174,6 +190,9 @@ class MemoryHost:
             if data not in (None,{}):raise ValidationError('来源配置只接受空请求，不能选择其他身份或地址')
             return self.sources.configuration(source_id,base_url=f'http://127.0.0.1:{self.controller_port}')
         if self.library(library_id)['is_demo']:raise ValidationError('示例不能修改活动来源')
+        if action=='astrbot-setup':
+            from .astrbot_setup import build_setup
+            return build_setup(self.sources,source_id,data,base_url=f'http://127.0.0.1:{self.controller_port}')
         data=data or {}
         if set(data)-{'enabled','confirm'}:raise ValidationError('来源设置含未声明字段')
         if action=='disconnect' and data.get('confirm') is not True:raise ValidationError('请确认断开该活动来源')
@@ -236,24 +255,38 @@ class MemoryHost:
         raw=self.snapshot(library_id);settings=get_profile(Brain(raw));pid=settings['provider_id']
         cid=pid.split(':',1)[1] if pid.startswith('connection:') else ''
         provider={'base_url':settings['base_url'],'model':settings['model'],'storage':'none','key_saved':False,'credential_ready':False}
+        connection_unavailable=False
         if cid:
-            c=self.connections.get(cid)
-            if c['library_id']==library_id:provider=self.providers.public(cid)
+            try:
+                c=self.connections.get(cid)
+                if c['library_id']!=library_id or c['host']!='api' or c['revoked']:
+                    connection_unavailable=True
+                else:provider=self.providers.public(cid)
+            except ValidationError:connection_unavailable=True
         elif settings['base_url']:provider.update(self.keys.metadata(self.organizer_ref(library_id,settings['base_url'],pid=='separate:session')))
         provider['model_ready']=False
         try:
+            if connection_unavailable:raise ValidationError('原模型连接已断开或不可用，请重新选择本库的模型连接。')
             if not provider.get('credential_ready'):raise OrganizerError('整理模型尚未配置凭证','missing_credential')
             if not isinstance(provider.get('model'),str) or not provider['model'].strip():raise OrganizerError('整理模型名称未配置','missing_model')
             endpoint(provider.get('base_url',''))
             provider['model_ready']=True
         except ValidationError as exc:
-            provider['configuration_error']=(failure_message(exc.code) if hasattr(exc,'code') else
+            provider['configuration_error']=('原模型连接已断开或不可用，请重新选择本库的模型连接。' if connection_unavailable else failure_message(exc.code) if hasattr(exc,'code') else
                 '整理模型配置不完整，请核对基础地址和模型名称；原文仍保留。')
         status=self.organizer.status(library_id);counts=status['counts']
         mapped={**status,'pending':counts.get('pending',0)+counts.get('running',0),'completed':counts.get('done',0),
                 'failed':sum(j['status']=='failed' for j in status['jobs']),'retrying':sum(j['status']=='retry' for j in status['jobs']),
                 'calls_24h':status['usage_24h']['count'],'chars_24h':status['usage_24h']['chars']}
-        return {'settings':{**settings,'provider_mode':'connection' if cid else 'separate','connection_id':cid},
+        configured=bool(pid or settings['base_url'] or settings['model'])
+        # This is local configuration metadata, never a paid connectivity probe.
+        configuration={'configured':configured,'scope':'library','network_verified':False,
+                       'state':('not_configured' if not configured else 'connection_unavailable' if connection_unavailable else
+                                'credential_missing' if not provider.get('credential_ready') else
+                                'incomplete' if not provider['model_ready'] else
+                                'saved' if provider.get('key_saved') else 'session_only')}
+        return {'library_id':library_id,'configuration':configuration,
+                'settings':{**settings,'provider_mode':'connection' if cid else 'separate','connection_id':cid},
                 'status':mapped,'provider':provider,'batches':status['jobs'],'candidates':raw.get('meta',{}).get('organizer_candidates',[])}
 
     def organizer_settings(self,library_id,data):
@@ -1069,7 +1102,7 @@ def make_controller(host):
                 if path=='/api/updates/settings':return self._json(host.updates.settings(data))
                 if path=='/api/retention/settings':return self._json(host.retention_settings(self._chosen(),data))
                 if path=='/api/agent/sources':return self._json(host.register_agent_source(self._chosen(),data))
-                if len(parts)==5 and parts[:3]==['api','agent','sources'] and parts[4] in ('config','enabled','disconnect'):
+                if len(parts)==5 and parts[:3]==['api','agent','sources'] and parts[4] in ('config','enabled','disconnect','astrbot-setup'):
                     return self._json(host.agent_source_action(self._chosen(),parts[3],parts[4],data))
                 if path=='/api/sharing/preview':
                     # Complete sharing is independent of optional model settings,

@@ -14,15 +14,21 @@ class NeverConstructed extends NeuralArt{
 const Renderer=createApprovedAtlasRenderer(NeverConstructed);
 
 function surface(context=true){
- const calls=[],handlers=new Map(),doc={addEventListener(){},removeEventListener(){}};
+ const calls=[],handlers=new Map(),documentHandlers=new Map(),windowHandlers=new Map();
+ const target=map=>({addEventListener(type,fn){if(!map.has(type))map.set(type,new Set());map.get(type).add(fn);},
+  removeEventListener(type,fn){map.get(type)?.delete(fn);if(!map.get(type)?.size)map.delete(type);}});
+ const doc={...target(documentHandlers),get hidden(){return globalThis.document.hidden;},defaultView:target(windowHandlers)};
  const gradient={addColorStop(){}};
  const ctx=new Proxy({calls,measureText:text=>({width:String(text).length*7}),createRadialGradient:()=>gradient,createLinearGradient:()=>gradient},
   {get(target,key){return key in target?target[key]:(...args)=>{if(calls.length<1500)calls.push([key,...args]);};}});
- const canvas={dataset:{},style:{},clientWidth:1000,clientHeight:700,ownerDocument:doc,
+ const canvas={dataset:{},style:{},clientWidth:1000,clientHeight:700,ownerDocument:doc,setPointerCapture(){},releasePointerCapture(){},
   getRootNode:()=>doc,getBoundingClientRect:()=>({left:0,top:0,width:1000,height:700}),
-  addEventListener(type,fn){handlers.set(type,fn);},removeEventListener(type){handlers.delete(type);},
+  ...target(handlers),
   getContext(type){assert.equal(type,'2d','must not acquire WebGL');return context?ctx:null;}};
- return{canvas,ctx,calls,handlers};
+ const emit=(type,event={})=>{for(const fn of [...handlers.get(type)||[]])fn({pointerId:1,pointerType:'mouse',clientX:500,clientY:350,...event});};
+ const emitDocument=type=>{for(const fn of [...documentHandlers.get(type)||[]])fn({});};
+ const emitWindow=type=>{for(const fn of [...windowHandlers.get(type)||[]])fn({});};
+ return{canvas,ctx,calls,handlers,documentHandlers,windowHandlers,emit,emitDocument,emitWindow};
 }
 function graph(count){
  const nodes=Array.from({length:count},(_,i)=>({id:'n'+i,label:'Synthetic '+i,kind:'episode',tags:['topic'+i%3],state:'active',recalls:i%90,salience:.6,
@@ -32,6 +38,7 @@ function graph(count){
 function state(g,extra={}){return{...g,W:1000,H:700,art:true,graphMode:'nebula',cam:{x:500,y:350,k:1},visible:g.nodes,visibleSet:new Set(g.nodes.map(n=>n.id)),adj:new Map(),active:new Map(),lit:new Map(),...extra};}
 function art(){const env=surface(),renderer=new Renderer(env.canvas,env.canvas);renderer.resize(1000,700,2);return{...env,renderer};}
 function near(a,b,tolerance=1e-5){assert.ok(Math.abs(a-b)<=tolerance,`${a} != ${b}`);}
+function vectorNear(a,b){assert.ok(a.distanceTo(b)<1e-8,`${JSON.stringify(a)} != ${JSON.stringify(b)}`);}
 
 test('constructs a standalone 2D adapter with all host APIs and no Base/WebGL/RAF',()=>{
  const old=globalThis.requestAnimationFrame;globalThis.requestAnimationFrame=()=>{throw new Error('adapter cannot own RAF');};
@@ -89,7 +96,7 @@ test('pause freezes decorative time while morphs complete and rapid reversals pr
  r.panCamera(30,15);const panned=r.camera.position.clone();r.render(s,5700);assert.deepEqual(r.camera.position,panned);
  s.graphMode='nebula';r.render(s,5800);s.graphMode='flat';r.render(s,5900);assert.deepEqual(r.orbitSnapshot.position,orbit);
  s.graphMode='nebula';for(let t=6000;t<9000;t+=100)r.render(s,t);
- assert.equal(r.flatMix,0);assert.deepEqual(r.camera.position,orbit);assert.equal(r.motionTime,moving);
+ assert.equal(r.flatMix,0);vectorNear(r.camera.position,orbit);assert.equal(r.motionTime,moving);
  assert.equal(canvas.dataset.motionTime,moving.toFixed(3));assert.equal(JSON.stringify(g),before);r.dispose();
 });
 
@@ -134,4 +141,86 @@ test('both approved layouts ignore native physics coordinates without writing to
  const refreshed={nodes:g.nodes.map(n=>({...n})),edges:g.edges.map(e=>({...e}))};r.setGraph(refreshed.nodes,refreshed.edges);
  for(const mix of [0,.5,1]){r.flatMix=mix;assert.deepEqual(refreshed.nodes.map(n=>({...r.displayPosition(n),z:r.nodeDepth(n)})),displayed.get(mix));}
  assert.equal(JSON.stringify(g),afterPhysics);assert.equal(JSON.stringify(refreshed),afterPhysics);r.dispose();assert.equal(r.nebulaTargets.size,0);
+});
+
+test('idle nebula yaw slowly carries foreground right to left without modifying memory or displayed layout',()=>{
+ const {renderer:r,canvas}=art(),g=graph(12),s=state(g),before=JSON.stringify(g);
+ r.camera.position.set(0,0,1200);r.controls.target.set(0,0,0);r.controls.update();
+ r.render(s,1000);const point={x:0,y:0,z:100},start=r.projectLocal(point),target=r.controls.target.clone();
+ const layout=g.nodes.map(n=>({...r.displayPosition(n),z:r.nodeDepth(n)})),distance=r.camera.position.distanceTo(target);
+ r.render(s,2000);const end=r.projectLocal(point);
+ near(r.autoRotateYaw,.035);assert.ok(end.x<start.x-3,'near-side foreground must drift left');near(end.y,start.y);
+ near(r.camera.position.distanceTo(target),distance);assert.deepEqual(r.controls.target,target);
+ assert.deepEqual(g.nodes.map(n=>({...r.displayPosition(n),z:r.nodeDepth(n)})),layout);assert.equal(JSON.stringify(g),before);
+ assert.equal(canvas.dataset.autoRotate,'true');assert.equal(canvas.dataset.autoRotateReason,'rotating');assert.equal(canvas.dataset.autoRotateYaw,'0.035000');r.dispose();
+});
+
+test('automatic yaw uses elapsed active seconds at low and high frame rates',()=>{
+ const results=[];
+ for(const fps of [1,30,60,144]){
+  const {renderer:r}=art(),s=state(graph(1));
+  for(let frame=0;frame<=fps*4;frame++)r.advanceView(s,1000+frame*1000/fps);
+  near(r.autoRotateYaw,.14);results.push(r.camera.position.clone());r.dispose();
+ }
+ for(const position of results)assert.ok(position.distanceTo(results[0])<1e-8);
+});
+
+test('hovering anywhere on the input canvas freezes yaw and leaving resumes from that camera',()=>{
+ const {renderer:r,canvas,emit}=art(),s=state(graph(2));r.render(s,1000);r.render(s,1100);
+ const yaw=r.autoRotateYaw,position=r.camera.position.clone();emit('pointerenter',{clientX:1,clientY:1});
+ r.render(s,1200);r.render(s,60000);near(r.autoRotateYaw,yaw);vectorNear(r.camera.position,position);
+ assert.equal(canvas.dataset.autoRotate,'false');assert.equal(canvas.dataset.autoRotateReason,'hover');assert.equal(canvas.dataset.autoRotateHovered,'true');
+ emit('pointerleave');r.render(s,90000);vectorNear(r.camera.position,position);r.render(s,90100);near(r.autoRotateYaw,yaw+.0035);
+ // A mouse already over the surface before initialization still pauses on move.
+ emit('pointermove',{clientX:20,clientY:20});r.render(s,90200);near(r.autoRotateYaw,yaw+.0035);
+ r.dispose();
+});
+
+test('captured touch interaction stays in control outside the canvas and cancel or lost capture releases it',()=>{
+ const {renderer:r,canvas,emit}=art(),s=state(graph(2));r.render(s,1000);r.render(s,1100);
+ // Isolate host pointer handlers: a capture owner need not be OrbitControls.
+ r.controls.enabled=false;
+ emit('pointerdown',{pointerType:'touch'});emit('pointerleave',{pointerType:'touch'});r.render(s,1200);
+ const yaw=r.autoRotateYaw;assert.equal(canvas.dataset.autoRotateInteracting,'true');assert.equal(canvas.dataset.autoRotateReason,'interaction');
+ // User orbit input changes the camera while automatic rotation is suspended.
+ r.camera.position.applyAxisAngle(new THREE.Vector3(0,1,0),.2);r.controls.update();const manual=r.camera.position.clone();
+ r.render(s,3000);near(r.autoRotateYaw,yaw);assert.ok(r.camera.position.distanceTo(manual)<1e-8);
+ emit('lostpointercapture',{pointerType:'touch'});r.render(s,5000);near(r.autoRotateYaw,yaw);r.render(s,5100);near(r.autoRotateYaw,yaw+.0035);
+ r.controls.enabled=false;emit('pointerdown',{pointerId:2,pointerType:'touch'});r.render(s,5200);emit('pointercancel',{pointerId:2,pointerType:'touch'});
+ r.render(s,7000);r.render(s,7100);near(r.autoRotateYaw,yaw+.007);r.dispose();
+});
+
+test('pause, hidden, reduced motion, flat mode and disable stop yaw without catch-up on return',()=>{
+ const {renderer:r,canvas,emitDocument}=art(),s=state(graph(4));r.render(s,1000);r.render(s,1100);
+ let time=1100;
+ const stopped=(stop,resume,reason)=>{
+  const yaw=r.autoRotateYaw;stop();r.render(s,time+=100);r.render(s,time+=30000);
+  near(r.autoRotateYaw,yaw);assert.equal(canvas.dataset.autoRotateReason,reason);
+  resume();r.render(s,time+=30000);near(r.autoRotateYaw,yaw);r.render(s,time+=100);near(r.autoRotateYaw,yaw+.0035);
+ };
+ try{
+  stopped(()=>s.paused=true,()=>s.paused=false,'paused');
+  stopped(()=>{globalThis.document.hidden=true;emitDocument('visibilitychange');},()=>{globalThis.document.hidden=false;emitDocument('visibilitychange');},'hidden');
+  stopped(()=>globalThis.matchMedia=()=>({matches:true}),()=>globalThis.matchMedia=()=>({matches:false}),'reduced-motion');
+  stopped(()=>r.setEnabled(false),()=>r.setEnabled(true),'disabled');
+  stopped(()=>s.art=false,()=>s.art=true,'disabled');
+  const yaw=r.autoRotateYaw;s.graphMode='flat';for(let i=0;i<40;i++)r.render(s,time+=100);
+  near(r.autoRotateYaw,yaw);assert.equal(r.flatMix,1);assert.equal(canvas.dataset.autoRotateReason,'flat');
+  s.graphMode='nebula';while(r.flatMix!==0)r.render(s,time+=100);near(r.autoRotateYaw,yaw);
+  r.render(s,time+=100);near(r.autoRotateYaw,yaw+.0035);
+ }finally{globalThis.document.hidden=false;globalThis.matchMedia=()=>({matches:false});r.dispose();}
+});
+
+test('separate artwork and input surfaces, blur and disposal keep input ownership intact',()=>{
+ const input=surface(),output=surface(),r=new Renderer(output.canvas,input.canvas),s=state(graph(1));r.resize(1000,700);
+ r.render(s,1000);r.render(s,1100);input.emit('pointerenter');r.render(s,1200);const yaw=r.autoRotateYaw;
+ assert.equal(output.canvas.dataset.autoRotateReason,'hover');assert.equal(input.canvas.dataset.autoRotateReason,undefined);
+ input.emitWindow('blur');r.render(s,60000);near(r.autoRotateYaw,yaw);r.render(s,60100);near(r.autoRotateYaw,yaw+.0035);
+ // Restoring focus while the mouse is stationary over the canvas must remain
+ // paused; the next physical leave clears the restored hover marker.
+ input.canvas.matches=selector=>selector===':hover';input.emitWindow('focus');r.render(s,60200);
+ near(r.autoRotateYaw,yaw+.0035);assert.equal(output.canvas.dataset.autoRotateReason,'hover');
+ input.emit('pointerleave');r.render(s,60300);r.render(s,60400);near(r.autoRotateYaw,yaw+.007);
+ assert.ok(input.handlers.get('pointerdown').size>=2,'rotation must retain OrbitControls input listeners');
+ r.dispose();assert.equal(input.handlers.size,0);assert.equal(input.documentHandlers.size,0);assert.equal(input.windowHandlers.size,0);
 });

@@ -274,7 +274,7 @@ class NativeAPI:
         try:
             self._check_export_origin()
             if self._host is None:raise ValueError('Memory service is not ready')
-            return self._save_export('LoveHouse-AstrBot-0.2.0-experimental.zip',self._host.astrbot_package())
+            return self._save_export('LoveHouse-AstrBot-0.3.0-experimental.zip',self._host.astrbot_package())
         except Exception:return {'saved':False,'cancelled':False,'error':'插件未保存，请检查保存窗口、位置和磁盘空间后重试。'}
         finally:self._saving.release()
 
@@ -556,10 +556,17 @@ def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=F
                     # Show only this owned smoke window to exercise real drawing.
                     window.show()
                     result['latest_features'],expected=verify_latest_ui(window,runtime)
+                    from windows_0102_smoke import verify as verify_0102
+                    result['release_0102_environment']={}
+                    result['release_0102']=verify_0102(window,expected['library'],environment=result['release_0102_environment'])
                     if smoke_expected is not None:smoke_expected.update(expected)
                     result.update(ok=True,webview=value,phase='native_checks_passed')
                 except Exception as exc:
                     result.update(failure=smoke_failure(exc),phase='native_checks_failed')
+                    from windows_0102_smoke import Release0102Failure
+                    if isinstance(exc,Release0102Failure):
+                        result['release_0102_checkpoint']=exc.code
+                        result['release_0102_environment']=exc.motion_diag
                     from windows_latest_smoke import NativeFeatureFailure
                     if isinstance(exc,NativeFeatureFailure):
                         result['smoke_checkpoint']=exc.code

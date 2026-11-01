@@ -7,6 +7,7 @@ reasoning capture is performed by this plugin.
 from __future__ import annotations
 
 import asyncio
+from collections import Counter
 from pathlib import Path
 
 from astrbot.api import AstrBotConfig, logger
@@ -22,7 +23,7 @@ from .bridge import AdapterError, Bridge, Router
 from .source_client import SourceClient
 
 
-@register("love_house", "myflww", "爱之屋 Agent 经历记忆（实验适配）", "0.2.0")
+@register("love_house", "myflww", "爱之屋 Agent 经历记忆（实验适配）", "0.3.0")
 class LoveHousePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -31,50 +32,79 @@ class LoveHousePlugin(Star):
         self._worker = None
         self._last_warning = None
         self._configured = False
+        self._rejections = Counter()
+        self._binding_errors = []
         self._build_routes()
 
     def _build_routes(self):
         bindings = self.config.get("bindings", [])
+        self._binding_errors = []
         if not isinstance(bindings, list) or len(bindings) > 100:
-            raise AdapterError("来源配置须为不超过100项的列表")
+            self._binding_errors.append((0, "来源配置须为不超过100项的列表"))
+            self.router = Router([])
+            self._configured = False
+            return
         bridges = []
-        for item in bindings:
+        # Reject every conflicting binding, rather than letting list order
+        # choose which Agent owns a conversation. Unrelated bindings survive.
+        counts = Counter(umo for item in bindings if isinstance(item, dict)
+                         and isinstance(item.get('allowed_umos'), list)
+                         for umo in set(x for x in item['allowed_umos'] if isinstance(x, str)))
+        for index, item in enumerate(bindings, 1):
             if not isinstance(item, dict):
-                raise AdapterError("来源绑定格式不正确")
-            config_path = Path(str(item.get("source_config_path", ""))).expanduser()
-            if not config_path.is_absolute() or not config_path.is_file():
-                raise AdapterError("请选择在此服务器生成的私有来源配置文件")
-            client = SourceClient(config_path, timeout=1.0)
-            bridges.append(Bridge(config_path.parent / "astrbot-journal", client,
-                runtime_agent_id=item.get("runtime_agent_id"), allowed_umos=item.get("allowed_umos", []),
-                platform=item.get("platform", "qq")))
+                self._binding_errors.append((index, "绑定格式不正确"))
+                continue
+            umos = item.get('allowed_umos', [])
+            if isinstance(umos, list) and any(counts[x] > 1 for x in umos if isinstance(x, str)):
+                self._binding_errors.append((index, "消息来源重复归属；请删除冲突绑定"))
+                continue
+            try:
+                config_path = Path(str(item.get("source_config_path", ""))).expanduser()
+                if not config_path.is_absolute() or not config_path.is_file():
+                    self._binding_errors.append((index, "私有来源配置文件不存在；请在 AstrBot 所在机器生成并填写绝对路径"))
+                    continue
+                client = SourceClient(config_path, timeout=1.0)
+                bridges.append(Bridge(config_path.parent / "astrbot-journal", client,
+                    runtime_agent_id=item.get("runtime_agent_id"), allowed_umos=umos,
+                    platform=item.get("platform", "qq")))
+            except Exception:
+                # Never interpolate exception text: it may contain a credential,
+                # private filesystem path, UMO or malformed file contents.
+                self._binding_errors.append((index, "配置不可用；核对固定标识、平台、/sid 名单及来源文件权限"))
         self.router = Router(bridges)
         self._configured = bool(bridges)
 
+    def _reject(self, code):
+        if not hasattr(self, '_rejections'):
+            self._rejections = Counter()
+        self._rejections[code] += 1
+        return None
+
     def _route(self, event):
         if self.config.get("enabled", False) is not True:
-            return None
+            return self._reject('disabled')
         bridge = self.router.for_umo(getattr(event, "unified_msg_origin", None))
         if bridge is None:
-            return None
+            return self._reject('unregistered_umo')
         scheduled = isinstance(event, CronMessageEvent)
         if scheduled and self.config.get("record_scheduled_outputs", False) is not True:
-            return None
+            return self._reject('scheduled_disabled')
         if not self._platform_matches(event, bridge.platform, scheduled=scheduled):
             # A configured label is not evidence of the actual platform. In
             # particular, ChatUI/WebChat must not become a QQ observation.
-            return None
+            return self._reject('platform_or_instance_mismatch')
         try:
             source = bridge.client.status()
-            if (source.get('enabled') is not True or source.get('revoked') is not False
-                    or source.get('runtime_agent_id') != bridge.runtime_agent_id
+            if source.get('enabled') is not True or source.get('revoked') is not False:
+                return self._reject('source_paused_or_revoked')
+            if (source.get('runtime_agent_id') != bridge.runtime_agent_id
                     or source.get('source_id') != bridge.source_id or source.get('adapter') != 'astrbot'
                     or bridge.platform not in source.get('platforms', []) and '*' not in source.get('platforms', [])):
-                return None
+                return self._reject('source_identity_or_platform_mismatch')
             return bridge
         except Exception:
             self._warn('source_configuration')
-            return None
+            return self._reject('source_configuration_unavailable')
 
     @staticmethod
     def _platform_matches(event, configured, *, scheduled=False):
@@ -286,16 +316,21 @@ class LoveHousePlugin(Star):
     @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command('lovehouse_status')
     async def source_status(self, event: AstrMessageEvent):
-        if self.config.get('enabled', False) is not True:
-            yield event.plain_result('爱之屋来源适配未启用；没有自动采集。')
-            return
-        bridge = self._route(event)
-        if bridge is None:
-            yield event.plain_result('当前来源没有有效绑定；不会采集这段对话。')
-            return
-        try:
-            state = await asyncio.to_thread(bridge.status)
-            sdk = await asyncio.to_thread(bridge.client.status)
-            yield event.plain_result(f"爱之屋来源已配置（不代表全部活动覆盖）。等待最终回复 {state['awaiting_final']} 条；插件待交 {state['pending']} 条；来源待补交 {sdk.get('pending', 0)} 条。最终生成与宿主发送阶段分别记录，未提供 QQ 已读证明。")
-        except Exception:
-            yield event.plain_result('爱之屋状态暂不可读取；不表示队列为空。聊天不受影响。')
+        lines = ['爱之屋来源适配' + ('已启用' if self.config.get('enabled', False) is True else '未启用；没有自动采集')
+                 + f'；有效绑定 {len(self.router.bridges)} 项（不代表全部活动覆盖）。']
+        for index, reason in getattr(self, '_binding_errors', []):
+            lines.append(f'绑定第 {index} 项不可用：{reason}。')
+        for index, bridge in enumerate(self.router.bridges, 1):
+            try:
+                state = await asyncio.to_thread(bridge.status)
+                sdk = await asyncio.to_thread(bridge.client.status)
+                lines.append(f"有效绑定 {index}：等待最终回复 {state['awaiting_final']}；插件待交 {state['pending']}；来源待补交 {sdk.get('pending', 0)}；已持久交出并清除插件正文 {state['durably_queued_callbacks']}。")
+            except Exception:
+                lines.append(f'有效绑定 {index} 状态暂不可读，不表示队列为空。')
+        labels = {'disabled':'插件未启用', 'unregistered_umo':'/sid 未登记', 'scheduled_disabled':'主动任务未启用',
+                  'platform_or_instance_mismatch':'平台或实例不符', 'source_paused_or_revoked':'来源暂停或撤销',
+                  'source_identity_or_platform_mismatch':'来源身份或平台不符', 'source_configuration_unavailable':'来源配置不可读取'}
+        counts = getattr(self, '_rejections', {})
+        lines.append('本次加载后的拒收回调计数：' + ('；'.join(f'{label} {counts[code]}' for code, label in labels.items() if counts.get(code)) or '0') + '。不含正文或 UMO；多个钩子可对应同一消息。')
+        lines.append('已交出仅表示 SDK 持久接管，是否归档请看来源待补交和爱之屋真实记录；未提供 QQ 已读证明。')
+        yield event.plain_result('\n'.join(lines))

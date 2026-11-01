@@ -63,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 17749,
-      "sha256": "7f4f2dbdd1e347fa39ec41a50d74d972ad9d41c15921d0fc15be2803703c73d8"
+      "bytes": 19783,
+      "sha256": "a1e1cfdd5160e7cb468670e28baeea07d43267d8201d1fdf8d613956b9cf1dcd"
     },
     {
       "path": "ROADMAP.md",
@@ -452,6 +452,11 @@
       "sha256": "f4220e86d09b404bfbafcf2b9e8374a881d21171572c3580e97d28459d06963b"
     },
     {
+      "path": "docs/ReleaseNotes-0.10.1rc1-Windows.md",
+      "bytes": 5423,
+      "sha256": "b495d8f65a1edbfdc8d891e7633a4e63789dd9f23995b6d995cdc1af038de54e"
+    },
+    {
       "path": "docs/ReleaseNotes-0.9.1rc1-Windows.md",
       "bytes": 2204,
       "sha256": "1b1c752540346e7e571cfce3e535eb83209d4b17509b02ca10638a0c91eafc82"
@@ -467,6 +472,11 @@
       "sha256": "77132986f1d242e5d8b1467e0e3a5cc8905ac43c6402500e6c304fb4a918039f"
     },
     {
+      "path": "docs/WINDOWS-0101-UPDATE.md",
+      "bytes": 8975,
+      "sha256": "26daa5ccb8b060d6a3916a2151015d2e137c4e6fe1d2b7ccb58d251c88449d50"
+    },
+    {
       "path": "docs/WINDOWS-091-FIXES.md",
       "bytes": 5314,
       "sha256": "3f341e427413cb4dce1a8209d5fbcaa2e5d9cc8f24c57c5193a2e4923fc4e9ff"
@@ -478,8 +488,8 @@
     },
     {
       "path": "docs/下载与系统支持.md",
-      "bytes": 8756,
-      "sha256": "dd17769696c68cf9d7e15279e2debae52ebeae7e7c088cdfcb70d0361e9a6be2"
+      "bytes": 10228,
+      "sha256": "89302d3ce1969e9abc6d95845a43bb78fb1fc91a6c54f63623eed4add8a0114a"
     },
     {
       "path": "docs/发布与许可.md",

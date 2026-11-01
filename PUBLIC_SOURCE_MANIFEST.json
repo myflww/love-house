@@ -63,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 19783,
-      "sha256": "a1e1cfdd5160e7cb468670e28baeea07d43267d8201d1fdf8d613956b9cf1dcd"
+      "bytes": 20435,
+      "sha256": "65567db056a0925ade7a3f8baa267912893048d2fa8923b8bc16d00b4d1ec58f"
     },
     {
       "path": "ROADMAP.md",
@@ -488,8 +488,8 @@
     },
     {
       "path": "docs/下载与系统支持.md",
-      "bytes": 10228,
-      "sha256": "89302d3ce1969e9abc6d95845a43bb78fb1fc91a6c54f63623eed4add8a0114a"
+      "bytes": 10801,
+      "sha256": "ffcf835f4ed05ac35a8e80ba2e493cd00347646e5e0a90316dab63e27bcdf0d8"
     },
     {
       "path": "docs/发布与许可.md",
@@ -1410,6 +1410,21 @@
       "path": "启动知识星图.command",
       "bytes": 56,
       "sha256": "01a620523701c6620526a0becb9b268b5e7e10584401427cf6f2005722da879b"
+    },
+    {
+      "path": "docs/WINDOWS-0102-UPDATE.md",
+      "bytes": 5915,
+      "sha256": "5b57d7daa2338cd20d4587ab7ee26e10508bdf5feb03a555518b98d4c5c80766"
+    },
+    {
+      "path": "docs/ReleaseNotes-0.10.2rc1-Windows.md",
+      "bytes": 4806,
+      "sha256": "58d4e45916a3e562f78cb438ebae88822de57afb0bf96a2f809049a5eb9f6303"
+    },
+    {
+      "path": "docs/MACOS-0102-HANDOFF.md",
+      "bytes": 7677,
+      "sha256": "4ea472399dc7fb091b89636d2f01a5bffd5a73fd43a58888c7eb3d4a72c9d232"
     }
   ],
   "excluded": [

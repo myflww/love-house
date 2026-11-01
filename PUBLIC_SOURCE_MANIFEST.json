@@ -63,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 14125,
-      "sha256": "c1e33d9d7ef1536c3841287d9806d67088172f150c941d9bc34e4db5032fe1fb"
+      "bytes": 14864,
+      "sha256": "fa49430fb863142dc5f09c9307c1a21e92d6f885f7810371c371c28c38a7962a"
     },
     {
       "path": "ROADMAP.md",
@@ -438,13 +438,13 @@
     },
     {
       "path": "docs/下载与系统支持.md",
-      "bytes": 5850,
-      "sha256": "81c510814e735374f35bf211efe27154f8f5163812539c89920b20edb99480b9"
+      "bytes": 6067,
+      "sha256": "ece73e07d190189efa3645ce1885bd61409b43c68b35dbab24e31a56603d8454"
     },
     {
       "path": "docs/发布与许可.md",
-      "bytes": 5463,
-      "sha256": "79e623f90d6384f136e82d00d871462810bd74daa736c293ad391e9f87e578fa"
+      "bytes": 6468,
+      "sha256": "906e1fb72b8317772266887c6cecf29aec639b24e4160eed24b0557dca543f0d"
     },
     {
       "path": "docs/可视化.md",

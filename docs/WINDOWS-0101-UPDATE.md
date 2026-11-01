@@ -26,3 +26,15 @@
 只使用临时合成记忆与假 API／假凭据，没有读取或备份用户真实资料，没有新增真实 DeepSeek 付费调用。新 Windows 预览不代表 Win10 真机、运行时损坏、企业安装策略、任意 GPU／高 DPI／字体、全部模型账户或长期运行均已通过。旧记录被真正遗忘、停用或更正后，派生人格不能继续作为有效依据。
 
 本次不重发 macOS 或手机包，保留其公开入口与历史发布资产。自有代码继续采用 PolyForm Noncommercial 1.0.0，保留 myflww 署名及第三方许可；主程序未附商业发行商签名。
+
+修复 Windows 并发记录记忆使用时偶发的保存失败；同次使用仍只计一次，尚未确认的记录继续保留待处理，避免重复巩固。
+
+## Windows 已完成检查与公开下载复核
+
+冻结生产源码为 [`1a69676cb9e98b343fc0a01bb47e07028cb39323`](https://github.com/myflww/love-house/tree/1a69676cb9e98b343fc0a01bb47e07028cb39323)。[Windows 构建与安装记录](https://github.com/myflww/love-house/actions/runs/41312425782) 已完成 EXE／ZIP 构建，便携与安装各自的 backend／native／consumer 六份检查，以及从匿名下载的固定 0.9.1rc1 安装器覆盖升级。检查包含合成原文、库与回收站、固定连接范围、整理设置、人格明确关闭选择、私有配置摘要和假凭据元数据的保留及重启核对；原生窗口检查人格、批准的星图、独立记忆及完整导出。
+
+六份检查要求退出码 0、`ok:true`、`process_complete:true` 并清理临时目录。另见 [完整回归](https://github.com/myflww/love-house/actions/runs/41312425825) 和 [Harness 实际宿主轮次](https://github.com/myflww/love-house/actions/runs/41312425812)；这些记录使用同一冻结生产源码。
+
+公开下载复核另在独立 CI 中记录：从真正公开地址匿名下载 EXE／ZIP，核对固定 SHA256 后重新安装、解压及启动。上述构建、六份包内检查与覆盖升级不代替这一步，也不据此宣称公开下载安装已通过。发布附件、固定受测文件和后续验证入口见 [Windows 发布页](https://github.com/myflww/love-house/releases/tag/v0.10.1rc1)、[Windows-0101-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.1rc1/Windows-0101-verification.json) 与 [Windows-SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.10.1rc1/Windows-SHA256SUMS.txt)。
+
+只使用临时合成资料、模拟 API 和假凭据，未读取用户真实 Key，未新增真实 DeepSeek 调用。Win10 真机、缺失／损坏运行时、企业安装策略与长期运行仍待独立验收。

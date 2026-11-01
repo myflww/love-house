@@ -118,8 +118,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 18554,
-      "sha256": "622e7f1e36d0a0d9f1427bb8592fd5b3e764f03752496349e5a6e691f7a0b53f"
+      "bytes": 19904,
+      "sha256": "60f738576192518e6c76504d617782079ebb03b113172062f63df8c950e74be9"
     },
     {
       "path": "ROADMAP.md",
@@ -748,8 +748,8 @@
     },
     {
       "path": "docs/ReleaseNotes-0.10.1rc1-Windows.md",
-      "bytes": 2551,
-      "sha256": "fc70436dfe3c15c20e09d767eae083ba7a763d2a1972acd57a01ebb74a7b518b"
+      "bytes": 4681,
+      "sha256": "00cfc9fc0ce4117c8ad404c2f07a74cbd8662f86c9ff46c0abcf75d044a2c6ac"
     },
     {
       "path": "docs/ReleaseNotes-0.9.0-macOS.md",
@@ -773,8 +773,8 @@
     },
     {
       "path": "docs/WINDOWS-0101-UPDATE.md",
-      "bytes": 4585,
-      "sha256": "b0c251c1f880e317338ffaebbb9b731b9022bb85666c84ea5b3f341b09abc256"
+      "bytes": 6657,
+      "sha256": "0b43b91d96527ec98fbfc4f4ffaa44e4a04ac09473acf0e1e72eea2dd662d5a2"
     },
     {
       "path": "docs/WINDOWS-080-HANDOFF.md",
@@ -1993,8 +1993,8 @@
     },
     {
       "path": "scripts/windows-0101-publication.json",
-      "bytes": 415,
-      "sha256": "900551f124e388d1faf5c774d564161e7f46c6a6da0ee859531c9610298ac2a8"
+      "bytes": 1661,
+      "sha256": "ac001be7d01c9a28b8f8bfe75283a6a6fd252662072488f65224d140c3f7e590"
     },
     {
       "path": "scripts/windows-091-publication.json",

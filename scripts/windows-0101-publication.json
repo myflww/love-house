@@ -1,17 +1,52 @@
 {
   "schema": "love-house-windows-0101-publication/v1",
-  "ready": false,
-  "source_commit": "PENDING",
+  "ready": true,
+  "source_commit": "1a69676cb9e98b343fc0a01bb47e07028cb39323",
   "source_runs": {
-    "windows": null,
-    "regression": null,
-    "connection": null
+    "regression": 41312425825,
+    "windows": 41312425782,
+    "connection": 41312425812
   },
-  "windows_artifact": null,
-  "windows_evidence_artifact": null,
-  "windows_files": {},
-  "astrbot_package": null,
+  "windows_artifact": {
+    "id": 13085914225,
+    "name": "love-house-windows-x64",
+    "bytes": 520317888,
+    "sha256": "df11bea32090010b65ec865a61f4bed4634850abe535b9c6da575af6877df2ed"
+  },
+  "windows_evidence_artifact": {
+    "id": 13086670901,
+    "name": "windows-test-evidence",
+    "bytes": 6827,
+    "sha256": "bf252ac73c800f92b57ce8ab5d2b2ecf0b5e64cf52ccff3b95aa3df607f06c3c"
+  },
+  "windows_files": {
+    "LoveHouse-0.10.1rc1-Windows-x64.zip": {
+      "bytes": 265492223,
+      "sha256": "f4d23b4f20974d50b7777d8a10d6ee9fb6a73fd99660ef0d442d72f04c325e90"
+    },
+    "LoveHouse-Setup-0.10.1rc1-Windows-x64.exe": {
+      "bytes": 255420813,
+      "sha256": "8a9d5dfe5bb1963dd215ba5d209107857a668027e2d7f4f1bf364eacf66134e9"
+    },
+    "Windows-SHA256SUMS.txt": {
+      "bytes": 212,
+      "sha256": "22b8eeaed98600c4d739366a97e3eedcd028990e043501fd995abe2fbbc48a5d"
+    }
+  },
+  "astrbot_package": {
+    "bytes": 28022,
+    "sha256": "8904f0396bef5cc3374ddcbaeecdf214c3cf457114650b6669efced482703982"
+  },
   "notes_path": "docs/ReleaseNotes-0.10.1rc1-Windows.md",
-  "release_notes": null,
-  "doc_assets": {}
+  "release_notes": {
+    "bytes": 4681,
+    "sha256": "00cfc9fc0ce4117c8ad404c2f07a74cbd8662f86c9ff46c0abcf75d044a2c6ac"
+  },
+  "doc_assets": {
+    "WINDOWS-0101-UPDATE.md": {
+      "path": "docs/WINDOWS-0101-UPDATE.md",
+      "bytes": 6657,
+      "sha256": "0b43b91d96527ec98fbfc4f4ffaa44e4a04ac09473acf0e1e72eea2dd662d5a2"
+    }
+  }
 }

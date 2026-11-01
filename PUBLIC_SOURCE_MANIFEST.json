@@ -1633,8 +1633,8 @@
     },
     {
       "path": "nkb/service/usage.py",
-      "bytes": 9239,
-      "sha256": "c4b26bd6abc4c1e23838b8fdd5e9c28e2e1e029f90a869fcec2af09b7146456a"
+      "bytes": 10178,
+      "sha256": "263103ab6da2a6252606937ed3dc639e285a81b3c056c43d56853d0ad93a4429"
     },
     {
       "path": "nkb/service/windows_credentials.py",
@@ -2533,8 +2533,8 @@
     },
     {
       "path": "tests/test_usage_journal.py",
-      "bytes": 9254,
-      "sha256": "81f0d741690ebaa10cf4b35d9319125b02f99afb2528626d9aa2f97253381bd9"
+      "bytes": 10888,
+      "sha256": "b8fe346b4da34fe00284e90b7e270e4fe827ae94a22c5df5da96dd4707b46e46"
     },
     {
       "path": "tests/test_verify_signed_080rc2.py",
@@ -2578,8 +2578,8 @@
     },
     {
       "path": "tests/test_windows_upgrade_smoke.py",
-      "bytes": 9927,
-      "sha256": "87ccf8d605426c0fbb30e87eb338df5e341869265f94eaac475409017702448d"
+      "bytes": 10201,
+      "sha256": "435b5e5009ceb9513be52cc0d176d6dbb23f7d75f908553ef7788a7db6193e2d"
     },
     {
       "path": "tests/test_workbuddy_connection_state.py",

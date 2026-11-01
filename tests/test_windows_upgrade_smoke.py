@@ -60,11 +60,12 @@ class UpgradeSmokeTests(unittest.TestCase):
         from nkb.service.credentials import KeyStore
         fixture=tempfile.TemporaryDirectory(prefix='upgrade-api-proof-')
         self.addCleanup(fixture.cleanup)
-        credentials=Path(fixture.name)/'synthetic-credentials.json'
+        fixture_root=Path(fixture.name).resolve()
+        credentials=fixture_root/'synthetic-credentials.json'
         backend=FixtureCredentials(credentials)
         store=KeyStore(allow_source_build=False,windows_backend=backend)
         requests=[];phases=[]
-        old_source=Path(os.environ.get('LOVE_HOUSE_UPGRADE_OLD_SOURCE',str(ROOT)))
+        old_source=Path(os.environ.get('LOVE_HOUSE_UPGRADE_OLD_SOURCE',str(ROOT))).resolve()
         test=self
         class SourceApp(smoke.App):
             def start(self,version):
@@ -95,10 +96,13 @@ class UpgradeSmokeTests(unittest.TestCase):
                                 # Current-source CI starts from an explicit old
                                 # schema; the optional 0.9.1 proof already has it.
                                 db.execute('ALTER TABLE jobs DROP COLUMN purpose')
-        old=Path(fixture.name)/'old.exe';new=Path(fixture.name)/'new.exe'
+        # Deliberately retain an unresolved spelling, just as Windows TEMP can
+        # contain an 8.3 profile name. run() canonicalizes its installer paths.
+        alias=fixture_root/'path-spelling';alias.mkdir()
+        old=alias/'..'/'old.exe';new=alias/'..'/'new.exe'
         old.write_bytes(b'SYNTHETIC old installer');new.write_bytes(b'SYNTHETIC new installer')
         real_digest=smoke.digest
-        def digest(path):return smoke.OLD_SETUP_SHA256 if Path(path)==old else real_digest(path)
+        def digest(path):return smoke.OLD_SETUP_SHA256 if Path(path).resolve()==old.resolve() else real_digest(path)
         def install(setup,destination):
             destination.mkdir(parents=True,exist_ok=True)
             (destination/'LoveHouse.exe').write_bytes(b'SYNTHETIC process substituted by Controller')

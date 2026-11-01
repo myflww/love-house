@@ -8,7 +8,7 @@ Windows 0.10.2rc1 以已发布的 Windows 0.10.1rc1 为基线，新增三项共�
 
 ## 1. AstrBot 快速配置与插件 0.3.0
 
-主要文件：`nkb/service/agent_sources.py`、`nkb/service/host.py`、`nkb/viz/web/agent-sources-ui.js`、`extensions/astrbot-love-house/` 及相关 AstrBot／agent sources 回归。
+主要文件：`nkb/service/astrbot_setup.py`（新增）、`nkb/service/agent_sources.py`、`nkb/service/host.py`、`nkb/viz/web/agent-sources-ui.js`、`extensions/astrbot-love-house/` 及相关 AstrBot／agent sources 回归。
 
 保留现有管理界面会话鉴权与人工归属确认。向导收集同机范围、平台、目标会话 `/sid`，生成实际存在的私有来源配置、固定标识、会话白名单和完整插件 JSON。配置路径必须来自 Mac 自身的来源服务，不能复制 Windows 绝对路径。另一台服务器或隔离容器不能直接使用本机文件，需走对应宿主的安全配置流程。
 

@@ -84,7 +84,8 @@ NATIVE_FEATURE_REPORT={
     'viewport_and_labels':'passed','details_minimap_pause':'passed','backend_restart':'passed',
 }
 RELEASE_REPORT={'status':'passed','astrbot_setup':'passed','organizer_api_status':'passed',
-    'library_isolation':'passed','nebula_left_rotation':'passed','hover_pause_resume':'passed','real_model_calls':0}
+    'library_isolation':'passed','nebula_left_rotation':'passed','hover_pause_resume':'passed','real_model_calls':0,
+    'motion_preference':'synthetic-toggle','reduced_motion_respected':'passed'}
 PublicationError=common.PublicationError
 require=common.require
 identity=common.identity

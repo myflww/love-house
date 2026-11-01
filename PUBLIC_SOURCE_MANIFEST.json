@@ -74,7 +74,7 @@
     {
       "path": ".github/workflows/release.yml",
       "bytes": 31348,
-      "sha256": "9fd1df1a5c8c33083c84f8db250d92efd90834aa9e2c4ed74de36f8ea7d31146"
+      "sha256": "3bb154faf727deee778211cdee0d27fca334aadd1f3bfac8d5759bc4434c996d"
     },
     {
       "path": ".github/workflows/verify-public-windows-mobile-preview.yml",
@@ -643,13 +643,13 @@
     },
     {
       "path": "desktop/windows_0102_smoke.py",
-      "bytes": 7397,
-      "sha256": "9a7fbbc8e1952c1dab1d549bcb8373d4d945cf02f017b1ad9307e14f63e31df7"
+      "bytes": 10724,
+      "sha256": "8fa048a091c9eb4ce19ebceda2dccf042967d9d9e42bfbf5d32c8846e151b08a"
     },
     {
       "path": "desktop/windows_app.py",
-      "bytes": 42976,
-      "sha256": "26d38296d47b1441324fb898c6a64f706a31f46b1a1c7e23187c25026e264710"
+      "bytes": 43181,
+      "sha256": "7aa4ed862db034bd03303beb0554b05edb382df82b4c081d6a3595261fafe33f"
     },
     {
       "path": "desktop/windows_diagnostics.py",
@@ -713,8 +713,8 @@
     },
     {
       "path": "docs/MACOS-0102-HANDOFF.md",
-      "bytes": 4901,
-      "sha256": "3abeec92bf46ad8dc79ccfacb93e0e5e81eb97240935d56a5071da90d51a241f"
+      "bytes": 4946,
+      "sha256": "b6f5a6338b500f87fd77a2b336e8d8e07a4775f1afa477ea5e7b46df8a668d7d"
     },
     {
       "path": "docs/MACOS-060-HANDOFF.md",
@@ -1908,8 +1908,8 @@
     },
     {
       "path": "scripts/build_windows.py",
-      "bytes": 12368,
-      "sha256": "6ed505eb8b46bbc68285e6c9f08bfb1b209ed7edd45aed0f06b04e07b95813e8"
+      "bytes": 12421,
+      "sha256": "0c802584b866c18c869737023291c7840095d4cb2ca476e04afe1bb0d0b4c2db"
     },
     {
       "path": "scripts/check_android_remote_reports.py",
@@ -1968,8 +1968,8 @@
     },
     {
       "path": "scripts/publish_windows_0102.py",
-      "bytes": 23464,
-      "sha256": "38ce48e11e02efed1d6cbf69c3a0fedbed884e0b24b399bef514f77fc062fd4f"
+      "bytes": 23544,
+      "sha256": "b3d679aff8348abe4108b0f725ffc70b54e5abf9918da6b823ec6a9aa05a6f93"
     },
     {
       "path": "scripts/publish_windows_091.py",

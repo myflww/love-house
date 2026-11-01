@@ -22,7 +22,7 @@ const budget=by('organizerCallLimit').closest('.form-row');execution.append(budg
 settings.insertBefore(execution,by('saveOrganizerSettings'));
 cadence.options[0].textContent='累计原文后整理';cadence.options[1].textContent='每轮完整对话后';
 const triggerBox=make('div','memory-trigger-note');triggerBox.id='organizerTriggerState';triggerBox.setAttribute('role','status');by('organizerCounts').after(triggerBox);
-const topNote=by('runOrganizer').closest('.ai-compose-actions').nextElementSibling;if(topNote?.classList.contains('form-note'))topNote.textContent='预览不会调用模型。明确有证据的内容可整理，冲突与人格变化先等你确认。';
+const topNote=by('runOrganizer').closest('.ai-compose-actions').nextElementSibling;if(topNote?.classList.contains('form-note'))topNote.textContent='预览不会调用模型。有依据的记忆和人格特征按规则整理；明确设定与冲突仍由你确认。';
 function modeNote(){const n=Number(threshold.value),session=cadence.value==='session';thresholdLabel.hidden=threshold.hidden=session;thresholdNote.textContent=session?'每轮完整对话可触发一批；调用与字符预算照常限制。':n===0?'0 为旧兼容模式：不足一批时，等约30秒也可整理。填1–500即可严格等到N条。':`累计到 ${Number.isInteger(n)&&n>0?n:'N'} 条才自动开始，不会因为等待时间较长而提前调用模型。`;
  if(ORGANIZER.dirty)thresholdNote.textContent+=' 修改后请保存才生效。';}
 function renderTrigger(data){const settings=data.settings||{},status=data.status||{},t=status.trigger||{};triggerBox.replaceChildren();let title,note;
@@ -36,16 +36,16 @@ function renderTrigger(data){const settings=data.settings||{},status=data.status
 const originalRender=renderOrganizer;
 renderOrganizer=function(data){originalRender(data);if(!ORGANIZER.dirty){const s=data.settings||{},fresh=!s.enabled&&!s.provider_id&&!s.model;threshold.value=String(fresh?20:num(s.auto_trigger_count));}modeNote();renderTrigger(data);updateControls();};
 threshold.addEventListener('input',()=>{ORGANIZER.dirty=true;modeNote();});cadence.addEventListener('change',modeNote);
-saveOrganizerSettings=async function(){
+saveOrganizerSettings=async function(options={}){
  if(!canWrite()||MEMORY.busy||UI.busy)return;const owner=context();const trigger=Number(threshold.value);
  if(!threshold.value.trim()||!Number.isInteger(trigger)||trigger<0||trigger>500){toast('累计阈值请填0–500的整数；0保留旧兼容节奏。',true);return;}
- const body={enabled:by('organizerEnabled').checked,provider_mode:by('organizerMode').value,connection_id:by('organizerConnection').value||null,
+ const body={enabled:options.enable===true?true:by('organizerEnabled').checked,provider_mode:by('organizerMode').value,connection_id:by('organizerConnection').value||null,
   cadence:cadence.value,auto_trigger_count:trigger,batch_size:num(batch.value),daily_call_limit:num(by('organizerCallLimit').value),daily_char_limit:num(by('organizerCharLimit').value)};
  if(!Number.isInteger(body.batch_size)||body.batch_size<1||body.batch_size>12||!Number.isInteger(body.daily_call_limit)||body.daily_call_limit<1||body.daily_call_limit>1000||!Number.isInteger(body.daily_char_limit)||body.daily_char_limit<3000||body.daily_char_limit>2000000){toast('每批1–12条，每日1–1000次，字符预算3000–2000000。',true);return;}
  if(body.provider_mode==='separate'){try{Object.assign(body,providerPayload('organizerProvider'));}catch(e){toast(e.message,true);return;}}
  else if(body.enabled&&!body.connection_id){toast('请选择当前库的模型连接，或设置独立整理模型。');return;}
  MEMORY.busy=true;writeBusy=true;updateWriteState();let acknowledged=false;
- try{const result=await api('organizer/settings',body);acknowledged=true;if(!current(owner))return;by('organizerProviderKey').value='';ORGANIZER.dirty=false;await refreshOrganizer();if(!current(owner))return;by('organizerNotice').textContent=result.warning||'';toast('整理设置已保存；只按当前规则和预算运行。');}
+ try{const result=await api('organizer/settings',body);acknowledged=true;if(!current(owner))return;by('organizerProviderKey').value='';ORGANIZER.dirty=false;await refreshOrganizer();if(!current(owner))return;by('organizerNotice').textContent=result.warning||'';toast(options.enable===true?'已保存并开启自动整理；人格学习按本库开关和预算逐步进行。':'整理设置已保存；只按当前规则和预算运行。');return result;}
  catch(e){if(!e.staleLibrary)toast(acknowledged?'设置已保存，状态读取未确认；请刷新整理面板。':'保存未确认：'+e.message,true);}
  finally{MEMORY.busy=false;writeBusy=false;updateWriteState();}
 };

@@ -92,6 +92,10 @@ def failure_message(code):
         "provider_error":"整理模型连接失败；请检查网络和代理，原文仍保留",
         "invalid_output":"整理模型未返回有效JSON，未应用结果；请使用支持JSON输出的兼容模型",
         "truncated_output":"整理输出达到长度上限，未应用；请减少每批条数或选择合适的整理模型",
+        "invalid_persona_trait":"人格资料未通过角色、依据或指令边界检查，原文仍保留；可检查资料后明确重试",
+        "invalid_persona_traits":"本次人格资料均未通过校验，未形成人格；原文仍保留，请检查资料后明确重试",
+        "persona_learning_disabled":"人格或随对话学习已关闭，未发送快速整理资料；需要时由你重新开启",
+        "invalid_persona_plan":"人格缓存的任务用途不一致，未应用；请重新预览后明确开始",
     }.get(code, "整理未完成，原文仍保留，可查看状态或重试")
 
 

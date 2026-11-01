@@ -308,7 +308,10 @@ class MemoryHost:
         brain=Brain(self.snapshot(library_id));ids=[]
         for node in brain.nodes.values():
             if is_duplicate(node,brain) or node.get('meta',{}).get('memory_disabled'):continue
-            if node.get('meta',{}).get('source') not in ('conversation_turn','tool_observation','agent_output','harness_recorded','persona_import_source'):continue
+            if node.get('meta',{}).get('source') not in ('conversation_turn','tool_observation','agent_output','harness_recorded','persona_import_source','history_import'):continue
+            if node['meta']['source']=='history_import':
+                from ..organizer.state import _roles
+                if set(_roles(node))!={'assistant'}:continue
             ids.append((node['meta'].get('evidence') or {}).get('archive_receipt_id') or node['id'])
         for i in range(0,len(ids),1000):self.organizer.enqueue(library_id,list(dict.fromkeys(ids[i:i+1000])))
     def forget_preview(self,library_id,nid):
@@ -382,12 +385,51 @@ class MemoryHost:
         for nid in node_ids:
             node=brain.get(nid)
             if node is None or is_duplicate(node,brain) or node.get('meta',{}).get('memory_disabled'):continue
-            if node.get('meta',{}).get('source') not in ('conversation_turn','tool_observation','agent_output','harness_recorded','persona_import_source'):continue
+            if node.get('meta',{}).get('source') not in ('conversation_turn','tool_observation','agent_output','harness_recorded','persona_import_source','history_import'):continue
+            if node['meta']['source']=='history_import':
+                from ..organizer.state import _roles
+                if set(_roles(node))!={'assistant'}:continue
             evidence=node['meta'].get('evidence') or {}
             ids.append(evidence.get('archive_receipt_id') or nid)
         ids=list(dict.fromkeys(ids))
         for offset in range(0,len(ids),1000):self.organizer.enqueue(library_id,ids[offset:offset+1000])
         return len(ids)
+
+    def persona_organize(self,library_id,data,*,preview=False):
+        """One explicit, budgeted persona-only history sample; no ordinary queue reset."""
+        from ..core.brain import Brain
+        from ..companion.persona import persona_state
+        if not isinstance(data,dict) or set(data)-({'max_records'} if preview else {'confirm','max_records'}):
+            raise ValidationError('人格整理只接受确认和抽样上限，不接受其他存档参数')
+        if self.library(library_id)['is_demo']:raise ValidationError('示例库不能整理人格，请选择个人记忆库')
+        if not preview and data.get('confirm') is not True:
+            raise ValidationError('请先预览并确认使用本库整理模型；每次最多一次请求，按原预算计费')
+        persona=persona_state(Brain(self.snapshot(library_id)),library_id=library_id)
+        organizer=self.organizer_view(library_id);provider=organizer['provider']
+        selected=self.organizer.persona_selection(library_id,max_records=data.get('max_records',60))
+        ids=selected.pop('selected_ids')
+        with self.connections.db() as db:
+            archive_only=db.execute("SELECT COUNT(*) FROM receipts WHERE library_id=? AND status!='forgotten' AND (node_ids IS NULL OR node_ids='[]')",(library_id,)).fetchone()[0]
+        result={**selected,'library_id':library_id,'persona_enabled':persona['enabled'],
+                'learning_enabled':persona['learning_enabled'],'organizer_enabled':organizer['settings']['enabled'],
+                'model_ready':provider.get('model_ready') is True,'credential_ready':provider.get('credential_ready') is True,
+                'queued_records':0,'remaining_records':max(0,selected['eligible_records']-selected['selected_records']),
+                'archive_only_records':archive_only}
+        if not persona['enabled']:status,action='persona_disabled','enable_persona'
+        elif not persona['learning_enabled']:status,action='learning_disabled','enable_learning'
+        elif not result['model_ready'] or not result['credential_ready']:status,action='model_not_configured','configure_organizer'
+        elif not result['organizer_enabled']:status,action='organizer_paused','enable_organizer'
+        elif not result['budget_available']:status,action='budget_limited','wait_for_budget'
+        elif len(ids)<2:status,action='insufficient_evidence','import_more_dialogue'
+        else:status,action='ready','confirm_persona_organization'
+        result.update(status=status,next_action=action)
+        if preview or status!='ready':return result
+        queued=self.organizer.enqueue_persona(library_id,ids)
+        if queued['queued']:
+            threading.Thread(target=self.organizer.run_once,args=(library_id,),
+                kwargs={'flush':True,'job_id':queued['job_id']},daemon=True).start()
+        return {**result,**queued,'status':'queued','read_only':False,'will_call_model':True,
+                'queued_records':queued['selected_records'],'next_action':'wait_for_persona_result'}
     def duplicate_view(self,library_id):
         from ..core.brain import Brain
         from ..companion.dedup import possible_groups,is_duplicate,canonical_id,recording_version
@@ -850,7 +892,8 @@ def make_controller(host):
         @staticmethod
         def _management_path(path):
             return (path in ('/api/connections','/api/memory/status','/api/agent/sources','/api/activity')
-                    or path.startswith(('/api/connections/','/api/agent/sources/','/api/activity/')))
+                    or path in ('/api/persona/organize-preview','/api/persona/organize')
+                    or path.startswith(('/api/connections/','/api/agent/sources/','/api/activity/','/api/persona/traits/')))
         def _guard_connection_surface(self,path):
             # A memory bearer is a per-connection capability, not a desktop
             # management credential. Local desktop requests without a bearer
@@ -1018,6 +1061,12 @@ def make_controller(host):
                 if path=='/api/memory/handoff':return self._json(host.window_handoff(self._chosen(),data))
                 if path in ('/api/dialogue-import/preview','/api/dialogue-import/apply'):
                     return self._json(host.dialogue_import(self._chosen(),data,apply=path.endswith('/apply')))
+                if path in ('/api/persona/organize-preview','/api/persona/organize'):
+                    return self._json(host.persona_organize(self._chosen(),data,preview=path.endswith('-preview')))
+                if len(parts)==5 and parts[:3]==['api','persona','traits'] and parts[4]=='remove':
+                    if set(data)-{'expected_revision'}:raise ValidationError('人格资料移除只接受当前版本号')
+                    from ..companion.persona import remove_learned_trait
+                    return self._json(host.transact(self._chosen(),lambda brain:remove_learned_trait(brain,parts[3],expected_revision=data.get('expected_revision'))))
                 if path=='/api/updates/check':return self._json(host.updates.request_check())
                 if path=='/api/updates/settings':return self._json(host.updates.settings(data))
                 if path=='/api/retention/settings':return self._json(host.retention_settings(self._chosen(),data))

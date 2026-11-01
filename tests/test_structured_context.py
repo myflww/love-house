@@ -99,7 +99,7 @@ class StructuredContextTests(unittest.TestCase):
         result=self.build([old,new,missing]);self.assertEqual(result['memory_ids'],[new]);self.assertNotIn('以前喜欢咖啡',result['packet'])
 
     def test_empty_and_disabled_persona_are_explicit_without_invented_profile(self):
-        empty=self.build([])['memory_context'];self.assertEqual(empty['persona']['status'],'unset');self.assertFalse(empty['persona']['enabled'])
+        empty=self.build([])['memory_context'];self.assertEqual(empty['persona']['status'],'unset');self.assertTrue(empty['persona']['enabled'])
         self.assertNotIn('manual',empty['persona'])
         import_persona(self.brain,'你是一个简短温柔的伙伴。','ui')
         active=self.build([])['memory_context']['persona'];self.assertEqual(active['manual'],'你是一个简短温柔的伙伴。')

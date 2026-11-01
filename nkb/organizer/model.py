@@ -32,7 +32,10 @@ def transport(request, *, timeout):
         raw = response.read(1024 * 1024 + 1)
     if len(raw) > 1024 * 1024:
         raise OrganizerError("整理模型返回过大，未应用", "invalid_output")
-    return json.loads(raw)
+    try:
+        return json.loads(raw)
+    except (ValueError, UnicodeError, TypeError):
+        raise OrganizerError(failure_message("invalid_output"), "invalid_output") from None
 
 
 def _non_thinking_json_task(url, model):
@@ -44,7 +47,7 @@ def _non_thinking_json_task(url, model):
     parsed = urlsplit(url)
     return (parsed.scheme == "https" and parsed.hostname == "api.deepseek.com"
             and parsed.port in (None, 443)
-            and model in {"deepseek-flash", "deepseek-v4-pro", "deepseek-chat"})
+            and model in {"deepseek-flash", "deepseek-v4-pro"})
 
 
 def validate_key(key):
@@ -62,9 +65,9 @@ def resolve_model(profile, credential):
     resolved = {**profile, **({k: credential[k] for k in ("base_url", "model") if k in credential}
                               if isinstance(credential, dict) else {})}
     key = validate_key(credential.get("api_key") if isinstance(credential, dict) else credential)
-    if not isinstance(resolved["model"], str) or not resolved["model"].strip():
+    if not isinstance(resolved.get("model"), str) or not resolved["model"].strip():
         raise OrganizerError("整理模型名称未配置", "missing_model")
-    url = endpoint(resolved["base_url"])
+    url = endpoint(resolved.get("base_url"))
     return resolved, key, url
 
 
@@ -89,6 +92,10 @@ def failure_message(code):
         "provider_error":"整理模型连接失败；请检查网络和代理，原文仍保留",
         "invalid_output":"整理模型未返回有效JSON，未应用结果；请使用支持JSON输出的兼容模型",
         "truncated_output":"整理输出达到长度上限，未应用；请减少每批条数或选择合适的整理模型",
+        "invalid_persona_trait":"人格资料未通过角色、依据或指令边界检查，原文仍保留；可检查资料后明确重试",
+        "invalid_persona_traits":"本次人格资料均未通过校验，未形成人格；原文仍保留，请检查资料后明确重试",
+        "persona_learning_disabled":"人格或随对话学习已关闭，未发送快速整理资料；需要时由你重新开启",
+        "invalid_persona_plan":"人格缓存的任务用途不一致，未应用；请重新预览后明确开始",
     }.get(code, "整理未完成，原文仍保留，可查看状态或重试")
 
 
@@ -113,9 +120,9 @@ def call_model(profile, credential, payload, send=transport):
         except (KeyError,IndexError,TypeError):
             raise OrganizerError(failure_message("invalid_output"), "invalid_output") from None
         if choice.get("finish_reason") == "length":
-            raise OrganizerError("整理输出不完整，未应用", "truncated_output")
+            raise OrganizerError(failure_message("truncated_output"), "truncated_output")
         if not isinstance(content, str) or len(content) > 100000 or key in content:
-            raise OrganizerError("整理输出不合法，未应用", "invalid_output")
+            raise OrganizerError(failure_message("invalid_output"), "invalid_output")
         try:
             return json.loads(content)
         except (ValueError, TypeError):
@@ -128,10 +135,15 @@ def call_model(profile, credential, payload, send=transport):
                  400:"provider_request_rejected",422:"provider_request_rejected",429:"rate_limited"}.get(
                     exc.code, "provider_unavailable" if 500 <= exc.code < 600 else "provider_http_error"))
         raise OrganizerError(failure_message(code), code) from None
+    except ssl.SSLCertVerificationError:
+        raise OrganizerError(failure_message("tls_error"), "tls_error") from None
     except (TimeoutError, socket.timeout):
-        raise OrganizerError("整理模型超时，任务将重试，原文仍保留", "timeout") from None
+        raise OrganizerError(failure_message("timeout"), "timeout") from None
     except urllib.error.URLError as exc:
-        code = "tls_error" if isinstance(exc.reason, ssl.SSLCertVerificationError) else "provider_error"
+        code = ("tls_error" if isinstance(exc.reason, ssl.SSLCertVerificationError) else
+                "timeout" if isinstance(exc.reason, (TimeoutError, socket.timeout)) else "provider_error")
         raise OrganizerError(failure_message(code), code) from None
+    except (json.JSONDecodeError, UnicodeError):
+        raise OrganizerError(failure_message("invalid_output"), "invalid_output") from None
     except Exception:
-        raise OrganizerError("整理模型连接或输出格式失败，原文仍保留", "provider_error") from None
+        raise OrganizerError(failure_message("provider_error"), "provider_error") from None

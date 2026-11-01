@@ -150,7 +150,7 @@ def memory_bootstrap(brain, library_id, library_name, *, max_chars=12000):
                                       library_name=library_name, agent_id=library_id)
     return {"schema": BOOTSTRAP_SCHEMA, "identity": identity, "revision": _revision(records),
             "total_memories": len(records), "included_memories": context["memory_context"]["counts"]["included"],
-            "excluded": excluded, "persona": _persona(brain, now()),
+            "excluded": excluded, "persona": _persona(brain, now(), library_id),
             "memory_context": context["memory_context"], "read_only": True,
             "all_memory_loaded": (len(records) == context["memory_context"]["counts"]["included"]
                                   and not context["memory_context"]["truncation"]["truncated"]),

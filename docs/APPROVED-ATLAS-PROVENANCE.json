@@ -1,0 +1,100 @@
+{
+  "source": "tests/fixtures/approved-neural-atlas-demo.source.txt",
+  "source_sha256": "dd31e23f5834b83bdf0c1b881bf2302852747d927834b326a9014fc2b9740090",
+  "source_bytes": 29023,
+  "output": "nkb/viz/art/approved-atlas-painter.js",
+  "output_sha256": "de68a8c8394e1bf840903b289f29d5b5732f0221f1da7150415c7ec94b4199d5",
+  "reused_functions": [
+    {
+      "name": "edgeStyle",
+      "source_sha256": "83b6181efac49ff6e82d5ceffa401db15b099b180745c71cc373b2e7c7d0b3e6",
+      "output_sha256": "83b6181efac49ff6e82d5ceffa401db15b099b180745c71cc373b2e7c7d0b3e6",
+      "exact_match": true,
+      "source_changes": []
+    },
+    {
+      "name": "curveFor",
+      "source_sha256": "29501ea6e9683870fbda4128eab736cb495395c882d91473b1ab2db385236dae",
+      "output_sha256": "29501ea6e9683870fbda4128eab736cb495395c882d91473b1ab2db385236dae",
+      "exact_match": true,
+      "source_changes": []
+    },
+    {
+      "name": "pointAt",
+      "source_sha256": "3848fe4f2a6da4b41849e7c5b172726eb41c5ab7ffad4a7bfb45bc4f903f94c5",
+      "output_sha256": "3848fe4f2a6da4b41849e7c5b172726eb41c5ab7ffad4a7bfb45bc4f903f94c5",
+      "exact_match": true,
+      "source_changes": []
+    },
+    {
+      "name": "path",
+      "source_sha256": "c07dd364f60704d05542b1f8f7839c8d0bf4d45f26a904c20c8c0d0f7f33ef3c",
+      "output_sha256": "c07dd364f60704d05542b1f8f7839c8d0bf4d45f26a904c20c8c0d0f7f33ef3c",
+      "exact_match": true,
+      "source_changes": []
+    },
+    {
+      "name": "drawFlatGuide",
+      "source_sha256": "0c2aa57b02892b1b0845e3b9339354ecccf69946eabedae9bca1d95a7453e855",
+      "output_sha256": "0c2aa57b02892b1b0845e3b9339354ecccf69946eabedae9bca1d95a7453e855",
+      "exact_match": true,
+      "source_changes": []
+    },
+    {
+      "name": "drawCloud",
+      "source_sha256": "6ce3ebf73953bb100400c330fbc0f7f3c6e5803ae93f6bc617362007101c9849",
+      "output_sha256": "6ce3ebf73953bb100400c330fbc0f7f3c6e5803ae93f6bc617362007101c9849",
+      "exact_match": true,
+      "source_changes": []
+    },
+    {
+      "name": "drawEdges",
+      "source_sha256": "8674d5e870681456ec995a7e9d5f154a457222b27a3054e6e337d0f21978707f",
+      "output_sha256": "8674d5e870681456ec995a7e9d5f154a457222b27a3054e6e337d0f21978707f",
+      "exact_match": true,
+      "source_changes": []
+    },
+    {
+      "name": "drawNodes",
+      "source_sha256": "1e594e4a782e39023026e0afad478a9068d8045623e61e86b99ee3bfaacfeae3",
+      "output_sha256": "1e594e4a782e39023026e0afad478a9068d8045623e61e86b99ee3bfaacfeae3",
+      "exact_match": true,
+      "source_changes": []
+    },
+    {
+      "name": "drawPulses",
+      "source_sha256": "cdeb3f608c6f13bc7635e2cf9a6c502dd2406d8d9f32cc793d2b6a485c1a9165",
+      "output_sha256": "cdeb3f608c6f13bc7635e2cf9a6c502dd2406d8d9f32cc793d2b6a485c1a9165",
+      "exact_match": true,
+      "source_changes": []
+    }
+  ],
+  "bridge_only_changes": [
+    "Real nodes use stable numeric indices, retain real IDs in .real, and expose only visible nodes through the original iterator; actual edges are filtered only by endpoints.",
+    "edgeStyle is literal; true effective_w/w are clamped through synapseMetrics, real cumulative recalls are normalized through recallActivity into the original 0-100 activity input. No monthly-frequency claims.",
+    "Original project calls are bridged to host projectLocal using normalized graphScale and graph-y/world-y conversion. Screen solid-core radius is compensated through original n.size * ratio * zoom.",
+    "Node lifetime alpha is applied by rgba through the original per-node screen read; no change to drawNodes source. Actual active recall map supplies dimming only.",
+    "A context proxy suppresses duplicate node labels/backplates because original application owns naming/inspector. Original guide text and all core/edge drawing remain unchanged.",
+    "Dust generator is the literal original distribution (950/hub,38/leaf), deterministically seeded from actual IDs, with 14k cloud budget. Lexical Math.ceil bounds the original edge-sheath count so clouds + sheath/passive particles remain <=18k.",
+    "Explicit original pulses are triggered only by newly observed actual result trail/lit edges, not fabricated activity. No DOM, clock, network, store or graph mutations.",
+    "drawGuide delegates the literal drawFlatGuide and skips graphs with fewer than three visible real nodes. Actual category labels replace demo group names.",
+    "The original default highlighted core maps to the highest-degree actual visible hub as styling only; host selection and recall counters remain unchanged."
+  ],
+  "original_context": "Isolated visual demonstration approved 2026-11-01, archived verbatim as a non-executable text fixture.",
+  "layout_functions": [
+    {
+      "name": "flatPosition",
+      "output": "nkb/viz/art/approved-atlas-data.js",
+      "source_sha256": "2f088d22dfb24aa157f2b810dbe3b9f97b7f77a6c87b91336556e9ca1d4c85e7",
+      "output_sha256": "2f088d22dfb24aa157f2b810dbe3b9f97b7f77a6c87b91336556e9ca1d4c85e7",
+      "exact_match": true
+    }
+  ],
+  "layout_bridge": "Stable real ID/category slots, cumulative recall activity and world-scale conversion; archived flatPosition itself unchanged.",
+  "nebula_position_statements": {
+    "output": "nkb/viz/art/approved-atlas-data.js",
+    "source_sha256": "e04e0b10a857bba675d52e9710a3e3d1ceacc76d7bdc983508e11f420302e337",
+    "output_sha256": "e04e0b10a857bba675d52e9710a3e3d1ceacc76d7bdc983508e11f420302e337",
+    "exact_match": true
+  }
+}

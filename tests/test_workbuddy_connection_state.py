@@ -20,6 +20,10 @@ class ConnectionStateTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory()
         self.root=Path(self.temp.name)
+        # Configuration previews must not inspect the developer's WorkBuddy file.
+        self.synthetic_home=self.root/'synthetic-home'
+        home=patch('nkb.service.agent_client.Path.home',return_value=self.synthetic_home)
+        home.start();self.addCleanup(home.stop)
         self.host=MemoryHost(self.root,key_store=KeyStore(allow_keychain=False))
         self.server=ThreadingHTTPServer(('127.0.0.1',0),make_controller(self.host))
         self.host.controller_port=self.server.server_port
@@ -192,7 +196,7 @@ class ConnectionStateTests(unittest.TestCase):
 
     def test_local_ui_session_is_required_for_enumeration_config_and_rebind(self):
         route='/api/connections/'+self.cid
-        for path in ('/api/connections',route+'/config','/api/memory/status','/api/activity'):
+        for path in ('/api/connections',route+'/config','/api/memory/status','/api/activity','/api/agent/sources'):
             code,data,_=self.request(path)
             self.assertEqual(code,401,data)
             self.assertNotIn(self.cid,json.dumps(data))
@@ -210,6 +214,27 @@ class ConnectionStateTests(unittest.TestCase):
         code,result,_=self.request(route+'/rebind',body,auth)
         self.assertEqual(code,200,result)
         self.assertEqual(result['connection']['binding_revision'],1)
+
+    def test_source_management_requires_ui_session_for_both_read_and_write(self):
+        path='/api/agent/sources'
+        body={'name':'Synthetic private source','adapter':'sdk',
+              'runtime_agent_id':'SYNTHETIC-SOURCE','platforms':['browser']}
+        for method_body in (None,body):
+            code,data,_=self.request(path,method_body)
+            self.assertEqual(code,401,data)
+            self.assertNotIn('SYNTHETIC-SOURCE',json.dumps(data))
+        self.assertEqual(self.host.sources.list('default'),[])
+        _,_,headers=self.request('/')
+        auth={'Cookie':headers['Set-Cookie'].split(';')[0]}
+        for method_body in (None,body):
+            self.assertEqual(self.request(path,method_body,{**auth,'Authorization':'Bearer '+self.token})[0],403)
+            self.assertEqual(self.request(path,method_body,{**auth,'Origin':'https://foreign.invalid'})[0],403)
+        code,result,_=self.request(path,body,auth)
+        self.assertEqual(code,200,result)
+        self.assertEqual(Path(result['private_path']).resolve().relative_to(self.root.resolve()).parts[0],'agent-sources')
+        code,result,_=self.request(path,headers=auth)
+        self.assertEqual(code,200,result)
+        self.assertEqual(len(result['sources']),1)
 
     def test_workbuddy_install_plan_needs_ui_and_does_not_mark_harness_installed(self):
         route='/api/connections/'+self.cid+'/workbuddy/configure'

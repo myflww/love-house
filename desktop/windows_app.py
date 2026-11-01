@@ -400,8 +400,10 @@ def backend_smoke(report):
         finally:runtime.stop()
         from windows_organizer_smoke import organizer_smoke
         organizer=organizer_smoke(root)
+        from windows_latest_smoke import latest_backend_smoke
+        latest_backend=latest_backend_smoke(root)
         result={'ok':True,'version':__version__,'controller':'passed','stdio_and_hook':'passed' if getattr(sys,'frozen',False) else 'source-only',
-                'sharing_roundtrip':'passed','restart':'passed','latest_feature_apis':'passed','astrbot_source_package':'passed','organizer':organizer,'real_model_calls':0,'real_credentials_accessed':False}
+                'sharing_roundtrip':'passed','restart':'passed','latest_feature_apis':'passed','astrbot_source_package':'passed','organizer':organizer,'latest_backend':latest_backend,'real_model_calls':0,'real_credentials_accessed':False}
     result.update(phase='complete',process_complete=True,cleanup={'status':'removed','isolated':True})
     smoke_report(report,result)
     return result
@@ -433,6 +435,23 @@ def verify_native_exports(window,api,runtime,directory):
         api._choose_export=selected
     def share(button):
         return evaluate("""(async()=>{const d=document.getElementById('memoryShareDialog');if(d.open)d.close();await window.LoveHousePortability.openShare();const c=document.getElementById('sharePersonalConsent');c.checked=true;c.dispatchEvent(new Event('change'));const b=document.getElementById('"""+button+"""');if(b.disabled)throw Error('Synthetic share is disabled');await b.onclick();return {notice:d.querySelector('.portability-notice').textContent};})()""")
+    def share_with_optional_status(button,kind):
+        return evaluate("""(async()=>{
+          const original=api,d=document.getElementById('memoryShareDialog');let queries=0;
+          try{
+            api=function(route,...args){if(route==='sharing/summary-provider'){queries++;return """+json.dumps(kind)+"""==='rejected'?Promise.reject(Error('Synthetic optional provider rejected')):new Promise(()=>{});}return original(route,...args);};
+            if(d.open)d.close();await window.LoveHousePortability.openShare();
+            const consent=document.getElementById('sharePersonalConsent');consent.checked=true;consent.dispatchEvent(new Event('change'));
+            const details=document.getElementById('shareAIOptions');
+            const toggled=new Promise(resolve=>details.addEventListener('toggle',resolve,{once:true}));details.open=true;
+            await Promise.race([toggled,new Promise((_,reject)=>setTimeout(()=>reject(Error('Synthetic optional details did not open')),1500))]);
+            await Promise.resolve();await Promise.resolve();
+            const allowed=!document.getElementById('downloadMemoryJSON').disabled&&!document.getElementById('downloadMemoryMarkdown').disabled;
+            const unavailable=document.getElementById('generateShareSummary').dataset.ready==='false';
+            await document.getElementById("""+json.dumps(button)+""").onclick();
+            return {notice:d.querySelector('.portability-notice').textContent,allowed,unavailable,queries};
+          }finally{api=original;if(d.open)d.close();}
+        })()""")
     try:
         saved=root/'合成分享.json';choose(saved);value=share('downloadMemoryJSON')
         assert '文件已保存' in value['notice'],value
@@ -451,17 +470,25 @@ def verify_native_exports(window,api,runtime,directory):
         try:value=share('downloadMemoryJSON')
         finally:api._window=original
         assert '导出未完成' in value['notice'] and len(choices)==count,value
+        for kind in ('rejected','pending'):
+            for button,suffix in (('downloadMemoryJSON','.json'),('downloadMemoryMarkdown','.md')):
+                target=root/('optional-'+kind+suffix);choose(target)
+                value=share_with_optional_status(button,kind)
+                assert value['allowed'] and value['unavailable'] and value['queries']==1 and '文件已保存' in value['notice'],value
+                text=target.read_text('utf-8')
+                assert user in text and assistant in text
         runtime.host.organizer_view=organizer_view
         plugin=root/'合成插件.zip';choose(plugin)
         value=evaluate("""(async()=>{document.getElementById('memoryShareDialog').close();await window.LoveHouseSources.open();await document.getElementById('exportAstrBotPlugin').onclick();return {notice:document.getElementById('agentSourcesStatus').textContent};})()""")
         assert '实验插件已导出' in value['notice'] and plugin.read_bytes()==runtime.host.astrbot_package(),value
         return {'json_original_roles':'passed','markdown':'passed','cancel':'passed','write_error':'passed','organizer_independent_preview':'passed',
+                'optional_provider_rejected_and_pending':'passed',
                 'foreign_origin':'passed','astrbot_zip':'passed','dialog_selection':'synthetic_owned_path',
                 'astrbot_sha256':hashlib.sha256(plugin.read_bytes()).hexdigest()}
     finally:api._choose_export=None;runtime.host.organizer_view=organizer_view
 
 
-def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=False):
+def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=False,smoke_expected=None):
     # Arbitrate the writer before testing the renderer. A second instance must
     # consistently report already_running even when its environment is broken.
     runtime=ControllerRuntime(data_dir,testing=smoke).start()
@@ -520,6 +547,12 @@ def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=F
                     value=box['value'];assert value['health']['ok'] and value['health']['version']==__version__
                     assert value['save_bridge'] and value['graph'] and value['webgl'] and value['latest_controls'],value
                     result['native_exports']=verify_native_exports(window,api,runtime,data_dir)
+                    from windows_latest_smoke import verify_latest_ui
+                    # A hidden WebView2 surface can suspend animation frames.
+                    # Show only this owned smoke window to exercise real drawing.
+                    window.show()
+                    result['latest_features'],expected=verify_latest_ui(window,runtime)
+                    if smoke_expected is not None:smoke_expected.update(expected)
                     result.update(ok=True,webview=value,phase='native_checks_passed')
                 except Exception as exc:result.update(failure=smoke_failure(exc),phase='native_checks_failed')
                 finally:window.destroy()
@@ -554,7 +587,14 @@ def native_smoke(report,log=None,*,visible=False):
     scratch_log=StartupLog(Path(directory)/'startup.log')
     primary=None
     try:
-        run_window(directory,smoke=True,result=result,log=scratch_log,visible=visible)
+        latest_expected={}
+        run_window(directory,smoke=True,result=result,log=scratch_log,visible=visible,smoke_expected=latest_expected)
+        # Re-open only the owned synthetic Controller data after the native
+        # window and writer have closed; this is a backend restart proof.
+        from windows_latest_smoke import verify_latest_restart
+        restarted=ControllerRuntime(directory,testing=True).start()
+        try:result['latest_features']['backend_restart']=verify_latest_restart(restarted,latest_expected)
+        finally:restarted.stop()
     except Exception as exc:
         primary=exc;result['ok']=False;result.setdefault('failure',smoke_failure(exc))
     finally:

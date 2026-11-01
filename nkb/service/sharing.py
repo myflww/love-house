@@ -34,7 +34,7 @@ _PRIVATE_KEYS = {
     "libraryid", "agentid", "path", "filepath", "localpath", "attachmentpath",
     "organizerprofile", "organizerlog", "companioningestion",
 }
-_META_KEYS = {"created", "updated", "companion_profile", "companion_persona",
+_META_KEYS = {"created", "updated", "companion_profile", "companion_persona", "companion_persona_preferences",
               "organizer_candidates", "long_term_archive"}
 _KEY = re.compile(r"\b(?:sk-(?:proj-|ant-api\d+-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{22,}|AKIA[A-Z0-9]{16})\b")
 _AUTH = re.compile(r"(?i)\b(?:Bearer|Basic)\s+[A-Za-z0-9_+/.=-]{12,}")
@@ -45,6 +45,17 @@ _URL = re.compile(r'''https?://[^\s<>"'，。；）)]+''')
 
 def _encode(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, allow_nan=False, separators=(",", ":"))
+
+
+def _safe_persona_preferences(meta):
+    value=meta.get('companion_persona_preferences')
+    if not isinstance(value,dict):
+        meta.pop('companion_persona_preferences',None);return
+    clean={key:value[key] for key in ('enabled','learning_enabled','user_disabled') if type(value.get(key)) is bool}
+    for key,pattern in (('blocked_trait_ids',r'persona_trait_[a-f0-9]{24}'),('blocked_trait_evidence',r'[a-f0-9]{64}')):
+        values=value.get(key)
+        if isinstance(values,list):clean[key]=[item for item in values if isinstance(item,str) and re.fullmatch(pattern,item)]
+    meta['companion_persona_preferences']=clean
 
 
 class _Sanitizer:
@@ -129,6 +140,7 @@ def _safe_brain(snapshot, scrub):
         if len(ends) != 2: raise ValidationError("记忆关系格式不正确")
         if all(n in nodes for n in ends): edges[key] = scrub.value(edge)
     meta = scrub.value({k: deepcopy(v) for k, v in snapshot.get("meta", {}).items() if k in _META_KEYS})
+    _safe_persona_preferences(meta)
     meta["long_term_archive"] = True
     # Recovery starts idle; runtime, organizer settings and credentials are not shared.
     config = Config.from_dict(snapshot.get("config") or {"half_life": snapshot.get("half_life")}).to_dict()
@@ -155,7 +167,11 @@ def _validate_brain(data):
         for key in data["edges"]:
             a, b = key.split("|")
             if a not in data["nodes"] or b not in data["nodes"]: raise ValueError()
-        Brain(deepcopy(data)).export()
+        checked=Brain(deepcopy(data));checked.export()
+        # Imported personality flags are data, not an opportunity to poison all
+        # later context reads. Validate before creating the destination library.
+        from ..companion.persona import persona_state
+        persona_state(checked)
         _encode(data)
     except (ValueError, KeyError, TypeError, AttributeError, OverflowError, ConfigError):
         raise ValidationError("分享文件中的图谱不完整或数值不正确") from None
@@ -362,6 +378,7 @@ class ShareStore:
         new_name = name or (value["name"][:70] + " · 分享导入")
         created = self.host.manager.create_library(new_name)
         library_id = created["id"]; brain = deepcopy(value["memory"]); brain["name"] = created["name"]
+        _safe_persona_preferences(brain['meta'])
         mapping = {row["id"]: sha256((library_id + ":" + row["id"]).encode()).hexdigest() for row in value["archives"]}
         def remap(item):
             if isinstance(item, dict):
@@ -382,8 +399,10 @@ class ShareStore:
             loaded = Brain(brain)
             from ..organizer.experiences import rebind_experiences_after_import
             rebind_experiences_after_import(loaded,library_id)
+            from ..companion.persona import rebind_formed_persona_after_import
+            persona_import=rebind_formed_persona_after_import(loaded,library_id)
             for field in ("nodes", "edges", "meta", "_vec", "name", "config", "half_life"): setattr(target, field, deepcopy(getattr(loaded, field)))
-            return {"node_count": len(target.nodes)}
+            return {"node_count": len(target.nodes),'persona_import':persona_import}
         try:
             with self.host._apply_lock:
                 with self.host.connections.db() as db:
@@ -396,10 +415,14 @@ class ShareStore:
                                    (mapping[row["id"]], "shared-import", library_id, row.get("session_id", ""), str(row.get("kind", "event"))[:80],
                                     "saved" if node_ids else "archived", payload, sha256(payload.encode()).hexdigest(),
                                     row.get("received") or time.time(), 0, None, row.get("applied"), json.dumps(node_ids)))
-                self.host.transact(library_id, apply)
+                applied=self.host.transact(library_id, apply)
         except Exception:
             with self.host.connections.db() as db: db.execute('DELETE FROM receipts WHERE library_id=?', (library_id,))
             raise ValidationError("分享导入未完成，原有库没有改动，新建库暂为空") from None
         self.host.manager.select(library_id)
-        return {"imported": True, "library": self.host.library(library_id), "selected_id": library_id,
-                "connections_rebound": False, "organizer_enabled": False, "counts": value["counts"]}
+        result={"imported": True, "library": self.host.library(library_id), "selected_id": library_id,
+                "connections_rebound": False, "organizer_enabled": False, "counts": value["counts"],
+                'persona_import':applied['persona_import']}
+        if result['persona_import']['unavailable']:
+            result['warning']='部分人格资料的依据无法在新存档中核验，已暂不启用；原始记忆保留，可重新整理。'
+        return result

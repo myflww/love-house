@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import uuid
 import math
+import re
 from bisect import bisect_left, bisect_right
 from copy import deepcopy
 from pathlib import Path
@@ -28,6 +29,10 @@ from ..storage.jsonfile import JsonFileStorage
 from ..utils import DAY, fmt_age, now as _now  # noqa: F401
 
 SCHEMA_VERSION = 1
+_AUTOLINK_BOOKKEEPING_TAGS=frozenset(('导入','笔记导入','历史对话导入','原始对话','用户确认',
+    'harness记录','承诺','工具观察','助手输出'))
+_AUTOLINK_TEMPLATE_LABEL=re.compile(r'^(?:段落\s*\d+|概述|正文|未命名)$')
+_AUTOLINK_LABEL_PREFIX=re.compile(r'^(?:导入对话|对话|用户审阅|工具观察|助手输出|fact|preference|experience|commitment|persona)\s*[·•]\s*',re.I)
 
 
 class Brain:
@@ -333,20 +338,20 @@ class Brain:
         return self.edges.pop(self._key(a, b), None) is not None
 
     def auto_link(self, nid: str, top: int | None = None, floor: float = 0.0):
-        """按字面重合把新节点接到最近的既有节点。孤岛节点永远不会被扩散带到。"""
+        """Use content overlap only; bookkeeping and zero-score neighbors prove no relation."""
         node = self._must(nid)
         top = self.config.auto_link_top if top is None else top
-        v = self._vec[nid]
+        v = self._auto_link_vec_for(node)
         ts = _now()
         if not self._node_state(node, ts)["recoverable"]:
             return []
-        scored = [(dice(v, self._vec[o["id"]]), o["id"])
+        scored = [(dice(v, self._auto_link_vec_for(o)), o["id"])
                   for o in self.nodes.values() if o["id"] != nid
                   and self._node_state(o, ts)["recoverable"]]
         scored.sort(reverse=True)
         out = []
         for d, oid in scored[:top]:
-            if d <= floor:
+            if d <= 0 or d <= floor:
                 continue
             w = self.link(nid, oid, min(0.6, 0.22 + d))
             out.append((oid, w))
@@ -403,7 +408,6 @@ class Brain:
                        tags=kw.pop("tags", ["承诺"]), salience=0.85,
                        impact=kw.pop("impact", 0.4),
                        meta={"due": due, "status": "open", **kw.pop("meta", {})})
-        self.auto_link(nid, top=2)   # 承诺要挂在已有知识上，孤岛永远不会被想起
         return nid
 
     def due(self, within: float | None = None, now: float | None = None) -> list[dict]:
@@ -458,9 +462,7 @@ class Brain:
                 key = self._key(a, b)
                 e = self.edges.get(key)
                 if e is None:
-                    self.edges[key] = {"w": round(min(cfg.edge_max, lr), 4),
-                                       "n": 1, "last": ts, "decay_at": ts,
-                                       "valid_from": ts, "valid_to": None}
+                    continue  # Co-retrieval is not evidence of a new relationship.
                 elif e.get("valid_to") is not None and e["valid_to"] <= ts:
                     continue  # 联合回忆不等于重新声明一条失效的事实关系
                 else:
@@ -468,7 +470,7 @@ class Brain:
                                        self._edge_weight(e, ts) + lr * (1.0 - self._edge_weight(e, ts))), 4)
                     e["n"] += 1
                     e["last"] = e["decay_at"] = ts
-                    e.pop("automatic_anchor", None)
+                    # Usage does not take ownership of a typed context relation.
                 pairs += 1
         for i in ([] if adaptive else ids):
             n = self.nodes[i]
@@ -1045,6 +1047,25 @@ class Brain:
     def _vec_for(self, n: dict) -> set:
         raw = f'{n["label"]} {n.get("text", "")} {" ".join(n.get("tags") or [])}'
         return set(self.encoder(raw))
+
+    def _auto_link_vec_for(self, n: dict) -> set:
+        """Keep retrieval unchanged; only explicit content can propose a new edge.
+
+        Generated tags/titles describe how a record entered the store, not what
+        two memories have in common. User-provided semantic tags remain useful.
+        File/directory tags from legacy imports are bookkeeping too.
+        """
+        meta=n.get('meta',{})
+        generated=set()
+        filename=meta.get('file')
+        if isinstance(filename,str) and filename:
+            path=Path(filename.replace('\\','/')).with_suffix('')
+            generated.update(path.parts)
+        label=_AUTOLINK_LABEL_PREFIX.sub('',n.get('label','').strip())
+        if _AUTOLINK_TEMPLATE_LABEL.fullmatch(label) or label in generated:label=''
+        tags=[tag for tag in n.get('tags',[]) if tag.strip().casefold() not in _AUTOLINK_BOOKKEEPING_TAGS
+              and tag not in generated]
+        return set(self.encoder(' '.join([label,n.get('text',''),*tags])))
 
     @staticmethod
     def _key(a: str, b: str) -> str:

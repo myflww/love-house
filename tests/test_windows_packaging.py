@@ -285,10 +285,26 @@ class WindowsPackagingTests(unittest.TestCase):
             if directory.exists():original(directory)
 
     def test_native_success_is_finalized_after_shutdown_and_explicit_cleanup(self):
-        def verified(directory,**kwargs):kwargs['result'].update(ok=True,controller_stopped=True,renderer='edgechromium')
+        import windows_latest_smoke
+        events=[]
+        def verified(directory,**kwargs):
+            events.append('native-window-closed')
+            kwargs['smoke_expected'].update(selected='synthetic-library')
+            kwargs['result'].update(ok=True,controller_stopped=True,renderer='edgechromium',latest_features={})
+        def checked_restart(runtime,expected):
+            self.assertEqual(events,['native-window-closed','restart-started'])
+            self.assertEqual(expected,{'selected':'synthetic-library'})
+            events.append('restart-verified')
+            return 'passed'
+        restart=MagicMock()
+        restart.start.side_effect=lambda:(events.append('restart-started'),restart)[1]
+        restart.stop.side_effect=lambda:events.append('restart-stopped')
         with tempfile.TemporaryDirectory() as directory:
             report=Path(directory)/'native.json'
-            with patch.object(windows,'run_window',side_effect=verified):value=windows.native_smoke(report)
+            with patch.object(windows,'run_window',side_effect=verified),patch.object(windows,'ControllerRuntime',return_value=restart),patch.object(windows_latest_smoke,'verify_latest_restart',side_effect=checked_restart):
+                value=windows.native_smoke(report)
+            self.assertEqual(events,['native-window-closed','restart-started','restart-verified','restart-stopped'])
+            self.assertEqual(value['latest_features']['backend_restart'],'passed')
             self.assertTrue(value['ok']);self.assertTrue(value['process_complete'])
             self.assertEqual(value['phase'],'complete');self.assertEqual(value['cleanup']['status'],'removed')
             self.assertEqual(json.loads(report.read_text('utf-8')),value)

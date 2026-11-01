@@ -107,13 +107,13 @@ Brain(data=None, path=None, encode=None, storage=None, config=None, scorer=None)
 | `.remove(nid) -> bool` | 删节点及其所有边 |
 | `.link(a, b, w=0.35) -> float` | 连边并加强，返回新权重；自连抛错 |
 | `.unlink(a, b) -> bool` | 删边 |
-| `.auto_link(nid, top=None, floor=0.0) -> [(id, w)]` | 按字面重合连最近的几个 |
+| `.auto_link(nid, top=None, floor=0.0) -> [(id, w)]` | 显式高级字面近似关联；普通入库默认不调用，零分不连 |
 
 ### 学习 / 遗忘
 
 | 方法 | 说明 |
 |---|---|
-| `.reinforce(ids, lr=None, bump=None) -> {"nodes","pairs"}` | 赫布：两两加强 + 回血 |
+| `.reinforce(ids, lr=None, bump=None) -> {"nodes","pairs"}` | 巩固节点及已有有效边；不因共召回给无边节点对新建关系 |
 | `.forget(now=None) -> {"dropped","dropped_ids","thinned"}` | 按半衰期衰减，跌破阈值删除 |
 
 ### 读
@@ -312,3 +312,8 @@ MCP新增`kb_preview`。`kb_recall`缺省`learn=false`，明确传`true`才写�
 - `POST /api/ai/harness/context`：总是验证个人记忆服务，示例界面不冒充个人库。
 
 例库不接受陪伴记忆写入和实际API聊天，避免把演示材料混成用户经历。API密钥仅用于本次调用或从`DEEPSEEK_API_KEY`读取；不写入知识库、配置、日志或MCP工具响应。
+
+
+### macOS 0.10.1 的独立记忆默认策略
+
+普通新增、确认记忆、承诺、HTTP/MCP新增和旧文本导入默认不猜测连边；孤点仍可直接检索和回忆。HTTP/MCP需明确布尔`auto_link:true`、CLI需明确`--auto-link`，才调用高级字面近似工具。共享叙述前缀、标签或同时命中检索不能当作关系证明。模型自由提出的`related_ids/relate`不自动建边，合法事实与其真实来源仍可保存；旧缓存应用时执行同样规则，预算不重置、不追加模型请求。明确用户引用、手工连接及带类型的事件上下文仍保留。

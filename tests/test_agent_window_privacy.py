@@ -121,7 +121,8 @@ class AgentWindowPrivacyTests(unittest.TestCase):
         self.assertNotIn(b'server-other-window',self.all_disk_bytes())
 
     def test_old_configs_without_scope_remain_explicit_connection_compatible(self):
-        old=json.loads(self.path.read_text());old.pop('session_scope');old.pop('bound_session_id');old.pop('session_scope_policy',None)
+        old=json.loads(self.path.read_text());old.pop('session_scope');old.pop('bound_session_id')
+        old.pop('session_scope_policy',None);old.pop('binding_revision',None)
         self.path.write_text(json.dumps(old))
         self.assertEqual(validate_config(old)['session_scope'],'any')
         self.assertTrue(self.client.submit_hook(self.hook('old-window-A'))['queued'])

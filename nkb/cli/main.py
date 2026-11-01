@@ -57,7 +57,7 @@ def cmd_add(a):
                 event_at=_parse_when(a.event_at) if a.event_at else None,
                 session_id=a.session,
                 meta={"important": True} if a.important else None)
-    links = [] if a.no_link else b.auto_link(nid, top=a.link_top)
+    links = b.auto_link(nid,top=a.link_top) if a.auto_link and not a.no_link else []
     b.save()
     print(f"已加入 {nid} · {a.kind} · {a.label}")
     for i, w in links:
@@ -128,7 +128,7 @@ def cmd_stats(a):
 
 def cmd_ingest(a):
     b = _load(a.brain)
-    r = ingest_dir(b, a.dir, kind=a.kind, mode=a.mode)
+    r = ingest_dir(b, a.dir, kind=a.kind, mode=a.mode,link=a.auto_link and not a.no_link)
     b.save()
     print(f"已存盘：{a.brain}  ({len(b.nodes)} 节点)")
 
@@ -336,8 +336,7 @@ def cmd_doctor(a):
         line(True, f"节点数 {n}" + ("（正常的空白记忆库）" if n == 0 else ""))
 
         dead = [i for i in brain.nodes if not brain.neighbors(i)]
-        line(not dead, f"孤立节点 {len(dead)} 个",
-             "孤立节点不会被扩散带到；跑 `nkb link` 或重新 ingest")
+        line(True, f"独立节点 {len(dead)} 个（正常；可直接检索，不必为了连通补线）")
 
     from ..retrieval.encoders import available
     encs = available()
@@ -417,7 +416,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--session", default=None, help="同一会话的标识，用于锚点上下文")
     s.add_argument("--event-at", default=None, help="事件时间，例如 '2026-10-28 08:30'")
     s.add_argument("--important", action="store_true", help="标记重要记忆，免于时间遗忘")
-    s.add_argument("--no-link", action="store_true", help="不自动连边")
+    s.add_argument("--auto-link", action="store_true", help="显式使用高级词面近似连线；默认不连，不构成事实关系证明")
+    s.add_argument("--no-link", action="store_true", help="保持不猜测关联（兼容旧参数，优先于--auto-link）")
     s.add_argument("--link-top", type=int, default=2)
     s.set_defaults(fn=cmd_add)
 
@@ -495,6 +495,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("dir")
     s.add_argument("--kind", default="doc")
     s.add_argument("--mode", default="heading", choices=["heading", "whole"])
+    s.add_argument("--auto-link", action="store_true", help="显式使用高级词面近似连线；默认不连")
+    s.add_argument("--no-link", action="store_true", help="保持不猜测关联（兼容参数，优先于--auto-link）")
     s.set_defaults(fn=cmd_ingest)
 
     s = sub.add_parser("forget", parents=[common], help="执行一次衰减")

@@ -38,7 +38,7 @@ test('opening sharing requests only its archive, never an optional provider; con
 });
 test('a failed preview replaces the top loading message and refresh retries the real request',async()=>{
  let fail=true;const c=setup(async()=>{if(fail)throw Error('合成读取失败');return preview;});await c.open();c.consent();
- assert.equal(c.get('downloadMemoryJSON').disabled,true);assert(c.words().includes('无法读取分享范围：合成读取失败'));assert(!c.words().includes('检查这个存档的范围'));
+ assert.equal(c.get('downloadMemoryJSON').disabled,true);assert(c.words().includes('无法预览：合成读取失败'));assert(!c.words().includes('检查这个存档的范围'));
  fail=false;await c.get('refreshMemoryShare').onclick();c.consent();assert.equal(c.requests.length,2);assert.equal(c.get('downloadMemoryJSON').disabled,false);
 });
 test('an unanswered preview times out visibly, and a late result cannot revive the old state',async()=>{
@@ -51,8 +51,8 @@ test('optional provider failure or timeout cannot disable JSON and Markdown afte
  let mode='error';const c=setup(async route=>{if(route==='sharing/preview')return preview;if(mode==='error')throw Error('模型配置不可读');return new Promise(()=>{});});await c.open();c.consent();
  const details=all(c.get('memoryShareDialog')).find(e=>e.tagName==='DETAILS');details.open=true;
  await details.ontoggle();for(let i=0;i<8;i++)await Promise.resolve();
- assert(c.words().includes('可选阅读索引暂不可用'));assert.equal(c.get('downloadMemoryJSON').disabled,false);assert.equal(c.get('downloadMemoryMarkdown').disabled,false);
+ assert(c.words().includes('状态暂时无法确认'));assert.equal(c.get('downloadMemoryJSON').disabled,false);assert.equal(c.get('downloadMemoryMarkdown').disabled,false);
  mode='hang';details.open=false;details.ontoggle();details.open=true;details.ontoggle();
- const timeout=[...c.timers.values()].find(t=>t.delay===30000);assert(timeout);timeout.callback();for(let i=0;i<8;i++)await Promise.resolve();
- assert.equal(c.get('downloadMemoryJSON').disabled,false);assert(c.words().includes('完整分享仍可直接保存'));
+ const timeout=[...c.timers.values()].find(t=>t.delay===4000);assert(timeout);timeout.callback();for(let i=0;i<8;i++)await Promise.resolve();
+ assert.equal(c.get('downloadMemoryJSON').disabled,false);assert(c.words().includes('完整 JSON 和 Markdown 仍可直接保存'));
 });

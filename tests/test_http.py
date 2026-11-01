@@ -113,6 +113,42 @@ class HTTPTests(unittest.TestCase):
         self.assertIn("reinforced", recall)
         self.assertIn("markdown", recall)
 
+    def test_learn_true_keeps_unrelated_retrieval_seeds_disconnected(self):
+        texts=['火山喷发形成熔岩。','邮票收藏需要镊子。']
+        ids=[]
+        for text in texts:
+            status,added,_=self.request('POST','/api/add',{'label':text,'text':text,'tags':['导入']})
+            self.assertEqual(status,200,added);ids.append(added['id'])
+        status,result,_=self.request('POST','/api/recall',{'query':' '.join(texts),'k':2,'learn':True})
+        self.assertEqual(status,200,result)
+        self.assertEqual({item['id'] for item in result['hits']},set(ids))
+        self.assertEqual(result['reinforced']['pairs'],0)
+        self.assertEqual(Brain.open(self.path).edges,{})
+
+    def test_default_add_and_both_remember_paths_ignore_shared_narration_prefix(self):
+        texts=['今天我读到火山喷发形成熔岩。','今天我研究邮票收藏使用镊子。','今天我学习钢琴调律校正音准。']
+        stamp=time.time()-10
+        for route in ('add','remember','harness'):
+            for text in texts:
+                if route=='add':path='/api/add';body={'label':text,'text':text,'session_id':'泡泡','event_at':stamp}
+                else:
+                    path='/api/ai/remember';body={'text':text,'session_id':'泡泡','important':False}
+                    if route=='harness':body['origin']='harness'
+                status,result,_=self.request('POST',path,body)
+                self.assertEqual(status,200,result)
+            self.assertEqual(Brain.open(self.path).edges,{})
+
+    def test_advanced_auto_link_requires_explicit_boolean_true_before_mutating(self):
+        self.assertEqual(self.request('POST','/api/add',{'label':'恒星观测','text':'观察恒星光谱。'})[0],200)
+        before=Brain.open(self.path).to_dict()
+        for path in ('/api/add','/api/ai/remember'):
+            for value in ('true',1,None):
+                status,_,_=self.request('POST',path,{'label':'恒星观测记录','text':'观察恒星光谱。','auto_link':value})
+                self.assertEqual(status,400);self.assertEqual(Brain.open(self.path).to_dict(),before)
+        status,result,_=self.request('POST','/api/add',{'label':'恒星观测记录','text':'观察恒星光谱。','auto_link':True})
+        self.assertEqual(status,200,result);self.assertEqual(len(result['linked_to']),1)
+        self.assertEqual(len(Brain.open(self.path).edges),1)
+
     def test_json_must_be_a_valid_object_with_finite_numbers(self):
         invalid = [b"{", b"[]", b"null", b'"text"', b"",
                    b'{"label":"x","impact":NaN}', b'{"label":"x","impact":Infinity}',

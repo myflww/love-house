@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {createWaveSpline,threadVertex,threadFragment,brainSurface} from './digital-brain-adapted.js';
 import {nodeCountPolicy,viewportPolicy} from './viewport-policy.js';
+import {synapseMetrics,sampleSynapse,gravityTargets,recallActivity} from './synapse-dynamics.js';
+import {createApprovedAtlasRenderer} from './approved-atlas-renderer.js';
 const TAU=Math.PI*2;
 const KIND=Object.fromEntries(['concept','fact','episode','preference','source','doc','question','answer','commitment','reflection'].map(k=>[k,[.92,.92,.92]]));
 function hash(s){let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return(h>>>0)/4294967296;}
@@ -116,4 +118,4 @@ class NeuralArt{
  dispose(){this.clearGraph();this.pointMaterial.dispose();this.glowMaterial.dispose();this.lineMaterial.dispose();this.cloudMaterial.dispose();this.pulseMaterial.dispose();this.particleTexture.dispose();this.controls.dispose();this.renderer.dispose();}
 }
 export {NeuralArt,nodeVisualMetrics,nodeScreenDiameter,POINT_CORE_RADIUS,BREATH_AMPLITUDE,pointVertex,pointFragment};
-window.NKBArt={NeuralArt,viewportPolicy,version:'2.1.0',upstream:'SahilK-027/Digital-Brain@366cf81',three:THREE.REVISION};
+window.NKBArt={NeuralArt:createApprovedAtlasRenderer(NeuralArt),viewportPolicy,synapseMetrics,sampleSynapse,gravityTargets,recallActivity,version:'3.1.0',upstream:'SahilK-027/Digital-Brain@366cf81',three:THREE.REVISION};

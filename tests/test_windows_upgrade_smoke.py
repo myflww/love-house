@@ -146,15 +146,33 @@ class UpgradeSmokeTests(unittest.TestCase):
             with smoke.owned_fixture():raise ValueError('initial')
         for directory in captured:shutil.rmtree(directory)
 
-    def test_window_ready_requires_this_process_start_segment(self):
+    def test_window_ready_requires_new_bytes_and_the_real_pid_free_start_schema(self):
         with tempfile.TemporaryDirectory() as directory:
             log=Path(directory)/'logs/startup.log';log.parent.mkdir()
-            entries=[{'event':'start','pid':123},{'event':'window','phase':'window_ready'},
-                     {'event':'start','pid':456}]
-            log.write_text('\n'.join(json.dumps(e) for e in entries),encoding='utf-8')
-            self.assertFalse(smoke.window_ready(directory,456))
-            log.write_text(log.read_text('utf-8')+'\n'+json.dumps({'event':'window','phase':'window_ready'}),encoding='utf-8')
-            self.assertTrue(smoke.window_ready(directory,456))
+            def append(value):
+                with log.open('a',encoding='utf-8') as stream:stream.write(json.dumps(value)+'\n')
+            append({'event':'start','version':smoke.OLD_VERSION})
+            append({'event':'window','phase':'window_ready'})
+            cursor=smoke.startup_log_cursor(directory)
+            self.assertFalse(smoke.window_ready(directory,cursor,smoke.OLD_VERSION))
+            append({'event':'start','version':smoke.OLD_VERSION,'frozen':True})
+            self.assertFalse(smoke.window_ready(directory,cursor,smoke.OLD_VERSION))
+            append({'event':'window','phase':'window_ready','renderer':'edgechromium'})
+            self.assertTrue(smoke.window_ready(directory,cursor,smoke.OLD_VERSION))
+            self.assertFalse(smoke.window_ready(directory,cursor,smoke.NEW_VERSION))
+
+    def test_window_ready_handles_rotation_between_start_and_ready_without_reusing_old_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log=Path(directory)/'logs/startup.log';log.parent.mkdir()
+            log.write_text(json.dumps({'event':'start','version':smoke.OLD_VERSION})+'\n'+
+                json.dumps({'event':'window','phase':'window_ready'})+'\n',encoding='utf-8')
+            cursor=smoke.startup_log_cursor(directory)
+            with log.open('a',encoding='utf-8') as stream:
+                stream.write(json.dumps({'event':'start','version':smoke.NEW_VERSION})+'\n')
+            log.replace(log.with_name('startup.1.log'))
+            log.write_text(json.dumps({'event':'window','phase':'window_ready'})+'\n',encoding='utf-8')
+            self.assertTrue(smoke.window_ready(directory,cursor,smoke.NEW_VERSION))
+            self.assertFalse(smoke.window_ready(directory,cursor,smoke.OLD_VERSION))
 
     def test_cleanup_does_not_retry_other_files_or_permission_denial(self):
         with smoke.owned_fixture() as root:

@@ -59,6 +59,7 @@ class App:
         environment['LOCALAPPDATA'] = str(self.data.parent / 'isolated-local-appdata')
         environment['TEMP'] = environment['TMP'] = str(self.data.parent / 'isolated-temp')
         Path(environment['TEMP']).mkdir(exist_ok=True)
+        log_cursor=startup_log_cursor(self.data)
         self.process = subprocess.Popen([str(self.executable), '--data-dir', str(self.data)],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             env=environment, startupinfo=startup, creationflags=subprocess.CREATE_NO_WINDOW)
@@ -72,7 +73,7 @@ class App:
                     continue
                 self.base = 'http://127.0.0.1:' + str(ready['controller_port'])
                 health = self.request('/api/health')
-                if health['ok'] is True and health['version'] == version and window_ready(self.data,self.process.pid):
+                if health['ok'] is True and health['version'] == version and window_ready(self.data,log_cursor,version):
                     response = self.client.open(self.base + '/', timeout=15)
                     require(response.status == 200, 'Disposable UI session was not issued')
                     response.read()
@@ -147,17 +148,50 @@ def graph_originals(value):
     return {node['id']: (node['text'], node.get('meta', {}).get('assistant_reply')) for node in value['nodes']}
 
 
-def window_ready(data,pid):
-    try:lines=(Path(data)/'logs/startup.log').read_text('utf-8').splitlines()
+def log_identity(path):
+    try:
+        stat=Path(path).stat()
+        return {'identity':(stat.st_dev,stat.st_ino),'offset':stat.st_size}
+    except OSError:return None
+
+
+def startup_log_cursor(data):
+    log=Path(data)/'logs/startup.log'
+    return {'main':log_identity(log),'rotated':log_identity(log.with_name('startup.1.log'))}
+
+
+def window_ready(data,cursor,version):
+    """Read only this launch's new bytes, using the actual PID-free log schema.
+
+    App.start independently checks runtime/app.json belongs to its new PID.
+    If StartupLog rotates after our byte cursor, join the new tail of that
+    same file (now startup.1.log) with the new current file in temporal order.
+    Missing/truncated logs require a new start/version and a later ready event.
+    """
+    log=Path(data)/'logs/startup.log';rotated=log.with_name('startup.1.log')
+    current=log_identity(log)
+    if current is None:return False
+    prior=cursor['main'];chunks=[]
+    if prior and current['identity']==prior['identity'] and current['offset']>=prior['offset']:
+        parts=[(log,prior['offset'])]
+    else:
+        previous=log_identity(rotated)
+        if prior and previous and previous['identity']==prior['identity'] and previous['offset']>=prior['offset']:
+            parts=[(rotated,prior['offset']),(log,0)]
+        elif prior is None and previous and (cursor['rotated'] is None or previous['identity']!=cursor['rotated']['identity']):
+            parts=[(rotated,0),(log,0)]
+        else:parts=[(log,0)]
+    try:
+        for path,offset in parts:
+            with path.open('rb') as stream:
+                stream.seek(offset);chunks.append(stream.read())
     except OSError:return False
-    current=False
-    for line in lines:
+    active=False
+    for line in b''.join(chunks).decode('utf-8',errors='replace').splitlines():
         try:item=json.loads(line)
         except ValueError:continue
-        # The start event carries pid; subsequent window events share that
-        # process's log segment but do not duplicate pid on every line.
-        if item.get('event')=='start':current=item.get('pid')==pid
-        if current and item.get('event')=='window' and item.get('phase')=='window_ready':return True
+        if item.get('event')=='start':active=item.get('version')==version
+        if active and item.get('event')=='window' and item.get('phase')=='window_ready':return True
     return False
 
 

@@ -103,13 +103,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Could not inspect runner prerequisites' }
           python scripts/fetch_windows_runtime.py
           if ($LASTEXITCODE -ne 0) { throw 'Microsoft runtime verification failed' }
-      - name: Full regression tests and desktop adapter tests
-        run: |
-          python -m unittest discover -s tests -v
-          if ($LASTEXITCODE -ne 0) { throw 'Project regression tests failed' }
-          python -m unittest discover -s desktop -p 'test_*.py' -v
-          if ($LASTEXITCODE -ne 0) { throw 'Desktop adapter regression tests failed' }
       - name: Build GUI, console adapters, native smoke and installer
+        id: build
         run: python scripts/build_windows.py
       - name: Install into disposable folder and verify installed executables
         shell: pwsh
@@ -199,7 +194,16 @@ jobs:
           } finally {
             foreach ($name in $variables) { [Environment]::SetEnvironmentVariable($name, $saved[$name], 'Process') }
           }
-      - name: Upload tested Windows installers
+      - name: Full regression tests and desktop adapter tests
+        run: |
+          python -m unittest discover -s tests -v
+          if ($LASTEXITCODE -ne 0) { throw 'Project regression tests failed' }
+          python -m unittest discover -s desktop -p 'test_*.py' -v
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop adapter regression tests failed' }
+      # Preserve candidates for diagnosis even if a later check fails. The
+      # publisher separately requires this run and all seven proofs to pass.
+      - name: Preserve Windows build candidates
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: love-house-windows-x64

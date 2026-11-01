@@ -1,0 +1,33 @@
+name: Repair macOS 0.9.0 source tag
+on:
+  push:
+    branches: [codex/repair-macos-090-tag]
+permissions:
+  contents: write
+jobs:
+  correct-source-target:
+    if: github.repository == 'myflww/love-house' && github.actor == 'myflww'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Correct only the known mistargeted release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import os, json, urllib.request
+          url='https://api.github.com/repos/myflww/love-house/git/refs/tags/v0.9.0'
+          expected='1205694e3c9025132361fc835e5c797b93c7a0a5'
+          target='ee7f8d7740aa6e7b6aa995a46ca066da7898cb86'
+          def call(method='GET', body=None):
+              request=urllib.request.Request(url, method=method, data=None if body is None else json.dumps(body).encode(), headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(request, timeout=25) as response: return json.load(response)
+          before=call()
+          assert before['ref']=='refs/tags/v0.9.0' and before['object']['type']=='commit', 'Unexpected tag identity'
+          actual=before['object']['sha']
+          assert actual in (expected,target), 'Tag changed independently; no update performed'
+          if actual==expected: call('PATCH',{'sha':target,'force':True})
+          after=call()
+          assert after['object']['sha']==target, 'Tag correction not verified'
+          print(json.dumps({'ref':after['ref'],'previous':actual,'verified_target':after['object']['sha'],'release_assets_untouched':True}))
+          PY

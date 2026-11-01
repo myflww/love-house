@@ -184,6 +184,7 @@ macOS 当前发布源码见 [v0.10.0 标签](https://github.com/myflww/love-hous
 ```bash
 git clone https://github.com/myflww/love-house.git
 cd love-house
+git switch --detach v0.10.0
 python3.12 scripts/launch.py
 ```
 

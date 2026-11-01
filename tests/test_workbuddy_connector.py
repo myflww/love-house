@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from nkb.service.agent_client import (
     AgentClient, AgentConnectionError, configure_workbuddy, make_agent_config,
-    validate_config, validate_hook_matcher,
+    validate_config, validate_hook_matcher, connection_config_diagnostic,
 )
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -70,6 +70,19 @@ class WorkBuddyConnectorTests(unittest.TestCase):
         self.assertEqual(json.loads(Path(plan['private_path']).read_text('utf-8'))['token'],self.secret['token'])
         self.assertTrue(self.install()['readback_verified'])
 
+    def test_passive_connection_plan_does_not_read_existing_host_json(self):
+        raw=self.write_existing({'mcpServers':{'another-server':{'command':'safe-program',
+            'env':{'PRIVATE_EXISTING':'MUST-STAY-LOCAL'}}}})
+        with patch('nkb.service.agent_client._read_json',side_effect=AssertionError('passive host read')) as read:
+            plan=self.install(inspect_existing=False)
+        read.assert_not_called()
+        self.assertTrue(plan['config_exists'])
+        self.assertFalse(plan['readback_checked'])
+        self.assertFalse(plan['readback_verified'])
+        self.assertEqual(self.target.read_bytes(),raw)
+        self.assertNotIn('MUST-STAY-LOCAL',json.dumps(plan))
+        with self.assertRaises(AgentConnectionError):self.install(inspect_existing='yes')
+
     def test_reinstall_updates_only_own_entry_and_verifies_real_saved_json(self):
         first=self.install(apply=True)
         old=json.loads(self.target.read_text('utf-8'))
@@ -86,6 +99,59 @@ class WorkBuddyConnectorTests(unittest.TestCase):
         raw=self.write_existing({'mcpServers':{name:{'command':'another-app','args':['another-private.json']}}})
         with self.assertRaises(AgentConnectionError) as caught:self.install(apply=True)
         self.assertEqual(caught.exception.code,'mcp_name_conflict')
+        self.assertEqual(self.target.read_bytes(),raw)
+        self.assertFalse(self.root.exists())
+
+    def test_other_global_memory_connector_blocks_preview_and_apply_without_reading_its_private_file(self):
+        plan=self.install()
+        own_name=next(iter(plan['mcp_config']['mcpServers']))
+        other_name='love-house-memory-OTHERLIB'
+        foreign_private=self.home/'private-other-memory.json'
+        raw=self.write_existing({'mcpServers':{
+            other_name:{'command':'other-runtime','args':['--connection-config',str(foreign_private)],
+                        'env':{'PRIVATE_TOKEN':'FOREIGN-SECRET-MUST-NOT-LEAVE-CONFIG'}},
+            'unrelated-server':{'command':'keep-this-program'}}})
+        original_reader=__import__('nkb.service.agent_client',fromlist=['_read_json'])._read_json
+        def only_host_profile(path,limit):
+            self.assertEqual(Path(path).resolve(),self.target.resolve(),'Must not follow a different memory connector private file')
+            return original_reader(path,limit)
+        with patch('nkb.service.agent_client._read_json',side_effect=only_host_profile):
+            blocked=self.install()
+            self.assertFalse(blocked['supported']);self.assertFalse(blocked['can_apply'])
+            self.assertFalse(blocked['readback_verified'])
+            self.assertEqual(blocked['code'],'cross_memory_connector_conflict')
+            self.assertEqual(blocked['other_memory_connector_count'],1)
+            self.assertIn('复用已有连接',''.join(blocked['next_steps']))
+            self.assertNotIn('FOREIGN-SECRET',json.dumps(blocked))
+            self.assertNotIn(str(foreign_private),json.dumps(blocked))
+            self.assertNotIn(other_name,json.dumps(blocked))
+            with self.assertRaises(AgentConnectionError) as caught:self.install(apply=True)
+        self.assertEqual(caught.exception.code,'cross_memory_connector_conflict')
+        self.assertEqual(self.target.read_bytes(),raw)
+        self.assertEqual({p.name for p in self.target.parent.iterdir()},{'mcp.json'})
+        self.assertFalse(self.root.exists())
+        self.assertNotIn(own_name,json.loads(self.target.read_text())['mcpServers'])
+
+    def test_current_entry_match_does_not_hide_another_memory_connector_or_trust_disabled_flags(self):
+        own=self.install()['mcp_config']['mcpServers']
+        raw=self.write_existing({'mcpServers':{**own,
+            'love-house-memory-another':{'disabled':True,'enabled':False,'command':'other-runtime'}}})
+        plan=self.install()
+        self.assertFalse(plan['supported']);self.assertFalse(plan['can_apply'])
+        self.assertFalse(plan['readback_verified'])
+        with self.assertRaises(AgentConnectionError) as caught:self.install(apply=True)
+        self.assertEqual(caught.exception.code,'cross_memory_connector_conflict')
+        self.assertEqual(self.target.read_bytes(),raw)
+        self.assertFalse(self.root.exists())
+
+    def test_passive_plan_does_not_inspect_another_memory_connector(self):
+        raw=self.write_existing({'mcpServers':{'love-house-memory-other':{'command':'other-runtime'}}})
+        with patch('nkb.service.agent_client._read_json',side_effect=AssertionError('passive host profile read')):
+            plan=self.install(inspect_existing=False)
+        self.assertTrue(plan['supported'])
+        self.assertIsNone(plan['can_apply'])
+        self.assertFalse(plan['readback_checked'])
+        self.assertNotIn('other_memory_connector_count',plan)
         self.assertEqual(self.target.read_bytes(),raw)
         self.assertFalse(self.root.exists())
 
@@ -145,6 +211,32 @@ class WorkBuddyConnectorTests(unittest.TestCase):
             self.assertEqual(normalized['session_scope_policy'],policy)
             self.assertEqual(normalized['bound_session_id'],bound)
         with self.assertRaises(AgentConnectionError):validate_config({**config,'session_scope_policy':'fixed','bound_session_id':None})
+
+    def test_explicit_policy_is_not_interpreted_as_a_legacy_window_id(self):
+        config=json.loads(Path(make_agent_config(self.root,self.secret,persist=True)['private_path']).read_text('utf-8'))
+        with self.assertRaises(AgentConnectionError) as caught:
+            validate_config({**config,'session_scope_policy':'not-a-policy'})
+        self.assertEqual(caught.exception.code,'invalid_config')
+        with self.assertRaises(AgentConnectionError):
+            make_agent_config(self.root,{**self.secret,'session_scope_policy':'not-a-policy'},persist=True)
+
+    def test_config_helper_normalizes_legacy_secrets_before_adding_policy(self):
+        for legacy,policy,bound in [('connection','any',None),('next_session','next_session',None),
+                                   ('configured-window','fixed','configured-window')]:
+            with self.subTest(legacy=legacy):
+                bundle=make_agent_config(self.root/legacy,{**self.secret,'session_scope':legacy},persist=True)
+                stored=json.loads(Path(bundle['private_path']).read_text('utf-8'))
+                self.assertEqual(stored['session_scope_policy'],policy)
+                self.assertEqual(stored['session_scope'],policy)
+                self.assertEqual(stored['bound_session_id'],bound)
+                self.assertEqual(bundle['connection_config_public']['bound_session_id'],bound)
+
+    def test_macos_missing_config_points_to_existing_application_data_namespace(self):
+        with patch('nkb.service.agent_client.sys.platform','darwin'),patch('nkb.service.agent_client.Path.home',return_value=self.home):
+            diagnostic=connection_config_diagnostic(self.root/'missing.json')
+        self.assertEqual(diagnostic['expected_directory'],str(self.home/'Library/Application Support/NeuralKnowledge/agent-connections'))
+        self.assertEqual(diagnostic['config_path'],str(self.root/'missing.json'))
+        self.assertEqual(diagnostic['next_action'],'copy_connection_config_path')
 
     def test_rebind_revision_resets_claim_and_does_not_drain_old_pending_under_new_credential(self):
         bundle=make_agent_config(self.root,self.secret,persist=True)

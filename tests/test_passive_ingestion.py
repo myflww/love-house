@@ -212,11 +212,11 @@ class PassiveIngestionTests(unittest.TestCase):
         self.ingest(2, "以后请你语气温柔一点")
         state = persona_state(self.brain)
         self.assertFalse(state["enabled"])
-        self.assertEqual(state["learned"]["tone"]["value"], "gentle")
+        self.assertEqual(state["learned"], {})
         self.assertEqual(state["effective_persona"], "")
 
     def test_explicit_disable_of_an_initially_blank_persona_is_also_remembered(self):
-        self.assertFalse(persona_state(self.brain)["enabled"])
+        self.assertTrue(persona_state(self.brain)["enabled"])
         set_persona_enabled(self.brain, False)
         self.ingest(1, "我希望你语气温柔一点")
         self.ingest(2, "以后请你语气温柔一点")

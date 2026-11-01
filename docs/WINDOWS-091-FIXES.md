@@ -33,6 +33,6 @@ DeepSeek 使用 OpenAI 兼容聊天接口，填写厂商基础地址及账户可
 
 升级前关闭爱之屋。原数据仍位于 `%LOCALAPPDATA%\LoveHouse`；请保留数据和旧版回滚副本。分享暂不可用时，可在应用完全关闭后备份整个数据目录。便携版须完整解压。安装版按当前用户安装，主程序未附发行商代码签名。
 
-发布验证记录包含共享回归、冻结包内后端与原生 WebView2、实际 JSON / Markdown / 插件保存、取消和错误路径、模拟模型整理，以及中文和空格路径的安装与便携检查。准确的源提交、工作流、文件散列和通过状态以同页 `Windows-091-verification.json` 为准。
+发布验证记录包含共享回归、冻结包内后端与原生 WebView2、实际 JSON / Markdown / 插件保存、取消和错误路径、模拟模型整理，以及中文和空格路径的安装与便携检查。[Windows 构建与安装验收](https://github.com/myflww/love-house/actions/runs/41222977099)、[三版本 Python / 前端回归](https://github.com/myflww/love-house/actions/runs/41222977117) 和 [真实 Harness CLI 合成轮次](https://github.com/myflww/love-house/actions/runs/41222977151) 已通过，冻结生产源码为 `cc19f5ab36ab1c4227983bbf77501545e255b14f`。准确的附件、文件散列和各进程报告以同页 `Windows-091-verification.json` 为准。
 
 要求 Windows 10 2004 / 19041 或 Windows 11 x64，Microsoft WebView2 和 .NET Framework 4.6.2+。Windows 10 新设备、缺失或损坏运行时、受限企业策略、真实用户 DeepSeek 账户以及长期运行均未被这次 CI 证明；仍标为预览。原有窗口隔离、管理鉴权、记忆、凭据作用域和非商业许可保持。

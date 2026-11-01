@@ -42,7 +42,8 @@ class FishLifeWorkflowTests(unittest.TestCase):
     def source(self,adapter,platform,library='default',runtime='fish-one'):
         request=Request(self.base+'/api/agent/sources',data=json.dumps({'name':'合成生活来源 '+platform,
             'adapter':adapter,'runtime_agent_id':runtime,'platforms':[platform]}).encode(),
-            headers={'Content-Type':'application/json','X-NKB-Library':library})
+            headers={'Content-Type':'application/json','X-NKB-Library':library,
+                     'X-LoveHouse-Management':self.host.management_token})
         with self.http.open(request,timeout=10) as response:value=json.load(response)
         return value['source'],SourceClient(value['private_path'],timeout=2)
 

@@ -49,6 +49,7 @@ class MemoryInheritanceTests(unittest.TestCase):
     def api(self, path, data=None, token=None, lib=None):
         headers = {'Content-Type': 'application/json'}
         if token: headers['Authorization'] = 'Bearer ' + token
+        else: headers['X-LoveHouse-Management'] = self.host.management_token
         if lib: headers['X-NKB-Library'] = lib
         req = urllib.request.Request('http://127.0.0.1:' + str(self.server.server_port) + path,
                                      data=None if data is None else json.dumps(data).encode(), headers=headers)

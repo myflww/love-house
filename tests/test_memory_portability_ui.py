@@ -19,7 +19,7 @@ class MemoryPortabilityUITests(unittest.TestCase):
         self.assertLess(html.index(component), html.index('data-nkb-component="button-hints.js"'))
         self.assertNotIn('src="memory-portability-ui.js"', html)
         for control in ('inheritLibraryBtn', 'shareLibraryBtn', 'importMemoryShareBtn', 'sharePersonalConsent', 'shareAIConsent',
-                        'downloadMemoryJSON', 'downloadMemoryMarkdown', 'memoryShareFile', 'confirmMemoryShareImport'):
+                        'downloadMemoryJSON', 'downloadMemoryMarkdown', 'memoryShareFile', 'confirmMemoryShareImport', 'shareAIOptions', 'shareAIStatus'):
             self.assertIn(control, html)
         self.assertIn('memoryInheritanceDialog', html)
         self.assertIn('memoryShareDialog', html)

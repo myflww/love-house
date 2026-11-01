@@ -348,6 +348,8 @@ def make_handler(brain: Brain):
                 if path == "/api/ai/profile":
                     return {"profile": save_profile(brain, **{k: data.get(k, "") for k in ("name", "persona", "user_name")}), "saved": True}
                 if path == "/api/ai/remember":
+                    auto_link=data.get('auto_link',False)
+                    if type(auto_link) is not bool:raise RequestError('auto_link必须为布尔值；默认不猜测关联，明确true才执行高级词面近似')
                     harness = data.get("origin") == "harness"
                     important = data.get("important", False if harness else True)
                     text = _text(data, "text", required=True, limit=40000)
@@ -360,10 +362,10 @@ def make_handler(brain: Brain):
                                         impact=data.get("impact", 0), session_id=data.get("session_id"),
                                         tags=["Harness记录"], meta={"source":"harness_recorded",
                                             "confirmed":False, "speaker":"agent", "important":important})
-                        brain.auto_link(nid, top=2)
                     else:
                         nid = remember(brain, text, kind=kind, important=important,
                                        session_id=data.get("session_id"), impact=data.get("impact", 0))
+                    if auto_link:brain.auto_link(nid,top=2)
                     return {"id": nid, "saved": True}
                 if path == "/api/ai/record":
                     nid = record_turn(brain, data.get("user"), data.get("assistant"),
@@ -463,6 +465,8 @@ def make_handler(brain: Brain):
                 return result
 
             if path == "/api/add":
+                auto_link=data.get('auto_link',False)
+                if type(auto_link) is not bool:raise RequestError('auto_link必须为布尔值；默认不猜测关联，明确true才执行高级词面近似')
                 fields = {
                     "label": _text(data, "label", required=True, limit=500),
                     "text": _text(data, "text", ""),
@@ -485,7 +489,7 @@ def make_handler(brain: Brain):
                 if "session_id" in meta:
                     _text(meta, "session_id", required=True, limit=200)
                 nid = brain.add(**fields)
-                links = brain.auto_link(nid, top=2)
+                links = brain.auto_link(nid, top=2) if auto_link else []
                 return {"id": nid, "linked_to": links}
 
             if path == "/api/link":

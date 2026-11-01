@@ -10,7 +10,8 @@ import argparse
 import json
 import os
 from pathlib import Path
-from urllib.request import Request,build_opener,ProxyHandler
+from http.cookiejar import CookieJar
+from urllib.request import Request,build_opener,ProxyHandler,HTTPCookieProcessor
 from urllib.error import HTTPError,URLError
 
 
@@ -33,10 +34,17 @@ def main(argv=None):
         if os.name=='posix':os.kill(pid,0)
         port=ready.get('controller_port')
         if type(port) is not int or not 1<=port<=65535:raise ValueError('invalid port')
-        client=build_opener(ProxyHandler({}));base=f'http://127.0.0.1:{port}'
+        cookies=CookieJar()
+        client=build_opener(ProxyHandler({}),HTTPCookieProcessor(cookies));base=f'http://127.0.0.1:{port}'
         with client.open(base+'/api/health',timeout=5) as response:health=json.load(response)
         if health.get('protocol_version')!='0.4.0' or health.get('mode')!='storage':raise ValueError('not a memory controller')
         if health.get('controller_instance_id')!=instance:raise ValueError('controller identity changed')
+        # The running Controller has been matched to this data directory. Obtain
+        # its normal local UI capability in memory; never persist or print it.
+        with client.open(base+'/',timeout=5) as response:
+            if response.geturl()!=base+'/':raise ValueError('controller UI redirected')
+            response.read(1024*1024)
+        if not any(cookie.name=='LoveHouseUI' for cookie in cookies):raise ValueError('controller UI session unavailable')
         body={'name':args.name,'adapter':args.adapter,'runtime_agent_id':args.runtime_agent_id,'platforms':args.platforms or ['*']}
         request=Request(base+'/api/agent/sources',data=json.dumps(body,ensure_ascii=False).encode(),
                         headers={'Content-Type':'application/json','X-NKB-Library':args.library})

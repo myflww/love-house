@@ -122,9 +122,12 @@ def validate_config(value):
         if type(result.get(key)) is not bool:raise AgentConnectionError('记忆连接启停状态无效','invalid_config')
     # v1 files created before single-window capture remain explicitly broad.
     # Do not silently change a previously authorised connection's meaning.
+    explicit_policy='session_scope_policy' in result
     scope=_text(result.get('session_scope_policy',result.get('session_scope','connection')),'session_scope',200)
     bound=result.get('bound_session_id')
     if bound is not None:bound=_text(bound,'bound_session_id',200)
+    if explicit_policy and scope not in ('connection','any','fixed','next_session'):
+        raise AgentConnectionError('窗口绑定策略无效，请重新复制连接配置','invalid_config')
     if scope=='connection':scope='any'
     elif scope not in ('any','fixed','next_session'):
         if bound not in (None,scope):raise AgentConnectionError('本机窗口范围发生冲突，未改绑','scope_conflict')
@@ -180,11 +183,15 @@ def make_agent_config(root,connection_secret,*,python_path=None,bridge_path=None
     revision=c.get('binding_revision',0)
     if type(revision) is not int or not 0<=revision<=2147483647:raise AgentConnectionError('窗口绑定版本无效','invalid_config')
     private=root/'agent-connections'/(cid+(('.binding-'+str(revision)) if revision else '')+'.json')
-    value=validate_config({'schema':SCHEMA,'connection_id':cid,'library_id':library,
+    value_input={'schema':SCHEMA,'connection_id':cid,'library_id':library,
       'token':c.get('token',''),'runtime_dir':str(root/'.runtime'),'outbox_dir':str(root/'agent-outbox'/cid/(('binding-'+str(c['binding_revision'])) if c.get('binding_revision',0) else '')),
       'enabled':bool(c.get('enabled',True)),'revoked':bool(c.get('revoked',False)),
-      'session_scope':c.get('session_scope','connection'),'session_scope_policy':c.get('session_scope_policy',c.get('session_scope','connection')),
-      'binding_revision':c.get('binding_revision',0),'bound_session_id':c.get('bound_session_id')})
+      'session_scope':c.get('session_scope','connection'),
+      'binding_revision':c.get('binding_revision',0),'bound_session_id':c.get('bound_session_id')}
+    # Only legacy overloaded session_scope may contain a window ID. Do not
+    # promote that ID into an explicit enum policy before legacy normalization.
+    if 'session_scope_policy' in c:value_input['session_scope_policy']=c['session_scope_policy']
+    value=validate_config(value_input)
     scope_conflict=False
     def preserve_local_claim():
         nonlocal value,scope_conflict
@@ -253,7 +260,7 @@ def connection_config_diagnostic(path,code='invalid_file'):
     """Public startup diagnostics contain paths and actions, never file contents."""
     selected=Path(path).expanduser().absolute()
     expected_dir=(Path(os.environ.get('LOCALAPPDATA',Path.home()/'AppData/Local'))/'LoveHouse/agent-connections'
-                  if sys.platform=='win32' else Path.home()/'Library/Application Support/LoveHouse/agent-connections'
+                  if sys.platform=='win32' else Path.home()/'Library/Application Support/NeuralKnowledge/agent-connections'
                   if sys.platform=='darwin' else Path.home()/'.local/share/LoveHouse/agent-connections')
     missing=not selected.is_file()
     return {'schema':'love-house-connection-diagnostic/v1','status':'error',
@@ -262,14 +269,32 @@ def connection_config_diagnostic(path,code='invalid_file'):
       'message':'连接配置不存在；程序安装目录与用户数据目录不同。' if missing else '连接配置不可读或版本不支持；原文件未覆盖。',
       'repair':'打开爱之屋 → 连接 → 此Agent连接 → 复制连接配置完整路径；用生成的MCP片段替换手写路径，信任连接器后重试。'}
 
-def configure_workbuddy(root,connection_secret,*,apply=False,home=None):
-    """Merge only this MCP entry. Never create WorkBuddy/CodeBuddy hooks settings."""
+def configure_workbuddy(root,connection_secret,*,apply=False,home=None,inspect_existing=True):
+    """Merge only this MCP entry. Passive plans may avoid inspecting other hosts.
+
+    Applying always reads the existing JSON to preserve unrelated MCP entries.
+    No mode creates WorkBuddy/CodeBuddy hooks settings.
+    """
     if type(apply) is not bool:raise AgentConnectionError('apply须为布尔值','invalid_input')
+    if type(inspect_existing) is not bool:raise AgentConnectionError('inspect_existing须为布尔值','invalid_input')
     bundle=make_agent_config(root,connection_secret,persist=False)
+    name,entry=next(iter(bundle['mcp_config']['mcpServers'].items()))
+    conflict_message=('此 WorkBuddy 全局配置中已有其他爱之屋记忆连接，继续添加可能让同一会话读取多个存档。'
+                      '请使用独立配置环境，或由你在 WorkBuddy 中停用并移出其他记忆连接；同一存档请复用已有连接。'
+                      '爱之屋不会自动删除或停用任何已有连接器。')
+    def other_memory_connectors(value):
+        # Reserved names identify our own connector family. Do not follow any
+        # other connector's arguments/private file, or guess its memory library
+        # from caller-controlled names/flags. Unverified disabled flags also do
+        # not establish that a global connector is isolated from this context.
+        servers=value.get('mcpServers',{}) if isinstance(value,dict) else {}
+        if not isinstance(servers,dict):return 0
+        return sum(1 for key in servers if isinstance(key,str) and key!=name
+                   and key.lower().startswith('love-house-memory-'))
     home=Path(home).expanduser().resolve() if home is not None else Path.home().resolve()
     folder=home/'.workbuddy';target=folder/'mcp.json'
     plan={'supported':True,'host':'workbuddy','config_path':str(target),'private_path':bundle['private_path'],
-      'mcp_config':bundle['mcp_config'],'applied':False,'readback_verified':False,
+      'mcp_config':bundle['mcp_config'],'applied':False,'readback_verified':False,'readback_checked':False,'can_apply':None,
       'hook_supported':False,'hook_support_status':'desktop_user_hooks_unverified','requires_trust':True,
       'restart_if_tools_missing':True,'expected_tool_count':10,'tools_loaded':None,
       'next_steps':['打开 WorkBuddy → 连接器 → 自定义连接器，确认并信任此爱之屋连接器。',
@@ -278,10 +303,18 @@ def configure_workbuddy(root,connection_secret,*,apply=False,home=None):
     plan['configure_endpoint']='/api/connections/'+str(connection_secret.get('id',connection_secret.get('connection_id')))+'/workbuddy/configure'
     if not apply:
         plan['config_exists']=target.is_file()
-        if target.is_file() and not target.is_symlink() and not folder.is_symlink():
+        if not target.exists():plan['can_apply']=True
+        if inspect_existing and target.is_file() and not target.is_symlink() and not folder.is_symlink():
             try:
+                plan['readback_checked']=True
                 actual=_read_json(target,1024*1024)
-                name,entry=next(iter(bundle['mcp_config']['mcpServers'].items()))
+                conflicts=other_memory_connectors(actual)
+                if conflicts:
+                    return {**plan,'supported':False,'can_apply':False,'readback_verified':False,
+                            'configuration_error':'cross_memory_connector_conflict','code':'cross_memory_connector_conflict',
+                            'other_memory_connector_count':conflicts,'message':conflict_message,
+                            'next_action':'isolate_memory_connector','next_steps':[conflict_message]}
+                plan['can_apply']=isinstance(actual.get('mcpServers',{}),dict)
                 plan['readback_verified']=isinstance(actual.get('mcpServers'),dict) and actual['mcpServers'].get(name)==entry
             except AgentConnectionError:plan['configuration_error']='invalid_file'
         return plan
@@ -289,6 +322,11 @@ def configure_workbuddy(root,connection_secret,*,apply=False,home=None):
         raise AgentConnectionError('连接已暂停或断开，未安装宿主配置','paused')
     if folder.is_symlink() or target.is_symlink():
         raise AgentConnectionError('WorkBuddy配置使用符号链接，请在宿主中手动合并生成的MCP配置','unsafe_config_path')
+    # Reject an already conflicting global profile before creating a lock,
+    # backup or private connection generation. Recheck below under the lock in
+    # case another editor changes the file between preview and application.
+    if target.exists() and other_memory_connectors(_read_json(target,1024*1024)):
+        raise AgentConnectionError(conflict_message,'cross_memory_connector_conflict')
     folder.mkdir(parents=True,exist_ok=True,mode=0o700)
     with _spool_lock(folder):
         existed=target.exists()
@@ -299,8 +337,9 @@ def configure_workbuddy(root,connection_secret,*,apply=False,home=None):
         except (ValueError,UnicodeError,RecursionError):raise AgentConnectionError('WorkBuddy配置JSON无效，原文件未修改','invalid_file') from None
         if not isinstance(old,dict) or not isinstance(old.get('mcpServers',{}),dict):
             raise AgentConnectionError('WorkBuddy mcpServers须为对象，原文件未修改','invalid_file')
+        if other_memory_connectors(old):
+            raise AgentConnectionError(conflict_message,'cross_memory_connector_conflict')
         expected=json.loads(_json(old));servers=expected.setdefault('mcpServers',{})
-        name,entry=next(iter(bundle['mcp_config']['mcpServers'].items()))
         previous=servers.get(name)
         if previous is not None and previous!=entry:
             args=previous.get('args') if isinstance(previous,dict) else None
@@ -323,7 +362,7 @@ def configure_workbuddy(root,connection_secret,*,apply=False,home=None):
         _atomic_json(target,expected)
         verified=_read_json(target,1024*1024)==expected
         if not verified:raise AgentConnectionError('WorkBuddy配置回读不一致，请检查备份并重新配置','readback_failed')
-    return {**plan,'applied':True,'readback_verified':True,'backup_path':str(backup) if backup else None,
+    return {**plan,'applied':True,'can_apply':True,'readback_verified':True,'readback_checked':True,'backup_path':str(backup) if backup else None,
       'message':'MCP配置已写入并回读；仍需在WorkBuddy信任连接器并调用memory_status验证。'}
 
 def _safe_url(value):

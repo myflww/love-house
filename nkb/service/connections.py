@@ -33,6 +33,7 @@ class ConnectionStore:
             for field in ('host_seen','configured_at'):
                 if field not in fields:db.execute(f'ALTER TABLE connections ADD COLUMN {field} REAL')
             if 'host_options' not in fields:db.execute('ALTER TABLE connections ADD COLUMN host_options TEXT')
+            if 'last_recall' not in fields:db.execute('ALTER TABLE connections ADD COLUMN last_recall TEXT')
             for field,kind in (('session_scope_policy','TEXT'),('bound_session_id','TEXT'),('binding_revision','INTEGER NOT NULL DEFAULT 0')):
                 if field not in fields:db.execute(f'ALTER TABLE connections ADD COLUMN {field} {kind}')
             # Upgrade the old overloaded field without changing a chosen window.
@@ -41,7 +42,6 @@ class ConnectionStore:
                 session_scope_policy=CASE WHEN session_scope IN ('connection','any') THEN 'any' WHEN session_scope='next_session' THEN 'next_session' ELSE 'fixed' END
                 WHERE session_scope_policy IS NULL""")
             db.execute('UPDATE connections SET session_scope=session_scope_policy')
-            if 'last_recall' not in fields:db.execute('ALTER TABLE connections ADD COLUMN last_recall TEXT')
             receipt_fields={r['name'] for r in db.execute('PRAGMA table_info(receipts)')}
             for field,kind in (('semantic_type','TEXT'),('is_automatic','INTEGER'),('source_schema','TEXT'),('binding_revision','INTEGER NOT NULL DEFAULT 0')):
                 if field not in receipt_fields:db.execute(f'ALTER TABLE receipts ADD COLUMN {field} {kind}')
@@ -91,6 +91,7 @@ class ConnectionStore:
             (connections.host='harness' OR (connections.host='agent' AND
              connections.configured_at IS NOT NULL AND connections.configured_at<=receipts.received))) OR
             (connections.host='api' AND source_schema IN ('neural-api-proxy/v1','neural-api-tool/v1')))"""
+        verified_adapter=eligible
         with self.db() as db:
             # Registered source IDs are issued by the management API and checked
             # on every receive. Their adapters use the generic Hook wire schema,
@@ -103,6 +104,7 @@ class ConnectionStore:
             row=db.execute(f'''SELECT
               SUM(CASE WHEN status='saved' AND semantic_type='turn' THEN 1 ELSE 0 END) complete_dialogues_saved,
               SUM(CASE WHEN status='saved' AND semantic_type='turn' AND is_automatic=1 AND {eligible} THEN 1 ELSE 0 END) automatic_dialogues_saved,
+              SUM(CASE WHEN status='saved' AND semantic_type='turn' AND is_automatic=1 AND {verified_adapter} THEN 1 ELSE 0 END) verified_adapter_dialogues_saved,
               SUM(CASE WHEN status='saved' AND semantic_type='tool' THEN 1 ELSE 0 END) tool_observations_saved,
               SUM(CASE WHEN status='saved' AND semantic_type='tool' AND is_automatic=1 AND {eligible} THEN 1 ELSE 0 END) automatic_tool_observations_saved,
               SUM(CASE WHEN status='saved' AND semantic_type='output' THEN 1 ELSE 0 END) outputs_saved,
@@ -116,20 +118,10 @@ class ConnectionStore:
               MAX(CASE WHEN source_schema='love-house-agent-hook/v1' AND status!='forgotten' THEN received END) last_hook_at
               FROM receipts JOIN connections ON connections.id=receipts.connection_id
               WHERE connection_id=? AND receipts.binding_revision=?''',(cid,revision)).fetchone()
-        result={k:(row[k] if k in ('last_dialogue_at','last_output_at','last_hook_at') else int(row[k] or 0)) for k in row.keys()}
+        result={k:(row[k] if k in ('last_dialogue_at','last_hook_at','last_output_at') else int(row[k] or 0)) for k in row.keys()}
         # Caller-controlled events cannot attest that a host installed/enabled hooks.
         result['auto_streak']=0
         return result
-    def record_recall(self,cid,coverage):
-        """Metadata for the returned material only, never a query or transcript."""
-        if (not isinstance(coverage,dict) or any(type(coverage.get(k)) is not int or not 0<=coverage[k]<=1000
-                for k in ('organized','raw','other'))):
-            raise ValidationError('召回统计格式不正确')
-        value={'at':time.time(),'organized_count':coverage['organized'],
-               'source_count':coverage['raw'],'other_count':coverage['other']}
-        with self.db() as db:
-            db.execute('UPDATE connections SET last_recall=? WHERE id=? AND enabled=1 AND revoked=0',
-                       (json.dumps(value,separators=(',',':')),cid))
     def public(self,row):
         result=dict(row);result.pop('token',None)
         result.pop('host_options',None)
@@ -148,15 +140,15 @@ class ConnectionStore:
         if not result['revoked']:
             # A completed tool result proves automatic observation capture, not
             # that a human/assistant conversation pair has reached the graph.
-            if capture['automatic_dialogues_saved']:result['archive_status']='automatic_connected'
-            elif capture['automatic_outputs_saved']:result['archive_status']='outputs_only'
+            if capture['verified_adapter_dialogues_saved']:result['archive_status']='automatic_connected'
             elif capture['hook_dialogues_saved']:result['archive_status']='host_reported'
+            elif capture['automatic_outputs_saved']:result['archive_status']='outputs_only'
             elif capture['automatic_tool_observations_saved']:result['archive_status']='observations_only'
             elif capture['complete_dialogues_saved'] or capture['tool_observations_saved'] or capture['outputs_saved']:result['archive_status']='tools_only'
-            elif result['archive_status'] in ('automatic_connected','host_reported','observations_only','outputs_only','tools_only'):result['archive_status']='waiting'
+            elif result['archive_status'] in ('automatic_connected','host_reported','outputs_only','observations_only','tools_only'):result['archive_status']='waiting'
         active=result['enabled'] and not result['revoked']
         result.update(can_read=active,can_write=bool(active and (result['host']!='agent' or result['session_scope']=='any' or result.get('bound_session_id'))),
-                      memory_only=result['host']=='agent',automatic_memory=bool(active and result['archive_status'] in ('automatic_connected','outputs_only')))
+                      memory_only=result['host']=='agent',automatic_memory=bool(active and result['archive_status']=='automatic_connected'))
         result['read_only']=not result['can_write']
         result['capture_mode']=('host_hook_received' if capture['hook_event_count'] else 'tools_only') if not result['automatic_memory'] else 'adapter_events_received'
         result['binding_state']='bound' if result.get('bound_session_id') else 'all_sessions' if result['session_scope']=='any' else 'awaiting_source_turn'
@@ -230,7 +222,7 @@ class ConnectionStore:
             row=db.execute('SELECT * FROM connections WHERE id=?',(cid,)).fetchone()
             if row is None or row['host']!='agent' or row['revoked']:raise ValidationError('仅可重新绑定未断开的通用Agent连接')
             if row['bound_session_id']!=data['expected_bound_session_id']:raise ValidationError('窗口绑定已变更，请刷新后重新确认')
-            db.execute("UPDATE connections SET session_scope='next_session',session_scope_policy='next_session',bound_session_id=NULL,binding_revision=binding_revision+1,token=?,host_seen=NULL,configured_at=NULL,last_received=NULL,archive_status='waiting',error=NULL WHERE id=?",(secrets.token_urlsafe(32),cid))
+            db.execute("UPDATE connections SET session_scope='next_session',session_scope_policy='next_session',bound_session_id=NULL,binding_revision=binding_revision+1,token=?,host_seen=NULL,configured_at=NULL,host_options=NULL,last_received=NULL,last_recall=NULL,archive_status='waiting',error=NULL WHERE id=?",(secrets.token_urlsafe(32),cid))
         return self.get(cid)
     def toggle(self,cid,enabled,disconnect=False):
         if type(enabled) is not bool:raise ValidationError('enabled必须是布尔值')
@@ -294,8 +286,7 @@ class ConnectionStore:
         if receipt_id is not None:where+=' AND id=?';values.append(receipt_id)
         with self.db() as db:rows=db.execute('SELECT * FROM receipts WHERE '+where+' ORDER BY received LIMIT ?',(*values,limit)).fetchall()
         return [dict(r) for r in rows]
-    def pending_count(self,library_id):
-        with self.db() as db:return db.execute("SELECT COUNT(*) FROM receipts WHERE library_id=? AND status IN ('pending','retry')",(library_id,)).fetchone()[0]
+
     def receipt(self,cid,sid,event_id):
         key=self._receipt_key(cid,sid,event_id,self.get(cid).get('binding_revision',0))
         with self.db() as db:r=db.execute('SELECT * FROM receipts WHERE id=?',(key,)).fetchone()
@@ -364,3 +355,18 @@ class ConnectionStore:
                 row=db.execute('PRAGMA wal_checkpoint(TRUNCATE)').fetchone();checkpointed=row[0]==0
         except sqlite3.Error:pass
         return {'archives_forgotten':len(raw_ids),'checkpointed':checkpointed}
+
+    def pending_count(self,library_id):
+        with self.db() as db:return db.execute("SELECT COUNT(*) FROM receipts WHERE library_id=? AND status IN ('pending','retry')",(library_id,)).fetchone()[0]
+
+
+    def record_recall(self,cid,coverage):
+        """Metadata for the returned material only, never a query or transcript."""
+        if (not isinstance(coverage,dict) or any(type(coverage.get(k)) is not int or not 0<=coverage[k]<=1000
+                for k in ('organized','raw','other'))):
+            raise ValidationError('召回统计格式不正确')
+        value={'at':time.time(),'organized_count':coverage['organized'],
+               'source_count':coverage['raw'],'other_count':coverage['other']}
+        with self.db() as db:
+            db.execute('UPDATE connections SET last_recall=? WHERE id=? AND enabled=1 AND revoked=0',
+                       (json.dumps(value,separators=(',',':')),cid))

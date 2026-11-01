@@ -1,0 +1,17 @@
+{
+  "schema": "love-house-windows-0101-publication/v1",
+  "ready": false,
+  "source_commit": "PENDING",
+  "source_runs": {
+    "windows": null,
+    "regression": null,
+    "connection": null
+  },
+  "windows_artifact": null,
+  "windows_evidence_artifact": null,
+  "windows_files": {},
+  "astrbot_package": null,
+  "notes_path": "docs/ReleaseNotes-0.10.1rc1-Windows.md",
+  "release_notes": null,
+  "doc_assets": {}
+}

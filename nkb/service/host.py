@@ -231,7 +231,8 @@ class MemoryHost:
     def organizer_view(self,library_id):
         from ..core.brain import Brain
         from ..organizer import get_profile
-        from ..organizer.model import resolve_model,failure_message
+        from ..organizer.model import OrganizerError,failure_message
+        from ..organizer.config import endpoint
         raw=self.snapshot(library_id);settings=get_profile(Brain(raw));pid=settings['provider_id']
         cid=pid.split(':',1)[1] if pid.startswith('connection:') else ''
         provider={'base_url':settings['base_url'],'model':settings['model'],'storage':'none','key_saved':False,'credential_ready':False}
@@ -241,16 +242,20 @@ class MemoryHost:
         elif settings['base_url']:provider.update(self.keys.metadata(self.organizer_ref(library_id,settings['base_url'],pid=='separate:session')))
         provider['model_ready']=False
         try:
-            resolve_model(settings,self.organizer_credential(library_id,settings))
+            if not provider.get('credential_ready'):raise OrganizerError('整理模型尚未配置凭证','missing_credential')
+            if not isinstance(provider.get('model'),str) or not provider['model'].strip():raise OrganizerError('整理模型名称未配置','missing_model')
+            endpoint(provider.get('base_url',''))
             provider['model_ready']=True
         except ValidationError as exc:
-            provider['configuration_error']=failure_message(getattr(exc,'code','provider_not_found'))
+            provider['configuration_error']=(failure_message(exc.code) if hasattr(exc,'code') else
+                '整理模型配置不完整，请核对基础地址和模型名称；原文仍保留。')
         status=self.organizer.status(library_id);counts=status['counts']
         mapped={**status,'pending':counts.get('pending',0)+counts.get('running',0),'completed':counts.get('done',0),
                 'failed':sum(j['status']=='failed' for j in status['jobs']),'retrying':sum(j['status']=='retry' for j in status['jobs']),
                 'calls_24h':status['usage_24h']['count'],'chars_24h':status['usage_24h']['chars']}
         return {'settings':{**settings,'provider_mode':'connection' if cid else 'separate','connection_id':cid},
                 'status':mapped,'provider':provider,'batches':status['jobs'],'candidates':raw.get('meta',{}).get('organizer_candidates',[])}
+
     def organizer_settings(self,library_id,data):
         from ..organizer import DEFAULT_PROFILE,save_profile
         from ..organizer.config import validate_profile
@@ -296,13 +301,17 @@ class MemoryHost:
         if resumed:
             result['warning']=(result.get('warning','')+' 已将因配置问题受阻的任务重新排队；仍使用原调用预算。').strip()
         return result
+
     def enqueue_archives(self,library_id):
         from ..core.brain import Brain
         from ..companion.dedup import is_duplicate
         brain=Brain(self.snapshot(library_id));ids=[]
         for node in brain.nodes.values():
             if is_duplicate(node,brain) or node.get('meta',{}).get('memory_disabled'):continue
-            if node.get('meta',{}).get('source') not in ('conversation_turn','tool_observation','agent_output','harness_recorded','persona_import_source'):continue
+            if node.get('meta',{}).get('source') not in ('conversation_turn','tool_observation','agent_output','harness_recorded','persona_import_source','history_import'):continue
+            if node['meta']['source']=='history_import':
+                from ..organizer.state import _roles
+                if set(_roles(node))!={'assistant'}:continue
             ids.append((node['meta'].get('evidence') or {}).get('archive_receipt_id') or node['id'])
         for i in range(0,len(ids),1000):self.organizer.enqueue(library_id,list(dict.fromkeys(ids[i:i+1000])))
     def forget_preview(self,library_id,nid):
@@ -376,12 +385,51 @@ class MemoryHost:
         for nid in node_ids:
             node=brain.get(nid)
             if node is None or is_duplicate(node,brain) or node.get('meta',{}).get('memory_disabled'):continue
-            if node.get('meta',{}).get('source') not in ('conversation_turn','tool_observation','agent_output','harness_recorded','persona_import_source'):continue
+            if node.get('meta',{}).get('source') not in ('conversation_turn','tool_observation','agent_output','harness_recorded','persona_import_source','history_import'):continue
+            if node['meta']['source']=='history_import':
+                from ..organizer.state import _roles
+                if set(_roles(node))!={'assistant'}:continue
             evidence=node['meta'].get('evidence') or {}
             ids.append(evidence.get('archive_receipt_id') or nid)
         ids=list(dict.fromkeys(ids))
         for offset in range(0,len(ids),1000):self.organizer.enqueue(library_id,ids[offset:offset+1000])
         return len(ids)
+
+    def persona_organize(self,library_id,data,*,preview=False):
+        """One explicit, budgeted persona-only history sample; no ordinary queue reset."""
+        from ..core.brain import Brain
+        from ..companion.persona import persona_state
+        if not isinstance(data,dict) or set(data)-({'max_records'} if preview else {'confirm','max_records'}):
+            raise ValidationError('人格整理只接受确认和抽样上限，不接受其他存档参数')
+        if self.library(library_id)['is_demo']:raise ValidationError('示例库不能整理人格，请选择个人记忆库')
+        if not preview and data.get('confirm') is not True:
+            raise ValidationError('请先预览并确认使用本库整理模型；每次最多一次请求，按原预算计费')
+        persona=persona_state(Brain(self.snapshot(library_id)),library_id=library_id)
+        organizer=self.organizer_view(library_id);provider=organizer['provider']
+        selected=self.organizer.persona_selection(library_id,max_records=data.get('max_records',60))
+        ids=selected.pop('selected_ids')
+        with self.connections.db() as db:
+            archive_only=db.execute("SELECT COUNT(*) FROM receipts WHERE library_id=? AND status!='forgotten' AND (node_ids IS NULL OR node_ids='[]')",(library_id,)).fetchone()[0]
+        result={**selected,'library_id':library_id,'persona_enabled':persona['enabled'],
+                'learning_enabled':persona['learning_enabled'],'organizer_enabled':organizer['settings']['enabled'],
+                'model_ready':provider.get('model_ready') is True,'credential_ready':provider.get('credential_ready') is True,
+                'queued_records':0,'remaining_records':max(0,selected['eligible_records']-selected['selected_records']),
+                'archive_only_records':archive_only}
+        if not persona['enabled']:status,action='persona_disabled','enable_persona'
+        elif not persona['learning_enabled']:status,action='learning_disabled','enable_learning'
+        elif not result['model_ready'] or not result['credential_ready']:status,action='model_not_configured','configure_organizer'
+        elif not result['organizer_enabled']:status,action='organizer_paused','enable_organizer'
+        elif not result['budget_available']:status,action='budget_limited','wait_for_budget'
+        elif len(ids)<2:status,action='insufficient_evidence','import_more_dialogue'
+        else:status,action='ready','confirm_persona_organization'
+        result.update(status=status,next_action=action)
+        if preview or status!='ready':return result
+        queued=self.organizer.enqueue_persona(library_id,ids)
+        if queued['queued']:
+            threading.Thread(target=self.organizer.run_once,args=(library_id,),
+                kwargs={'flush':True,'job_id':queued['job_id']},daemon=True).start()
+        return {**result,**queued,'status':'queued','read_only':False,'will_call_model':True,
+                'queued_records':queued['selected_records'],'next_action':'wait_for_persona_result'}
     def duplicate_view(self,library_id):
         from ..core.brain import Brain
         from ..companion.dedup import possible_groups,is_duplicate,canonical_id,recording_version
@@ -475,7 +523,11 @@ class MemoryHost:
                 if not folder.exists() or not any(folder.glob('*.json')):continue
                 client.drain(limit=30)
             except Exception:pass
+
     def agent_tool(self,cid,token,data):
+        with self.connections.binding_lock:
+            return self._agent_tool(cid,token,data)
+    def _agent_tool(self,cid,token,data):
         c=self.connections.authenticate(cid,token)
         if self.sources.for_connection(cid):raise RequestError('登记的活动来源使用专用事件与上下文接口',403)
         if c['host']!='agent':raise ValidationError('这不是通用Agent记忆连接')
@@ -517,7 +569,7 @@ class MemoryHost:
     def harness_connection_config(self,cid):
         """Private installer input; public Agent setup never contains its token."""
         c=self.connections.get(cid);secret=self.connections.get(cid,secret=True)
-        if c['host'] not in ('harness','agent') or c['revoked']:
+        if c['host'] not in ('harness','agent') or c['revoked'] or self.sources.for_connection(cid):
             raise ValidationError('此连接不能安装Harness自动上报')
         return {'connection':c,'config':{'connectionId':cid,'connectionToken':secret['token'],
                 'libraryId':c['library_id'],'sessionScope':self.connections.adapter_scope(c),
@@ -564,7 +616,7 @@ class MemoryHost:
                 # that exact generation; it never rotates again or revives an
                 # old window's credential/config path.
                 bundle=make_agent_config(self.root,secret,persist=True)
-            workbuddy=configure_workbuddy(self.root,secret,apply=False)
+            workbuddy=configure_workbuddy(self.root,secret,apply=False,inspect_existing=False)
             code=json.dumps(bundle['mcp_config'],ensure_ascii=False,indent=2)
             setup=("这是同一台电脑上的爱之屋长期记忆连接，不需要模型厂商API Key。\n"
                    "此连接固定属于记忆库："+self.library(c['library_id'])['name']+"（"+c['library_id']+"）。\n"
@@ -609,6 +661,7 @@ class MemoryHost:
                 'requires_apply':c['host']=='harness' and not bool(c.get('configured_at')),
                 'configuration_ready':c['host']=='api' or bool(c.get('configured_at')),
                 'instructions':('将本地API地址和连接凭证填入聊天客户端；请求经过这里才会自动存档。' if c['host']=='api' else '加载宿主自动存档插件后发起一轮新对话；首条完整记录落盘后才显示自动存档。')}
+
     def _agent_session_gate(self,connection,sid,*,claim=False,read=False,automatic=False):
         """Scope before any receipt/raw write. Reads never enroll an Agent window.
 
@@ -683,13 +736,20 @@ class MemoryHost:
         return {**result,'status':next((e['status'] for e in self.connections.activity(c['library_id'])['events'] if e['id']==result['receipt_id']),result['status']),
                 'library_id':c['library_id'],'session_scope':current['session_scope'],
                 'session_scope_policy':current['session_scope_policy'],'bound_session_id':current['bound_session_id']}
+
+
     def rebind_connection(self,cid,data):
         with self.connections.binding_lock:
             if self.sources.for_connection(cid):raise ValidationError('固定Agent活动来源不能改作单窗口连接')
             self.connections.rebind(cid,data)
             self.update_agent_config(cid)
             return self.connection_config(cid)
+
+
     def context(self,cid,token,data):
+        with self.connections.binding_lock:
+            return self._context(cid,token,data)
+    def _context(self,cid,token,data):
         from ..companion import connected_session_id
         c=self.connections.authenticate(cid,token)
         data=self.sources.check_context(c,data)
@@ -819,6 +879,11 @@ def make_controller(host):
                 except CookieError:token=''
             if not token or not hmac.compare_digest(token,host.management_token):
                 raise RequestError('请先在本机打开爱之屋界面；此管理接口需要界面会话',401)
+        @staticmethod
+        def _management_path(path):
+            return (path in ('/api/connections','/api/memory/status','/api/agent/sources','/api/activity')
+                    or path in ('/api/persona/organize-preview','/api/persona/organize')
+                    or path.startswith(('/api/connections/','/api/agent/sources/','/api/activity/','/api/persona/traits/')))
         def _guard_connection_surface(self,path):
             # A memory bearer is a per-connection capability, not a desktop
             # management credential. Local desktop requests without a bearer
@@ -871,7 +936,9 @@ def make_controller(host):
                 except Exception:message='记忆服务请求失败'
                 raise RequestError(str(message),exc.code) from None
         def _error(self,exc):
+            from .agent_client import AgentConnectionError
             if isinstance(exc,RequestError):return self._json({'error':str(exc)},exc.status)
+            if isinstance(exc,AgentConnectionError):return self._json({'error':str(exc),'code':exc.code},400)
             if isinstance(exc,LibraryError):return self._json({'error':str(exc)},400)
             if isinstance(exc,ValidationError):return self._json({'error':str(exc)},400)
             if isinstance(exc,KeyStoreError):return self._json({'error':str(exc)},503)
@@ -889,8 +956,7 @@ def make_controller(host):
                     from ..viz.builder import html_for_serve
                     self._issue_management_cookie=True
                     return self._html(html_for_serve())
-                if path in ('/api/connections','/api/memory/status','/api/agent/sources','/api/activity') or path.startswith('/api/connections/') or path.startswith('/api/activity/'):
-                    self._require_management()
+                if self._management_path(path):self._require_management()
                 if path=='/api/health':return self._json({'ok':True,'name':'爱之屋记忆服务','version':__version__,'protocol_version':'0.4.0','mode':'storage','controller_instance_id':host.instance_id})
                 if path=='/api/updates':
                     host.updates.start()
@@ -981,8 +1047,7 @@ def make_controller(host):
                     return self._json(result)
                 if self.headers.get('Authorization') or self.headers.get('X-NKB-Connection-Key'):
                     raise RequestError('记忆连接只接受绑定工具和事件请求',403)
-                if path=='/api/connections' or path.startswith('/api/connections/'):
-                    self._require_management()
+                if self._management_path(path):self._require_management()
                 data=self._body(limit=130*1024*1024 if path in ('/api/sharing/import-preview','/api/sharing/import') else 25*1024*1024 if path in ('/api/dialogue-import/preview','/api/dialogue-import/apply') else 1024*1024)
                 if len(parts)==5 and parts[:2]==['api','connections'] and parts[3:]==['workbuddy','configure']:
                     cid=parts[2];connection=host.connections.get(cid,secret=True)
@@ -994,6 +1059,12 @@ def make_controller(host):
                 if path=='/api/memory/handoff':return self._json(host.window_handoff(self._chosen(),data))
                 if path in ('/api/dialogue-import/preview','/api/dialogue-import/apply'):
                     return self._json(host.dialogue_import(self._chosen(),data,apply=path.endswith('/apply')))
+                if path in ('/api/persona/organize-preview','/api/persona/organize'):
+                    return self._json(host.persona_organize(self._chosen(),data,preview=path.endswith('-preview')))
+                if len(parts)==5 and parts[:3]==['api','persona','traits'] and parts[4]=='remove':
+                    if set(data)-{'expected_revision'}:raise ValidationError('人格资料移除只接受当前版本号')
+                    from ..companion.persona import remove_learned_trait
+                    return self._json(host.transact(self._chosen(),lambda brain:remove_learned_trait(brain,parts[3],expected_revision=data.get('expected_revision'))))
                 if path=='/api/updates/check':return self._json(host.updates.request_check())
                 if path=='/api/updates/settings':return self._json(host.updates.settings(data))
                 if path=='/api/retention/settings':return self._json(host.retention_settings(self._chosen(),data))

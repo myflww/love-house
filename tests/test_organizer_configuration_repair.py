@@ -89,6 +89,15 @@ class OrganizerConfigurationRepairTests(unittest.TestCase):
         for value in (graph,result,self.host.organizer_view('default')):
             self.assertNotIn(KEY,json.dumps(value))
 
+    def test_readiness_pane_uses_metadata_without_resolving_runtime_credential(self):
+        self.configure()
+        with patch.object(self.host,'organizer_credential',side_effect=AssertionError('readiness must not unseal runtime key')) as resolve:
+            provider=self.host.organizer_view('default')['provider']
+        self.assertIs(provider['model_ready'],True)
+        self.assertIs(provider['credential_ready'],True)
+        resolve.assert_not_called()
+        self.assertEqual(self.requests,[]);self.assertEqual(self.usage(),0)
+
     def test_invalid_settings_and_header_credentials_never_replace_a_working_key(self):
         self.configure();before=self.host.snapshot('default')
         for data in ({'api_key':NEW_KEY,'batch_size':0},{'api_key':NEW_KEY,'daily_call_limit':0},
@@ -109,8 +118,9 @@ class OrganizerConfigurationRepairTests(unittest.TestCase):
         self.assertEqual(self.requests,[]);self.assertEqual(self.usage(),0)
         result=self.configure()
         self.assertEqual(result['resumed_configuration_jobs'],1)
-        self.assertEqual(result['batches'][0]['attempts'],0)
+        self.assertEqual(result['batches'][0]['attempts'],3)
         self.assertEqual(self.host.organizer.run_once('default')['status'],'done')
+        self.assertEqual(self.host.organizer_view('default')['batches'][0]['attempts'],4)
         self.assertEqual(self.usage(),1)
 
     def test_new_capture_between_snapshot_and_queue_claim_is_not_misreported_as_deleted(self):

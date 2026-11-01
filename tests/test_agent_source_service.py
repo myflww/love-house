@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from http.cookiejar import CookieJar
 from http.server import ThreadingHTTPServer
 import json
 import os
@@ -15,7 +16,7 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
-from urllib.request import Request, ProxyHandler, build_opener
+from urllib.request import Request, ProxyHandler, HTTPCookieProcessor, build_opener
 
 from nkb.service.credentials import KeyStore
 from nkb.service.host import MemoryHost, make_controller
@@ -44,6 +45,7 @@ class AgentSourceServiceTests(unittest.TestCase):
     def api(self,path,body=None,lib='default',token=None):
         headers={'X-NKB-Library':lib,'X-LoveHouse-Management':self.host.management_token}
         if token:headers['Authorization']='Bearer '+token
+        else:headers['X-LoveHouse-Management']=self.host.management_token
         if body is not None:headers['Content-Type']='application/json'
         request=Request(self.base+path,data=None if body is None else json.dumps(body,ensure_ascii=False).encode(),headers=headers)
         try:
@@ -188,8 +190,11 @@ class HeadlessSourceCLITests(unittest.TestCase):
         if not ready.exists():
             self.process.terminate();self.process.wait(timeout=8);self.log.close()
             self.fail('Disposable headless service did not become ready: '+self.log_path.read_text())
-        self.ready=json.loads(ready.read_text());self.client=build_opener(ProxyHandler({}))
+        self.ready=json.loads(ready.read_text());self.client=build_opener(ProxyHandler({}),HTTPCookieProcessor(CookieJar()))
         self.base='http://127.0.0.1:'+str(self.ready['controller_port'])
+        # The disposable process requires the same local UI session as a user.
+        with self.client.open(self.base+'/',timeout=5) as response:
+            self.assertEqual(response.status,200);response.read()
 
     def tearDown(self):
         if self.process.poll() is None:self.process.terminate()

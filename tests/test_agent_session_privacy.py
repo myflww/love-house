@@ -63,12 +63,13 @@ class AgentSessionPrivacyTests(unittest.TestCase):
 
     def scope(self):
         connection=self.host.connections.get(self.cid)
-        return connection['bound_session_id'] or connection['session_scope']
+        return connection.get('bound_session_id') or connection['session_scope']
 
     def test_new_generic_connections_default_to_next_real_window_and_old_explicit_all_remains(self):
         self.assertEqual(self.scope(),'next_session')
         old=self.host.new_connection({'name':'显式全连接','host':'agent','library_id':'default','session_scope':'connection'})
         self.assertEqual(old['connection']['session_scope'],'any')
+        self.assertIsNone(old['connection']['bound_session_id'])
 
     def test_heartbeat_and_all_read_surfaces_do_not_claim_a_pending_window(self):
         self.assertEqual(self.request('/api/connections/'+self.cid+'/heartbeat',{})[0],200)

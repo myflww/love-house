@@ -252,6 +252,7 @@ class RealControllerAgentConnectorTests(unittest.TestCase):
   self.assertTrue(hook['saved']);status=self.client.status();self.assertFalse(status['automatic_memory'])
   self.assertEqual(status['capture_mode'],'host_hook_received')
   self.assertEqual(status['capture']['hook_event_count'],1)
+  self.assertEqual(status['connection']['archive_status'],'host_reported')
   snapshot=self.host.snapshot(self.bound)
   self.assertEqual(len(snapshot['nodes']),2)
   self.assertEqual(sum(bool(n['meta'].get('duplicate_of')) for n in snapshot['nodes'].values()),1)

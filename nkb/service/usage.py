@@ -8,10 +8,13 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import math
+import os
 from pathlib import Path
 import re
 import sqlite3
+import threading
 import time
+from weakref import WeakValueDictionary
 
 from ..errors import StorageError, ValidationError
 
@@ -19,6 +22,21 @@ DAY = 86400
 KINDS = frozenset({"recall", "mention"})
 _LIBRARY_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 _MAX_BATCH = 1000
+_LOCKS_GUARD = threading.Lock()
+_DATABASE_LOCKS = WeakValueDictionary()
+
+
+def _database_lock(path):
+    # Separate UsageJournal objects still access one SQLite file. Resolve path
+    # aliases and Windows case before selecting the lock; retain no permanent
+    # registry entry after the last journal for this database is released.
+    identity = os.path.normcase(str(path.resolve()))
+    with _LOCKS_GUARD:
+        lock = _DATABASE_LOCKS.get(identity)
+        if lock is None:
+            lock = threading.RLock()
+            _DATABASE_LOCKS[identity] = lock
+        return lock
 
 
 def _library(value):
@@ -63,6 +81,7 @@ class UsageJournal:
 
     def __init__(self, root, *, clock=None):
         self.path = Path(root) / "memory-usage.sqlite3"
+        self._db_lock = _database_lock(self.path)
         self.clock = clock or time.time
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         with self.db() as db:
@@ -85,22 +104,25 @@ class UsageJournal:
 
     @contextmanager
     def db(self):
-        db = None
-        try:
-            # Rehearsal bookkeeping is optional. A busy metadata database must
-            # not hold up original conversation storage for many seconds.
-            db = sqlite3.connect(self.path, timeout=0.05)
-            db.row_factory = sqlite3.Row
-            db.execute("PRAGMA journal_mode=WAL")
-            db.execute("PRAGMA secure_delete=ON")
-            with db:
-                yield db
-        except sqlite3.Error:
-            # Do not put a query, opaque ID, data path or SQLite message in logs.
-            raise StorageError("暂时无法保存记忆使用记录；已有记忆与原文不受影响") from None
-        finally:
-            if db is not None:
-                db.close()
+        # Serialize local initialization, transactions and handle closure across
+        # journal instances. Otherwise their WAL/schema setup and writes compete
+        # for the short SQLite busy budget on Windows. Different files retain
+        # independent locks; an external writer still has the bounded timeout.
+        with self._db_lock:
+            db = None
+            try:
+                db = sqlite3.connect(self.path, timeout=0.05)
+                db.row_factory = sqlite3.Row
+                db.execute("PRAGMA journal_mode=WAL")
+                db.execute("PRAGMA secure_delete=ON")
+                with db:
+                    yield db
+            except sqlite3.Error:
+                # Never include content, paths, opaque IDs or SQLite details.
+                raise StorageError("暂时无法保存记忆使用记录；已有记忆与原文不受影响") from None
+            finally:
+                if db is not None:
+                    db.close()
 
     def enqueue(self, library_id, ids, kind, at=None):
         library_id, ids, kind = _library(library_id), _node_ids(ids), _kind(kind)

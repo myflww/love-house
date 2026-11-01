@@ -82,7 +82,6 @@ def remember(brain: Brain, text: str, kind: str = "preference", important: bool 
                     impact=impact, session_id=session_id,
                     tags=["用户确认"], meta={"source": "user_confirmed", "important": important,
                                           "confirmed": True, "speaker": "user"})
-    brain.auto_link(nid, top=2)
     return nid
 
 
@@ -279,9 +278,10 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
     namespace=library_id or brain.meta.get('library_id')
     profile = get_profile(brain)
     from .persona import persona_state
-    persona = persona_state(brain)
+    persona = persona_state(brain, library_id=library_id)
     effective_profile = {**profile, "name": profile["name"] if persona["enabled"] else "",
-                         "persona": persona["effective_persona"]}
+                         "persona": persona["effective_persona"],
+                         "user_name": profile["user_name"] if persona["enabled"] else ""}
     graph = brain.export()
     from .dedup import is_duplicate
     blocked=_disabled_evidence(brain)
@@ -290,6 +290,7 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
     stamp=graph['as_of']
     for node in graph['nodes']:
         if not node.get('recoverable') or node['id'] in blocked or is_duplicate(brain.get(node['id']),brain):continue
+        if not persona['enabled'] and node.get('meta',{}).get('source')=='persona_import_source':continue
         # Validate against the complete Brain, including raw evidence that is
         # not itself selected for transmission. Invalid derived records cannot
         # consume the organized retrieval lane and hide valid memories.
@@ -322,7 +323,7 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
     truncated = False
     if any(effective_profile.values()):
         material = json.dumps({**effective_profile, "persona_revision": persona["revision"],
-                               "learned_evidence": {k: v["evidence_ids"] for k, v in persona["learned"].items()}}, ensure_ascii=False)
+                               "learned_evidence": {k: v["evidence_ids"] for k, v in persona["active_learned"].items()}}, ensure_ascii=False)
         size = min(len(material), max_chars // 3)
         while size > 0:
             block = "角色资料（明确设定优先；学习风格需证据）：" + escape(material[:size])
@@ -404,7 +405,8 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
             "source_coverage":source_coverage(by_id[nid].get('meta',{}).get('source') for nid in memory_ids),
             "platform_recent_ids": included_recent,
             "trail": deepcopy(result.get("trail", [])), "baseline": included_baseline,
-            "profile": profile, "persona": {k: persona[k] for k in ("revision", "enabled", "learning_enabled", "learned")},
+            "profile": effective_profile, "persona": {**{k: persona[k] for k in ("revision", "enabled", "learning_enabled")},
+                                                        "learned": persona["active_learned"] if persona["enabled"] else {}},
             "history": recent, "messages": messages,
             "query": query, "session_id": session_id, "read_only": True,
             "truncated": truncated, "packet_chars": len(packet)}

@@ -16,6 +16,26 @@
 
 ---
 
+## Windows 0.10.1rc1 · 同步预览候选
+
+正在移植已发布 macOS 0.10.1 的人格形成、原版神经星图与独立记忆修复，保留 Windows 既有原生修复。候选包尚需完成 Windows 安装、升级和公开下载验证；当前可下载版本仍见下表。见 [Windows 本次更新](docs/WINDOWS-0101-UPDATE.md)。
+
+## macOS 0.10.1 · 独立记忆修复
+
+普通新增、确认记忆、承诺与历史文本导入默认不做任何词面猜测连边：相同“今天我”前缀、同一 Agent 名字、时间、通用标签或模板都不能单独制造关系。无关联的信息可以独立保存、检索和回忆；共同召回只巩固已有的有效关系，不再把同批命中的节点两两连起来。高级 `auto_link` 仅保留为开发者明确选择的选项，字面近似不代表真实关系。
+
+整理模型自由提出的 `related_ids`／`relate` 当前不自动建边；合法事实及其真实来源照常保存，旧整理缓存也经过同一应用门槛。明确笔记引用、手动连接和真实事件上下文继续保留。本版不擅自删除来源未知的历史边，避免破坏原有手动连接或真实证据关系。
+
+macOS 0.10.1 延续下方 0.10.0 的人格形成与原版神经图，绘图和 UI 不变。Windows 0.9.1rc1 与手机 0.8.0rc2 保持各自现有版本，尚未同步本次修复。阅读 [修复与验证说明](https://github.com/myflww/love-house/blob/v0.10.1/docs/MACOS-0101-INDEPENDENT-MEMORIES.md) 和 [Windows 后续交接](https://github.com/myflww/love-house/blob/v0.10.1/docs/WINDOWS-0101-HANDOFF.md)。
+
+## macOS 0.10.0
+
+macOS 0.10.0 让人格随记忆一起生长：新库默认启用人格及学习，保持空白起步；明确关闭的选择继续保留。导入带角色的旧聊天后，可先查看范围，再确认一次“快速整理人格”；平时整理记忆时也会继续补充有原话依据的特征，固定设定优先保留。
+
+**强烈建议为当前库配置整理 API，并按需开启自动整理。** 模型帮助归纳记忆与人格，调用受本库预算控制；不配置也能保存原文、检索和完整导出，连接 Agent 本身不需要模型厂商 Key。以上默认开启与人格形成功能目前仅随 macOS 0.10.0 发布，Windows 与手机尚未移植。
+
+神经星图直接采用已批准的隔离演示原绘制与布局代码，保留动态粒子、细纤维与传导；只用已有星星像素按钮切换“动态星云／平面引力图”。主题只切换图画布黑白，原界面配色、按钮和图标保持原样。阅读 [人格使用与验证](https://github.com/myflww/love-house/blob/v0.10.0/docs/MACOS-010-PERSONA.md)、[神经星图与适配边界](https://github.com/myflww/love-house/blob/v0.10.0/docs/NEURAL-ATLAS-010.md)、[原代码复用校验](https://github.com/myflww/love-house/blob/v0.10.0/docs/APPROVED-ATLAS-PROVENANCE.json) 和 [Windows 后续交接](https://github.com/myflww/love-house/blob/v0.10.0/docs/WINDOWS-010-HANDOFF.md)。
+
 ## 你的 Agent，有自己的存档
 
 爱之屋是独立的记忆软件。聊天模型由你自己的 Agent 宿主管理，爱之屋负责接收真实对话与操作结果、保存来源、调用你指定的模型整理，并在需要时返回相关记忆。
@@ -25,20 +45,24 @@
 | 让陪伴 Agent 长久记得你 | 原文先保存，再形成带时间、来源和状态的事实、偏好、经历与约定 |
 | 换窗口继续相处 | 将新窗口连接到已有存档，读取人格与历史记忆，无需重新养一遍 |
 | 同时养多个 Agent | 每份连接固定一个记忆库；浏览其他星图不改变连接归属 |
-| 看见记忆生长 | 黑色神经星云、银白细丝、光点传导；少量节点靠近，多量节点拉远 |
+| 看见记忆生长 | macOS 0.10.0 提供动态粒子星云与平面引力图、细丝与传导，画布可切黑白；保留自动视距和节点查看 |
 | 分享一个 Agent 的经历 | 导出完整单库 JSON 或阅读文件；导入会创建独立副本 |
 | 自己掌握记忆 | 查看来源、更正、停用、忘记、备份、回收站和恢复 |
 
 新建 Agent 默认空白，没有预设人格或虚构经历。框架示例是独立的效果预览，不进入真实记忆，也可以移入回收站。
 
-![爱之屋的像素界面与神经星云](assets/screenshots/neural-nebula.png)
+| macOS 0.10.0 · 动态粒子星云 | 同一份记忆 · 平面引力图 |
+|---|---|
+| ![原像素界面与动态神经星云](https://raw.githubusercontent.com/myflww/love-house/1aa18a555863f49d60fab6fd5aac06c350d82f19/assets/screenshots/neural-nebula-010.png) | ![原像素界面与平面引力图](https://raw.githubusercontent.com/myflww/love-house/1aa18a555863f49d60fab6fd5aac06c350d82f19/assets/screenshots/neural-flat-010.png) |
+
+两张新图来自独立合成演示数据；星图模式只影响显示，不改写记忆、关联或实际召回次数。
 
 <details>
 <summary>看看存档继承和分享页面</summary>
 
 | 让新窗口继承已有存档 | 完整导出与可选阅读索引 |
 |---|---|
-| ![连接新窗口](assets/screenshots/inherit-memory.png) | ![导出分享](assets/screenshots/share-preview.png) |
+| ![连接新窗口](https://raw.githubusercontent.com/myflww/love-house/1aa18a555863f49d60fab6fd5aac06c350d82f19/assets/screenshots/inherit-memory.png) | ![导出分享](https://raw.githubusercontent.com/myflww/love-house/1aa18a555863f49d60fab6fd5aac06c350d82f19/assets/screenshots/share-preview.png) |
 
 以上截图使用独立的合成演示数据，没有真实用户存档。
 
@@ -46,12 +70,12 @@
 
 ## 下载
 
-**Windows 提供 0.9.1rc1 修复预览；macOS 为 0.9.0，Android / iPhone 主屏幕版继续使用 0.8.0rc2。请按系统选择下载。**
+**Windows 提供 0.9.1rc1 修复预览；macOS 为 0.10.1，Android / iPhone 主屏幕版继续使用 0.8.0rc2。请按系统选择下载。**
 
 | 你的系统 | 版本与下载 | 使用要求与验证状态 |
 |---|---|---|
 | Windows x64 · Intel / AMD 64 位 | [安装版 EXE](https://github.com/myflww/love-house/releases/download/v0.9.1rc1/LoveHouse-Setup-0.9.1rc1-Windows-x64.exe) · [便携版 ZIP](https://github.com/myflww/love-house/releases/download/v0.9.1rc1/LoveHouse-0.9.1rc1-Windows-x64.zip) | 0.9.1rc1 分享导出与整理修复预览；技术最低 Win10 2004/19041 或 Win11。Win11 x64 已实测，Win10 待实机验收 |
-| macOS · Apple Silicon（M 系列） | [0.9.0 稳定版 ZIP](https://github.com/myflww/love-house/releases/download/v0.9.0/LoveHouse-0.9.0-macOS-arm64.zip) | macOS 13.0+；解压后把“爱之屋.app”放入应用程序目录 |
+| macOS · Apple Silicon（M 系列） | [0.10.1 稳定版 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.1/LoveHouse-0.10.1-macOS-arm64.zip) | macOS 13.0+；解压后把“爱之屋.app”放入应用程序目录 |
 | 主流 Android 手机 | [0.8.0rc2 APK](https://github.com/myflww/love-house/releases/download/v0.8.0rc2/LoveHouse-0.8.0rc2-Android.apk) · [发布与校验](https://github.com/myflww/love-house/releases/tag/v0.8.0rc2) | 技术最低 Android 8.0；保持系统 WebView 更新。通用已签名 APK，真实手机待验收 |
 | iPhone | [打开主屏幕版](https://love-house-mobile-myflww.haixiac34.chatgpt.site) | Safari 打开 → 分享 → 添加到主屏幕；技术最低 iOS 15.4。PWA 网页应用，无 IPA；真机待验收 |
 | macOS Intel / Windows ARM64 / Windows 32 位 | 暂无对应原生桌面包 | 当前不承诺这些架构的兼容性 |
@@ -61,7 +85,7 @@
 
 桌面包不需要自行安装 Python 或 Node。Windows 安装版按当前用户安装；便携版须完整解压后打开 `LoveHouse.exe`。新版携带经过微软签名与 SHA256 验证的离线 WebView2 修复组件，缺失时明确询问后安装。
 
-Windows 使用 [Windows-SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.9.1rc1/Windows-SHA256SUMS.txt)，macOS 使用 [SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.9.0/SHA256SUMS.txt)。GitHub 的自动 Source code 文件不是桌面安装包；旧 Windows 0.5.0 存在启动兼容反馈，请改用上面的修复预览。
+Windows 使用 [Windows-SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.9.1rc1/Windows-SHA256SUMS.txt)，macOS 使用 [SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.10.1/SHA256SUMS.txt)。GitHub 的自动 Source code 文件不是桌面安装包；旧 Windows 0.5.0 存在启动兼容反馈，请改用上面的修复预览。
 
 Windows 0.9.1rc1 修复分享预览被整理设置阻断、导出保存与整理任务来源误判，并同步 macOS 0.9 的共享功能。完整验证、升级步骤与限制见 [本次修复说明](docs/WINDOWS-091-FIXES.md)。Win10、运行时缺失/损坏和用户实际 DeepSeek 账户仍需分别验收。
 
@@ -89,14 +113,14 @@ Windows 0.9.1rc1 修复分享预览被整理设置阻断、导出保存与整理
 <details>
 <summary>查看默认单窗口设置</summary>
 
-![默认只记录目标窗口](assets/screenshots/window-privacy.png)
+![默认只记录目标窗口](https://raw.githubusercontent.com/myflww/love-house/1aa18a555863f49d60fab6fd5aac06c350d82f19/assets/screenshots/window-privacy.png)
 
 </details>
 
 <details>
 <summary>什么时候需要 API Key？</summary>
 
-记忆连接本身不需要。你希望爱之屋调用模型协助整理记忆、生成分享阅读索引时，可在“记忆整理”中单独配置模型与 Key。高级“模型 API 转发”是另一条可选兼容路径，只有选择转发模型请求时才需要相应模型凭据。
+记忆连接本身不需要。你希望爱之屋调用模型协助整理记忆、生成分享阅读索引时，可在“记忆整理”中单独配置模型与 Key。macOS 0.10.0 强烈建议配置整理 API，让记忆与人格在自动整理时持续归纳；“保存并开启自动整理”会明确开启调用，次数与字符预算由你控制。不开启仍可使用原文保存、检索、完整导出及手动人格设定。高级“模型 API 转发”是另一条可选兼容路径，只有选择转发模型请求时才需要相应模型凭据。
 
 厂商 Key 存在系统凭据保管库；系统不支持持久保存时，界面明确显示仅本次会话。Key 不进入星图、导出文件或公开 MCP 配置。
 
@@ -128,7 +152,7 @@ Agent 读取 `love-house-memory-context/v1` 结构化 JSON，包含角色、类�
 
 ## 温柔的界面，清楚的边界
 
-奶油色与樱花色像素界面、离线中文字体、带用途提示的按钮；只有神经星图区保持黑色。节点名称默认隐藏，按“显示名称”再打开；悬停和选中仍能查看信息。手动转动或缩放后保持视角，按“恢复自动视距”重新取景。
+奶油色与樱花色像素界面、离线中文字体、带用途提示的按钮继续保留。macOS 0.10.0 的黑白主题只作用神经图画布，原界面配色、按钮和图标不随之变化；动态星云和平面引力图只用原有星星像素按钮切换。节点名称默认隐藏，按“显示名称”再打开；悬停和选中仍能查看信息。手动转动或缩放后保持视角，按“恢复自动视距”重新取景。
 
 - 数据保存在本机，现阶段没有跨设备云同步。
 - 只有宿主真实提交、或经过兼容转发入口的内容才能被记录；一个 Key 无法读取任意聊天网页。
@@ -150,11 +174,12 @@ Agent 读取 `love-house-memory-context/v1` 结构化 JSON，包含角色、类�
 
 ## 源码运行
 
-Windows 当前修复源码见 [v0.9.1rc1 标签](https://github.com/myflww/love-house/tree/v0.9.1rc1)。移动版仍对应 [v0.8.0rc2](https://github.com/myflww/love-house/tree/v0.8.0rc2)；`main` 审阅合并前可能与发布分支不同。
+macOS 源码见 [v0.10.1 标签](https://github.com/myflww/love-house/tree/v0.10.1)，Windows 修复源码见 [v0.9.1rc1 标签](https://github.com/myflww/love-house/tree/v0.9.1rc1)，移动版对应 [v0.8.0rc2](https://github.com/myflww/love-house/tree/v0.8.0rc2)。请按平台检出相应标签；`main` 的生产代码审阅合并前可能与已发布安装包不同。下面以 macOS 发布源码为例：
 
 ```bash
 git clone https://github.com/myflww/love-house.git
 cd love-house
+git switch --detach v0.10.1
 python3.12 scripts/launch.py
 ```
 
@@ -179,9 +204,9 @@ Created by [myflww](https://github.com/myflww) · 非商用 · 保留署名
 
 </div>
 
-## 共享生产后端 0.8.0rc1
+## 已发布的共享后端 0.9.1rc1
 
-本分支同步当前共同生产的 0.8 后端、桌面及服务器源代码，并保留手机版原生项目与签名升级验证。共享能力包括自适应记忆、整理规则、聊天导入、分档记忆包、来源与经历、按系统检测更新、Harness 自动存档修复，以及受保护的远程记忆服务。Windows 的运行时修复、原生构建与消费者验证流程同时保留。
+Windows 发布源码在已验证的 0.8.0rc2 基础上修复分享与整理，并同步 0.9 的独立输出、整理记忆召回和连接帮助。`main` 代码仍须按审阅流程合并；下载包使用发布页标明的冻结源码。保留手机版原生项目、已发布的 0.8.0rc2 APK 与签名升级验证，以及 Windows 运行时修复、WorkBuddy 窗口隔离、原生构建和消费者验证流程。
 
 手机仍按上方说明作为本地记忆工具或自己电脑/服务器同份记忆的入口；具备 Agent 能力的聊天窗口配置通用记忆连接。源码版本统一不代表所有平台原生安装包已经完成实机验收，最终以对应 CI 和发布记录为准。旧 Android 用户覆盖升级仍须同一 applicationId 和原签名，不能用新签名替换来冒充无损升级。
 

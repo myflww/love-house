@@ -539,6 +539,18 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                 smokePersonaOptoutLibrary = personaUI?["optoutLibraryId"] as? String ?? ""
                 try requireSmoke(!smokePersonaOptoutLibrary.isEmpty, "Native persona opt-out library missing")
                 print("Native 0.10: default persona and learning ON with empty core; manual editor folded; API guidance and no-key preview; actual opt-out controls persist across library switches; no model action")
+                let independentTexts = ["今天我读到火山喷发形成熔岩。", "今天我研究邮票收藏使用镊子。", "今天我学习钢琴调律校正音准。"]
+                for text in independentTexts {
+                    _ = try await smokeRequest("api/add", method: "POST", payload: ["label":text, "text":text, "kind":"fact"], libraryID: smokePersonaOptoutLibrary)
+                }
+                let independentBefore = try await smokeRequest("api/graph", libraryID: smokePersonaOptoutLibrary)
+                try requireSmoke((independentBefore["nodes"] as? [[String:Any]])?.count == 3 && (independentBefore["edges"] as? [[String:Any]])?.isEmpty == true,
+                                 "Default admission connected unrelated topics with a shared narrative prefix")
+                let independentRecall = try await smokeRequest("api/recall", method: "POST", payload: ["query":independentTexts.joined(separator:" "), "k":3, "learn":true], libraryID: smokePersonaOptoutLibrary)
+                let independentAfter = try await smokeRequest("api/graph", libraryID: smokePersonaOptoutLibrary)
+                try requireSmoke((independentRecall["hits"] as? [[String:Any]])?.count == 3 && (independentRecall["reinforced"] as? [String:Any])?["pairs"] as? Int == 0 && (independentAfter["edges"] as? [[String:Any]])?.isEmpty == true,
+                                 "Joint retrieval invented relationships between independent memories")
+                print("Native 0.10.1: three independent topics sharing a natural prefix save and recall normally with zero edges, including learn=true")
                 let organizerUI = try await webView.callAsyncJavaScript(
                     "setPanelOpen('organizerPanel',true,{focus:false}); await refreshOrganizer(); const panel=document.getElementById('organizerPanel'); const enabled=document.getElementById('organizerEnabled'); const result={open:!!panel&&!panel.hidden, enabled:enabled?.checked===true, preview:!!document.getElementById('previewOrganizer')}; setPanelOpen('organizerPanel',false,{restore:false}); return result;",
                     arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
@@ -762,6 +774,10 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                 try requireSmoke(optoutPersona["enabled"] as? Bool == false && optoutPersona["learning_enabled"] as? Bool == false,
                                  "Explicit persona opt-out did not survive the native backend restart")
                 print("Native 0.10: explicit persona and learning opt-out survive clean backend restart")
+                let independentRestart = try await smokeRequest("api/graph", libraryID: smokePersonaOptoutLibrary)
+                try requireSmoke((independentRestart["nodes"] as? [[String:Any]])?.count == 3 && (independentRestart["edges"] as? [[String:Any]])?.isEmpty == true,
+                                 "Independent memories or their zero-edge state did not survive restart")
+                print("Native 0.10.1: independent memory contents and zero-edge graph survive clean backend restart")
                 smokeExitCode = 0
                 NSApp.terminate(nil)
             } catch { failSmoke(error) }

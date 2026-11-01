@@ -112,17 +112,20 @@ class TestLearning(Temp):
         b = Brain.new()
         a = b.add("甲")
         c = b.add("乙")
+        b.link(a,c,.2)  # Reinforcement strengthens a declared edge, not a co-hit.
         for _ in range(60):
             b.reinforce([a, c], lr=0.5)
         self.assertLess(b.edges["|".join(sorted((a, c)))]["w"], 1.0)
         self.assertGreater(b.edges["|".join(sorted((a, c)))]["w"], 0.98)
 
-    def test_reinforce_counts_pairs(self):
+    def test_reinforce_counts_existing_pairs_only(self):
         b = Brain.new()
         ids = [b.add(f"节点{i}") for i in range(4)]
+        b.link(ids[0],ids[1],.2)
         info = b.reinforce(ids)
         self.assertEqual(info["nodes"], 4)
-        self.assertEqual(info["pairs"], 6)   # C(4,2)
+        self.assertEqual(info["pairs"], 1)
+        self.assertEqual(len(b.edges),1)
 
     def test_forget_is_graded(self):
         b = Brain.new()

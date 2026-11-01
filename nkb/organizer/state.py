@@ -52,6 +52,28 @@ def _persona_summary(accepted, rejections, *, status=None):
             'accepted_count':accepted,'applied_count':0,'rejected_count':rejected,'reasons':dict(rejections),'changed':False}
 
 
+def relation_result_view(result):
+    """Only counts and a fixed local reason; relationship suggestions may be private."""
+    if not isinstance(result,dict):return None
+    view={key:value for key in ('skipped_operations','ignored_links')
+          if type(value:=result.get(key,0)) is int and 0<=value<=100000}
+    if not any(view.values()):return None
+    return {**view,'reason':'explicit_confirmation_required'}
+
+
+def _skip_optional_relations(op,counts):
+    """Presence in one batch or two valid quotes does not prove a relationship."""
+    related=set(op.get('related_ids',[]))
+    if op.get('action')=='relate':
+        counts['skipped_operations']+=1
+        counts['ignored_links']+=len(related-{op.get('target_id')})
+        return True
+    sources={e['id'] for e in op.get('evidence',[])}
+    counts['ignored_links']+=len(related-sources-{op.get('target_id')})
+    op['related_ids']=[]
+    return False
+
+
 def fingerprint(node):
     data = {k: node.get(k) for k in ("id", "label", "text", "kind", "session_id", "created", "event_at", "valid_to", "superseded_by", "updated", "important", "impact")}
     # Genuine use changes strength/counts, not the text or provenance a job saw.
@@ -313,6 +335,7 @@ def validate_plan(output, payload, guards, job_id, profile):
     raw = {r["id"]: r for r in payload["raw"]}
     related = {r["id"] for r in payload["related"]}
     normalized = []
+    relation_counts={'skipped_operations':0,'ignored_links':0}
     allowed = {"action", "layer", "key", "text", "evidence", "target_id", "aliases", "related_ids", "certainty", "domain", "atom", "episode"}
     for op in operations:
         if (not isinstance(op, dict) or set(op) - allowed or op.get("action") not in ACTIONS
@@ -360,6 +383,7 @@ def validate_plan(output, payload, guards, job_id, profile):
             raise OrganizerError("关联目标未出现在输入中", "invalid_evidence")
         episode=normalize_episode(op,raw)
         if episode is not None:op['episode']=episode
+        if _skip_optional_relations(op,relation_counts):continue
         # This branch permits an observed autonomous episode to retain the
         # Agent's explicitly attributed reason without upgrading that reason
         # into a proven motive or a fact about its human owner.
@@ -471,6 +495,7 @@ def validate_plan(output, payload, guards, job_id, profile):
     return {"version": 1, "rules_version": RULES_VERSION, "job_id": job_id, "library_id": payload["library_id"],
             "profile": deepcopy(profile), "operations": normalized, 'persona_traits':checked_traits,
             'persona_validation':persona_validation,
+            'relation_policy':'explicit-only/v1','relation_counts':relation_counts,
             'persona_revision':payload.get('memory_policy',{}).get('persona_revision'),
             'persona_rules_version':PERSONA_RULES_VERSION,'purpose':payload.get('purpose','memory'), **deepcopy(guards)}
 
@@ -505,11 +530,18 @@ def apply_plan(brain, plan, library_id):
     _check(brain, plan, library_id)
     before = {k: deepcopy(getattr(brain, k)) for k in ("nodes", "edges", "meta", "_vec")}
     result = {"job_id": plan["job_id"], "created": [], "merged": [], "superseded": [], "candidates": [], "linked": []}
+    relation_counts={key:0 for key in ('skipped_operations','ignored_links')}
+    # New plans already stripped suggestions; old cached plans must pass the
+    # same gate here without discarding legal facts or making another API call.
+    checked_relations=relation_result_view(plan.get('relation_counts'))
+    if checked_relations:
+        for key in relation_counts:relation_counts[key]=checked_relations.get(key,0)
     candidates = deepcopy(brain.meta.get("organizer_candidates", []))
     touched = set()
     try:
         for index, original in enumerate(plan["operations"]):
             op=deepcopy(original)
+            if _skip_optional_relations(op,relation_counts):continue
             if 'atom' not in op:op['atom']=normalize_atom(op)[0]
             target = brain.get(op.get("target_id", ""))
             expected_layer = "experience" if op.get("observation") else op["layer"]
@@ -545,13 +577,6 @@ def apply_plan(brain, plan, library_id):
                 candidates.append(candidate)
                 result["candidates"].append(cid)
                 continue
-            if op["action"] == "relate":
-                for other in op["related_ids"]:
-                    if other != target["id"]:
-                        brain.link(target["id"], other, .3)
-                        touched.update((target["id"], other))
-                        result["linked"].append([target["id"], other])
-                continue
             if op["action"] == "merge" or duplicate:
                 target = target if op["action"] == "merge" else duplicate
                 touched.add(target["id"])
@@ -573,7 +598,7 @@ def apply_plan(brain, plan, library_id):
                 if incoming_episode:
                     target['meta']['experience']=merge_experience(target['meta'].get('experience'),make_experience(op,target,library_id))
                 target["meta"]["organizer_aliases"] = list(dict.fromkeys(target["meta"].get("organizer_aliases", []) + op["aliases"]))[:16]
-                for other in list(dict.fromkeys([e['id'] for e in op['evidence']]+op['related_ids']))[:12]:
+                for other in list(dict.fromkeys(e['id'] for e in op['evidence']))[:12]:
                     if other!=target['id'] and brain._key(target['id'],other) not in brain.edges:
                         brain.link(target['id'],other,.35)
                         touched.add(other)
@@ -615,11 +640,12 @@ def apply_plan(brain, plan, library_id):
                 brain.supersede(target["id"], nid)
                 if isinstance(target['meta'].get('memory_atom'),dict):target['meta']['memory_atom']['valid_to']=target['valid_to']
                 result["superseded"].append(target["id"])
-            for other in list(dict.fromkeys([e["id"] for e in op["evidence"]] + op["related_ids"]))[:8]:
+            for other in list(dict.fromkeys(e["id"] for e in op["evidence"]))[:8]:
                 if other != nid:
                     brain.link(nid, other, .35)
                     touched.add(other)
         brain.meta["organizer_candidates"] = candidates
+        if any(relation_counts.values()):result['relations']=relation_result_view(relation_counts)
         persona_before=None
         if 'persona_validation' in plan or plan.get('persona_traits') or plan.get('purpose')=='persona':
             validation=persona_result_view(plan.get('persona_validation')) or _persona_summary(len(plan.get('persona_traits',[])),{})
@@ -738,6 +764,8 @@ def review_candidate(brain, candidate_id, action):
     if action == "reject":
         candidate["status"] = "rejected"
         return {"id": candidate_id, "status": "rejected"}
+    if op.get('action')=='relate':
+        raise OrganizerError('自动关联建议不能作为事实采用；请查看两端内容后使用明确的手工连接','manual_relation_required')
     atom_fallback=op.get('fallback_reason_code')=='invalid_atom_verbatim_fallback'
     if atom_fallback:
         # A reviewed fallback creates a literal source record only. It cannot

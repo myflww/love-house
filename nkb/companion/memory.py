@@ -82,7 +82,6 @@ def remember(brain: Brain, text: str, kind: str = "preference", important: bool 
                     impact=impact, session_id=session_id,
                     tags=["用户确认"], meta={"source": "user_confirmed", "important": important,
                                           "confirmed": True, "speaker": "user"})
-    brain.auto_link(nid, top=2)
     return nid
 
 

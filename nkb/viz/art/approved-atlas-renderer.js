@@ -11,6 +11,10 @@ const finite=(v,f=0)=>typeof v==='number'&&Number.isFinite(v)?v:f;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
 const TAU=Math.PI*2;
+// Positive camera yaw moves the visible near side from right to left. Keep the
+// orbit in the camera, so every painter, hit test and navigator shares it.
+const AUTO_ROTATE_RADIANS_PER_SECOND=.035;
+const WORLD_UP=new THREE.Vector3(0,1,0);
 const LIFE={active:1,fading:.66,dormant:.28,forgotten:.08};
 const KIND_NAMES={concept:'概念',fact:'事实',episode:'经历',preference:'偏好',source:'来源',doc:'文档',question:'问题',answer:'回答',commitment:'承诺',reflection:'反思'};
 function hash(value){let h=2166136261;for(const c of String(value))h=Math.imul(h^c.charCodeAt(0),16777619);return(h>>>0)/4294967296;}
@@ -42,6 +46,59 @@ export function createApprovedAtlasRenderer(Base){
    this.flatTargets=new Map();this.nebulaTargets=new Map();this.degrees=new Map();this.hubs=new Set();this.categories=[];
    this.flatMix=0;this.motionTime=0;this.lastWall=null;this.lastMode='nebula';this.enabled=true;this.disposed=false;
    this.orbitSnapshot=null;this.flatSnapshot=null;this.viewState=null;this.painter=new ApprovedAtlasPainter();
+   this.autoRotateYaw=0;this.autoRotateLastWall=null;this.autoRotateReason='idle';
+   this.hoverPointers=new Set();this.activePointers=new Set();this.inputDisposers=[];
+   this.attachAutoRotationInput();
+  }
+
+  attachAutoRotationInput(){
+   const surface=this.controlsCanvas,doc=surface.ownerDocument||globalThis.document;
+   const listen=(target,type,fn)=>{if(!target?.addEventListener)return;target.addEventListener(type,fn);this.inputDisposers.push(()=>target.removeEventListener(type,fn));};
+   const changed=()=>{this.autoRotateLastWall=null;this.onChange?.();};
+   const hover=(event,inside)=>{
+    if(event.pointerType==='touch')return;
+    const id=event.pointerId,was=this.hoverPointers.size>0;
+    this.hoverPointers.delete('restored');
+    if(inside)this.hoverPointers.add(id);else this.hoverPointers.delete(id);
+    if(was!==(this.hoverPointers.size>0))changed();
+   };
+   const inside=event=>{
+    const r=surface.getBoundingClientRect();
+    return event.clientX>=r.left&&event.clientX<r.left+r.width&&event.clientY>=r.top&&event.clientY<r.top+r.height;
+   };
+   listen(surface,'pointerenter',event=>hover(event,true));
+   listen(surface,'pointerleave',event=>hover(event,false));
+   // Captured pointer events are retargeted to this canvas even outside its
+   // bounds. Track physical position and keep drag suspension until release.
+   listen(surface,'pointermove',event=>hover(event,inside(event)));
+   listen(surface,'pointerdown',event=>{this.activePointers.add(event.pointerId);hover(event,inside(event));changed();});
+   listen(surface,'pointerup',event=>{this.activePointers.delete(event.pointerId);hover(event,inside(event));changed();});
+   listen(surface,'pointercancel',event=>{this.activePointers.delete(event.pointerId);hover(event,false);changed();});
+   listen(surface,'lostpointercapture',event=>{if(this.activePointers.delete(event.pointerId))changed();});
+   const reset=()=>{this.hoverPointers.clear();this.activePointers.clear();changed();};
+   const restore=()=>{reset();if(surface.matches?.(':hover'))this.hoverPointers.add('restored');};
+   listen(doc,'visibilitychange',()=>{if(doc.hidden)reset();else restore();});
+   const hostWindow=doc?.defaultView||globalThis.window;
+   listen(hostWindow,'blur',reset);listen(hostWindow,'focus',restore);
+   // Also cover a renderer created underneath a stationary mouse.
+   if(surface.matches?.(':hover'))this.hoverPointers.add('restored');
+  }
+
+  advanceAutoRotation(s,now,reduced){
+   const reason=!this.enabled||s.art===false?'disabled':globalThis.document?.hidden?'hidden':s.paused?'paused':
+    reduced?'reduced-motion':this.lastMode!=='nebula'?'flat':this.flatMix!==0?'transition':
+    this.activePointers.size?'interaction':this.hoverPointers.size?'hover':'rotating';
+   this.autoRotateReason=reason;
+   if(reason!=='rotating'){this.autoRotateLastWall=null;return;}
+   const wall=finite(now),dt=this.autoRotateLastWall==null?0:Math.max(0,(wall-this.autoRotateLastWall)/1000);
+   this.autoRotateLastWall=wall;
+   if(!dt)return;
+   // Integrate elapsed active time, independent of RAF frequency. Suspension
+   // resets only the clock, never the camera or angle, so resuming cannot jump.
+   const angle=AUTO_ROTATE_RADIANS_PER_SECOND*dt;
+   this.camera.position.sub(this.controls.target).applyAxisAngle(WORLD_UP,angle).add(this.controls.target);
+   this.camera.lookAt(this.controls.target);this.camera.updateMatrixWorld(true);
+   this.autoRotateYaw+=angle;
   }
 
   resize(w,h,dpr=1){
@@ -130,6 +187,7 @@ export function createApprovedAtlasRenderer(Base){
     this.orbitSnapshot=null;this.flatSnapshot=null;
    }
    this.lastMode=mode;this.controls.enabled=this.enabled&&s.art!==false&&mode==='nebula'&&this.flatMix===0;
+   this.advanceAutoRotation(s,now,reduced);
   }
   isTransitioning(){return Math.abs(this.flatMix-(this.lastMode==='flat'?1:0))>.0002;}
   resetView(){
@@ -138,7 +196,7 @@ export function createApprovedAtlasRenderer(Base){
     this.flatSnapshot={position:this.camera.position.clone(),target:this.controls.target.clone()};
    }else{Base.prototype.resetView.call(this);this.orbitSnapshot=null;this.flatSnapshot=null;}
   }
-  setEnabled(enabled){this.enabled=!!enabled;this.controls.enabled=this.enabled&&this.lastMode==='nebula'&&this.flatMix===0;}
+  setEnabled(enabled){this.enabled=!!enabled;this.autoRotateLastWall=null;this.controls.enabled=this.enabled&&this.lastMode==='nebula'&&this.flatMix===0;}
 
   painterView(s){
    return{W:this.W,H:this.H,light:globalThis.document?.documentElement?.dataset.theme==='light',time:this.motionTime,zoom:s.cam.k,flatMix:this.flatMix,paused:!!s.paused,
@@ -161,7 +219,8 @@ export function createApprovedAtlasRenderer(Base){
    const painted=this.painter.paint(this.ctx,view);
    this.visibleFiberEdges=this.edges.filter(e=>this.byId.has(e.source)&&this.byId.has(e.target)&&visibleSet.has(e.source)&&visibleSet.has(e.target)).length;
    const diagnostic=this.canvas.dataset;
-   if(diagnostic){diagnostic.fiberEdges=String(this.edges.length);diagnostic.visibleFiberEdges=String(this.visibleFiberEdges);diagnostic.graphMode=this.lastMode;diagnostic.flatMix=this.flatMix.toFixed(4);diagnostic.motionTime=this.motionTime.toFixed(3);diagnostic.particleCount=String(painted?.particleCount??this.painter.particleCount??0);diagnostic.painter='approved-canvas';}
+   if(diagnostic){diagnostic.fiberEdges=String(this.edges.length);diagnostic.visibleFiberEdges=String(this.visibleFiberEdges);diagnostic.graphMode=this.lastMode;diagnostic.flatMix=this.flatMix.toFixed(4);diagnostic.motionTime=this.motionTime.toFixed(3);diagnostic.particleCount=String(painted?.particleCount??this.painter.particleCount??0);diagnostic.painter='approved-canvas';
+    diagnostic.autoRotate=String(this.autoRotateReason==='rotating');diagnostic.autoRotateYaw=this.autoRotateYaw.toFixed(6);diagnostic.autoRotateReason=this.autoRotateReason;diagnostic.autoRotateHovered=String(this.hoverPointers.size>0);diagnostic.autoRotateInteracting=String(this.activePointers.size>0);}
   }
 
   drawPlaneGuide(ctx,s){
@@ -170,7 +229,7 @@ export function createApprovedAtlasRenderer(Base){
   }
 
   dispose(){
-   if(this.disposed)return;this.disposed=true;this.painter.dispose();this.controls.dispose();this.root.clear();
+   if(this.disposed)return;this.disposed=true;for(const release of this.inputDisposers)release();this.inputDisposers=[];this.hoverPointers.clear();this.activePointers.clear();this.autoRotateLastWall=null;this.painter.dispose();this.controls.dispose();this.root.clear();
    this.nodes=[];this.edges=[];this.byId.clear();this.flatTargets.clear();this.nebulaTargets.clear();this.degrees.clear();this.hubs.clear();this.categories=[];this.viewState=null;
   }
  };

@@ -465,6 +465,33 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
             do {
                 let libraries = try await smokeRequest("api/libraries")
                 try requireSmoke(libraries["selected_id"] as? String == "default", "First GUI selection was not default")
+                let apiStatusUI = try await webView.callAsyncJavaScript("""
+                    // Suggested async WKWebView body; only in the app's isolated smoke-mode directory.
+                    const id=S.libraryId;setPanelOpen('organizerPanel',true,{focus:false});await refreshOrganizer();
+                    const saved=await api('organizer',undefined,{libraryId:id});
+                    const badge=document.getElementById('organizerLibraryApiStatus'),panel=document.getElementById('organizerApiStatus');
+                    const result={scoped:saved.library_id===id,localOnly:saved.configuration?.scope==='library'&&saved.configuration?.network_verified===false,
+                     emptyNotConfigured:saved.configuration?.state==='not_configured'&&panel.dataset.state==='not_configured',
+                     badge:!!badge&&badge.textContent.includes('API未配置'),modelTextEmpty:document.getElementById('organizerApiStatusModel').hidden===true};
+                    setPanelOpen('organizerPanel',false,{restore:false});return result;
+                    """, arguments:[:], in:nil, contentWorld:.page) as? [String:Any]
+                for key in ["scoped","localOnly","emptyNotConfigured","badge","modelTextEmpty"] {
+                    try requireSmoke(apiStatusUI?[key] as? Bool == true, "Current-library API status failed: " + key)
+                }
+                print("Native 0.10.2: current-library API badge and panel match scoped local-only metadata; no connectivity probe or model request")
+                let brandSource = try Data(contentsOf: Bundle.main.resourceURL!.appendingPathComponent("AppIconSource.png"))
+                let brandUI = try await webView.callAsyncJavaScript("""
+                    const brand=document.getElementById('houseBrandIcon'),empty=document.getElementById('warmEmptyHeart');
+                    const end=performance.now()+5000;
+                    while(!(brand?.complete&&empty?.complete&&brand.naturalWidth>0&&empty.naturalWidth>0)){
+                      if(performance.now()>end)throw new Error('Brand image did not load');
+                      await new Promise(resolve=>setTimeout(resolve,25));
+                    }
+                    return {master:brand.src==='data:image/png;base64,'+expected,empty:empty.src===brand.src,width:brand.naturalWidth,height:brand.naturalHeight};
+                    """, arguments:["expected":brandSource.base64EncodedString()], in:nil, contentWorld:.page) as? [String:Any]
+                try requireSmoke(brandUI?["master"] as? Bool == true && brandUI?["empty"] as? Bool == true && brandUI?["width"] as? Int == 1254 && brandUI?["height"] as? Int == 1254,
+                                 "Desktop source, header and empty-state heart did not use the same canonical image")
+                print("Native 0.10.2: header and empty-state heart load exactly the same canonical transparent PNG as the packaged app icon source")
                 let personaUI = try await webView.callAsyncJavaScript("""
                     /* Suggested WKWebView acceptance code. Run only inside the app's smokeMode,
                        whose data directory and libraries are disposable. This file is not executed here. */
@@ -621,9 +648,23 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                 try requireSmoke(life["read_only"] as? Bool == true && life["will_call_model"] as? Bool == false, "Experience view is not read-only")
                 let source = try await smokeRequest("api/agent/sources", method:"POST", payload:["name":"原生合成来源","adapter":"sdk","runtime_agent_id":"SYNTHETIC-NATIVE-FISH","platforms":["qq","browser"]])
                 try requireSmoke(source["config_ready"] as? Bool == true && (source["source"] as? [String:Any])?["full_activity_coverage_verified"] as? Bool == false, "Source configuration claimed unsupported coverage")
+                let setupBundle = try await smokeRequest("api/agent/sources", method:"POST", payload:["name":"原生AstrBot配置自检", "adapter":"astrbot", "runtime_agent_id":"NATIVE-SYNTHETIC-ASTRBOT", "platforms":["qq"], "astrbot_setup":["same_machine":true,"platform":"qq","allowed_umos":["SYNTHETIC:FriendMessage:ONLY-TEST"]]], libraryID:smokePersonaOptoutLibrary)
+                guard let setup = setupBundle["astrbot_setup"] as? [String:Any], let pluginConfig = setup["config"] as? [String:Any],
+                      let binding = (pluginConfig["bindings"] as? [[String:Any]])?.first,
+                      let sourceConfigPath = binding["source_config_path"] as? String,
+                      let setupConfigPath = setup["config_path"] as? String else {
+                    throw NSError(domain:"NeuralAtlasSmoke",code:10,userInfo:[NSLocalizedDescriptionKey:"AstrBot setup config missing"])
+                }
+                try requireSmoke(URL(fileURLWithPath:sourceConfigPath).resolvingSymlinksInPath().path.hasPrefix(dataURL.resolvingSymlinksInPath().path + "/") && URL(fileURLWithPath:setupConfigPath).resolvingSymlinksInPath().path.hasPrefix(dataURL.resolvingSymlinksInPath().path + "/") && files.fileExists(atPath:sourceConfigPath) && files.fileExists(atPath:setupConfigPath),
+                                 "AstrBot setup did not create actual Mac-private scoped files")
+                try requireSmoke(setup["plugin_directory"] as? String == "astrbot_plugin_love_house" && setup["config_filename"] as? String == "astrbot_plugin_love_house_config.json" && setup["writes_astrbot_install"] as? Bool == false && setup["requires_reload"] as? Bool == true,
+                                 "AstrBot setup installation boundaries or fixed plugin names changed")
+                try requireSmoke((binding["allowed_umos"] as? [String]) == ["SYNTHETIC:FriendMessage:ONLY-TEST"] && binding["runtime_agent_id"] as? String == "NATIVE-SYNTHETIC-ASTRBOT" && pluginConfig["record_scheduled_outputs"] as? Bool == false && pluginConfig["token"] == nil && binding["token"] == nil,
+                                 "AstrBot setup lost whitelist identity or exposed a source credential")
+                print("Native 0.10.2: actual private Mac source/plugin config generated with one synthetic UMO; no host installation or real robot touched")
                 let packageURL = serviceURL!.appendingPathComponent("api/adapters/astrbot/package")
                 let (pluginData, pluginResponse) = try await smokeSession.data(from:packageURL)
-                let bundled = try Data(contentsOf:Bundle.main.resourceURL!.appendingPathComponent("Adapters/LoveHouse-AstrBot-0.2.0-experimental.zip"))
+                let bundled = try Data(contentsOf:Bundle.main.resourceURL!.appendingPathComponent("Adapters/LoveHouse-AstrBot-0.3.0-experimental.zip"))
                 try requireSmoke((pluginResponse as? HTTPURLResponse)?.statusCode == 200 && pluginData == bundled && pluginData.prefix(2) == Data([0x50,0x4b]), "Experimental adapter export bytes differ from the bundled source package")
                 print("Native 0.8: human experience/source controls, fixed-source registration and exact experimental plugin ZIP verified; no external Agent or model used")
                 let updates = try await smokeRequest("api/updates")
@@ -849,12 +890,12 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
               let body = message.body as? [String: Any],
               let requestID = body["request_id"] as? String,
               requestID.range(of: "^[a-zA-Z0-9_-]{1,80}$", options: .regularExpression) != nil,
-              let resource = Bundle.main.resourceURL?.appendingPathComponent("Adapters/LoveHouse-AstrBot-0.2.0-experimental.zip"),
+              let resource = Bundle.main.resourceURL?.appendingPathComponent("Adapters/LoveHouse-AstrBot-0.3.0-experimental.zip"),
               let data = try? Data(contentsOf: resource), data.count <= 4 * 1024 * 1024 else { return }
         let panel = NSSavePanel()
         panel.title = "导出 AstrBot 实验插件"
         panel.message = "插件不包含个人记忆或绑定凭证。请按包内 README 安装，并在实际宿主核验。"
-        panel.nameFieldStringValue = "LoveHouse-AstrBot-0.2.0-experimental.zip"
+        panel.nameFieldStringValue = "LoveHouse-AstrBot-0.3.0-experimental.zip"
         panel.allowedContentTypes = [.zip]
         panel.canCreateDirectories = true
         panel.beginSheetModal(for: window) { [weak self] response in

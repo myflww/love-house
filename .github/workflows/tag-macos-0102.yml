@@ -1,0 +1,54 @@
+name: Create verified macOS 0.10.2 source tag
+on:
+  push:
+    branches: [codex/tag-macos-0102]
+permissions:
+  contents: write
+jobs:
+  create-source-tag:
+    if: github.repository == 'myflww/love-house' && github.actor == 'myflww'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Create only the absent fixed verified source tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import os, json, urllib.request, urllib.error, base64, ast
+          base='https://api.github.com/repos/myflww/love-house/git/'
+          target='427576842083762124b416cbc0798767b9d36b29'
+          expected_tree='5d0f744290e0dbf79f0d2440758189e07e670a60'
+          previous='b2279da12c3b14d4708595343433849f3f8f2911'
+          def call(path, method='GET', body=None):
+              request=urllib.request.Request(base+path, method=method, data=None if body is None else json.dumps(body).encode(), headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(request, timeout=25) as response: return json.load(response)
+          pure=call('commits/'+target)
+          assert pure['tree']['sha']==expected_tree and [p['sha'] for p in pure['parents']]==[previous], 'Source commit does not match the fixed verified tree and parent'
+          assert call('refs/heads/codex/brand-showcase-0102')['object']['sha']==target, 'Published source branch differs from the fixed target'
+          entries=call('trees/'+expected_tree+'?recursive=1')
+          assert entries['truncated'] is False and not any(e['path']=='.github/workflows/tag-macos-0102.yml' for e in entries['tree']), 'Pure source contains the maintenance workflow'
+          assert next(e for e in entries['tree'] if e['path']=='docs/MACOS-0102-HANDOFF.md')['sha']=='9de869ff6a9de105c074fe8cea33ee15c7d88cda', 'Incoming Mac handoff differs from protected Windows delivery'
+          version_entry=next(e for e in entries['tree'] if e['path']=='nkb/_version.py' and e['type']=='blob')
+          version_blob=call('blobs/'+version_entry['sha'])
+          version_ast=ast.parse(base64.b64decode(version_blob['content']).decode('utf-8'))
+          versions=[ast.literal_eval(node.value) for node in version_ast.body if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='__version__' for t in node.targets)]
+          assert versions==['0.10.2'], 'Pure source version is not 0.10.2'
+          assert call('refs/tags/v0.10.1')['object']['sha']==previous, 'Previous stable tag does not match expected source'
+          original090=call('refs/tags/v0.9.0')['object']['sha']
+          assert call('refs/tags/v0.10.2rc1')['object']['sha']=='7b610c15111b80299addc1fa430891b33690099e', 'Windows rc1 source tag changed independently'
+          created=False
+          try: before=call('refs/tags/v0.10.2')
+          except urllib.error.HTTPError as error:
+              if error.code!=404: raise
+              call('refs','POST',{'ref':'refs/tags/v0.10.2','sha':target})
+              created=True
+          else:
+              assert before['ref']=='refs/tags/v0.10.2' and before['object']['type']=='commit' and before['object']['sha']==target, 'Tag already exists at another target; no overwrite performed'
+          after=call('refs/tags/v0.10.2')
+          assert after['ref']=='refs/tags/v0.10.2' and after['object']['type']=='commit' and after['object']['sha']==target, 'New source tag target not verified'
+          assert call('refs/tags/v0.10.1')['object']['sha']==previous, 'Previous stable source tag changed independently'
+          assert call('refs/tags/v0.9.0')['object']['sha']==original090, 'Previous source tag changed independently'
+          assert call('refs/tags/v0.10.2rc1')['object']['sha']=='7b610c15111b80299addc1fa430891b33690099e', 'Windows rc1 source tag changed independently'
+          print(json.dumps({'ref':after['ref'],'created':created,'verified_target':after['object']['sha'],'verified_tree':expected_tree,'previous_release_tags_unchanged':True,'release_assets_untouched':True}))
+          PY

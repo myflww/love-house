@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import shutil
+import struct
 import sys
 import xml.etree.ElementTree as ET
+import zlib
 
 ROOT_FILES = frozenset({
     '.gitignore', '.gitattributes', 'README.md', 'CHANGELOG.md', 'CONTRIBUTING.md', 'ROADMAP.md',
@@ -25,7 +29,7 @@ EXCLUDED_PARTS = frozenset({'.git', 'node_modules', '__pycache__', '.pytest_cach
 TEXT_SUFFIXES = frozenset({'.py', '.js', '.mjs', '.cjs', '.ts', '.json', '.toml',
     '.md', '.txt', '.html', '.css', '.yaml', '.yml', '.swift', '.plist', '.command',
     '.svg', '.iss', '.spec', '.ps1', '.cmd', '.bat', '.sh', '.rc', '.manifest'})
-BINARY_SUFFIXES = frozenset({'.png', '.woff2', '.ico'})
+BINARY_SUFFIXES = frozenset({'.png', '.jpg', '.jpeg', '.woff2', '.ico'})
 PRIVATE_SUFFIXES = ('.brain.json', '.sqlite3', '.sqlite3-wal', '.sqlite3-shm',
                     '.pem', '.p12', '.key', '.keychain', '.keychain-db')
 PRIVATE_NAMES = frozenset({'brain.json', 'graph.json', 'connections.json',
@@ -45,9 +49,78 @@ LITERAL_SECRET = re.compile(
     r'''(?ix)["'](?:api_key|access_token|auth_token|password|token|secret)["']\s*:\s*["']([A-Za-z0-9_./+=-]{20,})["']''')
 EXAMPLE_VALUE = re.compile(r'(?i)(?:fake|dummy|example|placeholder|not.?a.?real|your[_-]|test[_-]|change.?me|invalid)')
 
+MAX_EMBEDDED_PNG_BYTES = 2 * 1024 * 1024
+MAX_EMBEDDED_PNG_DIMENSION = 2048
+
+
+def safe_embedded_png(value: str) -> bool:
+    """Permit one bounded static raster, never another SVG or a remote image.
+
+    The brand banner reuses the exact approved PNG bytes. Keeping validation
+    here dependency-free makes the public-source scanner usable on a clean
+    checkout without an image library.
+    """
+    prefix = 'data:image/png;base64,'
+    if not value.startswith(prefix):
+        return False
+    encoded = value[len(prefix):]
+    if not encoded or len(encoded) > ((MAX_EMBEDDED_PNG_BYTES + 2) // 3) * 4:
+        return False
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (ValueError, binascii.Error):
+        return False
+    if (len(data) > MAX_EMBEDDED_PNG_BYTES or not data.startswith(b'\x89PNG\r\n\x1a\n')
+            or base64.b64encode(data).decode('ascii') != encoded):
+        return False
+    offset, expected, stride = 8, None, None
+    compressed = bytearray()
+    seen_data = False
+    try:
+        while offset + 12 <= len(data):
+            length = struct.unpack('>I', data[offset:offset + 4])[0]
+            kind = data[offset + 4:offset + 8]
+            end = offset + 12 + length
+            if end > len(data) or not re.fullmatch(b'[A-Za-z]{4}', kind):
+                return False
+            chunk = data[offset + 8:offset + 8 + length]
+            crc = struct.unpack('>I', data[offset + 8 + length:end])[0]
+            if zlib.crc32(kind + chunk) & 0xffffffff != crc:
+                return False
+            if offset == 8:
+                if kind != b'IHDR' or length != 13:
+                    return False
+                width, height, depth, color, compression, filtering, interlace = struct.unpack('>IIBBBBB', chunk)
+                if (not 1 <= width <= MAX_EMBEDDED_PNG_DIMENSION
+                        or not 1 <= height <= MAX_EMBEDDED_PNG_DIMENSION
+                        or depth != 8 or color not in (2, 6)
+                        or compression or filtering or interlace):
+                    return False
+                stride = 1 + width * (4 if color == 6 else 3)
+                expected = stride * height
+            elif kind == b'IHDR' or kind in (b'acTL', b'fcTL', b'fdAT'):
+                return False  # No duplicate header or animated PNG.
+            elif kind == b'IDAT':
+                compressed.extend(chunk)
+                seen_data = True
+            elif kind == b'IEND':
+                if length or end != len(data) or not seen_data or expected is None:
+                    return False
+                decoder = zlib.decompressobj()
+                pixels = decoder.decompress(compressed, expected + 1)
+                return (len(pixels) == expected and decoder.eof and not decoder.unused_data
+                        and not decoder.unconsumed_tail
+                        and all(pixels[row] <= 4 for row in range(0, expected, stride)))
+            elif not kind[0] & 32 and kind != b'PLTE':
+                return False  # Unrecognised critical chunk.
+            offset = end
+    except (ValueError, struct.error, zlib.error):
+        return False
+    return False
+
 
 def unsafe_svg(content: str) -> bool:
-    """Public banners/icons are static shapes/text, with no active or remote content."""
+    """Static shapes/text and bounded embedded PNGs, with no active or remote content."""
     if re.search(r'<!\s*(?:DOCTYPE|ENTITY)', content, re.I):
         return True
     try:
@@ -58,18 +131,25 @@ def unsafe_svg(content: str) -> bool:
         return True
     allowed = {'svg', 'g', 'title', 'desc', 'defs', 'rect', 'path', 'circle', 'ellipse',
                'line', 'polyline', 'polygon', 'text', 'tspan', 'lineargradient',
-               'radialgradient', 'stop', 'clippath', 'mask', 'use'}
+               'radialgradient', 'stop', 'clippath', 'mask', 'use', 'image'}
     for element in root.iter():
         if not isinstance(element.tag, str) or not element.tag.startswith('{http://www.w3.org/2000/svg}'):
             return True
-        if element.tag.rsplit('}', 1)[-1].lower() not in allowed:
+        tag = element.tag.rsplit('}', 1)[-1].lower()
+        if tag not in allowed:
+            return True
+        if tag == 'image' and (len(element) or sum(k.rsplit('}', 1)[-1].lower() == 'href' for k in element.attrib) != 1):
             return True
         for raw_name, value in element.attrib.items():
             name = raw_name.rsplit('}', 1)[-1].lower()
             if name.startswith('on') or name in {'style', 'base'} or '\\' in value:
                 return True
-            if name == 'href' and not value.startswith('#'):
-                return True
+            if name == 'href':
+                if tag == 'image':
+                    if not safe_embedded_png(value):
+                        return True
+                elif not value.startswith('#'):
+                    return True
             urls = re.findall(r'''url\(\s*['"]?([^'")\s]+)''', value, re.I)
             if any(not url.startswith('#') for url in urls):
                 return True

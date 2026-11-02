@@ -1,14 +1,16 @@
-# 爱之屋 AstrBot 经历记忆适配（实验版 0.2.0）
+# 爱之屋 AstrBot 经历记忆适配（实验版 0.3.0）
 
 这不是另一个 QQ 机器人，也不替换 SnowLuma、AstrBot 的聊天模型或人格。它把管理员明确登记的同一 Agent 的多个消息来源汇入爱之屋，再把少量相关记忆提供给本轮模型请求。可见对话和实际观察是经历证据，工具参数、工具调用列表和私有推理不是主要记忆。
 
-**状态：实验版。2026-10-30 已在 macOS、AstrBot 4.29.3、DeepSeek 与 QQ 官方接口 / WebChat 完成首轮真实接入、跨平台回忆、隔离和断线补交验证；SnowLuma / OneBot、云服务器、其他版本及长期运行仍未验收。** 不宣称可以自动观察这条鱼在任何软件里的全部行为。
+**状态：已实现可运行插件和本地契约测试；尚未在真实 AstrBot / SnowLuma / QQ 账号环境完成验收。** 不宣称可以自动观察这条鱼在任何软件里的全部行为。
 
 0.2.0 新增独立助手输出和可选的主动任务输出，前一段实机结果来自原有普通对话路径，不能当作这些新增路径的实机验收。新增路径使用临时宿主、合成事件和离线接口测试；没有为了测试而重启用户机器人或追加真实模型调用。“原始记录可回忆”也不等于“模型已稳定整理出生活经历”，参见项目的真实验收记录。
 
+0.3.0 增加爱之屋界面快速配置、逐条绑定隔离与隐私安全的拒收计数。保留 0.2.0 配置格式和旧 `queued` 去重语义。下述快速配置使用临时服务与合成 UMO 做端到端契约测试，尚未在用户真实机器人里验收，不把生成配置当作接通成功。
+
 ## 接口基线
 
-依据 AstrBot 官方 `v4.29.3` 源码编写，使用 `on_llm_request`、`on_agent_begin`、`on_agent_done`、`on_llm_tool_respond`、`after_message_sent` 钩子，以及 `ContextWrapper.messages`、`UserMessageSegment` 和 `TextPart.mark_as_temp()`。0.2.0 接口基线为 4.29.3；内置 ToolLoopAgentRunner 的运行消息会交给模型，其他第三方 runner 是否消费该消息列表仍需单独验证，不能仅凭同名钩子承诺兼容。
+依据 AstrBot 官方 `v4.29.3` 源码编写，使用 `on_llm_request`、`on_agent_begin`、`on_agent_done`、`on_llm_tool_respond`、`after_message_sent` 钩子，以及 `ContextWrapper.messages`、`UserMessageSegment` 和 `TextPart.mark_as_temp()`。0.3.0 保持 4.29.3 接口基线，另对固定官方 4.29.4 源码做离线契约验证：生成的 JSON 由官方配置类读取，临时记忆进入 ToolLoop / Provider 模型消息而不进历史。其他第三方 runner 是否消费该消息列表仍需单独验证，不能仅凭同名钩子承诺兼容。
 
 - [官方事件钩子文档](https://docs.astrbot.app/dev/star/guides/listen-message-event.html)
 - [官方 ProviderRequest / LLMResponse 源码](https://github.com/AstrBotDevs/AstrBot/blob/master/astrbot/core/provider/entities.py)
@@ -20,11 +22,23 @@
 
 ## 安装与绑定
 
+### 快速配置（推荐首次安装）
+
+1. 在目标 AstrBot 私聊或群聊发送 `/sid`，复制完整结果，不读取聊天数据库。UMO 首段是管理员设置的平台实例名，例如 `synthetic-instance:FriendMessage:TEST`，不能把实例名猜成 `qq`。
+2. 打开与 AstrBot **同一机器、同一文件系统**的爱之屋管理界面，选择目标鱼 → 同鱼活动来源 → 添加运行程序 → AstrBot。平台默认 `qq`，QQ 适配器实际名字 `aiocqhttp`、`qq_official`、`qq_official_webhook` 均由插件核验为 QQ；其他平台须填写实际平台标识。
+3. 粘贴 `/sid`（每行一个），确认这个宿主和这些会话属于当前鱼，点击“生成来源与插件配置”。固定标识、私有来源文件路径、启用开关和绑定 JSON 自动填写，不需要模型 API Key。管理接口仍需爱之屋界面会话，不代替用户确认归属。
+4. 导出插件 ZIP，将完整插件放入 `<AstrBot>/data/plugins/astrbot_plugin_love_house/`。**目录名固定**。界面会给出生成的 `astrbot_plugin_love_house_config.json` 文件及可复制 JSON；备份后复制到 `<AstrBot>/data/config/astrbot_plugin_love_house_config.json`。已有绑定时只合并 `bindings`，不要覆盖其他鱼的配置。本向导不扫描或改写 AstrBot 安装目录。
+5. 在 AstrBot 面板的插件管理中重载爱之屋插件。在已登记会话发送 `/lovehouse_status`，核对有效绑定数量及待交数量；再进行一轮有最终回复的测试对话，回爱之屋刷新确认完整对话增加。下一轮询问测试约定，核对最近返回的资料；这不证明模型一定采用。
+
+服务器或 Docker 上的 AstrBot 必须能访问生成的私有文件以及文件内的服务地址和队列路径。电脑上的路径不能直接拿去服务器或另一个隔离容器。请选择“另一台服务器或隔离容器”查看说明，并在对应服务的管理界面重新生成。同机路径不是可以公开分享的网络凭证。现有来源可点“配置路径”，填写快速配置区的 `/sid` 后点“为此来源生成插件配置”，不会另建来源。
+
+### 手动配置与升级
+
 1. 在 AstrBot 所在服务器运行支持“Agent 活动来源”的爱之屋服务。桌面版程序不能直接当成 Linux 安装包；云端进程管理、凭据保管和远程管理需要使用项目明确支持的部署方式。
 2. 在爱之屋选择这条鱼的已有存档，登记一个 `adapter=astrbot` 的活动来源，允许平台例如 `qq`，填写由管理员确认的宿主 Agent 标识。保存它生成的私有来源配置文件。**这不是模型厂商 API Key，不需要重复填写聊天模型密钥。**
 3. 将本目录的完整内容复制到 AstrBot 的 `data/plugins/astrbot_plugin_love_house/`，保留 `LICENSE`、`bridge.py` 与随包 SDK。也可用 `package.py` 生成独立 ZIP 后按所用 AstrBot 版本支持的 ZIP 安装方式导入。
 4. 打开 AstrBot 插件配置，增加一项“Agent 活动来源绑定”：填写同一个 `runtime_agent_id`、这台服务器上的私有配置完整路径，以及属于这条鱼的若干 UMO。用 AstrBot `/sid` 核对消息来源。配置路径不会被当作网络地址，也不会读取其他文件夹。
-5. 同一条鱼的多个私聊/群聊放在同一项绑定中；另一个 Agent 新建另一项、指向另一份来源配置。一个 UMO 同时出现在两项中会拒绝加载，避免归属不清。
+5. 同一条鱼的多个私聊/群聊放在同一项绑定中；另一个 Agent 新建另一项、指向另一份来源配置。一个 UMO 同时出现在两项时，所有冲突绑定都停用，其他绑定继续；缺失文件、无效身份和格式错误也逐条隔离。`/lovehouse_status` 只显示绑定序号和排障方向，不显示路径、UMO 或文件内容。
 6. 保存并重载插件，再启用。“启用”默认关闭；空名单不采集。聊天模型与 QQ 连接沿用 AstrBot 自身原有配置。
 
 ### 可选：同一来源的主动任务
@@ -60,6 +74,10 @@
 
 插件的 `ready` 原文在 SDK 确认已持久排队或服务端已经确认归档后才清除。重复最终回调通过稳定平台消息编号去重；同编号不同正文不会覆盖旧内容。未完成或没有最终文字的用户消息保留为 `awaiting_final`，不会伪装成完整经历。
 
+0.3.0 已交出并清除插件正文的行改名为 `durably_queued_purged`，含义是 **SDK 已持久接管**，并不保证服务端已经归档；SDK 的 `pending` 仍可能大于 0。0.2.0 的旧 `queued` 行按同样完成态读取和去重，不重建原文、不重新发送。`/lovehouse_status` 即使在未绑定会话也可由管理员读取：显示各有效绑定待交数、无效绑定序号，以及本次加载以来的拒收回调计数（未启用、/sid 未登记、平台或实例不符、身份不符、来源暂停等）。多个钩子可能对应同一消息，计数不是独立消息数；不包含 UMO、正文或凭据。
+
+召回固定使用 `max_chars=6000`。服务返回 `truncation.truncated=true` 时，材料会提示“本轮预算不足，部分候选资料已省略”；应结合 `counts.selected/included/omitted` 核验，不能仅以空 `records` 判断库为空。手工测试用 1024 等小预算时，身份和人格开销可能挤掉全部候选。
+
 发送阶段表与待交记录相互独立，worker 不读取它，也不把发送时间写进 SDK 事件的 `details` 或 digest；发送回调与离线重试并行时，不会因此改变同一事件的语义哈希。升级只新增私有元信息表，不清理或改写旧版已经存在的观察、历史和待交记录。
 
 SDK 的单次数据与待交队列有操作预算，队列满时插件保留 `ready`，恢复服务后继续补交，不按日期清理原文。磁盘写入失败或单条超过 40,000 字时，会明确告警，不能把未存资料说成已采集。这里的操作预算不是记忆保存期限。
@@ -91,7 +109,7 @@ SDK 的单次数据与待交队列有操作预算，队列满时插件保留 `re
 ```sh
 python3.12 extensions/astrbot-love-house/package.py --sync-client --check
 python3.12 -m unittest tests.test_astrbot_adapter -v
-python3.12 extensions/astrbot-love-house/package.py --output dist/LoveHouse-AstrBot-0.2.0-experimental.zip
+python3.12 extensions/astrbot-love-house/package.py --output dist/LoveHouse-AstrBot-0.3.0-experimental.zip
 ```
 
 打包只允许固定源码清单，不包含配置、消息数据库、队列或 `__pycache__`。自有代码使用 PolyForm Noncommercial 1.0.0，保留作者 myflww 署名。

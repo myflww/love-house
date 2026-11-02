@@ -1,8 +1,11 @@
 from pathlib import Path
+import base64
 import importlib.util
 import json
+import struct
 import tempfile
 import unittest
+import zlib
 
 spec = importlib.util.spec_from_file_location(
     'public_release', Path(__file__).resolve().parents[1] / 'scripts/prepare_public_release.py')
@@ -11,6 +14,16 @@ spec.loader.exec_module(release)
 
 
 class PublicReleaseTests(unittest.TestCase):
+    @staticmethod
+    def png_fixture(width=1, height=1, *, body=None, extra=b''):
+        def chunk(kind, value):
+            return (struct.pack('>I', len(value)) + kind + value
+                    + struct.pack('>I', zlib.crc32(kind + value) & 0xffffffff))
+        pixels = b'\0\xff\x33\x55\xff' if body is None else body
+        return (b'\x89PNG\r\n\x1a\n'
+                + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0))
+                + extra + chunk(b'IDAT', zlib.compress(pixels)) + chunk(b'IEND', b''))
+
     def test_astrbot_plugin_exports_only_reviewed_source_not_runtime_configuration(self):
         for name in ('main.py','bridge.py','source_client.py','metadata.yaml','_conf_schema.json','README.md','LICENSE','package.py','__init__.py'):
             self.assertTrue(release.is_allowed(Path('extensions/astrbot-love-house')/name),name)
@@ -58,6 +71,53 @@ class PublicReleaseTests(unittest.TestCase):
                      '<svg xmlns="http://www.w3.org/2000/svg" xml:base="https://example.test/"><use href="#id"/></svg>',
                      '<svg xmlns="http://www.w3.org/2000/svg"><rect fill="u\\72l(https://example.test/a.svg)"/></svg>'):
             self.assertTrue(release.unsafe_svg(text))
+
+    def test_banner_can_reuse_exact_static_png_as_data_uri_without_external_assets(self):
+        png = self.png_fixture()
+        uri = 'data:image/png;base64,' + base64.b64encode(png).decode('ascii')
+        self.assertTrue(release.safe_embedded_png(uri))
+        svg = '<svg xmlns="http://www.w3.org/2000/svg"><image href="' + uri + '" width="32" height="32"/></svg>'
+        self.assertFalse(release.scan_bytes(Path('assets/branding/banner.svg'), svg.encode()))
+
+    def test_embedded_image_policy_does_not_allow_remote_svg_or_noncanonical_base64(self):
+        uri = 'data:image/png;base64,' + base64.b64encode(self.png_fixture()).decode('ascii')
+        for value in ('https://example.test/image.png', 'file:///private/image.png', '#local',
+                      'data:image/svg+xml;base64,PHN2Zy8+', 'data:image/jpeg;base64,/9j/2Q==',
+                      'data:image/png;base64,bm90IGEgcG5n', uri + '=', uri + '\n',
+                      uri.replace('base64,', 'base64,%20')):
+            self.assertFalse(release.safe_embedded_png(value), value[:55])
+            svg = '<svg xmlns="http://www.w3.org/2000/svg"><image href="' + value + '"/></svg>'
+            self.assertTrue(release.unsafe_svg(svg), value[:55])
+        for fragment in ('<image/>', '<image href="' + uri + '" onload="alert(1)"/>',
+                         '<image href="' + uri + '" style="opacity:.5"/>',
+                         '<use href="' + uri + '"/>'):
+            self.assertTrue(release.unsafe_svg('<svg xmlns="http://www.w3.org/2000/svg">' + fragment + '</svg>'))
+
+    def test_embedded_png_has_bounded_dimensions_valid_crc_and_static_complete_image(self):
+        def uri(data):
+            return 'data:image/png;base64,' + base64.b64encode(data).decode('ascii')
+        animation = (struct.pack('>I', 8) + b'acTL' + struct.pack('>II', 1, 0)
+                     + struct.pack('>I', zlib.crc32(b'acTL' + struct.pack('>II', 1, 0)) & 0xffffffff))
+        corrupted = bytearray(self.png_fixture()); corrupted[-1] ^= 1
+        for data in (self.png_fixture(width=0),
+                     self.png_fixture(width=release.MAX_EMBEDDED_PNG_DIMENSION + 1),
+                     self.png_fixture() + b'<svg/>', bytes(corrupted),
+                     self.png_fixture(body=b'\0' * 10000), self.png_fixture(extra=animation),
+                     b'\x89PNG\r\n\x1a\n' + b'\0' * release.MAX_EMBEDDED_PNG_BYTES):
+            self.assertFalse(release.safe_embedded_png(uri(data)))
+
+    def test_jpeg_showcase_images_are_allowed_without_opening_private_image_directories(self):
+        # Existing historical images contain actual JPEG bytes. Reuse their
+        # bytes as the fixture without publishing another copy or re-encoding.
+        images = Path(__file__).resolve().parents[1] / 'assets/screenshots'
+        jpeg = next(p.read_bytes() for p in sorted(images.iterdir())
+                    if p.is_file() and p.read_bytes().startswith(b'\xff\xd8\xff'))
+        for suffix in ('.jpg', '.jpeg'):
+            path = Path('assets/screenshots/showcase' + suffix)
+            self.assertTrue(release.is_allowed(path))
+            self.assertFalse(release.scan_bytes(path, jpeg))
+            self.assertFalse(release.is_allowed(Path('docs/assets/private' + suffix)))
+            self.assertFalse(release.is_allowed(Path('outputs/private' + suffix)))
 
     def test_secret_findings_never_include_value_and_home_path_is_rejected(self):
         value = 'sk-' + ''.join(chr(65 + i % 26) for i in range(45))

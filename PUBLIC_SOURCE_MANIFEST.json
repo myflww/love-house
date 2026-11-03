@@ -47,6 +47,11 @@
       "sha256": "e4c9c62da73c685343440480a8be4854a8a797d8fd74db1cb0a29df3a000d862"
     },
     {
+      "path": ".github/workflows/macos-release.yml",
+      "bytes": 5401,
+      "sha256": "9411dae4f1e28ef02d57f72ea625758c110caeb88c00e8bdb04d41b0ec7782ef"
+    },
+    {
       "path": ".github/workflows/publish-windows-0101.yml",
       "bytes": 1385,
       "sha256": "2eedbed9136ba7e9ee9e91ff3dc5959ae480c86b83b9909819785479fe396711"
@@ -548,8 +553,8 @@
     },
     {
       "path": "desktop/AtlasApp.swift",
-      "bytes": 45843,
-      "sha256": "787e2f711127a8800e8dd35f83e006b92a1c3e4df3084df04ffed2b794dc5d0f"
+      "bytes": 56344,
+      "sha256": "6d27445bc838302da971eacd34e1c88530bde2a6dea665aaab5e9759116a96ae"
     },
     {
       "path": "desktop/deepseek-harness-overlay.example.yaml",
@@ -697,6 +702,11 @@
       "sha256": "4ea472399dc7fb091b89636d2f01a5bffd5a73fd43a58888c7eb3d4a72c9d232"
     },
     {
+      "path": "docs/MACOS-0103-UPDATE.md",
+      "bytes": 1482,
+      "sha256": "ff5bad05fb47f51e7796989f4031b286d2c658a77d1957e3cd49d4fea2211c8c"
+    },
+    {
       "path": "docs/MACOS-060-HANDOFF.md",
       "bytes": 3825,
       "sha256": "2941434727bbb4b8d6a73a13a794e7207986951f9327915c84a7b4f09efe49a4"
@@ -757,9 +767,14 @@
       "sha256": "58d4e45916a3e562f78cb438ebae88822de57afb0bf96a2f809049a5eb9f6303"
     },
     {
+      "path": "docs/ReleaseNotes-0.10.3rc1-macOS.md",
+      "bytes": 2432,
+      "sha256": "5cb07e292c522781651bdb6ef364b4f054aa97b2deff30d1ad21f6c832e26e42"
+    },
+    {
       "path": "docs/ReleaseNotes-0.10.3rc1-Windows.md",
-      "bytes": 5255,
-      "sha256": "3897885bcefc4e96a90123bf46915501bf0348c7f124bbfba8e078bfbf6a085c"
+      "bytes": 5297,
+      "sha256": "d63107a76f86bc9bdbe83ef18be85a73a81e7b529c40fab46d18b5eb2bf5cb25"
     },
     {
       "path": "docs/ReleaseNotes-0.9.0-macOS.md",
@@ -873,8 +888,8 @@
     },
     {
       "path": "docs/下载与系统支持.md",
-      "bytes": 7106,
-      "sha256": "287cdbbbfa3b891c4532e866308aeb94fd16395e21c6d6c4c5495a325a038ce6"
+      "bytes": 7350,
+      "sha256": "ad82dca7341fa3b3f8cd8ce418fdca5fb3f1307e8aa330151cbe3bf62a5806eb"
     },
     {
       "path": "docs/发布与许可.md",
@@ -1913,8 +1928,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 4877,
-      "sha256": "203d5eb2a4cf632de5a586ca7dd19a87c0cf991098f3876c7c9c259d206477da"
+      "bytes": 4890,
+      "sha256": "e6e2f017bc98fd9d4dfb739f9b0298484309ca0007adf1f5087acf2b55f57055"
     },
     {
       "path": "ROADMAP.md",
@@ -1933,8 +1948,8 @@
     },
     {
       "path": "scripts/build_macos.py",
-      "bytes": 35657,
-      "sha256": "806affb454d859a9182b79c164198c34b1d103b835210bc48982f8e5517cbcb4"
+      "bytes": 37550,
+      "sha256": "0811f872b2a3a03431ae92b069dfb49d548eb0305a72b6fbc30eb1555182fe9c"
     },
     {
       "path": "scripts/build_windows.py",
@@ -1955,6 +1970,11 @@
       "path": "scripts/configure_agent_source.py",
       "bytes": 3528,
       "sha256": "8ccbeb3261734d334284371e38397be37420c499e7f50208242b2122e6025394"
+    },
+    {
+      "path": "scripts/fetch_macos_runtime.py",
+      "bytes": 3967,
+      "sha256": "5225605a72654b1bb807c6ca3c498b51ae943896bae1529b90fab73b7afca581"
     },
     {
       "path": "scripts/fetch_windows_runtime.py",
@@ -2417,6 +2437,16 @@
       "sha256": "7b9886c2de2aadc9811483ba03b02a6fa84ff3704e4d0bea6edd19509d642513"
     },
     {
+      "path": "tests/test_macos_native_smoke.py",
+      "bytes": 4748,
+      "sha256": "1116e1a8c19a9ab56c2954ab4cdc2218c87561880e7df3d58dcdf68abec18963"
+    },
+    {
+      "path": "tests/test_macos_packaging.py",
+      "bytes": 4765,
+      "sha256": "3bb2ca28a57396403273882068e2c50aba794b79e419ff9ded98e05c691a6157"
+    },
+    {
       "path": "tests/test_memory_inheritance.py",
       "bytes": 16533,
       "sha256": "118d9fa44d5d33aced03bb0b796f766d9b961b6e94669267b913e31103d80927"
@@ -2613,8 +2643,8 @@
     },
     {
       "path": "tests/test_remote_gateway.py",
-      "bytes": 23848,
-      "sha256": "a574d3a4923b5466c2bcaab0f5b77b862dc3112d285760d05b9d63a5cd2db818"
+      "bytes": 25003,
+      "sha256": "add1b2cb5531a55eb8263a42327b920c17efc943eb9641ec6a8ed51ee07f7c37"
     },
     {
       "path": "tests/test_remote_mobile_ui.py",

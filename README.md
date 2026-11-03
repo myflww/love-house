@@ -17,7 +17,7 @@
 | 系统 | 最新版本 | 下载 | 系统要求 |
 |---|---|---|---|
 | Windows x64 | **0.10.3rc1 · 完整发行包** | [安装版 EXE](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/LoveHouse-Setup-0.10.3rc1-Windows-x64.exe) · [便携版 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/LoveHouse-0.10.3rc1-Windows-x64.zip) | Intel / AMD 64 位；Windows 10 2004（19041）及以上或 Windows 11 |
-| macOS | **0.10.1 · 稳定版** | [下载 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.1/LoveHouse-0.10.1-macOS-arm64.zip) | Apple Silicon（M 系列）；macOS 13.0+ |
+| macOS | **0.10.3rc1 · 完整更新** | [下载 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/LoveHouse-0.10.3rc1-macOS-arm64.zip) | Apple Silicon（M 系列）；macOS 13.0+ |
 | Android | **0.8.0rc2 · 预览版** | [下载 APK](https://github.com/myflww/love-house/releases/download/v0.8.0rc2/LoveHouse-0.8.0rc2-Android.apk) | Android 8.0+；保持系统 WebView 更新 |
 | iPhone | **0.8.0rc2 · 主屏幕版** | [打开网页版](https://love-house-mobile-myflww.haixiac34.chatgpt.site) | iOS 15.4+；Safari 打开 → 分享 → 添加到主屏幕 |
 
@@ -37,12 +37,11 @@ Windows 0.10.3rc1 提供完整安装版和便携版，本轮验证范围见发�
 
 [发布页](https://github.com/myflww/love-house/releases/tag/v0.10.3rc1) · [本版说明与验证范围](docs/ReleaseNotes-0.10.3rc1-Windows.md) · [升级与恢复步骤](docs/WINDOWS-0103-UPDATE.md)
 
-### macOS 0.10.1
+### macOS 0.10.3rc1
 
-- **独立记忆**：普通入库不按相似文字、时间或标签强行连线；没有关联的记忆也能保存和召回。
-- **人格与星图**：从有原话依据的记忆中整理人格，保留固定设定；支持动态星云、平面引力图和黑白画布。
+同步本轮记忆持续整理、模型与强度选择、多窗口授权边界、星云旋转及启动版本提醒，使用原生 AppKit / WKWebView 窗口和内置 Python。保留原有记忆数据目录与 Keychain 保存方式。
 
-[发布说明](https://github.com/myflww/love-house/releases/tag/v0.10.1)
+[发布说明与验证范围](docs/ReleaseNotes-0.10.3rc1-macOS.md) · [Mac 升级步骤](docs/MACOS-0103-UPDATE.md)
 
 ### Android / iPhone 0.8.0rc2
 
@@ -53,8 +52,8 @@ Windows 0.10.3rc1 提供完整安装版和便携版，本轮验证范围见发�
 ## 开始使用
 
 1. **安装或解压**：Windows 便携版完整解压后打开 `LoveHouse.exe`；macOS 解压后将“爱之屋.app”放入应用程序目录。桌面安装包无需另装 Python 或 Node。
-2. **选择记忆库并连接 Agent**：桌面版使用 Harness 向导或通用 MCP 配置；Windows 最新版也可用 AstrBot 来源配置。完成一轮真实对话，确认记录已入库；自动存档需要宿主提供轮次结束回调。
-3. **按需配置整理模型**：在“记忆整理”中填写模型与 Key、选择模型强度，再开启自动整理。Windows 0.10.3rc1 不设每日调用或字符硬上限，API 按实际用量计费。保存原文、检索和完整导出无需整理 API。
+2. **选择记忆库并连接 Agent**：桌面版使用 Harness 向导或通用 MCP 配置；桌面最新版也可用 AstrBot 来源配置。完成一轮真实对话，确认记录已入库；自动存档需要宿主提供轮次结束回调。
+3. **按需配置整理模型**：在“记忆整理”中填写模型与 Key、选择模型强度，再开启自动整理。桌面 0.10.3rc1 不设每日调用或字符硬上限，API 按实际用量计费。保存原文、检索和完整导出无需整理 API。
 
 升级前备份完整数据目录。完整安装要求、文件校验、签名状态和验证范围见 [下载与系统支持](docs/下载与系统支持.md)。
 

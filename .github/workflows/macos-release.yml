@@ -1,0 +1,106 @@
+name: macOS Apple Silicon release validation
+
+on:
+  push:
+    branches: [codex/windows-0103-release]
+    paths: ['nkb/**', 'desktop/**', 'scripts/**', 'tests/**', 'assets/**', '.github/workflows/macos-release.yml']
+  pull_request:
+    paths: ['nkb/**', 'desktop/**', 'scripts/**', 'tests/**', 'assets/**', '.github/workflows/macos-release.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-release-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apple-silicon:
+    runs-on: macos-15
+    timeout-minutes: 35
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+      DSH_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Verify native Apple Silicon runner and version
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = arm64
+          python -c "from nkb._version import __version__; assert __version__ == '0.10.3rc1'"
+          mkdir -p build/macos/reports dist/macos
+          git rev-parse HEAD > build/macos/reports/source-commit.txt
+          sw_vers > build/macos/reports/runner.txt
+          xcrun swiftc --version >> build/macos/reports/runner.txt
+      - name: Execute Mac desktop and graph regression
+        run: |
+          python -m unittest desktop.test_credentials desktop.test_harness_bridge desktop.test_stdio_encoding tests.test_macos_packaging -v
+          npm ci --ignore-scripts --no-audit --no-fund --prefix nkb/viz/art
+          node --test tests/js/*.test.cjs tests/js/*.test.mjs
+          python extensions/astrbot-love-house/package.py --check
+      - name: Fetch hash-pinned relocatable Python runtime and reviewed licences
+        run: |
+          python scripts/fetch_macos_runtime.py --output build/macos/runtime
+          build/macos/runtime/bin/python3.12 -I -c "import platform,sys; assert sys.version_info[:3] == (3,12,14); assert platform.machine() == 'arm64'"
+      - name: Build actual AppKit and WKWebView app, run isolated packaged checks
+        run: |
+          set -euo pipefail
+          python scripts/build_macos.py --python build/macos/runtime/bin/python3.12 --output 'dist/macos/爱之屋.app' --expected-version 0.10.3rc1 --native-smoke --report-dir build/macos/reports 2>&1 | tee build/macos/build.log
+      - name: Package signed app and re-run native smoke after ZIP extraction
+        run: |
+          set -euo pipefail
+          ditto -c -k --sequesterRsrc --keepParent 'dist/macos/爱之屋.app' dist/LoveHouse-0.10.3rc1-macOS-arm64.zip
+          mkdir -p build/macos/consumer
+          ditto -x -k dist/LoveHouse-0.10.3rc1-macOS-arm64.zip build/macos/consumer
+          codesign --verify --deep --strict 'build/macos/consumer/爱之屋.app'
+          'build/macos/consumer/爱之屋.app/Contents/MacOS/NeuralAtlas' --smoke-test --smoke-report "$PWD/build/macos/reports/zip-native.json" 2>&1 | tee build/macos/consumer.log
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          root=Path.cwd();reports=root/'build/macos/reports'
+          for name in ('build.json','native.json','zip-native.json'):
+              value=json.loads((reports/name).read_text())
+              assert value.get('ok') is True and value.get('process_complete') is True
+              assert value.get('version') == '0.10.3rc1'
+          archive=root/'dist/LoveHouse-0.10.3rc1-macOS-arm64.zip'
+          digest=hashlib.file_digest(archive.open('rb'),'sha256').hexdigest()
+          (root/'dist/macOS-SHA256SUMS.txt').write_text(digest+'  '+archive.name+'\n',encoding='ascii')
+          proof={'schema':'love-house-macos-release/v1','version':'0.10.3rc1',
+                 'source_commit':(reports/'source-commit.txt').read_text().strip(),
+                 'architecture':'arm64','minimum_macos':'13.0','signing':'ad-hoc','notarized':False,
+                 'package':{'name':archive.name,'bytes':archive.stat().st_size,'sha256':digest},
+                 'checks':{name:json.loads((reports/name).read_text()) for name in ('build.json','native.json','zip-native.json')},
+                 'runtime':json.loads((root/'build/macos/runtime-provenance.json').read_text()),
+                 'ok':True,'process_complete':True,'installed_in_user_applications':False}
+          (root/'dist/macOS-0103-verification.json').write_text(json.dumps(proof,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          PY
+      - name: Preserve Mac build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-0103-build-evidence-${{ github.sha }}
+          path: |
+            build/macos/reports/
+            build/macos/build.log
+            build/macos/consumer.log
+          if-no-files-found: warn
+      - name: Preserve only successfully validated Mac release assets
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: love-house-0.10.3rc1-macos-arm64
+          path: |
+            dist/LoveHouse-0.10.3rc1-macOS-arm64.zip
+            dist/macOS-SHA256SUMS.txt
+            dist/macOS-0103-verification.json
+          if-no-files-found: error

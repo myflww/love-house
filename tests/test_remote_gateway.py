@@ -8,6 +8,7 @@ import ssl
 import subprocess
 import tempfile
 import threading
+import time
 import unittest
 from urllib.error import HTTPError
 from urllib.request import Request,build_opener,ProxyHandler,HTTPSHandler,HTTPRedirectHandler
@@ -192,8 +193,27 @@ class RemoteGatewayTests(unittest.TestCase):
         _,invalid,_=self.rpc(a,token_a,'tools/call',{'name':'memory_bootstrap','arguments':{'library_id':other_lib}})
         self.assertTrue(invalid['result']['isError'])
         record={'name':'memory_record_turn','arguments':{'session_id':'real-manual-window','request_id':'manual','user':'实际手动补录','assistant':'这不是自动上报'}}
-        _,saved,_=self.rpc(a,token_a,'tools/call',record)
-        self.assertEqual(saved['result']['structuredContent']['status'],'saved')
+        # A background graph writer can own this lock while the MCP request
+        # durably queues its receipt. Reproduce that valid pending response
+        # deterministically, then require the actual graph commit below.
+        with self.host._apply_lock:
+            _,saved,_=self.rpc(a,token_a,'tools/call',record)
+        queued=saved['result']['structuredContent']
+        self.assertTrue(queued['accepted']);self.assertEqual(queued['status'],'pending')
+        deadline=time.monotonic()+10
+        receipt=None
+        while time.monotonic()<deadline:
+            self.host.process_pending(receipt_id=queued['receipt_id'],limit=1)
+            receipt=self.host.connections.read_archive(queued['receipt_id'],'default')
+            if receipt and receipt['status']=='saved':break
+            time.sleep(.02)
+        self.assertIsNotNone(receipt)
+        self.assertEqual(receipt['status'],'saved')
+        self.assertEqual(receipt['connection_id'],a)
+        self.assertEqual(receipt['session_id'],'real-manual-window')
+        memory_id=json.loads(receipt['node_ids'])[0]
+        _,read,_=self.rpc(a,token_a,'tools/call',{'name':'memory_read','arguments':{'memory_id':memory_id}})
+        self.assertEqual(read['result']['structuredContent']['text'],'实际手动补录')
         _,status,_=self.req('/api/remote/connections/'+a+'/status',token=token_a)
         self.assertFalse(status['automatic_memory']);self.assertEqual(status['capture_mode'],'tools_only')
         self.assertEqual(self.host.library(other_lib)['node_count'],0)

@@ -1948,8 +1948,8 @@
     },
     {
       "path": "scripts/build_macos.py",
-      "bytes": 37550,
-      "sha256": "0811f872b2a3a03431ae92b069dfb49d548eb0305a72b6fbc30eb1555182fe9c"
+      "bytes": 37801,
+      "sha256": "62075abb6b3956b90fb16610235f28ab7fd53f03f357f5ee169dec0c93ce010b"
     },
     {
       "path": "scripts/build_windows.py",

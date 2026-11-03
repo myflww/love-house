@@ -356,7 +356,10 @@ def smoke_agent(resources):
             complete = {**partial, "status":"complete", "assistant":"原生钩子完整助手回复"}
             result = execute(hook, json.dumps(complete, ensure_ascii=False))
             assert result["accepted"] and result["saved"] and not result["queued"]
-            assert rpc("memory_status")["automatic_memory"] is True
+            # A generic host callback proves this completed turn was archived,
+            # not that every future turn is automatically observed by its host.
+            status = rpc("memory_status")
+            assert status["automatic_memory"] is False and status["capture_mode"] == "host_hook_received"
             assert len(api("/api/graph", library=library)["nodes"]) == 2
             assert api("/api/graph")["nodes"] == []
             stop()
@@ -375,7 +378,7 @@ def smoke_agent(resources):
             outbox = data / "agent-outbox" / cid
             assert not list(outbox.glob("*.json"))
             assert api("/api/graph")["nodes"] == []
-            print("Bundled Agent MCP: generated command/PYTHONHOME works; no vendor key; manual/partial stays tools_only; complete hook records automatically; offline queue/reconnect preserves fixed library")
+            print("Bundled Agent MCP: generated command/PYTHONHOME works; no vendor key; manual/partial stays tools_only; completed hook archived with coverage unclaimed; offline queue/reconnect preserves fixed library")
 
             single_library = api("/api/libraries", {"name":"打包默认单窗口隐私库"})["library"]["id"]
             single = api("/api/connections", {"name":"默认只记所选窗口", "host":"agent", "library_id":single_library})

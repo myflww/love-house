@@ -2,6 +2,8 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import importlib.util
 import json
+import os
+import subprocess
 from pathlib import Path
 import tempfile
 import threading
@@ -92,6 +94,55 @@ class MacPackagingTests(unittest.TestCase):
         self.assertEqual(observed[1]['Authorization'], 'Bearer FAKE-SOURCE-TOKEN')
         self.assertEqual(observed[1]['X-Nkb-Library'], 'synthetic-library')
         self.assertEqual(observed[1]['Origin'], base)
+
+    def test_single_window_builder_sequence_uses_real_controller_hooks_and_restart(self):
+        from nkb.service.credentials import KeyStore
+        from nkb.service.host import MemoryHost, make_controller
+        from nkb.service.httpd import LoopbackHTTPServer
+
+        with tempfile.TemporaryDirectory() as directory:
+            data = Path(directory)
+            state = {}
+
+            def start():
+                host = MemoryHost(data, key_store=KeyStore(allow_keychain=False))
+                server = LoopbackHTTPServer(('127.0.0.1', 0), make_controller(host))
+                host.controller_port = server.server_port
+                thread = threading.Thread(target=server.serve_forever, kwargs={'poll_interval':.01})
+                thread.start()
+                state.update(host=host, server=server, thread=thread)
+                runtime = data/'.runtime'
+                runtime.mkdir(exist_ok=True)
+                (runtime/'app.json').write_text(json.dumps({'pid':os.getpid(), 'controller_port':server.server_port,
+                                                           'service_version':'0.4.0'}), encoding='utf-8')
+                state['controller'] = builder.SmokeController(f'http://127.0.0.1:{server.server_port}')
+
+            def stop():
+                if not state.get('server'):
+                    return
+                state['server'].shutdown()
+                state['server'].server_close()
+                state['thread'].join(timeout=10)
+                self.assertFalse(state['thread'].is_alive())
+                state['host'].stop()
+                state['server'] = None
+
+            def api(path, body=None, library=None):
+                return state['controller'].api(path, body, library)
+
+            def execute(command, payload):
+                result = subprocess.run([command['command'], *command['args']], input=payload,
+                                        env={**os.environ, **command['env']}, cwd=directory,
+                                        capture_output=True, text=True, encoding='utf-8', timeout=20)
+                self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+                self.assertEqual(result.stderr, '')
+                return json.loads(result.stdout)
+
+            try:
+                start()
+                builder.smoke_single_window(api, execute, start, stop, data)
+            finally:
+                stop()
 
     def test_current_version_and_plugin_resource_match_the_core_and_actual_package(self):
         from nkb._version import __version__

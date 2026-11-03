@@ -1948,8 +1948,8 @@
     },
     {
       "path": "scripts/build_macos.py",
-      "bytes": 37801,
-      "sha256": "62075abb6b3956b90fb16610235f28ab7fd53f03f357f5ee169dec0c93ce010b"
+      "bytes": 38016,
+      "sha256": "962bda984f72d11bffdb26efab1f208bc5c70103f147a27c3d36a338d1693c65"
     },
     {
       "path": "scripts/build_windows.py",
@@ -2443,8 +2443,8 @@
     },
     {
       "path": "tests/test_macos_packaging.py",
-      "bytes": 4765,
-      "sha256": "3bb2ca28a57396403273882068e2c50aba794b79e419ff9ded98e05c691a6157"
+      "bytes": 7220,
+      "sha256": "9c1d8c3c3b9a766e402c054064b32d244879a82e937f5132a9c5d5d22d2ff23a"
     },
     {
       "path": "tests/test_memory_inheritance.py",

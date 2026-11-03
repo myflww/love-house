@@ -1,6 +1,6 @@
 # Windows 0.9.1rc1：分享导出与记忆整理修复
 
-本次依据用户的 Windows 0.8.0rc2 反馈截图和另一台设备的 [Windows 0.9 交接书](WINDOWS-090-HANDOFF.md) 更新。Windows 提供新的修复预览；macOS 0.9.0 和 Android / iPhone 0.8.0rc2 的既有发布资产保持独立。
+本次依据用户的 Windows 0.8.0rc2 反馈截图和另一台设备的 [Windows 0.9 交接书](https://github.com/myflww/love-house/blob/v0.9.1rc1/docs/WINDOWS-090-HANDOFF.md) 更新。Windows 提供新的修复预览；macOS 0.9.0 和 Android / iPhone 0.8.0rc2 的既有发布资产保持独立。
 
 ## 分享包按钮不可用
 

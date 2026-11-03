@@ -1,5 +1,8 @@
 # 爱之屋 0.10.2rc1 · Windows AstrBot 接入与状态更新
 
+已公开发布 Windows 0.10.2rc1 修复预览，并完成下列固定记录对应的公开下载安装复核。
+
+
 本版基于 Windows 0.10.1rc1，新增 AstrBot 快速配置、当前记忆库整理 API 状态和动态星云自旋。Windows x64 安装版与便携版使用同一批源码。macOS 本次提供移植交接书，尚未构建新版；Android 保持现有版本。
 
 ## AstrBot 快速接入
@@ -29,3 +32,13 @@ Windows 包与验证附件见 [本版发布页](https://github.com/myflww/love-h
 升级前停止写入并备份完整数据目录。便携版应完整解压到新程序目录；保留原来的数据目录。原有库隔离、人格明确关闭设置、来源绑定和记忆原文应继续保留。
 
 发布流程要求完整回归、实际原生窗口、安装／便携运行检查和 0.10.1rc1 覆盖升级全部通过；完成记录以 `Windows-0102-verification.json` 及发布页链接为准。公开后另从匿名下载链接重新安装和启动，证据单独记录。测试使用合成资料、模拟 API，不读取真实用户密钥，不代发 QQ 消息。Win10 真机、真实 QQ 长期运行和各厂商真实账户仍需独立验收。
+
+
+## 本轮发布状态与固定证据
+
+[冻结生产源码 `b1af91dba0b8f6145cf18e364cc24f0ee633b911`](https://github.com/myflww/love-house/tree/b1af91dba0b8f6145cf18e364cc24f0ee633b911)。Main 基线为 `bafc2e92566fa0a72f1d22503112eef343e56a25`；下载文档更新不表示生产分支已全部合并到 Main。
+
+- [Windows 发布页](https://github.com/myflww/love-house/releases/tag/v0.10.2rc1)
+- [EXE 安装包](https://github.com/myflww/love-house/releases/download/v0.10.2rc1/LoveHouse-Setup-0.10.2rc1-Windows-x64.exe) · [ZIP 便携包](https://github.com/myflww/love-house/releases/download/v0.10.2rc1/LoveHouse-0.10.2rc1-Windows-x64.zip)
+- [Windows 校验文件](https://github.com/myflww/love-house/releases/download/v0.10.2rc1/Windows-SHA256SUMS.txt) · [本轮验证附件](https://github.com/myflww/love-house/releases/download/v0.10.2rc1/Windows-0102-verification.json)
+- [Windows 构建、安装与原生检查](https://github.com/myflww/love-house/actions/runs/41337307386) · [Harness 实际宿主轮次](https://github.com/myflww/love-house/actions/runs/41337307343) · [完整回归](https://github.com/myflww/love-house/actions/runs/41337307434) · [发布及附件校验](https://github.com/myflww/love-house/actions/runs/41339292498) · [公开下载后安装与启动](https://github.com/myflww/love-house/actions/runs/41339499539)

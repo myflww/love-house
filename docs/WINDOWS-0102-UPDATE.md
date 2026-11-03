@@ -1,5 +1,8 @@
 # Windows 0.10.2rc1 更新与接入说明
 
+已公开发布 Windows 0.10.2rc1 修复预览，并完成下列固定记录对应的公开下载安装复核。
+
+
 本轮将用户提供的成功接入案例整理为可重复的配置流程，避免让用户猜测私有文件路径、固定宿主标识和 UMO 的对应关系。案例中的个人标识、聊天内容、真实配置及路径未纳入源码和安装包。
 
 ## 最短接入步骤
@@ -41,3 +44,13 @@
 覆盖升级验证从公开 0.10.1rc1 EXE 安装开始，以两份独立合成记忆库验证库内容、来源、设置、明确关闭的人格选择、凭据元数据和重启保留。新增原生检查验证配置向导、分库 API 状态、左转与悬停恢复，并继续执行旧版导出、人格、图形及原文保留检查。
 
 升级前备份完整数据目录。回退旧程序时同时恢复升级前的配套数据快照。Win10 真机、缺失／损坏运行时、真实 QQ 长期运行及真实模型厂商账户不由合成测试替代。
+
+
+## 本轮发布状态与固定证据
+
+[冻结生产源码 `b1af91dba0b8f6145cf18e364cc24f0ee633b911`](https://github.com/myflww/love-house/tree/b1af91dba0b8f6145cf18e364cc24f0ee633b911)。Main 基线为 `bafc2e92566fa0a72f1d22503112eef343e56a25`；下载文档更新不表示生产分支已全部合并到 Main。
+
+- [Windows 发布页](https://github.com/myflww/love-house/releases/tag/v0.10.2rc1)
+- [EXE 安装包](https://github.com/myflww/love-house/releases/download/v0.10.2rc1/LoveHouse-Setup-0.10.2rc1-Windows-x64.exe) · [ZIP 便携包](https://github.com/myflww/love-house/releases/download/v0.10.2rc1/LoveHouse-0.10.2rc1-Windows-x64.zip)
+- [Windows 校验文件](https://github.com/myflww/love-house/releases/download/v0.10.2rc1/Windows-SHA256SUMS.txt) · [本轮验证附件](https://github.com/myflww/love-house/releases/download/v0.10.2rc1/Windows-0102-verification.json)
+- [Windows 构建、安装与原生检查](https://github.com/myflww/love-house/actions/runs/41337307386) · [Harness 实际宿主轮次](https://github.com/myflww/love-house/actions/runs/41337307343) · [完整回归](https://github.com/myflww/love-house/actions/runs/41337307434) · [发布及附件校验](https://github.com/myflww/love-house/actions/runs/41339292498) · [公开下载后安装与启动](https://github.com/myflww/love-house/actions/runs/41339499539)

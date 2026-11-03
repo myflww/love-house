@@ -1,5 +1,8 @@
 # macOS 0.10.2 接入、整理状态与星云自旋移植交接
 
+已公开发布 Windows 0.10.2rc1 修复预览，并完成下列固定记录对应的公开下载安装复核。
+
+
 ## 交接范围与基线
 
 Windows 0.10.2rc1 以已发布的 Windows 0.10.1rc1 为基线，新增三项共享功能。本次没有构建 macOS 新安装包。Mac 当前发布基线为 `v0.10.1`；生产源码 `b2279da12c3b14d4708595343433849f3f8f2911`，不要将 Windows 原生入口覆盖到 Mac 工程。
@@ -56,3 +59,13 @@ python3 extensions/astrbot-love-house/package.py --check
 在实际 Mac 原生窗口验证：向导生成的 JSON 能对齐 Mac 私有文件与唯一 UMO；状态在换库、保存失败、Keychain 锁定及重启后正确；星云缓慢左转、整画布悬停暂停、拖拽和平面切换自然，节点数据不变。真实 AstrBot 用测试机器人和测试会话完成重载、对话入库、召回、断线恢复；合成测试不能宣称真实 QQ 已验证。
 
 Mac 构建应重新生成 Mac 包、校验文件和独立验收证据，更新按系统区分的下载说明。禁止把 Windows 构建证据当成 Mac 包验证，也不要移动已有发布标签或覆盖旧附件。继续保留作者署名、非商用许可、默认单窗口隔离与原有记忆。
+
+
+## 本轮发布状态与固定证据
+
+[冻结生产源码 `b1af91dba0b8f6145cf18e364cc24f0ee633b911`](https://github.com/myflww/love-house/tree/b1af91dba0b8f6145cf18e364cc24f0ee633b911)。Main 基线为 `bafc2e92566fa0a72f1d22503112eef343e56a25`；下载文档更新不表示生产分支已全部合并到 Main。
+
+- [Windows 发布页](https://github.com/myflww/love-house/releases/tag/v0.10.2rc1)
+- [EXE 安装包](https://github.com/myflww/love-house/releases/download/v0.10.2rc1/LoveHouse-Setup-0.10.2rc1-Windows-x64.exe) · [ZIP 便携包](https://github.com/myflww/love-house/releases/download/v0.10.2rc1/LoveHouse-0.10.2rc1-Windows-x64.zip)
+- [Windows 校验文件](https://github.com/myflww/love-house/releases/download/v0.10.2rc1/Windows-SHA256SUMS.txt) · [本轮验证附件](https://github.com/myflww/love-house/releases/download/v0.10.2rc1/Windows-0102-verification.json)
+- [Windows 构建、安装与原生检查](https://github.com/myflww/love-house/actions/runs/41337307386) · [Harness 实际宿主轮次](https://github.com/myflww/love-house/actions/runs/41337307343) · [完整回归](https://github.com/myflww/love-house/actions/runs/41337307434) · [发布及附件校验](https://github.com/myflww/love-house/actions/runs/41339292498) · [公开下载后安装与启动](https://github.com/myflww/love-house/actions/runs/41339499539)

@@ -1,5 +1,7 @@
 # Windows 0.10.1rc1 更新与验收
 
+已公开发布 Windows 0.10.1rc1 同步预览，并完成公开下载安装复核。
+
 这是从已公开的 Windows 0.9.1rc1 工程继续开发的同步预览。共享增量来自已发布 macOS `v0.10.1` 的真实源码 `b2279da12c3b14d4708595343433849f3f8f2911`，以 macOS 0.9 基线进行三方差量合并，没有用 Main 的旧生产代码或 Mac 桌面工程替换 Windows。
 
 ## 本次同步
@@ -38,3 +40,18 @@
 公开下载复核另在独立 CI 中记录：从真正公开地址匿名下载 EXE／ZIP，核对固定 SHA256 后重新安装、解压及启动。上述构建、六份包内检查与覆盖升级不代替这一步，也不据此宣称公开下载安装已通过。发布附件、固定受测文件和后续验证入口见 [Windows 发布页](https://github.com/myflww/love-house/releases/tag/v0.10.1rc1)、[Windows-0101-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.1rc1/Windows-0101-verification.json) 与 [Windows-SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.10.1rc1/Windows-SHA256SUMS.txt)。
 
 只使用临时合成资料、模拟 API 和假凭据，未读取用户真实 Key，未新增真实 DeepSeek 调用。Win10 真机、缺失／损坏运行时、企业安装策略与长期运行仍待独立验收。
+
+## 源码、下载与验证记录
+
+生产构建使用 [冻结生产源码 `1a69676cb9e98b343fc0a01bb47e07028cb39323`](https://github.com/myflww/love-house/tree/1a69676cb9e98b343fc0a01bb47e07028cb39323)。`main` 的生产代码仍按仓库审阅流程合并；此处更新下载说明不表示所有生产分支已合并。
+
+- [Windows 发布页](https://github.com/myflww/love-house/releases/tag/v0.10.1rc1)
+- [EXE 安装包](https://github.com/myflww/love-house/releases/download/v0.10.1rc1/LoveHouse-Setup-0.10.1rc1-Windows-x64.exe) · [ZIP 便携包](https://github.com/myflww/love-house/releases/download/v0.10.1rc1/LoveHouse-0.10.1rc1-Windows-x64.zip)
+- [Windows 校验文件](https://github.com/myflww/love-house/releases/download/v0.10.1rc1/Windows-SHA256SUMS.txt) · [受测文件与验证附件](https://github.com/myflww/love-house/releases/download/v0.10.1rc1/Windows-0101-verification.json)
+- [Windows 构建、安装与原生检查](https://github.com/myflww/love-house/actions/runs/41312425782) · [Harness 实际宿主轮次](https://github.com/myflww/love-house/actions/runs/41312425812) · [完整回归](https://github.com/myflww/love-house/actions/runs/41312425825) · [发布及附件校验](https://github.com/myflww/love-house/actions/runs/41314554471) · [公开下载后安装与启动](https://github.com/myflww/love-house/actions/runs/41314722407)
+
+Mac 的 [人格实现说明](https://github.com/myflww/love-house/blob/v0.10.0/docs/MACOS-010-PERSONA.md)、[批准星图代码说明](https://github.com/myflww/love-house/blob/v0.10.0/docs/NEURAL-ATLAS-010.md) 和 [独立记忆修复说明](https://github.com/myflww/love-house/blob/v0.10.1/docs/MACOS-0101-INDEPENDENT-MEMORIES.md) 固定到对应发布源码，不能替代本页 Windows 验证。
+
+## 本机 Windows 11 实测
+
+本机另以实际便携版 EXE 在 Windows 11 家庭中文版 x64（构建 26200）完成原生窗口检查：8 项原生导出、人格、原版星图、独立记忆及重启均通过。运行环境为 WebView2 156.0.4314.58、显示像素比 1.35；检查使用独立合成资料，模型调用为 0，未读取用户 Key，临时资料已清理。这项本机记录与 CI 验证分别记录；Win10 仍待真机验收。

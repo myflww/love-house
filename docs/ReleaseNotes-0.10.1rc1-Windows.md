@@ -1,5 +1,7 @@
 # 爱之屋 0.10.1rc1 · Windows 同步预览
 
+已公开发布 Windows 0.10.1rc1 同步预览，并完成公开下载安装复核。
+
 Windows 10 2004（19041）及以上／Windows 11，Intel 或 AMD x64。提供完整 EXE 安装包与 ZIP 便携包；无需安装 Python 或 Node。本版承接 Windows 0.9.1rc1，按 macOS 0.9.2、0.10.0、0.10.1 三份 Windows 交接书选择性合入共享实现。
 
 - 人格随记忆形成：新库默认开启人格和学习，固定设定为空；明确关闭的选择保留。特征需要当前库至少两条独立助手原话，手动核心优先。快速整理先只读预览，另行确认后最多一次模型请求；平常整理在同次请求补充，不额外开人格调用。
@@ -25,3 +27,7 @@ macOS 继续使用 [0.10.1 稳定版](https://github.com/myflww/love-house/relea
 公开下载复核另在独立 CI 中记录：从真正公开地址匿名下载 EXE／ZIP，核对固定 SHA256 后重新安装、解压及启动。上述构建、六份包内检查与覆盖升级不代替这一步，也不据此宣称公开下载安装已通过。发布附件、固定受测文件和后续验证入口见 [Windows 发布页](https://github.com/myflww/love-house/releases/tag/v0.10.1rc1)、[Windows-0101-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.1rc1/Windows-0101-verification.json) 与 [Windows-SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.10.1rc1/Windows-SHA256SUMS.txt)。
 
 只使用临时合成资料、模拟 API 和假凭据，未读取用户真实 Key，未新增真实 DeepSeek 调用。Win10 真机、缺失／损坏运行时、企业安装策略与长期运行仍待独立验收。
+
+验证记录：[Windows 构建、安装与原生检查](https://github.com/myflww/love-house/actions/runs/41312425782) · [Harness 实际宿主轮次](https://github.com/myflww/love-house/actions/runs/41312425812) · [完整回归](https://github.com/myflww/love-house/actions/runs/41312425825) · [发布及附件校验](https://github.com/myflww/love-house/actions/runs/41314554471) · [公开下载后安装与启动](https://github.com/myflww/love-house/actions/runs/41314722407)。
+
+冻结源码：[冻结生产源码 `1a69676cb9e98b343fc0a01bb47e07028cb39323`](https://github.com/myflww/love-house/tree/1a69676cb9e98b343fc0a01bb47e07028cb39323)。

@@ -48,8 +48,8 @@
     },
     {
       "path": ".github/workflows/macos-release.yml",
-      "bytes": 5401,
-      "sha256": "9411dae4f1e28ef02d57f72ea625758c110caeb88c00e8bdb04d41b0ec7782ef"
+      "bytes": 5451,
+      "sha256": "e4e65f989d07039a5af78bac7dce1c1253b1157077682b2962f63960c0deb69f"
     },
     {
       "path": ".github/workflows/publish-windows-0101.yml",

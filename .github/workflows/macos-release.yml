@@ -44,7 +44,8 @@ jobs:
           xcrun swiftc --version >> build/macos/reports/runner.txt
       - name: Execute Mac desktop and graph regression
         run: |
-          python -m unittest desktop.test_credentials desktop.test_harness_bridge desktop.test_stdio_encoding tests.test_macos_packaging -v
+          python -m unittest desktop.test_credentials desktop.test_stdio_encoding tests.test_macos_packaging -v
+          python -m unittest discover -s desktop -p test_harness_bridge.py -v
           npm ci --ignore-scripts --no-audit --no-fund --prefix nkb/viz/art
           node --test tests/js/*.test.cjs tests/js/*.test.mjs
           python extensions/astrbot-love-house/package.py --check

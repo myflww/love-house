@@ -4,16 +4,17 @@ import threading
 
 EXPECTED={'status':'passed','astrbot_setup':'passed','organizer_api_status':'passed',
           'library_isolation':'passed','nebula_left_rotation':'passed',
-          'hover_pause_resume':'passed','motion_preference':'synthetic-toggle',
+          'hover_continues_rotation':'passed','node_selection_pause_resume':'passed','motion_preference':'synthetic-toggle',
           'reduced_motion_respected':'passed','real_model_calls':0}
 
-CODES=('rotation_ready','rotation_idle','rotation_direction','rotation_hover','rotation_hover_stable',
+CODES=('rotation_ready','rotation_idle','rotation_direction','rotation_hover','rotation_hover_continues',
+       'rotation_selected','rotation_selected_stable','rotation_selected_leave',
        'rotation_resume','rotation_resumed','rotation_reduced','rotation_reduced_stable','rotation_canonical','library_created','api_empty',
        'api_saved','api_model_visible','api_key_private','api_honest','setup_ready','setup_generated',
        'setup_routing','setup_identity','setup_private','api_other_library','setup_other_library','api_return_library','paid_request')
 
 MOTION_REASONS=('idle','rotating','disabled','hidden','paused','reduced-motion',
-                'flat','transition','interaction','hover','unknown')
+                'flat','transition','interaction','hover','selected','unknown')
 
 
 def safe_motion_diagnostic(value):
@@ -37,7 +38,7 @@ class Release0102Failure(AssertionError):
 SCRIPT=r"""
 const original=S.libraryId,by=id=>document.getElementById(id);
 const originalMatchMedia=globalThis.matchMedia,motionQuery='(prefers-reduced-motion: reduce)';
-const motionReasons=['idle','rotating','disabled','hidden','paused','reduced-motion','flat','transition','interaction','hover'];
+const motionReasons=['idle','rotating','disabled','hidden','paused','reduced-motion','flat','transition','interaction','hover','selected'];
 const motionReason=()=>motionReasons.includes(by('artCanvas')?.dataset.autoRotateReason)?by('artCanvas').dataset.autoRotateReason:'unknown';
 const initialMotion={system_reduced_motion:!!originalMatchMedia.call(globalThis,motionQuery).matches,
  initial_document_hidden:!!document.hidden,initial_auto_rotate_reason:motionReason()};
@@ -73,10 +74,17 @@ try{
   const yaw=Number(art.dataset.autoRotateYaw);await sleep(500);
   check(Number(art.dataset.autoRotateYaw)>yaw+.005,'rotation_direction');
   cv.dispatchEvent(new PointerEvent('pointerenter',{pointerId:1,pointerType:'mouse'}));
-  await wait(()=>art.dataset.autoRotateReason==='hover','rotation_hover');
+  await wait(()=>art.dataset.autoRotate==='true'&&art.dataset.autoRotateReason==='rotating','rotation_hover');
+  const hovered=Number(art.dataset.autoRotateYaw);await sleep(300);
+  check(Number(art.dataset.autoRotateYaw)>hovered,'rotation_hover_continues');
+  const selectedRow=by('nodeList').querySelector('.node-row');
+  check(!!selectedRow,'rotation_selected');selectedRow.click();
+  await wait(()=>art.dataset.autoRotateReason==='selected','rotation_selected');
   const stopped=Number(art.dataset.autoRotateYaw);await sleep(300);
-  check(Number(art.dataset.autoRotateYaw)===stopped,'rotation_hover_stable');
+  check(Number(art.dataset.autoRotateYaw)===stopped,'rotation_selected_stable');
   cv.dispatchEvent(new PointerEvent('pointerleave',{pointerId:1,pointerType:'mouse'}));
+  await sleep(100);check(art.dataset.autoRotateReason==='selected','rotation_selected_leave');
+  select(null);schedule();
   await wait(()=>art.dataset.autoRotate==='true','rotation_resume');await sleep(300);
   check(Number(art.dataset.autoRotateYaw)>stopped,'rotation_resumed');
   reduced=true;testMotionPreference='reduce';schedule();

@@ -8,10 +8,10 @@ from ..core.brain import Brain
 from ..errors import ValidationError
 from ..retrieval.scoring import dice
 from ..utils import now
-from .config import get_profile
+from .config import get_profile, validate_profile
 from .model import OrganizerConflict, OrganizerError
 from .atoms import normalize_atom,make_atom,atom_signature,source_references,evidence_event_at
-from .rules import RULES_VERSION, PERSONA_RULES_VERSION, runtime_policy
+from .rules import RULES_VERSION, PERSONA_RULES_VERSION, SYSTEM_GUIDANCE, runtime_policy
 from .experiences import normalize_episode,episode_key,episode_conflicts,make_experience,merge_experience,render_experience,SCHEMA as EXPERIENCE_SCHEMA
 
 LAYERS = {"fact": "fact", "preference": "preference", "experience": "episode", "commitment": "commitment", "persona": None}
@@ -147,13 +147,54 @@ def archive_roles(archive):
     return {k: normalized[k] for k in ("user", "assistant") if isinstance(normalized.get(k), str)}
 
 
+def context_input_bytes(profile):
+    """Conservative input allowance only for a user-selected token window.
+
+    UTF-8 bytes provide an upper-bound estimate, not a character/token identity.
+    The default automatic window is left to the provider without local clipping.
+    """
+    context = profile.get('context_window',0)
+    if not context:return None
+    from .capabilities import effective_limits
+    output = effective_limits(profile)['max_output_tokens']
+    return max(0, context - output - len(SYSTEM_GUIDANCE.encode('utf-8')) - 1024)
+
+
 def build_input(brain, library_id, items, profile, archives=None, *, purpose='memory'):
-    """Only unfinished slices plus a small related-memory neighborhood, never the full archive."""
+    available = context_input_bytes(profile)
+    working_profile = profile
+    for _ in range(32):
+        payload, guards = _build_input(brain,library_id,items,working_profile,archives,purpose=purpose)
+        if available is None:return payload,guards
+        if not available:raise OrganizerError('所选上下文不足以容纳整理准则与输出预留，请提高上下文','input_budget')
+        # Related recollections and older persona context are optional. Preserve
+        # the current source text before spending this explicit input allowance.
+        if len(json.dumps(payload,ensure_ascii=False).encode('utf-8')) > available:
+            payload['related']=[];guards['existing_fingerprints']={}
+            payload.pop('persona_context',None);guards['persona_fingerprints']={}
+        encoded = len(json.dumps(payload,ensure_ascii=False).encode('utf-8'))
+        if encoded <= available:
+            guards['input_char_budget']=profile['max_input_chars'] or len(json.dumps(payload,ensure_ascii=False))
+            guards['context_input_bytes']=available
+            return payload,guards
+        longest = max((sum(len(text) for text in record['roles'].values()) for record in payload['raw']),default=0)
+        previous = working_profile.get('_raw_slice_chars',longest)
+        if previous <= 1:break
+        # Rebuild from the same original cursors until the actual serialized
+        # UTF-8 material fits. No cursor is committed by this read-only loop.
+        working_profile={**profile,'_raw_slice_chars':max(1,min(previous-1,int(previous*available/encoded*.8)))}
+    raise OrganizerError('所选上下文不足以容纳来源元数据，请提高上下文或减少每批条数','input_budget')
+
+
+def _build_input(brain, library_id, items, profile, archives=None, *, purpose='memory'):
+    """Selected unfinished sources and related memory; zero means full selected text."""
     from ..companion.dedup import is_duplicate,canonical_id
     budget = profile["max_input_chars"]
+    full_selected = budget == 0
     records, progress, consumed, raw_hashes, aliases = [], {}, [], {}, []
     raw_budget = max(1200, int(budget * .65))
     each = max(300, raw_budget // max(1, len(items)) - 400)
+    if '_raw_slice_chars' in profile:each=profile['_raw_slice_chars']
     for item in items:
         receipt_id = item["raw_id"]
         node = raw_node(brain, receipt_id)
@@ -197,6 +238,11 @@ def build_input(brain, library_id, items, profile, archives=None, *, purpose='me
             raise OrganizerError('助手输出档案必须只有assistant原文，不能补入用户或工具角色','invalid_raw')
         if not roles or not any(isinstance(text,str) and text for text in roles.values()):
             raise OrganizerError("完整归档缺少角色原文，未假装完成整理", "missing_archive")
+        if full_selected and '_raw_slice_chars' not in profile:
+            # The batch is still bounded by its selected record count. Do not
+            # fill the model window with unrelated records or silently retain
+            # the former 18k/48k character ceiling for these selected sources.
+            room = sum(len(text) for text in roles.values() if isinstance(text,str))
         for role, text in roles.items():
             offset = cursors.get(role, 0)
             if not isinstance(text, str):
@@ -252,9 +298,9 @@ def build_input(brain, library_id, items, profile, archives=None, *, purpose='me
     persona=persona_state(brain,library_id=library_id)
     payload['memory_policy'].update(persona_learning=bool(persona['enabled'] and persona['learning_enabled']),
                                     persona_revision=persona['revision'],persona_rules_version=PERSONA_RULES_VERSION)
-    while related and len(json.dumps(payload, ensure_ascii=False)) > budget:
+    while budget and related and len(json.dumps(payload, ensure_ascii=False)) > budget:
         related.pop()
-    if len(json.dumps(payload, ensure_ascii=False)) > budget:
+    if budget and len(json.dumps(payload, ensure_ascii=False)) > budget:
         raise OrganizerError("本批输入超过预算，未发送", "input_budget")
     persona_fingerprints={}
     # Session cadence can have just one new turn. One older live assistant
@@ -292,11 +338,12 @@ def build_input(brain, library_id, items, profile, archives=None, *, purpose='me
                 'boundaries':{'assistant':{'left':True,'right':len(piece)==len(body) and not (isinstance(proof,dict) and proof.get('content_truncated')) or piece[-1] in '。！？!?；;\n'}},
                 'recording_group':{'canonical_id':cid},'receipt_id':proof.get('archive_receipt_id') if isinstance(proof,dict) else node['id']}
             payload['persona_context']=[context]
-            if len(json.dumps(payload,ensure_ascii=False))<=budget:
+            if not budget or len(json.dumps(payload,ensure_ascii=False))<=budget:
                 persona_fingerprints[node['id']]=fingerprint(node)
                 break
             payload.pop('persona_context',None)
     return payload, {"raw_fingerprints": raw_hashes,
+                     'input_char_budget':budget or len(json.dumps(payload,ensure_ascii=False)),
                      'persona_fingerprints':persona_fingerprints,
                      "existing_fingerprints": {r["id"]: fingerprint(brain.get(r["id"])) for r in related},
                      "progress": progress, "complete_ids": consumed,"alias_ids":aliases}
@@ -515,7 +562,17 @@ def _check(brain, plan, library_id):
         raise OrganizerConflict('人格准则已更新，未应用旧人格计划')
     if plan.get('purpose')=='persona' and plan.get('operations'):
         raise OrganizerConflict('快速人格计划不能修改普通记忆')
-    if get_profile(brain) != plan["profile"] or not get_profile(brain)["enabled"]:
+    saved_profile=plan.get('profile')
+    if not isinstance(saved_profile,dict):raise OrganizerConflict('整理配置指纹不合法，未应用旧结果')
+    saved_profile=deepcopy(saved_profile)
+    # Normalize only retired defaults, using exactly the same legacy rule as
+    # get_profile. A valid cached plan must not buy another model call merely
+    # because upgrade removed daily ceilings or added automatic capabilities.
+    if not any(key in saved_profile for key in ('context_window','max_output_tokens','reasoning_effort')) and saved_profile.get('max_input_chars')==18000:
+        saved_profile['max_input_chars']=0
+    try:saved_profile=validate_profile(saved_profile)
+    except ValidationError:raise OrganizerConflict('整理配置指纹不合法，未应用旧结果') from None
+    if get_profile(brain) != saved_profile or not get_profile(brain)["enabled"]:
         raise OrganizerConflict("整理配置已改变或已关闭，未应用旧结果")
     for nid, digest in {**plan["raw_fingerprints"], **plan["existing_fingerprints"]}.items():
         node = brain.get(nid)
@@ -574,8 +631,9 @@ def apply_plan(brain, plan, library_id):
             if incoming_episode and duplicate and episode_conflicts(duplicate['meta'].get('experience'),incoming_episode):review=True
             if review:
                 cid = "orgc_" + sha256(f"{plan['job_id']}:{index}".encode()).hexdigest()[:24]
-                if len(candidates) >= 100:
-                    raise OrganizerError("待审整理候选已满，原文仍保留", "candidate_capacity")
+                # Review is a semantic gate, not a total-storage quota. An
+                # accumulated backlog must not roll back unrelated valid work
+                # or leave this validated batch retrying the same plan forever.
                 candidate={"id": cid, "job_id": plan["job_id"], "library_id":library_id,"status": "pending", "operation": deepcopy(op),
                            "reason": "存在不确定性、现实域/角色边界或受保护旧设定，需要审阅", "at": now()}
                 if op.get('fallback_reason_code')=='invalid_atom_verbatim_fallback':
@@ -612,8 +670,6 @@ def apply_plan(brain, plan, library_id):
                 result["merged"].append(target["id"])
                 continue
             if op["action"] == "supersede" and target["meta"].get("organizer_key") != op["key"]:
-                if len(candidates) >= 100:
-                    raise OrganizerError("待审整理候选已满，原文仍保留", "candidate_capacity")
                 cid = "orgc_" + sha256(f"{plan['job_id']}:{index}".encode()).hexdigest()[:24]
                 candidates.append({"id": cid, "job_id": plan["job_id"], "library_id":library_id,"status": "pending", "operation": deepcopy(op), "reason": "新旧记忆属性不一致", "at": now()})
                 result["candidates"].append(cid)

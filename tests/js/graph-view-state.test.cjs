@@ -84,6 +84,7 @@ async function harness() {
     requestAutoFit(reason) { calls.fits.push(reason); if (S.view.mode === 'auto') S.view.dirty = true; },
     requestAnimationFrame() { return ++calls.frames; }, advanceAutoView() { return false; }, physics() { S.sim--; },
     draw() { calls.draws++; }, localPoint: e => ({ x: e.clientX - 10, y: e.clientY - 20 }),
+    select(id) { S.selected = id; },
     localStorage: { setItem() { calls.writes++; } },
   };
   vm.createContext(c);
@@ -91,8 +92,10 @@ async function harness() {
   const end = source.indexOf('/* End graph view state. */', start);
   assert.ok(start >= 0 && end > start);
   const code = source.slice(start, end)
-    + '\n' + ['locate', 'nodeAt', 'drawMini', 'schedule', 'frame', 'initArt'].map(actualFunction).join('\n')
+    + '\n' + ['locate', 'nodeAt', 'drawMini', 'schedule', 'frame', 'initArt', 'zoom'].map(actualFunction).join('\n')
     + '\n' + source.slice(source.indexOf('const pointers=new Map();let drag=null,pinch=null;'), source.indexOf('function pointerEnd('))
+    + '\n' + actualFunction('pointerEnd')
+    + '\n' + source.slice(source.indexOf("cv.addEventListener('pointerup'"), source.indexOf("mini.addEventListener('pointerdown'"))
     + '\n' + actualHandler("mini.addEventListener('pointerdown'")
     + '\n' + actualHandler("$('#themeBtn').onclick=")
     + '\n' + actualHandler("$('#viewBtn').onclick=");
@@ -176,6 +179,42 @@ test('flat dragging over a neuron pans the view and never edits its position or 
     else { assert.equal(S.cam.x, originalCam.x + 36); assert.equal(S.cam.y, originalCam.y + 24); }
     assertBusinessPreserved(S, before);
   }
+});
+
+test('actual host pointer releases select only a clicked node and never select after drag or lost capture', async () => {
+  const { c, S } = await harness();
+  c.artRenderer = {syncTransform() {}, radiusOnScreen: () => 4,
+    projectNode: n => n.id === 'one' ? {x:120,y:90} : {x:300,y:210}};
+  S.selected = null;
+  const event = (x, y, extra = {}) => ({clientX:x+10,clientY:y+20,pointerId:1,pointerType:'mouse',button:0,...extra});
+  const emit = (name, value) => c.cv.listeners.get(name)(value);
+  // Hovering or clicking empty space does not select a node (the renderer
+  // therefore keeps its automatic yaw active).
+  emit('pointerdown',event(600,450));emit('pointerup',event(600,450));assert.equal(S.selected,null);
+  emit('pointerdown',event(120,90));emit('pointerup',event(120,90));assert.equal(S.selected,'one');
+  S.selected=null;
+  emit('pointerdown',event(120,90));emit('pointermove',event(180,130));emit('pointerup',event(180,130));
+  assert.equal(S.selected,null);
+  emit('pointerdown',event(120,90,{shiftKey:true}));emit('lostpointercapture',event(120,90));
+  emit('pointerup',event(120,90));assert.equal(S.selected,null,'lost capture must cancel, not click/select');
+  emit('pointerdown',event(300,210));emit('pointerup',event(300,210));assert.equal(S.selected,'two');
+});
+
+test('host wheel and two-touch gestures retain screen zoom while nebula drags never use host panning', async () => {
+  const {c,S,calls}=await harness();
+  let captures=0,restores=0;
+  c.artRenderer={syncTransform(){},radiusOnScreen:()=>4,projectNode:()=>({x:-1000,y:-1000}),
+    captureScreenPoint(){captures++;return {x:1,y:2};},restoreScreenPoint(){restores++;},
+    panCamera(x,y){calls.pans.push([x,y]);}};
+  let prevented=false;const originalZoom=S.cam.k;
+  c.cv.listeners.get('wheel')({clientX:310,clientY:220,deltaY:-100,deltaMode:0,preventDefault(){prevented=true;}});
+  assert.ok(prevented);assert.ok(S.cam.k>originalZoom);assert.equal(captures,1);assert.equal(restores,1);
+  const event=(id,x,y)=>({pointerId:id,pointerType:'touch',button:0,clientX:x+10,clientY:y+20});
+  c.cv.listeners.get('pointerdown')(event(1,200,150));
+  c.cv.listeners.get('pointerdown')(event(2,400,150));const beforePinch=S.cam.k;
+  c.cv.listeners.get('pointermove')(event(2,500,180));assert.ok(S.cam.k>beforePinch);
+  assert.equal(calls.pans.length,0,'nebula pan/rotate belongs to OrbitControls, two-touch zoom belongs to host');
+  c.cv.listeners.get('pointercancel')(event(2,500,180));
 });
 
 test('minimap click recenters the displayed node in both WebGL and canvas modes', async () => {

@@ -40,13 +40,13 @@ class OrganizerTransportTests(unittest.TestCase):
         self.assertEqual(result, RESULT)
         self.assertEqual(len(captured), 1)
         request, timeout = captured[0]
-        self.assertEqual(timeout, 45)
+        self.assertEqual(timeout, 300)
         self.assertEqual(request.get_method(), 'POST')
         self.assertEqual(request.get_header('Authorization'), 'Bearer '+KEY)
         self.assertNotIn(KEY.encode(), request.data)
         return request, json.loads(request.data)
 
-    def test_official_supported_models_disable_thinking_but_keep_bounded_json_contract(self):
+    def test_official_models_use_highest_output_and_service_default_thinking(self):
         for model in ('deepseek-flash', 'deepseek-v4-pro'):
             for base in ('https://api.deepseek.com', 'https://api.deepseek.com/v1',
                          'https://API.DEEPSEEK.COM:443/v1/chat/completions'):
@@ -54,9 +54,10 @@ class OrganizerTransportTests(unittest.TestCase):
                     request, data = self.request_data(profile(base, model))
                     self.assertTrue(request.full_url.endswith('/chat/completions'))
                     self.assertEqual(data['model'], model)
-                    self.assertEqual(data['thinking'], {'type': 'disabled'})
+                    self.assertNotIn('thinking', data)
+                    self.assertNotIn('reasoning_effort', data)
                     self.assertFalse(data['stream'])
-                    self.assertEqual(data['max_tokens'], 4096)
+                    self.assertEqual(data['max_tokens'], 393216)
                     self.assertEqual(data['response_format'], {'type': 'json_object'})
                     self.assertEqual(data['messages'][0], {'role': 'system', 'content': SYSTEM_GUIDANCE})
                     self.assertEqual(data['messages'][1]['role'], 'user')
@@ -69,7 +70,7 @@ class OrganizerTransportTests(unittest.TestCase):
             with self.subTest(base=base):
                 _, data = self.request_data(profile(base))
                 self.assertNotIn('thinking', data)
-                self.assertEqual(set(data), {'model', 'messages', 'stream', 'max_tokens', 'response_format'})
+                self.assertEqual(set(data), {'model', 'messages', 'stream', 'response_format'})
 
     def test_unknown_or_reasoning_only_models_do_not_receive_vendor_toggle(self):
         for model in ('deepseek-reasoner', 'deepseek-flash-custom', 'vendor/deepseek-flash',
@@ -86,7 +87,8 @@ class OrganizerTransportTests(unittest.TestCase):
     def test_runtime_credential_endpoint_and_model_are_the_only_resolved_vendor_boundary(self):
         _, enabled = self.request_data(profile('https://another-provider.example/v1', 'another-model'),
             {'api_key': KEY, 'base_url': 'https://api.deepseek.com/v1', 'model': 'deepseek-flash'})
-        self.assertEqual(enabled['thinking'], {'type': 'disabled'})
+        self.assertNotIn('thinking', enabled)
+        self.assertEqual(enabled['max_tokens'], 393216)
         for overrides in ({'base_url': 'https://another-provider.example/v1'}, {'model': 'another-model'},
                           {'base_url': 'http://localhost:18321/v1', 'model': 'deepseek-flash'}):
             with self.subTest(overrides=overrides):
@@ -182,7 +184,8 @@ class OrganizerTransportTests(unittest.TestCase):
                 self.assertEqual(caught.exception.code,code)
                 self.assertEqual(str(caught.exception),failure_message(code))
                 self.assertNotIn(KEY,str(caught.exception))
-                body.read.assert_not_called()
+                if status in (400,422):body.read.assert_called_once_with(65537)
+                else:body.read.assert_not_called()
 
     def test_certificate_and_nested_timeout_failures_keep_private_details_out(self):
         for failure, code in ((ssl.SSLCertVerificationError(KEY),'tls_error'),
@@ -207,12 +210,16 @@ class OrganizerTransportTests(unittest.TestCase):
 
     def test_response_byte_budget_and_redirect_handler_still_fail_closed(self):
         opener = Mock()
-        opener.open.return_value.__enter__ = Mock(return_value=Mock(read=Mock(return_value=b'x'*(1024*1024+1))))
+        reader=Mock(read=Mock(return_value=b'x'*1025))
+        opener.open.return_value.__enter__ = Mock(return_value=reader)
         opener.open.return_value.__exit__ = Mock(return_value=False)
+        request=Request('https://example.invalid')
+        request._organizer_response_limit=1024
         with patch('nkb.organizer.model.urllib.request.build_opener', return_value=opener):
             with self.assertRaises(OrganizerError) as caught:
-                transport(Request('https://example.invalid'), timeout=45)
+                transport(request, timeout=45)
         self.assertEqual(caught.exception.code, 'invalid_output')
+        reader.read.assert_called_once_with(1025)
         self.assertIsNone(NoRedirect().redirect_request(None, None, 302, '', {}, 'https://elsewhere.invalid'))
 
 

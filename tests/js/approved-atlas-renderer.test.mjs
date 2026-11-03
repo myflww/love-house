@@ -14,8 +14,8 @@ class NeverConstructed extends NeuralArt{
 const Renderer=createApprovedAtlasRenderer(NeverConstructed);
 
 function surface(context=true){
- const calls=[],handlers=new Map(),documentHandlers=new Map(),windowHandlers=new Map();
- const target=map=>({addEventListener(type,fn){if(!map.has(type))map.set(type,new Set());map.get(type).add(fn);},
+ const calls=[],handlers=new Map(),documentHandlers=new Map(),windowHandlers=new Map(),capture=new WeakMap();
+ const target=map=>({addEventListener(type,fn,options){if(!map.has(type))map.set(type,new Set());map.get(type).add(fn);capture.set(fn,options===true||options?.capture===true);},
   removeEventListener(type,fn){map.get(type)?.delete(fn);if(!map.get(type)?.size)map.delete(type);}});
  const doc={...target(documentHandlers),get hidden(){return globalThis.document.hidden;},defaultView:target(windowHandlers)};
  const gradient={addColorStop(){}};
@@ -25,7 +25,8 @@ function surface(context=true){
   getRootNode:()=>doc,getBoundingClientRect:()=>({left:0,top:0,width:1000,height:700}),
   ...target(handlers),
   getContext(type){assert.equal(type,'2d','must not acquire WebGL');return context?ctx:null;}};
- const emit=(type,event={})=>{for(const fn of [...handlers.get(type)||[]])fn({pointerId:1,pointerType:'mouse',clientX:500,clientY:350,...event});};
+ const emit=(type,event={})=>{const payload={pointerId:event.pointerId??1,pointerType:event.pointerType??'mouse',clientX:500,clientY:350,pageX:500,pageY:350,button:0,buttons:type==='pointerup'?0:1,ctrlKey:false,metaKey:false,shiftKey:false,preventDefault(){},...event};for(const fn of [...handlers.get(type)||[]].sort((a,b)=>Number(capture.get(b))-Number(capture.get(a))))fn(payload);};
+ canvas.dispatchEvent=event=>{emit(event.type,event);return true;};
  const emitDocument=type=>{for(const fn of [...documentHandlers.get(type)||[]])fn({});};
  const emitWindow=type=>{for(const fn of [...windowHandlers.get(type)||[]])fn({});};
  return{canvas,ctx,calls,handlers,documentHandlers,windowHandlers,emit,emitDocument,emitWindow};
@@ -165,14 +166,13 @@ test('automatic yaw uses elapsed active seconds at low and high frame rates',()=
  for(const position of results)assert.ok(position.distanceTo(results[0])<1e-8);
 });
 
-test('hovering anywhere on the input canvas freezes yaw and leaving resumes from that camera',()=>{
+test('hovering anywhere on the input canvas never stops automatic yaw',()=>{
  const {renderer:r,canvas,emit}=art(),s=state(graph(2));r.render(s,1000);r.render(s,1100);
- const yaw=r.autoRotateYaw,position=r.camera.position.clone();emit('pointerenter',{clientX:1,clientY:1});
- r.render(s,1200);r.render(s,60000);near(r.autoRotateYaw,yaw);vectorNear(r.camera.position,position);
- assert.equal(canvas.dataset.autoRotate,'false');assert.equal(canvas.dataset.autoRotateReason,'hover');assert.equal(canvas.dataset.autoRotateHovered,'true');
- emit('pointerleave');r.render(s,90000);vectorNear(r.camera.position,position);r.render(s,90100);near(r.autoRotateYaw,yaw+.0035);
- // A mouse already over the surface before initialization still pauses on move.
- emit('pointermove',{clientX:20,clientY:20});r.render(s,90200);near(r.autoRotateYaw,yaw+.0035);
+ const yaw=r.autoRotateYaw;emit('pointerenter',{clientX:1,clientY:1});
+ r.render(s,1200);r.render(s,1300);near(r.autoRotateYaw,yaw+.007);
+ assert.equal(canvas.dataset.autoRotate,'true');assert.equal(canvas.dataset.autoRotateReason,'rotating');assert.equal(canvas.dataset.autoRotateHovered,'true');
+ emit('pointerleave');r.render(s,1400);near(r.autoRotateYaw,yaw+.0105);
+ emit('pointermove',{clientX:20,clientY:20});r.render(s,1500);near(r.autoRotateYaw,yaw+.014);
  r.dispose();
 });
 
@@ -211,16 +211,74 @@ test('pause, hidden, reduced motion, flat mode and disable stop yaw without catc
  }finally{globalThis.document.hidden=false;globalThis.matchMedia=()=>({matches:false});r.dispose();}
 });
 
-test('separate artwork and input surfaces, blur and disposal keep input ownership intact',()=>{
+test('separate artwork and input surfaces resume after blur without making hover a pause',()=>{
  const input=surface(),output=surface(),r=new Renderer(output.canvas,input.canvas),s=state(graph(1));r.resize(1000,700);
  r.render(s,1000);r.render(s,1100);input.emit('pointerenter');r.render(s,1200);const yaw=r.autoRotateYaw;
- assert.equal(output.canvas.dataset.autoRotateReason,'hover');assert.equal(input.canvas.dataset.autoRotateReason,undefined);
+ assert.equal(output.canvas.dataset.autoRotateReason,'rotating');assert.equal(input.canvas.dataset.autoRotateReason,undefined);
  input.emitWindow('blur');r.render(s,60000);near(r.autoRotateYaw,yaw);r.render(s,60100);near(r.autoRotateYaw,yaw+.0035);
- // Restoring focus while the mouse is stationary over the canvas must remain
- // paused; the next physical leave clears the restored hover marker.
+ // Restoring focus under a stationary mouse does not pause the nebula.
  input.canvas.matches=selector=>selector===':hover';input.emitWindow('focus');r.render(s,60200);
- near(r.autoRotateYaw,yaw+.0035);assert.equal(output.canvas.dataset.autoRotateReason,'hover');
- input.emit('pointerleave');r.render(s,60300);r.render(s,60400);near(r.autoRotateYaw,yaw+.007);
+ near(r.autoRotateYaw,yaw+.0035);assert.equal(output.canvas.dataset.autoRotateReason,'rotating');
+ input.emit('pointerleave');r.render(s,60300);r.render(s,60400);near(r.autoRotateYaw,yaw+.0105);
  assert.ok(input.handlers.get('pointerdown').size>=2,'rotation must retain OrbitControls input listeners');
  r.dispose();assert.equal(input.handlers.size,0);assert.equal(input.documentHandlers.size,0);assert.equal(input.windowHandlers.size,0);
+});
+
+test('actual mouse and pen drags rotate while only Shift-left-drag pans',()=>{
+ for(const [pointerType,modifiers,pan] of [['mouse',{},false],['pen',{},false],
+  ['mouse',{shiftKey:true},true],['mouse',{ctrlKey:true},false],['mouse',{metaKey:true},false],
+  ['mouse',{shiftKey:true,ctrlKey:true},true]]){
+  const {renderer:r,emit}=art(),s=state(graph(12)),before=JSON.stringify(s.nodes);
+  r.render(s,1000);const target=r.controls.target.clone(),offset=r.camera.position.clone().sub(target);
+  emit('pointerdown',{pointerType,...modifiers});
+  emit('pointermove',{pointerType,clientX:580,clientY:390,...modifiers});
+  emit('pointerup',{pointerType,clientX:580,clientY:390,...modifiers});
+  const nextOffset=r.camera.position.clone().sub(r.controls.target);
+  if(pan){assert.ok(r.controls.target.distanceTo(target)>20);vectorNear(offset,nextOffset);}
+  else{vectorNear(r.controls.target,target);assert.ok(offset.distanceTo(nextOffset)>20);}
+  assert.equal(JSON.stringify(s.nodes),before);r.dispose();
+ }
+});
+
+test('lost capture, cancellation, blur and hidden windows cannot leave a sticky Shift-pan gesture',()=>{
+ for(const interrupt of ['lostpointercapture','pointercancel','blur','hidden']){
+  const {renderer:r,emit,emitWindow,emitDocument}=art(),s=state(graph(12));r.render(s,1000);
+  emit('pointerdown',{shiftKey:true});emit('pointermove',{clientX:560,clientY:375,shiftKey:true});
+  if(interrupt==='blur')emitWindow('blur');
+  else if(interrupt==='hidden'){globalThis.document.hidden=true;emitDocument('visibilitychange');globalThis.document.hidden=false;emitDocument('visibilitychange');}
+  else emit(interrupt);
+  const target=r.controls.target.clone(),offset=r.camera.position.clone().sub(target);
+  // Same mouse pointer ID, no intervening pointerup and no Shift key.
+  emit('pointerdown',{clientX:560,clientY:375});emit('pointermove',{clientX:620,clientY:400});
+  vectorNear(r.controls.target,target);assert.ok(r.camera.position.clone().sub(target).distanceTo(offset)>20,interrupt);
+  emit('pointerup');assert.equal(r.activePointers.size,0);r.dispose();
+ }
+});
+
+test('one touch rotates while the host retains sole ownership of two-finger pinch and pan',()=>{
+ const {renderer:r,emit}=art(),s=state(graph(8));r.render(s,1000);
+ const target=r.controls.target.clone(),start=r.camera.position.clone();
+ emit('pointerdown',{pointerType:'touch',pageX:400,pageY:300});
+ emit('pointermove',{pointerType:'touch',pageX:450,pageY:325});
+ assert.ok(r.camera.position.distanceTo(start)>20);vectorNear(r.controls.target,target);
+ emit('pointerdown',{pointerId:2,pointerType:'touch',pageX:600,pageY:300});
+ const camera=r.camera.position.clone();
+ emit('pointermove',{pointerId:2,pointerType:'touch',pageX:660,pageY:350});
+ vectorNear(r.camera.position,camera);vectorNear(r.controls.target,target);
+ emit('pointercancel',{pointerId:2,pointerType:'touch'});emit('pointercancel',{pointerType:'touch'});r.dispose();
+});
+
+test('only a selected node or explicit pause keeps yaw stopped after input ends',()=>{
+ const {renderer:r,canvas,emit}=art(),s=state(graph(4));r.render(s,1000);r.render(s,1100);
+ // Hover and a completed empty-space click never latch an automatic pause.
+ emit('pointerenter');emit('pointerdown');emit('pointerup');r.render(s,1200);
+ const afterClick=r.autoRotateYaw;r.render(s,1300);near(r.autoRotateYaw,afterClick+.0035);
+ emit('pointerdown');emit('pointermove',{clientX:560,clientY:390});r.render(s,1400);
+ const duringDrag=r.autoRotateYaw;r.render(s,1500);near(r.autoRotateYaw,duringDrag);assert.equal(canvas.dataset.autoRotateReason,'interaction');
+ emit('pointerup');r.render(s,1600);r.render(s,1700);near(r.autoRotateYaw,duringDrag+.0035);
+ s.selected='n1';r.render(s,1800);const selectedYaw=r.autoRotateYaw,selectedCamera=r.camera.position.clone();
+ r.render(s,2400);near(r.autoRotateYaw,selectedYaw);vectorNear(r.camera.position,selectedCamera);assert.equal(canvas.dataset.autoRotateReason,'selected');
+ s.selected=null;r.render(s,2500);r.render(s,2600);near(r.autoRotateYaw,selectedYaw+.0035);
+ s.paused=true;r.render(s,2700);r.render(s,3000);near(r.autoRotateYaw,selectedYaw+.0035);assert.equal(canvas.dataset.autoRotateReason,'paused');
+ r.dispose();
 });

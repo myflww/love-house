@@ -270,6 +270,10 @@ class ConnectionStore:
         pending=bool(normalized and normalized.get('status','complete')=='complete')
         semantic_type,automatic=self._payload_semantics(event)
         with self.db() as db:
+            # Independent importer/recovery processes do not share binding_lock.
+            # Serialize receipt lookup + insert in SQLite as well so concurrent
+            # replays observe the same durable record instead of a unique-key error.
+            db.execute('BEGIN IMMEDIATE')
             old=db.execute('SELECT * FROM receipts WHERE id=?',(key,)).fetchone()
             if old:
                 if old['status']=='forgotten':return {'accepted':True,'duplicate':True,'receipt_id':key,'status':'forgotten'}

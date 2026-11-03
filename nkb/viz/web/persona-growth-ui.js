@@ -33,7 +33,7 @@ by('saveOrganizerSettings').after(enable);by('saveOrganizerSettings').textConten
 
 const growthActions=make('div','persona-growth-actions');
 const quick=button('quickOrganizePersona','快速整理人格','从当前库有角色依据的历史记忆提炼初步人格；先预览范围，再确认一次有预算的模型请求。',()=>openQuick());quick.classList.add('primary');
-const inspectModel=button('personaOrganizerSettings','整理 API 设置','查看当前库的整理模型、累计阈值与每日预算。',openAPISettings),progress=button('personaFormationProgress','整理进度','查看本库人格与记忆整理任务的实际进度和错误提示，不调用模型。',()=>{if(!MEMORY.busy&&!S.libraryChanging)setPanelOpen('organizerPanel',true);});growthActions.append(quick,inspectModel,progress);
+const inspectModel=button('personaOrganizerSettings','整理 API 设置','查看当前库的整理模型、累计阈值与实际用量。',openAPISettings),progress=button('personaFormationProgress','整理进度','查看本库人格与记忆整理任务的实际进度和错误提示，不调用模型。',()=>{if(!MEMORY.busy&&!S.libraryChanging)setPanelOpen('organizerPanel',true);});growthActions.append(quick,inspectModel,progress);
 const growthStatus=make('p','persona-growth-status');growthStatus.id='personaGrowthStatus';growthStatus.setAttribute('role','status');
 const traits=make('section');traits.id='personaFormedTraits';traits.setAttribute('aria-label','从记忆形成的人格特征');
 const outcome=make('p','persona-growth-status');outcome.id='personaFormationOutcome';outcome.hidden=true;outcome.setAttribute('role','status');
@@ -142,7 +142,7 @@ async function startQuick(){
  const o=state.owner,v=state.serial;state.running=true;MEMORY.busy=true;writeBusy=true;updateWriteState();quickStatus.textContent='正在提交人格整理…';controls();
  try{const result=await api('persona/organize',{confirm:true,max_records:60},{libraryId:o.id});if(!current(o)||v!==state.serial||!dialog.open)return;if(result.library_id!==o.id)throw new Error('整理结果归属未通过核对');
   const accepted=['queued','running','completed','done','existing_job'].includes(result.status);
-  if(accepted){state.lastRun={owner:o,job_id:typeof result.job_id==='string'?result.job_id:null,message:'已提交一次人格整理，可在“整理进度”查看结果。'};outcome.hidden=organizerOutcome.hidden=true;state.preview=null;dialog.close();state.serial++;openPersona();await refreshPersona();void refreshOrganizer();toast('人格整理已提交；按本库预算处理，完成后可在这里查看。');}
+  if(accepted){state.lastRun={owner:o,job_id:typeof result.job_id==='string'?result.job_id:null,message:'已提交一次人格整理，可在“整理进度”查看结果。'};outcome.hidden=organizerOutcome.hidden=true;state.preview=null;dialog.close();state.serial++;openPersona();await refreshPersona();void refreshOrganizer();toast('人格整理已提交；按本库设置处理，完成后可在这里查看。');}
   else{state.preview=result;quickStatus.textContent=quickAvailability(result).text;}
  }catch(e){if(current(o)&&v===state.serial)quickStatus.textContent='人格整理未确认：'+e.message+'。原始记忆保留，请查看整理批次后再决定是否重试。';}
  finally{state.running=false;MEMORY.busy=false;writeBusy=false;updateWriteState();controls();}

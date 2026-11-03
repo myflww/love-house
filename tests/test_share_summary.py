@@ -85,6 +85,23 @@ class ReadingSummaryTests(unittest.TestCase):
         self.assertTrue(full['reading_summary']['not_full_memory'])
         self.assertEqual(self.requests, [request])
 
+    def test_auto_full_context_keeps_reading_excerpt_and_inherits_model_options(self):
+        self.configure(base_url='https://api.deepseek.com/v1',model='deepseek-flash',
+            max_input_chars=0,reasoning_effort='high')
+        result=self.generate()
+        payload=json.loads(self.requests[0].data)
+        self.assertTrue(result['model_called'])
+        self.assertIn('我偏爱无糖茶。',json.dumps(payload,ensure_ascii=False))
+        self.assertEqual(payload['max_tokens'],393216)
+        self.assertEqual(payload['thinking'],{'type':'enabled'})
+        self.assertEqual(payload['reasoning_effort'],'high')
+        self.configure(max_input_chars=0,max_output_tokens=8192,reasoning_effort='auto')
+        self.generate()
+        payload=json.loads(self.requests[-1].data)
+        self.assertEqual(payload['max_tokens'],8192)
+        self.assertNotIn('thinking',payload)
+        self.assertNotIn('reasoning_effort',payload)
+
     def test_request_contains_only_this_library_and_high_confidence_credentials_are_scrubbed(self):
         self.configure()
         def private(b):
@@ -107,18 +124,18 @@ class ReadingSummaryTests(unittest.TestCase):
         self.generate(self.other)
         self.assertEqual(self.usage('default')['count'], 1); self.assertEqual(self.usage(self.other)['count'], 1)
 
-    def test_call_limit_includes_other_organizer_calls_and_full_download_remains_available(self):
+    def test_historical_daily_call_limit_does_not_block_reading_index(self):
         self.configure(daily_call_limit=1)
         with self.host.organizer.db() as db: db.execute('INSERT INTO calls VALUES(?,?,?,?)', ('background', 'default', time.time(), 100))
-        with self.assertRaises(ValidationError): self.generate()
-        self.assertEqual(self.requests, []); self.assertEqual(self.usage()['count'], 1)
+        self.generate()
+        self.assertEqual(len(self.requests),1); self.assertEqual(self.usage()['count'],2)
         self.assertTrue(self.host.sharing.download('default')['content'])
 
-    def test_input_character_limit_checked_atomically_before_transport(self):
-        self.configure(daily_char_limit=3000)
-        with self.host.organizer.db() as db: db.execute('INSERT INTO calls VALUES(?,?,?,?)', ('background', 'default', time.time(), 2950))
-        with self.assertRaises(ValidationError): self.generate()
-        self.assertEqual(self.requests, []); self.assertEqual(self.usage()['chars'], 2950)
+    def test_character_usage_is_counted_without_a_daily_stop(self):
+        self.configure(daily_char_limit=600000)
+        with self.host.organizer.db() as db: db.execute('INSERT INTO calls VALUES(?,?,?,?)', ('background', 'default', time.time(), 600000))
+        self.generate()
+        self.assertEqual(len(self.requests),1); self.assertGreater(self.usage()['chars'],600000)
 
     def test_network_failure_counts_attempt_but_does_not_echo_exception_key_or_touch_source(self):
         self.configure(); original = self.host.snapshot('default')

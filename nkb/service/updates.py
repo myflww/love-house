@@ -182,7 +182,10 @@ class UpdateChecker:
         self._request_thread = None
         self._checking = False
         self._generation = 0
-        self._settings = {"auto_check": True, "channel": "stable"}
+        current = version_key(version)
+        # A newly installed preview must be able to discover the next preview
+        # for its platform. _load() still honors every saved explicit channel.
+        self._settings = {"auto_check": True, "channel": "preview" if current and current[3][0] == 0 else "stable"}
         self._cache = {"checked_at": None, "last_attempt": None, "release": None,
                        "other_version": None, "error": None}
         self._load()

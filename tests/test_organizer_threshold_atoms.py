@@ -80,25 +80,23 @@ class OrganizerThresholdAtomTests(unittest.TestCase):
         self.assertEqual(self.organizer.run_once('a',flush=False)['status'],'done')
         self.assertEqual(self.organizer.status('a')['counts'].get('done'),2)
 
-    def test_cycle_membership_survives_worker_restart_and_budget_pause(self):
+    def test_cycle_membership_survives_worker_restart_with_old_daily_limit(self):
         save_profile(self.brains['a'],daily_call_limit=1)
         for i in range(3):self.raw(str(i)+'。')
         self.assertEqual(self.organizer.run_once('a',flush=False)['status'],'done')
-        self.assertEqual(self.organizer.run_once('a',flush=False)['status'],'budget_limited')
         self.assertTrue(self.organizer.status('a')['trigger']['draining'])
         self.organizer.stop();restored=self.make();self.addCleanup(restored.stop)
-        with restored.db() as db:db.execute('UPDATE calls SET at=at-86401')
         self.assertEqual(restored.run_once('a',flush=False)['status'],'done')
         self.assertEqual(restored.status('a')['counts'].get('done'),3)
 
     def test_failed_batch_does_not_block_cycle_tail_or_lose_failed_originals(self):
         save_profile(self.brains['a'],max_attempts=1)
         ids=[self.raw(str(i)+'。') for i in range(3)];self.transport_failed=True
-        failed=self.organizer.run_once('a',flush=False);self.assertEqual(failed['status'],'failed')
+        failed=self.organizer.run_once('a',flush=False);self.assertEqual(failed['status'],'retry')
         self.transport_failed=False
         self.assertEqual(self.organizer.run_once('a',flush=False)['status'],'done')
-        self.assertEqual(self.organizer.status('a')['counts'].get('failed'),2)
-        self.organizer.retry(failed['job_id'])
+        self.assertEqual(self.organizer.status('a')['counts'].get('retry'),2)
+        with self.organizer.db() as db:db.execute('UPDATE jobs SET next_run=0 WHERE id=?',(failed['job_id'],))
         self.assertEqual(self.organizer.run_once('a',flush=False)['status'],'done')
         self.assertEqual(self.organizer.status('a')['counts'].get('done'),3)
         self.assertTrue(all(i in self.brains['a'].nodes for i in ids))

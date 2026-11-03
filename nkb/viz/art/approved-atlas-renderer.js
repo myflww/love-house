@@ -4,6 +4,7 @@
  */
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {bindOrbitInput} from './orbit-input.js';
 import {ApprovedAtlasPainter} from './approved-atlas-painter.js';
 import {approvedGravityTargets,approvedNebulaTargets,approvedCategoryKeys} from './approved-atlas-data.js';
 
@@ -39,6 +40,7 @@ export function createApprovedAtlasRenderer(Base){
    this.controls=new OrbitControls(this.camera,this.controlsCanvas);
    this.controls.enableDamping=false;this.controls.enableZoom=false;this.controls.enablePan=true;
    this.controls.screenSpacePanning=true;this.controls.minPolarAngle=.15;this.controls.maxPolarAngle=Math.PI-.15;this.controls.rotateSpeed=.55;
+   this.releaseOrbitInput=bindOrbitInput(this.controls,this.controlsCanvas);
    this.controls.addEventListener('change',()=>this.onChange?.());
    this.root=new THREE.Group();this.scratch=new THREE.Vector3();this.maxPointDevice=256;
    this.shared={uDpr:{value:1},uScale:{value:1},uTime:{value:0},uLight:{value:0}};
@@ -60,7 +62,7 @@ export function createApprovedAtlasRenderer(Base){
     const id=event.pointerId,was=this.hoverPointers.size>0;
     this.hoverPointers.delete('restored');
     if(inside)this.hoverPointers.add(id);else this.hoverPointers.delete(id);
-    if(was!==(this.hoverPointers.size>0))changed();
+    if(was!==(this.hoverPointers.size>0))this.onChange?.();
    };
    const inside=event=>{
     const r=surface.getBoundingClientRect();
@@ -87,7 +89,7 @@ export function createApprovedAtlasRenderer(Base){
   advanceAutoRotation(s,now,reduced){
    const reason=!this.enabled||s.art===false?'disabled':globalThis.document?.hidden?'hidden':s.paused?'paused':
     reduced?'reduced-motion':this.lastMode!=='nebula'?'flat':this.flatMix!==0?'transition':
-    this.activePointers.size?'interaction':this.hoverPointers.size?'hover':'rotating';
+    s.selected?'selected':this.activePointers.size?'interaction':'rotating';
    this.autoRotateReason=reason;
    if(reason!=='rotating'){this.autoRotateLastWall=null;return;}
    const wall=finite(now),dt=this.autoRotateLastWall==null?0:Math.max(0,(wall-this.autoRotateLastWall)/1000);
@@ -229,7 +231,7 @@ export function createApprovedAtlasRenderer(Base){
   }
 
   dispose(){
-   if(this.disposed)return;this.disposed=true;for(const release of this.inputDisposers)release();this.inputDisposers=[];this.hoverPointers.clear();this.activePointers.clear();this.autoRotateLastWall=null;this.painter.dispose();this.controls.dispose();this.root.clear();
+   if(this.disposed)return;this.disposed=true;this.releaseOrbitInput();for(const release of this.inputDisposers)release();this.inputDisposers=[];this.hoverPointers.clear();this.activePointers.clear();this.autoRotateLastWall=null;this.painter.dispose();this.controls.dispose();this.root.clear();
    this.nodes=[];this.edges=[];this.byId.clear();this.flatTargets.clear();this.nebulaTargets.clear();this.degrees.clear();this.hubs.clear();this.categories=[];this.viewState=null;
   }
  };

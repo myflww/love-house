@@ -88,16 +88,16 @@ class PersonaOrganizerTests(unittest.TestCase):
         self.assertEqual(self.requests,[])
         self.assertEqual(self.organizer.status('a')['jobs'][0]['status'],'failed')
 
-    def test_budget_and_forgotten_sources_do_not_restart_fast_calls(self):
+    def test_legacy_daily_limit_allows_explicit_fast_calls_but_forgetting_still_blocks(self):
         save_profile(self.brain,daily_call_limit=1)
         job=self.organizer.enqueue_persona('a',self.ids);self.organizer.run_once('a',job_id=job['job_id'])
         again=self.organizer.enqueue_persona('a',self.ids)
         result=self.organizer.run_once('a',job_id=again['job_id'])
-        self.assertEqual(result['status'],'budget_limited')
-        self.assertEqual(len(self.requests),1)
+        self.assertEqual(result['status'],'done')
+        self.assertEqual(len(self.requests),2)
         self.organizer.forget('a',[self.ids[0]],[self.ids[0]])
         with self.assertRaises(OrganizerError):self.organizer.enqueue_persona('a',self.ids)
-        self.assertEqual(self.organizer.status('a')['usage_24h']['count'],1)
+        self.assertEqual(self.organizer.status('a')['usage_24h']['count'],2)
 
     def test_repeated_click_reuses_active_job_and_migration_defaults_to_memory(self):
         first=self.organizer.enqueue_persona('a',self.ids)

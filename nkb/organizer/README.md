@@ -16,11 +16,11 @@ worker = Organizer(
 
 `raw_ids` 优先为 capture receipt ID，依据节点 `meta.evidence.archive_receipt_id` 定位；也兼容直接节点ID。`read_archive` 可返回 normalized、record.normalized 或 record.record.normalized 的完整归档对象。已标注截断的节点在没有完整归档时明确失败，不假装已整理全文。长记录按角色/字符游标分批处理，末尾不会被静默丢弃。
 
-默认 `cadence=batch`，达到 batch_size 自动批处理，尾批最多等待约30秒；`cadence=session` 每个完成turn可触发一批。`run_once(library_id, flush=True)` 可手动冲刷尾批。`preview` 只读取当前材料和计数，不调用凭证或模型。近24小时的调用与材料字符预算持久保存；字符预算计入发送材料JSON，不等于模型token计费。
+默认 `cadence=batch`，达到 batch_size 自动批处理，尾批最多等待约30秒；`cadence=session` 每个完成turn可触发一批。`run_once(library_id, flush=True)` 可手动冲刷尾批。`preview` 只读取当前材料和计数，不调用凭证或模型。近24小时的调用与材料字符用量持久保存，仅作统计，不设每日硬上限；字符数计入发送材料JSON，不等于模型token计费。旧 daily_call_limit / daily_char_limit 字段读取为0（不限量）。max_input_chars 默认0，普通批次发送本批所选原文全文；用户显式设置正数时才按字符分片。context_window 与 max_output_tokens 默认0，使用模型已公布的最高能力；未知服务由服务决定。reasoning_effort 默认auto，不强制关闭思考。明确超窗或输出截断时才缩小片段，保留原文进度直到完成。
 
 模型只能提出 remember/merge/supersede/relate/candidate。JSON严格限制字段、操作数量、现实域与确定性；证据必须逐字来自本批本库指定角色。活跃事实的正文使用用户原话摘录，模型概括另记为未确认的语义说明；模型给出的别名供 `semantic_recall` 做有出处的查询扩展。助手自述不能成为用户事实，角色扮演、假设和不确定结果进入候选。工具观察保留真实outcome并明确不是用户确认事实。自动修改旧事实仅适用于同语义key、同层、未被用户编辑或保护的整理结果；重要设定不会被自动盖掉。手动人格核心的变更仍形成候选并需明确审阅；启用人格与学习后，可额外形成有多条助手原话依据的独立人格资料，不改手动设定或用户身份。
 
-任务使用SQLite租约、重试和已验证计划缓存；apply失败不需要再次调用模型。库之间的队列、预算和tombstone独立。`status` 返回有限状态/错误信息，不回显服务端正文或凭证。
+任务使用SQLite租约、重试和已验证计划缓存；apply失败不需要再次调用模型。库之间的队列、用量统计和tombstone独立。普通记忆失败持续退避重试，旧版耗尽次数的失败任务会自动恢复；源已删除、用户取消或忘记的任务不复活。快速人格任务仍需明确重试。候选总量不设100条门槛，每批操作数和证据校验保持有界。`status` 返回有限状态/错误信息，不回显服务端正文或凭证。
 
 `rollback` 只撤回当前仍未被后续修改的最近整理结果，不删除原始事件；已被编辑的结果会拒绝回滚。`review_candidate` 支持明确采用/拒绝，角色扮演与未知现实域不能被当成现实事实采用。
 
@@ -35,11 +35,11 @@ worker = Organizer(
 - `0` 保持旧配置的 soft batch 兼容：不足一批时最多等待约30秒。
 - `1..500` 且 `cadence=batch` 时严格累计；未达到 N 条不会因为等待30秒而调用模型。
 - `cadence=session` 仍按每个完整轮次处理，不受批量阈值限制。
-- `run_once(..., flush=True)` 是用户主动立即整理，可以绕过累计阈值，但不能绕过启用开关、凭证、调用和字符预算。
+- `run_once(..., flush=True)` 是用户主动立即整理，可以绕过累计阈值，但不能绕过启用开关、凭证或每次请求的材料限制。
 
-达到阈值时，用 SQLite `drain_items` 快照当前已经累积的待处理原文。实际请求仍受每批最多12条、输入字符预算限制；当次积累会分批排空，不会因为第一批处理6条后剩下14条小于20，就把尾部永远搁置。这个快照在重启和预算暂停后保留；期间新到的记录等待下一轮阈值，不无限延长当前轮次。长原文的分片游标和旧重试任务可继续，不要求再新增 N 条。
+达到阈值时，用 SQLite `drain_items` 快照当前已经累积的待处理原文。实际请求仍受每批最多12条、输入字符预算限制；当次积累会分批排空，不会因为第一批处理6条后剩下14条小于20，就把尾部永远搁置。这个快照在重启和失败重试后保留；期间新到的记录等待下一轮阈值，不无限延长当前轮次。长原文的分片游标和旧重试任务可继续，不要求再新增 N 条。
 
-`status` 与 `preview` 增加 `trigger`：`mode`（strict/legacy/session）、`threshold`、`pending`、`cohort_pending`、`partial_pending`、`eligible`、`draining`、`remaining`、`below_threshold`。预览仍不读取凭证、不调用模型。多库轮询会跳过未达阈值或预算已耗尽的库。
+`status` 与 `preview` 增加 `trigger`：`mode`（strict/legacy/session）、`threshold`、`pending`、`cohort_pending`、`partial_pending`、`eligible`、`draining`、`remaining`、`below_threshold`。预览仍不读取凭证、不调用模型。多库轮询会跳过未达阈值或未启用的库。
 
 已由录入来源校验确认的原文 alias 不重复送模型：历史待处理项会标为 `done_alias`，整批已成为 alias 的旧任务标为 `aliased`；原文和存档没有删除。混合旧任务只省略 alias 材料，继续处理其他真实原文。只有可能重复、窗口不明或证据不足的记录不会被静默跳过。`recording_group` 是采集通道来源，不是多条独立事实证据。
 
@@ -85,3 +85,5 @@ evidence = [{id,role,receipt_id,source_event_at}, ...]
 人格特征是可选整理组件：单项格式、角色、逐字依据或权限检查失败时丢弃该项，保存安全枚举原因与数量，正常事实仍按原有严格规则处理。不会将非法特征原文写进诊断。快速整理若所有候选均被拒绝，以`invalid_persona_traits`终止且不自动重试；没有输出候选则完成但明确标为`empty`，不声称形成人格。有效子集可形成资料，状态为`partial`。
 
 `run_once`成功的`result.persona`及失败的`persona_result`包含`status/accepted_count/applied_count/rejected_count/reasons/changed`；`status().jobs[].persona_result`提供这些字段的安全摘要与可选的本地`reason/revision`，不包含特征正文、引文或来源标识。`formed`与`partial`仅在确有新资料写入时使用；旧值未变为`unchanged`，开关／版本／依据变化为`skipped`。重复应用返回已持久化的原结果，不重复形成人格或增加调用。
+
+模型与强度的能力依据官方 `/models` 公开元数据（2026-11-03 核对）：https://api-docs.deepseek.com/api/list-models/ 。发现操作不发送记忆，凭据只发往用户明确配置的当前服务，不保存到公开能力缓存。

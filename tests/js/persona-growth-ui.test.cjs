@@ -116,12 +116,12 @@ test('a preview response must identify this library and prove it will not call a
  const f=fixture();for(const data of [{...ready(),library_id:'fish-b'},{...ready(),will_call_model:true}]){f.c.api=async()=>data;await f.c.window.LoveHousePersonaGrowth.openQuick();assert(f.get('confirmPersonaFormation').disabled);assert(words(f.get('personaFormationStatus')).includes('只读预览'));await f.get('closePersonaFormation').click();}
 });
 
-test('normal save honors its checkbox while the explicit save-enable action sends enabled true without increasing budgets',async()=>{
- const f=fixture(),values={organizerTriggerCount:'20',organizerCadence:'batch',organizerBatchSize:'6',organizerCallLimit:'6',organizerCharLimit:'12000',organizerConnection:'',organizerMode:'separate',organizerProviderKey:'FAKE-LOCAL'},requests=[];
+test('normal save honors its checkbox and explicit enable sends no retired daily ceilings',async()=>{
+ const f=fixture(),values={organizerTriggerCount:'20',organizerCadence:'batch',organizerBatchSize:'6',organizerConnection:'',organizerMode:'separate',organizerProviderKey:'FAKE-LOCAL'},requests=[];
  for(const [id,value]of Object.entries(values)){if(!f.get(id)){const e=new Element('input');e.id=id;f.body.append(e);}f.get(id).value=value;}const checkbox=new Element('input');checkbox.id='organizerEnabled';checkbox.checked=false;f.body.append(checkbox);const notice=new Element('p');notice.id='organizerNotice';f.body.append(notice);
  const c=f.c;Object.assign(c,{UI:{busy:false,configOwner:{id:c.S.libraryId,epoch:c.S.libraryEpoch}},context:()=>({id:c.S.libraryId,epoch:c.S.libraryEpoch}),current:o=>o&&o.id===c.S.libraryId&&o.epoch===c.S.libraryEpoch,by:f.get,threshold:f.get('organizerTriggerCount'),cadence:f.get('organizerCadence'),batch:f.get('organizerBatchSize'),num:n=>Number(n),canWrite:()=>true,providerPayload:()=>({base_url:'https://provider.example',model:'fixture',api_key:'FAKE-LOCAL'}),api:async(route,body)=>{requests.push({route,body:plain(body)});return {};}});
  const code=organizer.match(/saveOrganizerSettings=async function\(options=\{\}\)\{[\s\S]*?\n\};/)[0];vm.runInNewContext(code,c);
- await c.saveOrganizerSettings();await c.saveOrganizerSettings({enable:true});assert.equal(requests[0].body.enabled,false);assert.equal(requests[1].body.enabled,true);for(const request of requests){assert.equal(request.body.daily_call_limit,6);assert.equal(request.body.daily_char_limit,12000);assert.equal(request.body.auto_trigger_count,20);}assert.equal(checkbox.checked,false);
+ await c.saveOrganizerSettings();await c.saveOrganizerSettings({enable:true});assert.equal(requests[0].body.enabled,false);assert.equal(requests[1].body.enabled,true);for(const request of requests){assert(!Object.hasOwn(request.body,'daily_call_limit'));assert(!Object.hasOwn(request.body,'daily_char_limit'));assert.equal(request.body.auto_trigger_count,20);}assert.equal(checkbox.checked,false);
 });
 
 test('partial persona feedback uses applied counts and fixed reasons without displaying raw rejected model material',()=>{

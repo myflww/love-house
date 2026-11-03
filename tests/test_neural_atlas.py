@@ -1,6 +1,7 @@
 """Real-edge visual state and geometry contracts; no GPU, credentials or API calls."""
 from pathlib import Path
 import shutil
+import re
 import subprocess
 import unittest
 
@@ -18,7 +19,9 @@ class NeuralAtlasTests(unittest.TestCase):
             cwd=ROOT, capture_output=True, text=True, timeout=30,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("# pass 25", result.stdout)
+        passed = re.search(r"(?m)^# pass (\d+)$", result.stdout)
+        self.assertIsNotNone(passed, result.stdout)
+        self.assertGreaterEqual(int(passed[1]), 25)
 
     @unittest.skipUnless(
         shutil.which("node") and (ROOT / "nkb/viz/art/node_modules/three/package.json").is_file(),
@@ -45,7 +48,9 @@ class NeuralAtlasTests(unittest.TestCase):
             cwd=ROOT, capture_output=True, text=True, timeout=30,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("# pass 21", result.stdout)
+        passed = re.search(r"(?m)^# pass (\d+)$", result.stdout)
+        self.assertIsNotNone(passed, result.stdout)
+        self.assertGreaterEqual(int(passed[1]), 21)
 
 
 if __name__ == "__main__":

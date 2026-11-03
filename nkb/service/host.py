@@ -39,6 +39,8 @@ class MemoryHost:
         self.instance_id=uuid.uuid4().hex
         self.management_token=secrets.token_urlsafe(40)
         self.manager=LibraryManager(self.root)
+        from ..organizer.capabilities import load_cache
+        load_cache(self.root)
         self.adapter_options=dict(adapter_options or {})
         if with_demo and not self.manager.demo_suppressed:
             path=self.root/'framework-example.brain.json'
@@ -285,9 +287,43 @@ class MemoryHost:
                                 'credential_missing' if not provider.get('credential_ready') else
                                 'incomplete' if not provider['model_ready'] else
                                 'saved' if provider.get('key_saved') else 'session_only')}
-        return {'library_id':library_id,'configuration':configuration,
+        from ..organizer.capabilities import capabilities_for
+        capabilities=capabilities_for({**settings,'base_url':provider.get('base_url',''),'model':provider.get('model','')})
+        return {'library_id':library_id,'configuration':configuration,'model_capabilities':capabilities,
                 'settings':{**settings,'provider_mode':'connection' if cid else 'separate','connection_id':cid},
                 'status':mapped,'provider':provider,'batches':status['jobs'],'candidates':raw.get('meta',{}).get('organizer_candidates',[])}
+
+    def organizer_models(self,library_id,data):
+        from ..organizer.capabilities import discover_models, save_cache
+        from ..organizer.config import endpoint
+        from ..organizer.model import validate_key
+        if not isinstance(data,dict) or set(data)-{'provider_mode','connection_id','base_url','model','api_key'}:
+            raise ValidationError('模型列表请求包含未知字段；只能使用当前库的整理模型配置')
+        view=self.organizer_view(library_id);settings=view['settings']
+        mode=data.get('provider_mode',settings['provider_mode'])
+        if mode not in ('connection','separate'):raise ValidationError('整理模型方式不正确')
+        if mode=='connection':
+            cid=data.get('connection_id',settings['connection_id']);connection=self.connections.get(cid)
+            if connection['library_id']!=library_id or connection['host']!='api' or connection['revoked']:
+                raise ValidationError('请选择当前库有效的API连接')
+            provider=self.providers.credential(cid)
+        else:
+            base=data.get('base_url',settings['base_url'])
+            endpoint(base)
+            key=data.get('api_key','')
+            if not isinstance(key,str):raise ValidationError('整理密钥格式不正确')
+            if key.strip():key=validate_key(key)
+            elif settings['provider_id'].startswith('separate') and settings['base_url'] and endpoint(base)==endpoint(settings['base_url']):
+                configured=self.organizer_credential(library_id,settings)
+                key=configured.get('api_key','') if isinstance(configured,dict) else configured
+            else:key=''
+            provider={'base_url':base,'api_key':key,'model':data.get('model',settings['model'])}
+        selected=provider.get('model','') if mode=='connection' else data.get('model',provider.get('model',''))
+        if not isinstance(selected,str) or len(selected)>200 or any(ord(c)<32 or ord(c)==127 for c in selected):
+            raise ValidationError('模型名称格式不正确')
+        result=discover_models(provider['base_url'],provider.get('api_key',''))
+        save_cache(self.root,provider['base_url'],result['models'])
+        return {**result,'selected_model':selected,'library_id':library_id}
 
     def organizer_settings(self,library_id,data):
         from ..organizer import DEFAULT_PROFILE,save_profile
@@ -322,7 +358,7 @@ class MemoryHost:
         self.transact(library_id,lambda brain:save_profile(brain,**settings))
         self.enqueue_archives(library_id)
         result=self.organizer_view(library_id)
-        changed=(any(profile[k]!=raw[k] for k in ('provider_id','base_url','model'))
+        changed=(any(profile[k]!=raw[k] for k in ('provider_id','base_url','model','context_window','max_output_tokens','reasoning_effort','max_input_chars'))
                  or bool(key and key!=previous_key) or bool(profile['enabled'] and not raw['enabled']))
         resumed=0
         if profile['enabled'] and changed and result['provider']['model_ready']:
@@ -332,7 +368,7 @@ class MemoryHost:
         if result['provider']['credential_ready'] and not result['provider']['key_saved']:
             result['warning']='整理密钥仅在本次运行中可用，重启后需重新填写；设置和原文已保留。'
         if resumed:
-            result['warning']=(result.get('warning','')+' 已将因配置问题受阻的任务重新排队；仍使用原调用预算。').strip()
+            result['warning']=(result.get('warning','')+' 已将因配置问题受阻的任务重新排队；将按退避规则继续处理。').strip()
         return result
 
     def enqueue_archives(self,library_id):
@@ -436,7 +472,7 @@ class MemoryHost:
             raise ValidationError('人格整理只接受确认和抽样上限，不接受其他存档参数')
         if self.library(library_id)['is_demo']:raise ValidationError('示例库不能整理人格，请选择个人记忆库')
         if not preview and data.get('confirm') is not True:
-            raise ValidationError('请先预览并确认使用本库整理模型；每次最多一次请求，按原预算计费')
+            raise ValidationError('请先预览并确认使用本库整理模型；每次最多一次请求，由所配置的API服务计费')
         persona=persona_state(Brain(self.snapshot(library_id)),library_id=library_id)
         organizer=self.organizer_view(library_id);provider=organizer['provider']
         selected=self.organizer.persona_selection(library_id,max_records=data.get('max_records',60))
@@ -1153,6 +1189,7 @@ def make_controller(host):
                     from ..companion.dedup import separate_recordings
                     return self._json(host.transact(self._chosen(),lambda brain:separate_recordings(brain,data.get('node_id'),data.get('expected'))))
                 if path=='/api/organizer/settings':return self._json(host.organizer_settings(self._chosen(),data))
+                if path=='/api/organizer/models':return self._json(host.organizer_models(self._chosen(),data))
                 if path=='/api/organizer/preview':return self._json(host.organizer.preview(self._chosen()))
                 if path=='/api/organizer/run':
                     lib=self._chosen()

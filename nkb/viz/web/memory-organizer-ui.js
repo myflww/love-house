@@ -61,22 +61,21 @@ const thresholdLabel=make('label','','累计多少条后自动整理');threshold
 const threshold=make('input','');threshold.id='organizerTriggerCount';threshold.type='number';threshold.min='0';threshold.max='500';threshold.step='1';threshold.required=true;threshold.value='20';
 const thresholdNote=make('p','form-note');thresholdNote.id='organizerTriggerHelp';threshold.setAttribute('aria-describedby',thresholdNote.id);
 settings.insertBefore(thresholdLabel,batch.previousElementSibling);settings.insertBefore(threshold,batch.previousElementSibling);settings.insertBefore(thresholdNote,batch.previousElementSibling);
-const execution=make('details',''),executionSummary=make('summary','','执行批次与用量预算');execution.append(executionSummary);
+const execution=make('details',''),executionSummary=make('summary','','执行批次与用量');execution.append(executionSummary);
 const batchLabel=settings.querySelector('label[for=organizerBatchSize]');batchLabel.textContent='每次调用最多处理几条';execution.append(batchLabel,batch);
-const budget=by('organizerCallLimit').closest('.form-row');execution.append(budget,make('p','form-note','累计阈值决定何时开始；每批与字符预算决定如何分次处理。达到阈值后，会分批处理完本轮已经积累的原文。'));
+execution.append(by('organizerUsageNote'),make('p','form-note','累计阈值决定何时开始；每批条数决定如何分次处理。达到阈值后，会分批处理完本轮已经积累的原文。失败任务会自动等待重试。'));
 settings.insertBefore(execution,by('saveOrganizerSettings'));
 cadence.options[0].textContent='累计原文后整理';cadence.options[1].textContent='每轮完整对话后';
 const triggerBox=make('div','memory-trigger-note');triggerBox.id='organizerTriggerState';triggerBox.setAttribute('role','status');by('organizerCounts').after(triggerBox);
 const topNote=by('runOrganizer').closest('.ai-compose-actions').nextElementSibling;if(topNote?.classList.contains('form-note'))topNote.textContent='预览不会调用模型。有依据的记忆和人格特征按规则整理；明确设定与冲突仍由你确认。';
-function modeNote(){const n=Number(threshold.value),session=cadence.value==='session';thresholdLabel.hidden=threshold.hidden=session;thresholdNote.textContent=session?'每轮完整对话可触发一批；调用与字符预算照常限制。':n===0?'0 为旧兼容模式：不足一批时，等约30秒也可整理。填1–500即可严格等到N条。':`累计到 ${Number.isInteger(n)&&n>0?n:'N'} 条才自动开始，不会因为等待时间较长而提前调用模型。`;
+function modeNote(){const n=Number(threshold.value),session=cadence.value==='session';thresholdLabel.hidden=threshold.hidden=session;thresholdNote.textContent=session?'每轮完整对话可触发一批；分批处理，不设每日上限。':n===0?'0 为旧兼容模式：不足一批时，等约30秒也可整理。填1–500即可严格等到N条。':`累计到 ${Number.isInteger(n)&&n>0?n:'N'} 条才自动开始，不会因为等待时间较长而提前调用模型。`;
  if(ORGANIZER.dirty)thresholdNote.textContent+=' 修改后请保存才生效。';}
 function renderTrigger(data){const settings=data.settings||{},status=data.status||{},t=status.trigger||{};triggerBox.replaceChildren();let title,note;
  if(!settings.enabled){title='自动整理未启用';note='原始对话仍可保存。设置整理模型并保存启用后，才会按规则调用。';}
- else if(t.draining){title=`本轮正在整理 · 剩余 ${num(t.remaining)} 条`;note='这次已经达到触发条件，会在预算内分批继续；后来新到的记录等待下一轮。';}
+ else if(t.draining){title=`本轮正在整理 · 剩余 ${num(t.remaining)} 条`;note='这次已经达到触发条件，会分批继续，失败任务会自动等待重试；后来新到的记录等待下一轮。';}
  else if(t.mode==='strict'||settings.auto_trigger_count>0&&settings.cadence!=='session'){const n=num(t.threshold,settings.auto_trigger_count),pending=num(t.pending);title=pending>=n?`已达到 ${n} 条触发条件`:`再存 ${Math.max(0,n-pending)} 条后自动整理`;note=`当前待整理 ${pending} 条 · 累计阈值 ${n} 条。你也可以点击“立即整理”，不足阈值时主动处理。`;}
  else if(settings.cadence==='session'){title='每轮完整对话后整理';note='只使用已保存的完整记录，失败或中断原文不会冒充完整经历。';}
  else {title='旧兼容模式 · 按批次节奏';note='不足一批时等待约30秒也会处理；如需严格累计，请把触发数量改成1–500。';}
- if(num(status.calls_24h)>=num(settings.daily_call_limit,Infinity)||num(status.chars_24h)>=num(settings.daily_char_limit,Infinity))note+=' 当前预算已用完，后续会等预算恢复；原文仍保留。';
  triggerBox.append(make('strong','',title),make('p','',note));const aliases=num(status.counts?.done_alias);if(aliases)triggerBox.append(make('p','',`${aliases} 条已确认的重复来源没有再次送给模型，原文仍可查看。`));}
 const originalRender=renderOrganizer;
 renderOrganizer=function(data){originalRender(data);UI.configOwner=context();renderConfiguration(data);if(!ORGANIZER.dirty){const s=data.settings||{},fresh=!s.enabled&&!s.provider_id&&!s.model;threshold.value=String(fresh?20:num(s.auto_trigger_count));}modeNote();renderTrigger(data);updateControls();};
@@ -85,8 +84,9 @@ saveOrganizerSettings=async function(options={}){
  if(!canWrite()||MEMORY.busy||UI.busy)return;if(!current(UI.configOwner)){toast('当前库的整理设置还未读取，请稍后再保存。',true);return;}const owner=context();const trigger=Number(threshold.value);
  if(!threshold.value.trim()||!Number.isInteger(trigger)||trigger<0||trigger>500){toast('累计阈值请填0–500的整数；0保留旧兼容节奏。',true);return;}
  const body={enabled:options.enable===true?true:by('organizerEnabled').checked,provider_mode:by('organizerMode').value,connection_id:by('organizerConnection').value||null,
-  cadence:cadence.value,auto_trigger_count:trigger,batch_size:num(batch.value),daily_call_limit:num(by('organizerCallLimit').value),daily_char_limit:num(by('organizerCharLimit').value)};
- if(!Number.isInteger(body.batch_size)||body.batch_size<1||body.batch_size>12||!Number.isInteger(body.daily_call_limit)||body.daily_call_limit<1||body.daily_call_limit>1000||!Number.isInteger(body.daily_char_limit)||body.daily_char_limit<3000||body.daily_char_limit>2000000){toast('每批1–12条，每日1–1000次，字符预算3000–2000000。',true);return;}
+  cadence:cadence.value,auto_trigger_count:trigger,batch_size:num(batch.value)};
+ try{Object.assign(body,window.LoveHouseOrganizerModels?.settingsPayload?.()||{});}catch(error){toast(error.message,true);return;}
+ if(!Number.isInteger(body.batch_size)||body.batch_size<1||body.batch_size>12){toast('每批条数请填1–12的整数。',true);return;}
  if(body.provider_mode==='separate'){try{Object.assign(body,providerPayload('organizerProvider'));}catch(e){toast(e.message,true);return;}}
  else if(body.enabled&&!body.connection_id){toast('请选择当前库的模型连接，或设置独立整理模型。');return;}
  MEMORY.busy=true;writeBusy=true;updateWriteState();let acknowledged=false;

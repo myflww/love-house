@@ -67,3 +67,6 @@ android/keystore.properties
 android/signing.properties
 *.jks
 *.keystore
+
+# Verified Microsoft offline runtime used only by local packaging.
+/resources/runtime/

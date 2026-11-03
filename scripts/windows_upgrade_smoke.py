@@ -25,9 +25,9 @@ from urllib.error import HTTPError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 import uuid
 
-OLD_VERSION = '0.10.1rc1'
-NEW_VERSION = '0.10.2rc1'
-OLD_SETUP_SHA256 = '8a9d5dfe5bb1963dd215ba5d209107857a668027e2d7f4f1bf364eacf66134e9'
+OLD_VERSION = '0.10.2rc1'
+NEW_VERSION = '0.10.3rc1'
+OLD_SETUP_SHA256 = '9c69fb782ecddab43ef35c1df075780175e013b7533c039d53ddcb81cebb8d64'
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 FIXTURE_PREFIX='love-house-upgrade-中文 空格-'
@@ -41,6 +41,18 @@ def digest(path):
 def require(condition, message):
     if not condition:
         raise AssertionError(message)
+
+
+def upgraded_organizer_settings(previous):
+    """Only the explicitly retired defaults change during this version upgrade."""
+    expected = dict(previous)
+    capability_fields = ('context_window', 'max_output_tokens', 'reasoning_effort')
+    if not any(field in previous for field in capability_fields) and previous.get('max_input_chars') == 18000:
+        expected['max_input_chars'] = 0
+    expected.update(daily_call_limit=0, daily_char_limit=0)
+    for field, value in (('context_window',0), ('max_output_tokens',0), ('reasoning_effort','auto')):
+        expected.setdefault(field,value)
+    return expected
 
 
 class App:
@@ -390,13 +402,13 @@ def run(old_setup, new_setup):
                 (second_event['normalized']['user'],second_event['normalized']['assistant']) in expected['second']['nodes'].values(),
                 'Old second-library fixture is missing its exact original roles')
             old.close()
-            # 0.10.1 already has both queue purposes. Preserve that schema and
+            # 0.10.2 already has both queue purposes. Preserve that schema and
             # seed both; never remove columns to manufacture a migration test.
             # Older schemas are independently covered by the helper's default
             # factual-purpose migration fixture. These are not model results.
             durable=seed_ledger(data,(library,second),marker)
-            require(OLD_VERSION!='0.10.1rc1' or durable['purpose_column_before'],
-                    'Pinned 0.10.1 application is missing its existing purpose schema')
+            require(durable['purpose_column_before'],
+                    'Pinned 0.10.2 application is missing its existing purpose schema')
             install(new_setup, target)
             new = App(target / 'LoveHouse.exe', data)
             new.start(NEW_VERSION)
@@ -407,7 +419,8 @@ def run(old_setup, new_setup):
             require(persona['manual'] == expected['persona']['manual'] and persona['enabled'] is False and persona['learning_enabled'] is False,
                 'Manual persona or explicit opt-out changed during upgrade')
             current = new.request('/api/organizer', library=library)
-            require(current['settings'] == expected['settings'] and current['provider'] == expected['provider'], 'Organizer configuration or secure credential metadata changed')
+            migrated_settings=upgraded_organizer_settings(expected['settings'])
+            require(current['settings'] == migrated_settings and current['provider'] == expected['provider'], 'Organizer user choices or secure credential metadata changed outside the expected default migration')
             after = new.request('/api/connections/' + cid + '/config')
             for field in ('id', 'library_id', 'session_scope', 'session_scope_policy','bound_session_id', 'enabled', 'revoked', 'binding_revision'):
                 require(field in after['connection'] and field in expected['connection'] and
@@ -447,7 +460,9 @@ def run(old_setup, new_setup):
                         'Upgrade restart changed a fixed connection scope')
                 require(Path(config['private_path']).resolve()==path and digest(path)==sha,
                     'Upgrade restart changed a private connection file')
-            require(restarted.request('/api/organizer', library=library)['provider'] == expected['provider'], 'Upgrade restart lost secure credential metadata')
+            restarted_organizer=restarted.request('/api/organizer', library=library)
+            require(restarted_organizer['provider'] == expected['provider'], 'Upgrade restart lost secure credential metadata')
+            require(restarted_organizer['settings'] == migrated_settings, 'Upgrade restart changed migrated organizer settings')
             check_ledger(data,durable)
             restarted.close()
             result.update(same_install_path='passed', database_migration='passed', libraries='passed',

@@ -75,10 +75,11 @@ def cleanup_smoke_profile(directory,attempts=8):
     if owner!={'schema':'love-house-native-smoke/v1','pid':os.getpid(),'directory':root.name}:
         raise ValueError('Native smoke ownership marker does not match')
     profile=root/'WebView2'
-    vanished=0
+    vanished=0;callback_path=None
     def profile_race(function,path,exc):
-        nonlocal vanished
+        nonlocal vanished,callback_path
         target=Path(path).resolve()
+        callback_path=target
         # Use shutil's complete callback path, not OSError.filename (which can
         # be only a relative cache filename). Never generalise this to ENOENT
         # elsewhere in the test data or to an entry that still exists.
@@ -89,6 +90,7 @@ def cleanup_smoke_profile(directory,attempts=8):
     def legacy_profile_race(function,path,exc_info):
         return profile_race(function,path,exc_info[1])
     for attempt in range(1,attempts+1):
+        callback_path=None
         try:
             options={'onexc':profile_race} if sys.version_info>=(3,12) else {'onerror':legacy_profile_race}
             shutil.rmtree(root,**options)
@@ -97,13 +99,17 @@ def cleanup_smoke_profile(directory,attempts=8):
             if not root.exists():return {'status':'removed','attempts':attempt,'isolated':True,'vanished_profile_entries':vanished}
             raise
         except OSError as exc:
-            filename=getattr(exc,'filename',None)
+            filename=callback_path or getattr(exc,'filename',None)
             beneath_profile=bool(filename and Path(filename).resolve().is_relative_to(profile))
             known_lock=getattr(exc,'winerror',None) in (32,33) and beneath_profile
             # Chromium may create a cache file between rmtree's scan and
             # rmdir. Retry this race only inside the owned WebView2 scratch.
             profile_write_race=getattr(exc,'winerror',None)==145 and beneath_profile
-            if not (known_lock or profile_write_race):raise
+            # WebView2 can briefly report ACCESS_DENIED during shutdown rather
+            # than SHARING_VIOLATION. Retry only this owned profile; a persistent
+            # denial still fails and can never be reported as deferred success.
+            profile_access_race=getattr(exc,'winerror',None)==5 and beneath_profile
+            if not (known_lock or profile_write_race or profile_access_race):raise
             if attempt==attempts:
                 if not known_lock:raise
                 return {'status':'deferred_profile_lock','attempts':attempt,'isolated':True,
@@ -546,7 +552,7 @@ def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=F
                 try:
                     ready=threading.Event();box={}
                     def received(value):box['value']=value;ready.set()
-                    window.evaluate_js("(async()=>{const h=await(await fetch('/api/health')).json();const l=await(await fetch('/api/libraries')).json();const gl=document.createElement('canvas').getContext('webgl2');return {health:h,library_count:l.libraries.length,title:document.title,save_bridge:typeof window.pywebview.api.save_memory_file==='function',graph:!!document.querySelector('canvas'),webgl:!!gl,latest_controls:['memoryRetentionDialog','organizerRulesBtn','dialogueImportDialog','windowHandoffBtn','checkForUpdates','agentSourcesDialog','experienceTimelineDialog'].every(id=>!!document.getElementById(id))};})()",received)
+                    window.evaluate_js("(async()=>{const h=await(await fetch('/api/health')).json();const l=await(await fetch('/api/libraries')).json();const gl=document.createElement('canvas').getContext('webgl2');return {health:h,library_count:l.libraries.length,title:document.title,save_bridge:typeof window.pywebview.api.save_memory_file==='function',graph:!!document.querySelector('canvas'),webgl:!!gl,latest_controls:['memoryRetentionDialog','organizerRulesBtn','dialogueImportDialog','windowHandoffBtn','checkForUpdates','agentSourcesDialog','experienceTimelineDialog','organizerReadModels','organizerReasoningEffort','organizerContextWindow','organizerMaxOutputTokens','updateAvailableDialog'].every(id=>!!document.getElementById(id))};})()",received)
                     assert ready.wait(45),'WebView2 JS response timed out'
                     value=box['value'];assert value['health']['ok'] and value['health']['version']==__version__
                     assert value['save_bridge'] and value['graph'] and value['webgl'] and value['latest_controls'],value

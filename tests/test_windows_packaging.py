@@ -242,6 +242,25 @@ class WindowsPackagingTests(unittest.TestCase):
             with self.assertRaises(ValueError):windows.cleanup_smoke_profile(other)
             self.assertTrue(Path(other).is_dir())
 
+    def test_owned_profile_temporary_access_denial_retries_with_complete_callback_path(self):
+        import shutil
+        directory=self.smoke_directory();original=shutil.rmtree;calls=[]
+        entry=directory/'WebView2/locked.tmp'
+        def transient(path,**kwargs):
+            calls.append(path)
+            if len(calls)==1:
+                exc=PermissionError(13,'Synthetic shutdown race',entry.name);exc.winerror=5
+                if 'onexc' in kwargs:kwargs['onexc'](os.unlink,str(entry),exc)
+                else:kwargs['onerror'](os.unlink,str(entry),(type(exc),exc,None))
+            return original(path)
+        try:
+            with patch.object(windows.shutil,'rmtree',side_effect=transient),patch.object(windows.time,'sleep'):
+                result=windows.cleanup_smoke_profile(directory,attempts=3)
+            self.assertEqual(result['status'],'removed');self.assertEqual(result['attempts'],2)
+            self.assertFalse(directory.exists())
+        finally:
+            if directory.exists():original(directory)
+
     def test_webview2_concurrently_deleted_cache_tmp_is_ignored_only_after_it_vanishes(self):
         import shutil
         directory=self.smoke_directory();original=shutil.rmtree

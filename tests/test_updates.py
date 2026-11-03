@@ -121,6 +121,25 @@ class UpdateCheckerTests(unittest.TestCase):
         self.assertEqual(result["platform"], "macos")
         self.assertNotIn("library", json.dumps(self.calls))
 
+    def test_fresh_preview_install_can_discover_new_windows_preview(self):
+        self.rows = [release("v0.10.2rc3", target="Windows-x64", preview=True)]
+        checker = self.checker(version="0.10.2rc2", system="Windows", machine="AMD64")
+        self.assertEqual(checker.status()["settings"]["channel"], "preview")
+        self.assertEqual(self.calls, [])
+        result = checker.check()
+        self.assertTrue(result["available"])
+        self.assertEqual(result["release"]["tag"], "v0.10.2rc3")
+
+    def test_saved_explicit_channels_survive_changes_between_stable_and_preview_builds(self):
+        preview = self.checker(version="0.10.2rc2")
+        preview.settings({"auto_check": False, "channel": "stable"})
+        upgraded = self.checker(version="0.10.2rc3")
+        self.assertEqual(upgraded.status()["settings"], {"auto_check": False, "channel": "stable"})
+        upgraded.settings({"channel": "preview"})
+        stable = self.checker(version="0.10.3")
+        self.assertEqual(stable.status()["settings"], {"auto_check": False, "channel": "preview"})
+        self.assertEqual(self.calls, [])
+
     def test_same_or_older_compatible_release_does_not_offer_a_downgrade(self):
         result = self.checker(version="0.6.0").check()
         self.assertEqual(result["status"], "up_to_date")
@@ -302,7 +321,7 @@ class UpdateUITests(unittest.TestCase):
         result = subprocess.run([shutil.which("node"), "--test", "--test-reporter=tap", str(script)],
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("# pass 7", result.stdout)
+        self.assertIn("# pass 12", result.stdout)
 
 
 if __name__ == "__main__":

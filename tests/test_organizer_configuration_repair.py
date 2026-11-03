@@ -74,7 +74,7 @@ class OrganizerConfigurationRepairTests(unittest.TestCase):
         for _ in range(3):
             with self.host.organizer.db() as db:db.execute("UPDATE jobs SET next_run=0 WHERE library_id='default'")
             result=self.host.organizer.run_once('default')
-        self.assertEqual(result['status'],'failed',result)
+        self.assertEqual(result['status'],'retry',result)
         return result
 
     def test_real_http_request_records_only_validated_plan_and_does_not_expose_credential(self):
@@ -100,7 +100,7 @@ class OrganizerConfigurationRepairTests(unittest.TestCase):
 
     def test_invalid_settings_and_header_credentials_never_replace_a_working_key(self):
         self.configure();before=self.host.snapshot('default')
-        for data in ({'api_key':NEW_KEY,'batch_size':0},{'api_key':NEW_KEY,'daily_call_limit':0},
+        for data in ({'api_key':NEW_KEY,'batch_size':0},{'api_key':NEW_KEY,'daily_call_limit':-1},
                      {'api_key':NEW_KEY,'base_url':'https://'+'user:secret@example.invalid/v1'},
                      {'api_key':'BAD KEY'},{'api_key':'密钥不是ASCII'}, {'api_key':'x'*4097},
                      {'api_key':NEW_KEY,'save_key':'false'}):
@@ -162,11 +162,9 @@ class OrganizerConfigurationRepairTests(unittest.TestCase):
             db.execute("UPDATE items SET status='failed' WHERE job_id=?",(job['id'],))
         return job
 
-    def test_explicit_run_recovers_an_old_false_deletion_once_without_resetting_attempts_or_budget(self):
+    def test_background_recovers_a_proven_old_false_deletion_once_without_resetting_history(self):
         job=self.old_false_deletion()
-        self.assertEqual(self.host.organizer.run_once('default',flush=False)['status'],'waiting')
-        self.assertEqual(self.requests,[])
-        result=self.host.organizer.run_once('default')
+        result=self.host.organizer.run_once('default',flush=False)
         self.assertEqual(result['status'],'done',result)
         self.assertEqual(self.host.organizer_view('default')['batches'][0]['attempts'],2)
         self.assertEqual(self.usage(),1)

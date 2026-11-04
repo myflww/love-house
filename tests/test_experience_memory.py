@@ -97,7 +97,7 @@ class ExperienceMemoryTests(unittest.TestCase):
         ep=node['meta']['experience'];self.assertIsNone(ep['event_at']);self.assertEqual(ep['time_status'],'unknown')
         self.assertIsNotNone(ep['recorded_at'])
 
-    def test_assistant_success_story_is_reported_and_needs_review_not_verified_completion(self):
+    def test_assistant_success_story_is_indexed_as_reported_not_verified_completion(self):
         nid=self.turn('请保留记录。','我准备去网页上查一份资料。后来我说自己完成了。')
         what=self.ref(nid,'assistant','我准备去网页上查一份资料。')
         outcome=self.ref(nid,'assistant','后来我说自己完成了。')
@@ -105,9 +105,14 @@ class ExperienceMemoryTests(unittest.TestCase):
         plan=self.plan([nid],op)
         ep=plan['operations'][0]['episode'];self.assertEqual(ep['status'],'reported')
         self.assertEqual(ep['what']['claim_type'],'stated_intent')
-        self.assertTrue(plan['operations'][0]['requires_review'])
-        result=apply_plan(self.brain,plan,'fish-one');self.assertEqual(result['created'],[])
-        self.assertEqual(len(result['candidates']),1)
+        self.assertFalse(plan['operations'][0]['requires_review'])
+        result=apply_plan(self.brain,plan,'fish-one');self.assertEqual(len(result['created']),1)
+        self.assertEqual(result['candidates'],[])
+        node=self.brain.nodes[result['created'][0]]
+        self.assertTrue(node['meta']['attributed_material'])
+        self.assertEqual(node['meta']['memory_atom']['subject'],'agent')
+        self.assertEqual(node['meta']['experience']['status'],'reported')
+        self.assertFalse(node['meta']['experience']['reason_verified'])
 
     def test_status_cannot_disagree_with_actual_failed_tool_result(self):
         nid=self.tool('此次查询没有完成，连接中断。','failed')
@@ -152,7 +157,10 @@ class ExperienceMemoryTests(unittest.TestCase):
         r2,n2=self.apply([second],self.operation([self.ref(second)],{'what':self.ref(second)}),'second')
         self.assertNotEqual(n1['id'],n2['id']);self.assertEqual(r2['merged'],[])
         result,_=self.apply([second],self.operation([self.ref(second)],{'what':self.ref(second)},action='merge',target_id=n1['id']),'badmerge')
-        self.assertEqual(result['merged'],[]);self.assertEqual(len(result['candidates']),1)
+        self.assertEqual(result['merged'],[]);self.assertEqual(result['candidates'],[])
+        separate=self.brain.nodes[result['created'][0]]
+        self.assertTrue(separate['meta']['attributed_material'])
+        self.assertEqual(separate['meta']['experience']['what']['id'],second)
 
     def test_same_occurrence_can_gain_a_result_without_overwriting_earlier_unknowns_or_raw(self):
         what=self.tool('在网页上查到了海边天气。')
@@ -165,13 +173,16 @@ class ExperienceMemoryTests(unittest.TestCase):
         self.assertIsNone(episode['reason']);self.assertEqual(episode['outcome']['quote'],self.brain.nodes[outcome]['text'])
         self.assertIsNotNone(project_experience(self.brain,node,'fish-one'))
 
-    def test_conflicting_results_for_one_occurrence_go_to_review(self):
+    def test_conflicting_results_for_one_occurrence_are_kept_separately(self):
         what=self.tool('查询了当天的天气。');old=self.tool('资料显示没有降雨。','success')
         _,node=self.apply([what,old],self.operation([self.ref(what),self.ref(old)],{'what':self.ref(what),'outcome':self.ref(old)}),'old')
         new=self.tool('随后发现这次结果无效。','failed')
         result,_=self.apply([what,new],self.operation([self.ref(what),self.ref(new)],{'what':self.ref(what),'outcome':self.ref(new)},action='merge',target_id=node['id']),'conflict')
-        self.assertEqual(len(result['candidates']),1)
+        self.assertEqual(result['candidates'],[])
         self.assertEqual(node['meta']['experience']['outcome']['id'],old)
+        separate=self.brain.nodes[result['created'][0]]
+        self.assertTrue(separate['meta']['attributed_material'])
+        self.assertEqual(separate['meta']['experience']['outcome']['id'],new)
 
     def test_projection_rechecks_edits_pause_forgotten_scope_and_forged_metadata(self):
         ids,op=self.sample();_,node=self.apply(ids,op)
@@ -195,12 +206,18 @@ class ExperienceMemoryTests(unittest.TestCase):
         self.assertIsNotNone(projected);self.assertFalse(projected['reason_verified'])
         self.assertEqual(projected['confirmation'],'source_attributed_material')
 
-    def test_conflicting_event_times_require_review_without_rewriting_them(self):
+    def test_conflicting_event_times_stay_attributed_without_rewriting_them(self):
         what=self.tool('查阅天气资料。',stamp=self.start+100)
         outcome=self.tool('来源报告查询完成。','success',stamp=self.start)
         plan=self.plan([what,outcome],self.operation([self.ref(what),self.ref(outcome)],{'what':self.ref(what),'outcome':self.ref(outcome)}))
         self.assertEqual(plan['operations'][0]['episode']['time_status'],'conflicting')
-        self.assertTrue(plan['operations'][0]['requires_review'])
+        self.assertFalse(plan['operations'][0]['requires_review'])
+        self.assertTrue(plan['operations'][0]['attributed_material'])
+        result=apply_plan(self.brain,plan,'fish-one')
+        ep=self.brain.nodes[result['created'][0]]['meta']['experience']
+        self.assertEqual(ep['time_status'],'conflicting')
+        self.assertEqual(ep['event_at'],self.start+100)
+        self.assertEqual(ep['outcome_at'],self.start)
 
     def test_legacy_operations_and_raw_records_remain_supported_and_undo_keeps_sources(self):
         nid=self.turn('今天收到了朋友的消息。')
@@ -211,7 +228,7 @@ class ExperienceMemoryTests(unittest.TestCase):
         self.assertIsNotNone(new['meta']['experience']);rollback(self.brain,'new')
         self.assertIsNone(self.brain.get(new['id']));self.assertIsNotNone(self.brain.get(what))
 
-    def test_external_platform_speaker_is_not_owner_and_preferences_require_review(self):
+    def test_external_platform_preferences_are_the_speakers_statement_not_the_owners(self):
         nid=self.turn('我喜欢喝冰咖啡。')
         self.brain.nodes[nid]['meta']['evidence']={'participant_scope':'external_participant','participant_id':'FAKE-other-person'}
         payload,guards=self.material([nid])
@@ -220,19 +237,22 @@ class ExperienceMemoryTests(unittest.TestCase):
         ref=self.ref(nid,'user')
         op=self.operation([ref],layer='preference',key='drink.preference',atom={'subject':'user','predicate':'drink.preference','value':'冰咖啡'})
         plan=validate_plan({'version':1,'operations':[op]},payload,guards,'external-preference',self.profile)
-        self.assertTrue(plan['operations'][0]['requires_review'])
+        self.assertFalse(plan['operations'][0]['requires_review'])
         self.assertEqual(plan['operations'][0]['atom']['subject'],'platform_participant')
         result=apply_plan(self.brain,plan,'fish-one')
-        self.assertEqual(result['created'],[]);self.assertEqual(len(result['candidates']),1)
+        self.assertEqual(len(result['created']),1);self.assertEqual(result['candidates'],[])
+        node=self.brain.nodes[result['created'][0]]
+        self.assertEqual(node['kind'],'episode')
+        self.assertEqual(node['meta']['recorded_layer'],'preference')
+        self.assertEqual(node['meta']['organizer_evidence'][0]['participant_id'],'FAKE-other-person')
 
     def test_external_experience_preserves_other_person_as_attributed_speaker(self):
         nid=self.turn('我今天去海边看了日落。','听起来是一次特别的经历。')
         self.brain.nodes[nid]['meta']['evidence']={'participant_scope':'external_participant','participant_id':'FAKE-visitor'}
         ref=self.ref(nid,'user')
         result,_=self.apply([nid],self.operation([ref],{'what':ref,'outcome':ref}),'external-experience')
-        self.assertEqual(len(result['candidates']),1)
-        accepted=review_candidate(self.brain,result['candidates'][0],'accept')
-        node=self.brain.nodes[accepted['node_id']]
+        self.assertEqual(result['candidates'],[])
+        node=self.brain.nodes[result['created'][0]]
         ep=project_experience(self.brain,node,'fish-one')
         self.assertEqual(ep['what']['basis'],'platform_participant_statement')
         self.assertEqual(ep['what']['participant_id'],'FAKE-visitor')
@@ -241,12 +261,12 @@ class ExperienceMemoryTests(unittest.TestCase):
         self.assertIn('对方原话',render_experience(ep))
         self.assertNotIn('报告成功',render_experience(ep))
 
-    def test_user_review_of_uncertain_episode_keeps_evidence_based_structure(self):
+    def test_uncertain_episode_automatically_keeps_evidence_based_structure(self):
         ids,op=self.sample();op['certainty']='uncertain'
         result,_=self.apply(ids,op,'review')
-        self.assertEqual(len(result['candidates']),1)
-        accepted=review_candidate(self.brain,result['candidates'][0],'accept')
-        node=self.brain.nodes[accepted['node_id']]
+        self.assertEqual(result['candidates'],[])
+        node=self.brain.nodes[result['created'][0]]
+        self.assertEqual(node['meta']['certainty'],'uncertain')
         self.assertIsNotNone(project_experience(self.brain,node,'fish-one'))
         self.assertFalse(node['meta']['experience']['reason_verified'])
 
@@ -321,23 +341,30 @@ class ExperienceMemoryTests(unittest.TestCase):
         self.assertIn('原因（助手自述）',node['text']);self.assertNotIn('工具观察（',node['text'])
         self.assertNotIn('companion_profile',self.brain.meta)
 
-    def test_autonomous_branch_does_not_bypass_intent_domain_hypothesis_or_non_experience_gates(self):
+    def test_autonomous_claims_keep_domain_and_intent_without_becoming_observed_events(self):
         what=self.tool('在网页上观察到真实资料。')
         reason=self.turn('任务备注。','我想继续了解这条资料。')
         refs=[self.ref(what),self.ref(reason,'assistant')]
         for domain in ('unknown','roleplay'):
             op=self.operation(refs,{'what':self.ref(what),'reason':self.ref(reason,'assistant')},domain=domain)
-            self.assertTrue(self.plan([what,reason],op,'domain-'+domain)['operations'][0]['requires_review'])
+            normalized=self.plan([what,reason],op,'domain-'+domain)['operations'][0]
+            self.assertFalse(normalized['requires_review'])
+            self.assertTrue(normalized['attributed_material'])
+            self.assertEqual(normalized['domain'],domain)
         intent=self.tool('计划去网页上查一份资料。')
         op=self.operation([self.ref(intent)],{'what':self.ref(intent)})
         normalized=self.plan([intent],op,'intent')['operations'][0]
-        self.assertFalse(normalized['attributed_episode_observation']);self.assertTrue(normalized['requires_review'])
+        self.assertFalse(normalized['attributed_episode_observation']);self.assertFalse(normalized['requires_review'])
+        self.assertEqual(normalized['episode']['what']['claim_type'],'stated_intent')
         hypothetical=self.turn('假设这是小说里的一次活动。','我说自己想要查资料。')
         op=self.operation([self.ref(what),self.ref(hypothetical,'assistant')],{'what':self.ref(what),'reason':self.ref(hypothetical,'assistant')})
-        self.assertTrue(self.plan([what,hypothetical],op,'hypothesis')['operations'][0]['requires_review'])
+        normalized=self.plan([what,hypothetical],op,'hypothesis')['operations'][0]
+        self.assertFalse(normalized['requires_review']);self.assertTrue(normalized['source_fiction'])
+        self.assertEqual(normalized['atom']['predicate'],'recorded_statement')
         ordinary=self.operation(refs,layer='fact')
         normalized=self.plan([what,reason],ordinary,'fact')['operations'][0]
-        self.assertFalse(normalized['attributed_episode_observation']);self.assertTrue(normalized['requires_review'])
+        self.assertFalse(normalized['attributed_episode_observation']);self.assertFalse(normalized['requires_review'])
+        self.assertEqual(normalized['recorded_layer'],'fact');self.assertEqual(normalized['layer'],'experience')
         forged=self.operation([self.ref(what)],{'what':self.ref(what)},attributed_episode_observation=True)
         with self.assertRaises(OrganizerError):self.plan([what],forged,'forged-program-flag')
 

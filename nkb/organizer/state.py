@@ -29,6 +29,7 @@ PERSONA_SKIP_REASONS=frozenset(('persona_disabled','learning_disabled','persona_
     'persona_evidence_changed','unchanged_or_suppressed','evidence_revalidation'))
 HYPOTHETICAL = re.compile(r"假设|假如|如果|角色扮演|小说|想象|扮演|比如|例如|他说|她说|引用|骗你的|导入人格|人格设定")
 RELATIONSHIP_ATTRIBUTE = re.compile(r"(?:^|[./:_-])(?:relationship|relation|bond|milestone|anniversary)(?:$|[./:_-])|关系状态|关系阶段|里程碑|纪念日|相识日", re.I)
+TEMPORARY_REQUEST = re.compile(r"(?:这次|这一轮|本轮|本次|这条|这一条|当前)(?:[^。！？.!?\n]{0,24})(?:回答|回复|输出|用一句|说一句)|\b(?:for (?:this|the current) (?:reply|response|turn|task)|this (?:time|turn) only)\b", re.I)
 
 
 def persona_result_view(result):
@@ -378,6 +379,40 @@ def _sentence(record, role, quote):
     return context if len(context)<=1000 else quote, complete
 
 
+def _recorded_material(op, raw, *, reason):
+    """Index a witnessed statement without deciding whether its claim is true.
+
+    Uncertain content, imagined scenes and a speaker's later mistake remain
+    searchable material. This conversion only creates a new literal record;
+    it cannot change a previous fact, core persona or connection authority.
+    """
+    op['recorded_layer'] = op.get('recorded_layer', op['layer'])
+    op['recorded_action'] = op.get('recorded_action', op['action'])
+    op['action'], op['layer'], op['requires_review'] = 'remember', 'experience', False
+    op.pop('target_id', None)
+    op['related_ids'] = []
+    op['attributed_material'] = True
+    op['material_basis'] = reason
+    roles = {e['role'] for e in op['evidence']}
+    op['statement_attribution'] = next(iter(roles)) if len(roles) == 1 else 'mixed'
+    op['statement_source_revisions'] = {e['id']: raw[e['id']]['source_revision'] for e in op['evidence']}
+    op['source_excerpt'] = any(not e['complete_sentence'] for e in op['evidence'])
+    # Full sentence contexts preserve negation, quotation and qualifiers. The
+    # source/role stays alongside each quote; no model summary becomes a quote.
+    op['verbatim_text'] = '\n'.join(dict.fromkeys(e['context'] for e in op['evidence']))
+    op['text'] = op['verbatim_text']
+    op['atom'] = None
+    op['atom'] = normalize_atom(op)[0]
+    subject = {'assistant':'agent', 'tool':'tool', 'user':'user'}.get(op['statement_attribution'], 'mixed')
+    if subject=='user' and any(e.get('participant_scope')=='external_participant' for e in op['evidence']):
+        subject='platform_participant'
+    op['atom'].update(subject=subject,predicate='recorded_statement')
+    # An actual tool response keeps its reported outcome even when the quoted
+    # content is uncertain; recording it does not turn the response into truth.
+    op['attributed_output_statement'] = False
+    return op
+
+
 def validate_plan(output, payload, guards, job_id, profile):
     if not isinstance(output, dict) or set(output) - {"version", "operations", "persona_traits"} or type(output.get("version")) is not int or output.get("version") != 1:
         raise OrganizerError("模型JSON顶层schema不合法", "invalid_output")
@@ -470,6 +505,10 @@ def validate_plan(output, payload, guards, job_id, profile):
                                   or len("\n".join(user_quotes)) > 2000)
         if op['layer']!='experience' and any(e.get('participant_scope')=='external_participant' for e in evidence):
             op['requires_review']=True
+        if op['layer']=='preference' and any(TEMPORARY_REQUEST.search(value) for value in user_quotes):
+            # A local instruction is a real utterance, but extracting it as a
+            # lasting preference would lose its explicitly stated scope.
+            op['requires_review']=True
         op["verbatim_text"] = "\n".join(dict.fromkeys(user_quotes))[:2000]
         if attributed_statement:
             statements='\n'.join(dict.fromkeys(e['context'] for e in evidence))
@@ -491,7 +530,7 @@ def validate_plan(output, payload, guards, job_id, profile):
         except OrganizerError as error:
             if error.code!='invalid_atom':raise
             # The optional machine extraction failed, not the already checked
-            # source references. Retain only literal material for human review;
+            # source references. Retain only source-attributed literal material;
             # never keep an unsupported value, model summary, or target action.
             op.pop('atom',None)
             op.pop('target_id',None)
@@ -503,6 +542,16 @@ def validate_plan(output, payload, guards, job_id, profile):
             op['fallback_source_fingerprints']={e['id']:guards['raw_fingerprints'][e['id']] for e in evidence}
             atom_review=True
         op['requires_review']=op['requires_review'] or atom_review
+        protected_change = (op['layer']=='persona' or bool(RELATIONSHIP_ATTRIBUTE.search(op['key'])))
+        source_available = all(raw[e['id']].get('source_recoverable') is True for e in evidence)
+        # Review remains for changes to protected settings. Content uncertainty
+        # alone is not permission to hide a real utterance from the memory index.
+        # A failed optional atom also needs no human transcription: the checked
+        # literal evidence is sufficient for a separate attributed record.
+        if source_available and (op.get('fallback_reason_code')=='invalid_atom_verbatim_fallback'
+                                 or op['requires_review'] and not protected_change):
+            _recorded_material(op, raw, reason='literal_atom_fallback' if op.get('fallback_reason_code')
+                               else 'attributed_source_statement')
         normalized.append(op)
     persona_raw={**raw,**{r['id']:r for r in payload.get('persona_context',[])}}
     traits=output.get('persona_traits',[])
@@ -615,8 +664,18 @@ def apply_plan(brain, plan, library_id):
             incoming_atom={**op['atom'],'layer':expected_layer}
             signature=atom_signature(incoming_atom)
             incoming_episode=op.get('episode')
+            statement_record=bool(op.get('attributed_material') or op.get('attributed_output_statement'))
+            def same_statement_source(node):
+                if not statement_record:return True
+                meta=node.get('meta',{})
+                if not (meta.get('attributed_material') or meta.get('statement_attribution')=='assistant'):return False
+                refs=lambda values:{(e.get('id'),e.get('role'),e.get('context',e.get('quote')))
+                                    for e in values if isinstance(e,dict)}
+                return (refs(meta.get('organizer_evidence',[]))==refs(op['evidence'])
+                        and meta.get('statement_source_revisions')==op.get('statement_source_revisions'))
             duplicate=next((n for n in brain.nodes.values()
                  if n.get('meta',{}).get('source')=='organizer' and not disabled(n) and n.get('valid_to') is None
+                 and same_statement_source(n)
                  and n['meta'].get('organizer_layer')==expected_layer
                  and ((bool(incoming_episode) and episode_key(incoming_episode)==episode_key(n['meta'].get('experience')))
                       or (not incoming_episode and not n['meta'].get('experience')
@@ -630,13 +689,28 @@ def apply_plan(brain, plan, library_id):
                 else:incompatible=incompatible or not (same_verbatim or same_atom)
             review = op["requires_review"] or incompatible or bool(duplicate and protected(duplicate) and op['action']=='remember')
             if incoming_episode and duplicate and episode_conflicts(duplicate['meta'].get('experience'),incoming_episode):review=True
+            # A proposed merge may conflict only after comparison with the live
+            # target. Keep that new statement separately rather than asking a
+            # person to adjudicate which ordinary memory is true. Protected
+            # settings still follow their explicit user-choice path.
+            if (review and not op['requires_review'] and op['layer']!='persona'
+                    and not RELATIONSHIP_ATTRIBUTE.search(op['key'])
+                    and not (target is not None and protected(target))
+                    and not (duplicate is not None and protected(duplicate))
+                    and all(brain._node_state(brain.get(e['id']),now()).get('recoverable')
+                            for e in op['evidence'])):
+                sources={e['id']:{'source_revision':plan['raw_fingerprints'][e['id']]} for e in op['evidence']}
+                _recorded_material(op,sources,reason='incompatible_source_statements')
+                target=duplicate=None
+                incoming_episode=op.get('episode')
+                review=False
             if review:
                 cid = "orgc_" + sha256(f"{plan['job_id']}:{index}".encode()).hexdigest()[:24]
-                # Review is a semantic gate, not a total-storage quota. An
-                # accumulated backlog must not roll back unrelated valid work
+                # Review protects explicit settings and unavailable evidence.
+                # An accumulated backlog must not roll back unrelated valid work
                 # or leave this validated batch retrying the same plan forever.
                 candidate={"id": cid, "job_id": plan["job_id"], "library_id":library_id,"status": "pending", "operation": deepcopy(op),
-                           "reason": "存在不确定性、现实域/角色边界或受保护旧设定，需要审阅", "at": now()}
+                           "reason": "涉及受保护设定，或来源当前不可用，需要检查", "at": now()}
                 if op.get('fallback_reason_code')=='invalid_atom_verbatim_fallback':
                     candidate.update(reason='机器记录未通过校验，仅保留已核对原文供审阅',reason_code='invalid_atom_verbatim_fallback')
                 candidates.append(candidate)
@@ -682,8 +756,13 @@ def apply_plan(brain, plan, library_id):
             kind = "episode" if op.get("observation") else LAYERS[op["layer"]]
             metadata = {"source": "organizer", "confirmed": False, "important": False, "organizer_key": op["key"],
                         "organizer_layer": op["layer"], "organizer_summary": op["text"], "organizer_evidence": deepcopy(op["evidence"]),
-                        "organizer_aliases": op["aliases"], "organizer_job": plan["job_id"], "domain": "real",
+                        "organizer_aliases": op["aliases"], "organizer_job": plan["job_id"], "domain": op['domain'],
                         "organizer_sources":source_references(op['evidence'])}
+            if op.get('attributed_material'):
+                metadata.update(attributed_material=True,statement_attribution=op['statement_attribution'],
+                    statement_source_revisions=deepcopy(op['statement_source_revisions']),
+                    certainty=op['certainty'],recorded_layer=op['recorded_layer'],
+                    material_basis=op['material_basis'],source_excerpt=op['source_excerpt'])
             if op.get('attributed_output_statement'):
                 metadata.update(statement_attribution='assistant',domain=op['domain'],statement_source_revisions=deepcopy(op['statement_source_revisions']))
             if op.get("observation"):
@@ -905,7 +984,7 @@ def semantic_recall(brain, query, k=8, *, prepared=None, **kwargs):
     for nid in selected_ids:
         node = brain.get(nid)
         metadata = node.get("meta", {})
-        if metadata.get('source') != 'organizer' or not brain._node_state(node, stamp)['recoverable']:
+        if metadata.get('source') != 'organizer' or not view._node_state(view.get(nid), stamp)['recoverable']:
             continue
         aliases = metadata.get('organizer_aliases', [])
         aliases = aliases if isinstance(aliases, list) else []

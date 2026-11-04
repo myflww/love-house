@@ -445,6 +445,8 @@ def make_handler(brain: Brain):
                 if not fields:
                     raise RequestError("没有待保存的修改")
                 brain.update(nid, **fields)
+                from ..service.controls import rebuild_source_controls
+                rebuild_source_controls(brain)
                 node = next(n for n in brain.export()["nodes"] if n["id"] == nid)
                 return {"id": nid, "node": node}
 
@@ -491,6 +493,9 @@ def make_handler(brain: Brain):
                 if "session_id" in meta:
                     _text(meta, "session_id", required=True, limit=200)
                 nid = brain.add(**fields)
+                if meta.get('memory_disabled'):
+                    from ..service.controls import rebuild_source_controls
+                    rebuild_source_controls(brain)
                 links = brain.auto_link(nid, top=2) if auto_link else []
                 return {"id": nid, "linked_to": links}
 
@@ -671,7 +676,7 @@ def make_handler(brain: Brain):
             try:
                 result=build_structured_context(brain,data.get('query'),max_chars=data.get('max_chars',8000),
                     library_id=library_id,library_name=library_name,agent_id=library_id,
-                    session_id=data.get('session_id'))
+                    session_id=data.get('session_id'),view=data.get('view'))
                 return _response_snapshot(result)
             finally:brain.meta.pop(key,None)
     def read(callback):

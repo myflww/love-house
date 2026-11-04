@@ -284,12 +284,15 @@ class SourceClient:
     def _identity(cfg):
         return {key: cfg[key] for key in ("source_id", "runtime_agent_id", "library_id")}
 
-    def read_context(self, query, session_id, max_chars=8000):
+    def read_context(self, query, session_id, max_chars=8000, *, view=None):
         cfg = self.config(); self._active(cfg)
         query = _text(query, "query", 40000); session_id = _text(session_id, "session_id", 200)
         if type(max_chars) is not int or not 512 <= max_chars <= 32000:
             raise SourceClientError("记忆材料预算不正确", "invalid_input")
-        return self._request(cfg, "context", {**self._identity(cfg), "query": query, "session_id": session_id, "max_chars": max_chars})
+        if view is not None and view not in ('current','history','comparison'):
+            raise SourceClientError('记忆读取方式须为current/history/comparison','invalid_input')
+        return self._request(cfg, "context", {**self._identity(cfg), "query": query, "session_id": session_id, "max_chars": max_chars,
+                                             **({'view':view} if view is not None else {})})
 
     def _event(self, cfg, session_id, event_id, platform, normalized, *, occurred_at, details):
         self._active(cfg); platform = self._platform(cfg, platform)

@@ -237,10 +237,10 @@ class AgentSourceRegistry:
         source = self._registered(connection)
         if source is None: return data
         self._identity(source, data)
-        allowed = {"source_id", "runtime_agent_id", "agent_id", "library_id", "query", "session_id", "max_chars"}
+        allowed = {"source_id", "runtime_agent_id", "agent_id", "library_id", "query", "session_id", "max_chars", "view"}
         if set(data) - allowed:
             raise ValidationError("来源记忆请求含未声明参数")
-        return {k: data[k] for k in ("query", "session_id", "max_chars") if k in data}
+        return {k: data[k] for k in ("query", "session_id", "max_chars", "view") if k in data}
 
 
 Registry = AgentSourceRegistry

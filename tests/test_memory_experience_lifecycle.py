@@ -32,7 +32,10 @@ class MemoryExperienceLifecycleTests(unittest.TestCase):
         self.assertFalse(result['verification']['model_adoption_verified'])
         self.assertEqual(brain.nodes[old]['text'],original['text'])
         self.assertEqual(brain.nodes[old]['superseded_by'],new)
-        self.assertTrue(brain.nodes[derived]['meta']['memory_disabled'])
+        # Correction changes the current version, not the user's permission to
+        # read an earlier experience. Explicit pause remains a separate action.
+        self.assertFalse(brain.nodes[derived]['meta'].get('memory_disabled'))
+        self.assertEqual(brain.nodes[derived]['meta']['memory_revision']['status'],'historical')
         for session in ('window-a','window-b'):
             packet=build_context(brain,'咖啡偏好',session_id=session,library_id='default')
             self.assertIn(new,packet['memory_ids'])

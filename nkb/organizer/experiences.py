@@ -282,6 +282,78 @@ def project_experience(brain, node, library_id, *, read_archive=None):
         return None
 
 
+def _sentence_occurs(text,context):
+    """Do not accept an affirmative substring inside a newly negated sentence."""
+    start=text.find(context)
+    while start>=0:
+        before=text[:start].rstrip();after=text[start+len(context):].lstrip()
+        if ((not before or before[-1] in '。！？!?；;\n')
+                and (not after or context[-1] in '。！？!?；;\n' or after[0] in '。！？!?；;\n')):
+            return True
+        start=text.find(context,start+1)
+    return False
+
+
+def _rebind_statement(brain,node,library_id,blocked_evidence):
+    """Verify literal evidence before re-signing a deliberately imported copy.
+
+    Imported hashes cannot match after typed identity/receipt mapping. The
+    substitute check is exact text, role, full-sentence boundaries and source
+    availability, never the importer's or model's assertion that it is true.
+    """
+    from .state import RAW_SOURCES,_roles,fingerprint
+    from ..companion.versions import readable
+    from ..utils import now
+    meta=node['meta'];refs=meta.get('organizer_evidence');guards=meta.get('statement_source_revisions')
+    if (meta.get('source')!='organizer' or not isinstance(refs,list) or not 1<=len(refs)<=64
+            or not isinstance(guards,dict) or not guards
+            or not readable(brain,node,now(),'history',library_id)
+            or node['id'] in blocked_evidence):return None
+    roles=set();contexts=[];revisions={};any_excerpt=False
+    for ref in refs:
+        if not isinstance(ref,dict):return None
+        nid,role,quote,context=(ref.get(k) for k in ('id','role','quote','context'))
+        complete=ref.get('complete_sentence')
+        if (not isinstance(nid,str) or nid==node['id'] or role not in _ROLES
+                or not isinstance(quote,str) or not quote.strip() or len(quote)>500
+                or not isinstance(context,str) or not context or len(context)>1000
+                or quote not in context or type(complete) is not bool or nid in blocked_evidence
+                or not isinstance(guards.get(nid),str) or not re.fullmatch(r'[0-9a-f]{64}',guards[nid])):return None
+        source=brain.get(nid)
+        if (source is None or source.get('meta',{}).get('source') not in RAW_SOURCES
+                or not readable(brain,source,now(),'history',library_id)):return None
+        sm=source.get('meta',{});source_roles=_roles(source);text=source_roles.get(role)
+        if not isinstance(text,str) or context not in text:return None
+        if complete and not _sentence_occurs(text,context):return None
+        any_excerpt=any_excerpt or not complete
+        evidence=sm.get('evidence') if isinstance(sm.get('evidence'),dict) else {}
+        external=evidence.get('participant_scope')=='external_participant' or sm.get('participant_scope')=='external_participant'
+        if external:
+            participant=evidence.get('participant_id',sm.get('participant_id','unknown'))
+            if ref.get('participant_scope')!='external_participant' or ref.get('participant_id')!=participant:return None
+        elif ref.get('participant_scope')=='external_participant':return None
+        roles.add(role);contexts.append(context);revisions[nid]=fingerprint(source)
+    attribution=next(iter(roles)) if len(roles)==1 else 'mixed'
+    if (meta.get('statement_attribution')!=attribution or set(guards)!=set(revisions)
+            or node.get('text')!='\n'.join(dict.fromkeys(contexts))):return None
+    declared={(ref['id'],ref['role']) for ref in refs}
+    atom=meta.get('memory_atom')
+    for collection in (meta.get('organizer_sources'),atom.get('evidence') if isinstance(atom,dict) else None):
+        if (not isinstance(collection,list) or not collection
+                or any(not isinstance(ref,dict) or not isinstance(ref.get('id'),str) or ref.get('role') not in _ROLES for ref in collection)
+                or {(ref['id'],ref['role']) for ref in collection}!=declared):return None
+    if meta.get('attributed_material'):
+        if type(meta.get('source_excerpt')) is not bool or meta['source_excerpt']!=any_excerpt:return None
+        subject={'user':'user','assistant':'agent','tool':'tool'}.get(attribution,'mixed')
+        if subject=='user' and any(ref.get('participant_scope')=='external_participant' for ref in refs):subject='platform_participant'
+        if (not isinstance(atom,dict) or atom.get('schema')!='love-house-memory-atom/v1'
+                or atom.get('subject')!=subject or atom.get('predicate')!='recorded_statement'
+                or atom.get('relation_status')!='verbatim_fallback' or atom.get('value')!=node['text']):return None
+    elif attribution!='assistant' or any_excerpt:
+        return None  # Legacy assistant-only statements were complete sentences.
+    return revisions
+
+
 def rebind_experiences_after_import(brain, library_id):
     """Rebind an explicitly imported COPY after source IDs/receipts were mapped.
 
@@ -295,7 +367,7 @@ def rebind_experiences_after_import(brain, library_id):
             or brain.meta.get('demo')):
         raise OrganizerError('导入经历需要明确的新个人存档身份','invalid_episode')
     brain.meta['library_id']=library_id
-    candidates=[]
+    candidates=[];statements=[]
     # Complete all scope/withholding metadata changes before hashing any raw
     # source. Even a forged episode attached to a raw node cannot change that
     # source's revision after another episode has already been rebound.
@@ -303,9 +375,15 @@ def rebind_experiences_after_import(brain, library_id):
         meta=node.get('meta',{})
         if not isinstance(meta,dict):continue
         if 'library_id' in meta:meta['library_id']=library_id
+        atom=meta.get('memory_atom')
+        if isinstance(atom,dict) and atom.get('schema')=='love-house-memory-atom/v1':atom['library_id']=library_id
         if isinstance(meta.get('experience'),dict):
             meta['experience_withheld']=True
             candidates.append(node)
+        if meta.get('source')=='organizer' and (meta.get('attributed_material') is True
+                or meta.get('statement_attribution')=='assistant' and isinstance(meta.get('statement_source_revisions'),dict)):
+            meta['statement_withheld']=True
+            statements.append(node)
     result={'rebound':0,'withheld':0}
     from .state import fingerprint
     for node in candidates:
@@ -353,4 +431,28 @@ def rebind_experiences_after_import(brain, library_id):
             meta['experience']=old
             meta['experience_withheld']=True
             result['withheld']+=1
+    if statements:
+        from ..companion.memory import _disabled_evidence
+        blocked_evidence=_disabled_evidence(brain)
+        withheld=[];rebound=0
+        for node in statements:
+            try:revisions=_rebind_statement(brain,node,library_id,blocked_evidence)
+            except (KeyError,TypeError,ValueError,AttributeError,UnicodeError,OverflowError):revisions=None
+            if revisions:
+                node['meta']['statement_source_revisions']=revisions
+                node['meta'].pop('statement_withheld',None);rebound+=1
+            else:withheld.append(node['id'])
+        from ..companion.versions import readable
+        from ..utils import now
+        from .state import RAW_SOURCES
+        can_reorganize=False
+        for nid in withheld:
+            refs=brain.nodes[nid]['meta'].get('organizer_evidence',[])
+            for ref in refs if isinstance(refs,list) else []:
+                source=brain.get(ref.get('id')) if isinstance(ref,dict) and isinstance(ref.get('id'),str) else None
+                if (source and source['id'] not in blocked_evidence and source.get('meta',{}).get('source') in RAW_SOURCES
+                        and readable(brain,source,now(),'history',library_id)):
+                    can_reorganize=True;break
+        result.update(statements_rebound=rebound,statements_withheld=len(withheld),
+                      statements_withheld_ids=sorted(withheld),can_reorganize=can_reorganize)
     return result

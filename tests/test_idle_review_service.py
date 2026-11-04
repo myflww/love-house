@@ -1,4 +1,4 @@
-"""Real HTTP integration; synthetic windows, mock provider, no paid requests."""
+"""Real HTTP integration; synthetic windows, forbidden provider, no paid requests."""
 import json
 import time
 import unittest
@@ -27,27 +27,18 @@ class IdleReviewServiceTests(unittest.TestCase):
         return json.loads(row['node_ids'])[0]
 
     def mock(self):
-        self.calls = []
-        self.host.transact(self.library, lambda b: save_profile(b,
-            base_url='https://review.example.invalid', model='synthetic-review'))
-        self.host.reviews.engine.credential = lambda lib, profile: {
-            'api_key': 'synthetic-not-a-real-key', 'model': profile['model'], 'base_url': profile['base_url']}
-        def transport(request, *, timeout):
-            body = json.loads(request.data)
-            payload = json.loads(body['messages'][1]['content'])
-            self.calls.append(payload)
-            source = payload['sources'][0]
-            part = source['content'][0]
-            item = {'type': 'reflection', 'title': '核对来源的交流经验',
-                'text': '讨论咖啡时可先核对原话。这是交流方法的推测，不是用户事实。',
-                'evidence': [{'id': source['id'], 'role': part['role'], 'quote': part['text'][:20]}]}
-            return {'choices': [{'message': {'content': json.dumps({'proposals': [item]})}, 'finish_reason': 'stop'}]}
-        self.host.reviews.engine.transport = transport
+        self.calls=[]
+        def forbidden(*args,**kwargs):
+            self.calls.append(1)
+            raise AssertionError('Local directory must not call model or credential services')
+        self.host.reviews.engine.credential=forbidden
+        self.host.reviews.engine.transport=forbidden
 
     def complete(self):
-        result = self.host.reviews.engine.run_pending(self.library, manual=True)
-        self.assertEqual(result['status'], 'done', result)
-        return self.request('/api/idle-review')[1]['proposals'][0]['id']
+        result=self.host.reviews.engine.run_pending(self.library,manual=True)
+        self.assertEqual(result['status'],'done',result)
+        self.assertEqual(result['model_calls'],0)
+        return self.host.reviews.engine.directory(self.library)
 
     def test_management_preview_is_read_only_and_scope_stays_explicit(self):
         self.source()
@@ -70,7 +61,7 @@ class IdleReviewServiceTests(unittest.TestCase):
         second = self.source(second_cid, second_token, 'window-c', '第二个获准窗口也应能回顾自己的原话。')
         self.mock()
         self.complete()
-        self.assertEqual({row['id'] for payload in self.calls for row in payload['sources']}, {first, second})
+        self.assertEqual({row['id'] for row in self.host.reviews.engine.directory(self.library)['entries']}, {first,second});self.assertEqual(self.calls,[])
         before = self.host.reviews.snapshot(self.library)['authorization']['generation']
         status, value = self.request(f'/api/connections/{self.cid}/rebind',
             {'expected_bound_session_id': 'window-a', 'confirm': True})
@@ -81,28 +72,33 @@ class IdleReviewServiceTests(unittest.TestCase):
         self.assertEqual([r['id'] for r in preview['sources']], [second])
         self.assertEqual(preview['proposals'], [])
 
-    def test_explicit_accept_is_non_fact_rollback_and_runtime_authority_never_persists(self):
-        nid = self.source()
-        self.mock()
-        pid = self.complete()
-        self.assertEqual(self.request(f'/api/idle-review/proposals/{pid}/accept', {}, library=self.other)[0], 400)
-        status, receipt = self.request(f'/api/idle-review/proposals/{pid}/accept', {})
-        self.assertEqual(status, 200, receipt)
-        reflection = receipt['result']['id']
-        meta = self.host.snapshot(self.library)['nodes'][reflection]['meta']
-        self.assertFalse(meta['is_user_fact'])
-        self.assertFalse(meta['confirmed'])
-        packet = self.host.structured_context(self.library, {'query': '咖啡核对来源', 'max_chars': 20000})
-        self.assertNotIn('idle_review_current_authorization_generation', json.dumps(self.host.snapshot(self.library)))
-        self.assertNotIn('idle_review_current_authorization_generation', self.host.manager.path_for(self.library).read_text(encoding='utf-8'))
-        self.assertNotIn(reflection, [r['id'] for r in self.request('/api/idle-review/preview', {})[1]['sources']])
-        self.assertTrue(packet['read_only'])
-        self.assertEqual(self.request('/api/idle-review/settings', {'enabled': False})[0], 200)
-        self.assertEqual(self.request(f'/api/idle-review/proposals/{pid}/rollback', {})[0], 200)
-        self.assertTrue(self.host.snapshot(self.library)['nodes'][reflection]['meta']['memory_disabled'])
-        self.host.forget_memory(self.library, nid)
-        self.assertEqual(self.request('/api/idle-review')[1]['proposals'], [])
-        self.assertEqual(self.request(f'/api/idle-review/proposals/{pid}/accept', {})[0], 400)
+    def test_new_accept_is_retired_and_legacy_withdrawal_persists_without_recreating_sources(self):
+        from hashlib import sha256
+        from nkb.companion.review import REFLECTION_SCHEMA
+        from nkb.organizer.state import fingerprint
+        nid=self.source();self.mock();self.complete()
+        pid='old-accepted';reflection='review_'+sha256(pid.encode()).hexdigest()[:24]
+        auth=self.host.reviews.snapshot(self.library)['authorization'];source=self.host.snapshot(self.library)['nodes'][nid]
+        proposal={'type':'reflection','title':'旧版派生材料','text':'旧版未经验证的交流经验。','evidence':[{'id':nid,'role':'user','quote':source['text'][:12]}],
+            'is_user_fact':False,'is_real_experience':False,'effectiveness':'unverified','automatic_activation':False}
+        def seed(brain):
+            brain.add(proposal['title'],proposal['text'],id=reflection,kind='reflection',meta={'source':'idle_review','library_id':self.library,
+                'review_schema':REFLECTION_SCHEMA,'review_proposal_id':pid,'review_origin':True,'review_approved':True,'speaker':'assistant',
+                'confirmed':False,'source_ids':[nid],'members':[nid],'source_revisions':{nid:fingerprint(source)},
+                'authorization_generation':auth['generation'],'effectiveness':'unverified','is_user_fact':False,'is_real_experience':False})
+        self.host.transact(self.library,seed)
+        with self.host.reviews.engine.db() as db:
+            db.execute('INSERT INTO review_proposals VALUES(?,?,?,?,?,?,?,?)',(pid,self.library,json.dumps({nid:fingerprint(source)}),auth['generation'],json.dumps(proposal),'accepted',reflection,time.time()))
+        self.assertEqual(self.request(f'/api/idle-review/proposals/{pid}/accept',{})[0],400)
+        self.assertEqual(self.request(f'/api/idle-review/proposals/{pid}/rollback',{},library=self.other)[0],400)
+        status,receipt=self.request(f'/api/idle-review/proposals/{pid}/rollback',{})
+        self.assertEqual(status,200,receipt);self.assertEqual(receipt['status'],'rolled_back')
+        saved=self.host.snapshot(self.library)
+        self.assertTrue(saved['nodes'][reflection]['meta']['memory_disabled']);self.assertIn(nid,saved['nodes'])
+        self.assertNotIn('idle_review_current_authorization_generation',json.dumps(saved))
+        self.assertEqual(self.calls,[])
+        self.host.forget_memory(self.library,nid)
+        self.assertEqual(self.host.reviews.engine.directory(self.library)['entries'],[])
 
     def test_http_manual_run_drains_background_queue_and_settings_reject_injected_authority(self):
         self.source()
@@ -118,7 +114,7 @@ class IdleReviewServiceTests(unittest.TestCase):
                 break
             time.sleep(.01)
         self.assertEqual(value['counts']['pending'], 0, value)
-        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(self.calls, [])
 
     def test_backup_and_trash_restore_require_new_background_review_consent(self):
         from nkb.companion.review import save_review_profile

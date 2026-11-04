@@ -74,13 +74,22 @@ class OutputMemoryOrganizerTests(unittest.TestCase):
         self.assertEqual(record['epistemic_status'],'historical_assistant_statement')
         self.assertNotIn('experience',record)
 
-    def test_statement_route_does_not_auto_confirm_facts_preferences_persona_or_claimed_success(self):
+    def test_statement_route_indexes_claims_without_owner_facts_or_completed_commitments(self):
         nid=self.output('我说自己已经办完事情了。')
         for changes in ({'layer':'fact'},{'layer':'preference'},{'layer':'commitment'},{'layer':'persona'},
                         {'certainty':'uncertain'},
                         {'episode':{'what':{'id':nid,'role':'assistant','quote':self.brain.nodes[nid]['text']}}}):
             with self.subTest(changes=changes):
-                self.assertTrue(self.plan(nid,**changes)['operations'][0]['requires_review'])
+                normalized=self.plan(nid,**changes)['operations'][0]
+                if changes.get('layer')=='persona':
+                    self.assertTrue(normalized['requires_review'])
+                    continue
+                self.assertFalse(normalized['requires_review'])
+                self.assertTrue(normalized['attributed_material'])
+                self.assertEqual(normalized['layer'],'experience')
+                self.assertEqual(normalized['atom']['subject'],'agent')
+                self.assertEqual(normalized['atom']['predicate'],'recorded_statement')
+                self.assertEqual(normalized['verbatim_text'],self.brain.nodes[nid]['text'])
         plan=self.plan(nid);self.assertFalse(plan['operations'][0]['observation'])
 
     def test_fictional_or_unknown_output_can_index_an_utterance_without_confirming_world_facts(self):
@@ -97,16 +106,20 @@ class OutputMemoryOrganizerTests(unittest.TestCase):
                 self.assertEqual(record['epistemic_status'],'historical_assistant_statement')
                 self.assertNotIn('experience',record)
 
-    def test_unknown_time_incomplete_context_and_expired_output_do_not_auto_index(self):
+    def test_unknown_time_and_excerpts_can_index_but_expired_sources_stay_unavailable(self):
         unknown=self.output();self.brain.nodes[unknown]['meta']['source_time_unknown']=True
-        self.assertTrue(self.plan(unknown)['operations'][0]['requires_review'])
+        plan=self.plan(unknown);self.assertFalse(plan['operations'][0]['requires_review'])
+        result=apply_plan(self.brain,plan,'fish-output')
+        self.assertIsNone(self.brain.nodes[result['created'][0]]['meta']['memory_atom']['event_at'])
         expired=self.output();self.brain.nodes[expired]['valid_to']=0
         self.assertTrue(self.plan(expired)['operations'][0]['requires_review'])
         partial=self.output('这是一句没有完整结束的助手输出。')
         payload,guards=self.material(partial)
         payload['raw'][0]['boundaries']['assistant']={'left':False,'right':False}
         plan=validate_plan({'version':1,'operations':[self.op(partial)]},payload,guards,'partial',self.profile)
-        self.assertTrue(plan['operations'][0]['requires_review'])
+        self.assertFalse(plan['operations'][0]['requires_review'])
+        self.assertTrue(plan['operations'][0]['source_excerpt'])
+        self.assertEqual(plan['operations'][0]['verbatim_text'],self.brain.nodes[partial]['text'])
 
     def test_foreign_source_and_forbidden_roles_or_quotes_still_reject(self):
         nid=self.output()
@@ -120,11 +133,15 @@ class OutputMemoryOrganizerTests(unittest.TestCase):
         with self.assertRaises(OrganizerError) as caught:self.material(nid)
         self.assertEqual(caught.exception.code,'invalid_evidence')
 
-    def test_assistant_fact_candidate_stays_unsafe_and_legacy_reviewed_source_keeps_attribution(self):
+    def test_assistant_claim_indexes_its_speaker_and_legacy_reviewed_source_keeps_attribution(self):
         nid=self.output('助手说用户喜欢咖啡。')
         result=apply_plan(self.brain,self.plan(nid,layer='fact'),'fish-output')
-        with self.assertRaises(OrganizerError) as caught:review_candidate(self.brain,result['candidates'][0],'accept')
-        self.assertEqual(caught.exception.code,'unsafe_review')
+        self.assertEqual(result['candidates'],[])
+        statement=self.brain.nodes[result['created'][0]]
+        self.assertEqual(statement['kind'],'episode')
+        self.assertEqual(statement['meta']['memory_atom']['subject'],'agent')
+        self.assertEqual(statement['meta']['memory_atom']['predicate'],'recorded_statement')
+        self.assertFalse(statement['meta']['confirmed'])
         reviewed=self.brain.add('旧版审阅记录','助手说用户喜欢咖啡。',kind='fact',meta={
             'source':'user_confirmed','confirmed':True,'organizer_evidence':[{'id':nid,'role':'assistant'}]})
         record=build_structured_context(self.brain,'咖啡',{'memory_ids':[reviewed]},library_id='fish-output')['memory_context']['records'][0]

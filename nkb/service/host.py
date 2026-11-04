@@ -10,6 +10,7 @@ import time
 import uuid
 import urllib.request
 import urllib.error
+from urllib.parse import unquote
 from pathlib import Path
 from .httpd import LoopbackHTTPServer as ThreadingHTTPServer
 from ..libraries import LibraryManager
@@ -88,7 +89,11 @@ class MemoryHost:
                         # identity, including legacy default files without one.
                         brain.meta['library_id']=library_id
                         migrated=enable_temporal_retention(brain)
-                        if migrated['changed'] or identity_changed:guard.persist()
+                        from .controls import rebuild_source_controls
+                        controls_before=brain.meta.get('memory_source_controls')
+                        rebuild_source_controls(brain)
+                        if migrated['changed'] or identity_changed or controls_before!=brain.meta.get('memory_source_controls'):
+                            guard.persist()
                     self._usage_enabled[library_id]=migrated['usage_reinforcement']
                 server=ThreadingHTTPServer(('127.0.0.1',0),make_handler(brain))
                 thread=threading.Thread(target=server.serve_forever,kwargs={'poll_interval':.1},daemon=True)
@@ -106,6 +111,10 @@ class MemoryHost:
             from ..companion.retention import enable_temporal_retention
             enable_temporal_retention(brain)
             result=callback(brain)
+            controls=brain.meta.get('memory_source_controls')
+            if not isinstance(controls,dict) or controls.get('schema')!='love-house-source-controls/v1':
+                from .controls import rebuild_source_controls
+                rebuild_source_controls(brain)
             enable_temporal_retention(brain)
             if pending:
                 from ..companion.retention import record_memory_use
@@ -515,16 +524,39 @@ class MemoryHost:
             return self._servers[library_id].RequestHandlerClass.memory_structured_material(
                 data,library_id=library_id,library_name=meta['name'],review_generation=generation)
     def memory_access(self,library_id,action,data):
-        from ..core.brain import Brain
         from ..companion.catalog import memory_bootstrap,memory_catalog,memory_read
         from .tool_scope import validate_tool_arguments
         args=validate_tool_arguments('memory_'+action,data)
         meta=self.library(library_id)
         functions={'bootstrap':memory_bootstrap,'list':memory_catalog,'read':memory_read}
         if action not in functions:raise ValidationError('未知记忆读取方式')
+        result=self.scoped_memory_read(library_id,lambda brain,auth:
+            functions[action](brain,library_id,meta['name'],**args))
+        if action=='bootstrap':
+            result['source_directory']={'tool':'memory_directory','read_tool':'memory_read',
+                'scope':'currently_authorized_sources','model_calls':0,
+                'fallback_tool':'memory_list','description':'本地原文目录按需定位；目录不是全部记忆，未就绪时仍可读取记忆目录。'}
+        return result
+    def scoped_memory_read(self,library_id,callback):
+        """One locked read on the live graph; never copy/rebuild the whole library."""
+        self.library(library_id);self.port_for(library_id)
         with self.connections.binding_lock:
             self.reviews.touch(library_id)
-            return functions[action](Brain(self.reviews.contextual_snapshot(library_id)),library_id,meta['name'],**args)
+            auth=self.reviews.authorization(library_id)
+            def read(brain):
+                key='idle_review_current_authorization_generation'
+                brain.meta.pop(key,None);brain.meta[key]=auth['generation']
+                try:return callback(brain,auth)
+                finally:brain.meta.pop(key,None)
+            return self._servers[library_id].RequestHandlerClass.memory_read(read)
+    def memory_directory(self,library_id,data):
+        from .tool_scope import validate_tool_arguments
+        args=validate_tool_arguments('memory_directory',data)
+        return self.scoped_memory_read(library_id,lambda brain,auth:
+            self.reviews.engine.directory(library_id,brain=brain,authorization=auth,**args))
+    def memory_versions(self,library_id,nid,*,cursor=None,limit=20):
+        from ..companion.versions import read_memory_versions
+        return self.scoped_memory_read(library_id,lambda brain,auth:read_memory_versions(brain,library_id,nid,cursor=cursor,limit=limit))
     def window_handoff(self,library_id,data):
         from ..core.brain import Brain
         from ..companion.handoff import window_handoff
@@ -707,6 +739,8 @@ class MemoryHost:
         args=validate_tool_arguments(name,args)
         self.library(c['library_id'])
         self.connections.heartbeat(cid,{'adapter_version':'agent-memory-tool/v1'})
+        if name=='memory_directory':
+            return {**self.memory_directory(c['library_id'],args),'connection_id':cid}
         if name in ('memory_bootstrap','memory_list','memory_read'):
             return {**self.memory_access(c['library_id'],name.removeprefix('memory_'),args),'connection_id':cid}
         if name=='memory_status':
@@ -926,7 +960,7 @@ class MemoryHost:
         c=self.connections.authenticate(cid,token)
         data=self.sources.check_context(c,data)
         sid=data.get('session_id')
-        if set(data)-{'query','session_id','max_chars'}:raise ValidationError('连接上下文不能选择其他记忆库')
+        if set(data)-{'query','session_id','max_chars','view'}:raise ValidationError('连接上下文不能选择其他记忆库')
         if c['host']=='agent':
             self._agent_session_gate(c,sid or ('agent-default' if c['session_scope']=='any' else None),read=True)
             sid=sid or ('agent-default' if c['session_scope']=='any' else 'unbound-memory-read')
@@ -935,7 +969,7 @@ class MemoryHost:
         # Ingestion is the receipt/worker path's responsibility. A read must not
         # wait for another source's queued graph saves before the next action.
         result=self.structured_context(c['library_id'],{'query':data['query'],'session_id':connected_session_id(cid,sid),
-                                                      'max_chars':data.get('max_chars',8000)})
+                                                      'max_chars':data.get('max_chars',8000),**({'view':data['view']} if 'view' in data else {})})
         try:
             coverage=result.get('source_coverage')
             if not isinstance(coverage,dict):
@@ -1154,6 +1188,22 @@ def make_controller(host):
                     return self._json(host.reviews.engine.status(self._chosen(),
                         cursor=query.get('cursor',[None])[0],limit=limit))
                 if path=='/api/memory/experience':return self._json(host.memory_experience(self._chosen()))
+                if path=='/api/memory/directory':
+                    self._require_management()
+                    from urllib.parse import parse_qs
+                    query=parse_qs(parsed.query)
+                    try:limit=int(query.get('limit',['25'])[0])
+                    except (ValueError,TypeError):raise ValidationError('每页原文目录数量须为整数') from None
+                    return self._json(host.memory_directory(self._chosen(),
+                        {'limit':limit,**({'cursor':query['cursor'][0]} if 'cursor' in query else {})}))
+                if path.startswith('/api/memories/') and path.endswith('/versions'):
+                    self._require_management()
+                    from urllib.parse import parse_qs
+                    query=parse_qs(parsed.query)
+                    try:limit=int(query.get('limit',['20'])[0])
+                    except (ValueError,TypeError):raise ValidationError('每页历史数量须为整数') from None
+                    return self._json(host.memory_versions(self._chosen(),unquote(path.split('/')[3]),
+                        cursor=query.get('cursor',[None])[0],limit=limit))
                 if path=='/api/memory/timeline':
                     from urllib.parse import parse_qs
                     query=parse_qs(parsed.query)
@@ -1300,6 +1350,7 @@ def make_controller(host):
                     return self._json(host.sharing.import_file(data.get('content'),name=data.get('name')))
                 if path in ('/api/memory/bootstrap','/api/memory/list','/api/memory/read'):
                     return self._json(host.memory_access(self._chosen(),parts[-1],data))
+                if path=='/api/memory/directory':return self._json(host.memory_directory(self._chosen(),data))
                 if len(parts)==4 and parts[:2]==['api','libraries']:
                     lib,action=parts[2:]
                     if action=='delete-preview':return self._json(host.library_delete_preview(lib))
@@ -1333,7 +1384,7 @@ def make_controller(host):
                     if path=='/api/idle-review/preview':
                         if data:raise ValidationError('回顾预览不接受其他参数')
                         return self._json(host.reviews.engine.preview(lib))
-                    if host.library(lib)['is_demo']:raise ValidationError('示例库只供浏览，不能修改或调用回顾模型')
+                    if host.library(lib)['is_demo']:raise ValidationError('示例库只供浏览，不能修改或启动后台整理')
                     if path=='/api/idle-review/settings':return self._json(host.reviews.settings(lib,data))
                     if data:raise ValidationError('回顾操作不接受其他参数')
                     if path=='/api/idle-review/run':return self._json(host.reviews.run(lib))
@@ -1356,7 +1407,16 @@ def make_controller(host):
                     if not any(j['id']==parts[3] for j in jobs):raise ValidationError('本库没有该任务')
                     return self._json(getattr(host.organizer,parts[4])(parts[3]))
                 if len(parts)==4 and parts[:2]==['api','memories']:
-                    lib=self._chosen();nid=parts[2];action=parts[3]
+                    lib=self._chosen();nid=unquote(parts[2]);action=parts[3]
+                    if action in ('history-restore-preview','history-restore'):
+                        self._require_management()
+                        from .controls import history_restore_preview,restore_history
+                        if action=='history-restore-preview':
+                            if data:raise ValidationError('历史恢复预览不接受其他参数')
+                            return self._json(host.scoped_memory_read(lib,lambda brain,auth:history_restore_preview(brain,nid)))
+                        if set(data)-{'confirm','expected_revision'}:raise ValidationError('历史恢复仅接受确认及预览版本')
+                        return self._json(host.transact(lib,lambda brain:restore_history(brain,nid,
+                            confirm=data.get('confirm',False),expected_revision=data.get('expected_revision'))))
                     if action=='verify':
                         self._require_management()
                         return self._json(host.verify_memory_correction(lib,nid,data))

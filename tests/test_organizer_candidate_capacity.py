@@ -24,6 +24,9 @@ class OrganizerCandidateCapacityTests(unittest.TestCase):
         self.job_number = 0
 
     def operation(self, *, key="drink.temperature", action="candidate"):
+        # Ordinary attributed statements no longer wait for review. Explicit
+        # relationship changes still exercise the retained user-choice queue.
+        if action == 'candidate':key='relationship.'+key
         return {"action": action, "layer": "preference", "key": key, "text": "饮水偏好",
                 "certainty": "clear", "domain": "real", "evidence": [
                     {"id": self.raw_id, "role": "user", "quote": "我喜欢温水。"}]}

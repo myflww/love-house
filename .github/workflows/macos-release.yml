@@ -2,7 +2,7 @@ name: macOS Apple Silicon release validation
 
 on:
   push:
-    branches: [codex/windows-0103-release, codex/experience-0104]
+    branches: [codex/windows-0103-release, codex/experience-0104, codex/memory-0105]
     paths: ['nkb/**', 'desktop/**', 'scripts/**', 'tests/**', 'assets/**', '.github/workflows/macos-release.yml']
   pull_request:
     paths: ['nkb/**', 'desktop/**', 'scripts/**', 'tests/**', 'assets/**', '.github/workflows/macos-release.yml']

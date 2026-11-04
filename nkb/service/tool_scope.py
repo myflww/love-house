@@ -6,11 +6,14 @@ from ..errors import ValidationError
 # a given tool did not declare.
 FIELDS = {
     "memory_status": ({}, ()), "memory_persona": ({}, ()),
-    "memory_bootstrap": ({"max_chars": ("int", 2000, 32000)}, ()),
-    "memory_list": ({"cursor": ("str", 1024), "limit": ("int", 1, 100)}, ()),
+    "memory_bootstrap": ({"max_chars": ("int", 2000, 32000), "view": ("enum", ("current", "history", "comparison"))}, ()),
+    "memory_list": ({"cursor": ("str", 1024), "limit": ("int", 1, 100), "view": ("enum", ("current", "history", "comparison"))}, ()),
+    "memory_directory": ({"cursor": ("str", 2048), "limit": ("int", 1, 100)}, ()),
     "memory_read": ({"memory_id": ("str", 200), "field": ("enum", ("value", "assistant", "display")),
-                     "offset": ("int", 0, 100000000), "max_chars": ("int", 1, 32000), "revision": ("str", 64)}, ("memory_id",)),
-    "memory_context": ({"query": ("str", 10000), "session_id": ("str", 200), "max_chars": ("int", 512, 32000)}, ("query",)),
+                     "offset": ("int", 0, 100000000), "max_chars": ("int", 1, 32000), "revision": ("str", 128),
+                     "view": ("enum", ("current", "history", "comparison"))}, ("memory_id",)),
+    "memory_context": ({"query": ("str", 10000), "session_id": ("str", 200), "max_chars": ("int", 512, 32000),
+                        "view": ("enum", ("current", "history", "comparison"))}, ("query",)),
     "memory_remember": ({"text": ("str", 40000), "kind": ("str", 64), "important": ("bool",), "session_id": ("str", 200)}, ("text", "session_id")),
     "memory_record_turn": ({"user": ("str", 40000), "assistant": ("str", 40000), "session_id": ("str", 200),
                             "request_id": ("str", 200), "source_session_id": ("str", 200), "source_event_id": ("str", 200)},

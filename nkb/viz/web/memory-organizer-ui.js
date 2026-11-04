@@ -67,7 +67,7 @@ execution.append(by('organizerUsageNote'),make('p','form-note','累计阈值决�
 settings.insertBefore(execution,by('saveOrganizerSettings'));
 cadence.options[0].textContent='累计原文后整理';cadence.options[1].textContent='每轮完整对话后';
 const triggerBox=make('div','memory-trigger-note');triggerBox.id='organizerTriggerState';triggerBox.setAttribute('role','status');by('organizerCounts').after(triggerBox);
-const topNote=by('runOrganizer').closest('.ai-compose-actions').nextElementSibling;if(topNote?.classList.contains('form-note'))topNote.textContent='预览不会调用模型。有依据的记忆和人格特征按规则整理；明确设定与冲突仍由你确认。';
+const topNote=by('runOrganizer').closest('.ai-compose-actions').nextElementSibling;if(topNote?.classList.contains('form-note'))topNote.textContent='预览不会调用模型。误解、猜想与不同说法保留角色和来源；重要设定、人格与关系变更继续由你控制。';
 function modeNote(){const n=Number(threshold.value),session=cadence.value==='session';thresholdLabel.hidden=threshold.hidden=session;thresholdNote.textContent=session?'每轮完整对话可触发一批；分批处理，不设每日上限。':n===0?'0 为旧兼容模式：不足一批时，等约30秒也可整理。填1–500即可严格等到N条。':`累计到 ${Number.isInteger(n)&&n>0?n:'N'} 条才自动开始，不会因为等待时间较长而提前调用模型。`;
  if(ORGANIZER.dirty)thresholdNote.textContent+=' 修改后请保存才生效。';}
 function renderTrigger(data){const settings=data.settings||{},status=data.status||{},t=status.trigger||{};triggerBox.replaceChildren();let title,note;

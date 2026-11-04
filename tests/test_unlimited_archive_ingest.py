@@ -120,7 +120,10 @@ class UnlimitedArchiveIngestTests(unittest.TestCase):
         raw = brain.add("测试原话", "我喜欢温水。", kind="episode", meta={"source": "conversation_turn", "assistant_reply": "合成回复。"})
         profile = get_profile(brain)
         payload, guards = build_input(brain, "archive-test", [{"raw_id": raw, "progress": "{}"}], profile)
-        output = {"version": 1, "operations": [{"action": action, "layer": "preference", "key": "drink.temperature",
+        # Ordinary attributed statements are automatic; protected relationship
+        # changes still exercise the explicit user-choice review boundary.
+        key = "relationship.drink.temperature" if action == "candidate" else "drink.temperature"
+        output = {"version": 1, "operations": [{"action": action, "layer": "preference", "key": key,
                   "text": "用户喜欢温水", "evidence": [{"id": raw, "role": "user", "quote": "我喜欢温水。"}],
                   "domain": "real", "certainty": "clear", "aliases": [],
                   "atom": {"subject": "user", "predicate": "likes", "value": "温水"}}]}

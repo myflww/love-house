@@ -1,0 +1,28 @@
+{
+  "schema": "love-house-source-directory-benchmark/v1",
+  "version": "0.10.5rc1",
+  "recorded_at": "2026-11-04T07:06:43.854731+00:00",
+  "environment": {
+    "python": "3.13.14",
+    "platform": "Windows"
+  },
+  "fixture": "10000 synthetic primary-source nodes; in-process test host; no real user memories or keys",
+  "index": {
+    "sources": 10000,
+    "processed_sources": 10000,
+    "seconds": 5.0969,
+    "snapshot_calls": 1,
+    "graph_lock_commit_chunks": 40,
+    "max_commit_chunk_seconds": 0.0624
+  },
+  "read": {
+    "page_size": 25,
+    "samples": 10,
+    "mean_ms": 28.964,
+    "live_brain_authorization": true,
+    "graph_snapshot_calls": 0
+  },
+  "model_calls": 0,
+  "credential_calls": 0,
+  "limits": "These are local source/index timings, not packaged-application or network latency claims."
+}

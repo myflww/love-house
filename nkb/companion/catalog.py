@@ -36,7 +36,7 @@ def _identity(brain, library_id, library_name):
             "is_demo": bool(brain.meta.get("demo"))}
 
 
-def _records(brain, library_id, *, _blocked_evidence=None):
+def _records(brain, library_id, *, view='current', _blocked_evidence=None):
     stamp = now()
     records, excluded = [], Counter()
     blocked=_disabled_evidence(brain) if _blocked_evidence is None else _blocked_evidence
@@ -44,7 +44,7 @@ def _records(brain, library_id, *, _blocked_evidence=None):
         if node['id'] in blocked:
             excluded['paused_evidence']+=1
             continue
-        record, reason = _record(brain, node, stamp, library_id, blocked_evidence=blocked)
+        record, reason = _record(brain, node, stamp, library_id, blocked_evidence=blocked,view=view)
         if reason:
             excluded[reason] += 1
         else:
@@ -52,8 +52,8 @@ def _records(brain, library_id, *, _blocked_evidence=None):
     return records, dict(excluded)
 
 
-def _revision(records):
-    return hashlib.sha256(_json(records).encode()).hexdigest()
+def _revision(records, view='current'):
+    return hashlib.sha256(_json({'view':view,'records':records}).encode()).hexdigest()
 
 
 def _cursor(library_id, revision, offset):
@@ -78,21 +78,24 @@ def _offset(cursor, library_id, revision, total):
         raise ValidationError("记忆目录已变化或游标不属于此绑定库，请从第一页重新读取") from None
 
 
-def memory_catalog(brain, library_id, library_name, *, cursor=None, limit=25):
+def memory_catalog(brain, library_id, library_name, *, cursor=None, limit=25, view='current'):
     identity = _identity(brain, library_id, library_name)
     limit = _count(limit, "limit", 1, 100)
-    records, excluded = _records(brain, library_id)
-    revision = _revision(records)
+    from .versions import resolve_view
+    view=resolve_view(view)
+    records, excluded = _records(brain, library_id,view=view)
+    revision = _revision(records,view)
     offset = _offset(cursor, library_id, revision, len(records))
     selected = records[offset:offset + limit]
     entries = [{"id": r["id"], "title": r["display"]["title"], "layer": r["layer"],
                 "epistemic_status": r["epistemic_status"], "interpretation": r["interpretation"],
                 "recorded_at": r["recorded_at"], "source_time": r["source_time"],
                 "value_chars": len(r["value"]),
+                'revision':r['revision'],'source_ids':[ref['id'] for ref in r['source']['evidence']],
                 "assistant_chars": len(r.get("assistant_statement", {}).get("value", ""))}
                for r in selected]
     next_offset = offset + len(entries)
-    return {"schema": CATALOG_SCHEMA, "identity": identity, "revision": revision,
+    return {"schema": CATALOG_SCHEMA, "identity": identity, "revision": revision,'view':view,
             "entries": entries, "total": len(records), "returned": len(entries),
             "offset": offset, "next_cursor": _cursor(library_id, revision, next_offset) if next_offset < len(records) else None,
             "complete": next_offset >= len(records), "excluded": excluded,
@@ -101,18 +104,27 @@ def memory_catalog(brain, library_id, library_name, *, cursor=None, limit=25):
 
 
 def memory_read(brain, library_id, library_name, *, memory_id, field="value", offset=0,
-                max_chars=8000, revision=None):
+                max_chars=8000, revision=None, view='current'):
     identity = _identity(brain, library_id, library_name)
     memory_id = _text(memory_id, "memory_id", 200)
     offset = _count(offset, "offset", 0, 100000000)
     max_chars = _count(max_chars, "max_chars", 1, 32000)
     if field not in ("value", "assistant", "display"):
         raise ValidationError("field须为value、assistant或display")
-    records, _ = _records(brain, library_id)
-    current_revision = _revision(records)
+    from .versions import resolve_view
+    view=resolve_view(view)
+    # A direct/chunked read need not project every other memory. Existing
+    # catalogue revision tokens retain their complete-catalogue validation.
+    if revision is None or isinstance(revision,str) and revision.startswith('record:'):
+        node=brain.get(memory_id);blocked=_disabled_evidence(brain)
+        record=None if node is None or memory_id in blocked else _record(brain,node,now(),library_id,blocked_evidence=blocked,view=view)[0]
+        current_revision='record:'+_revision([record],view) if record else None
+    else:
+        records, _ = _records(brain, library_id,view=view)
+        current_revision = _revision(records,view)
+        record = next((r for r in records if r["id"] == memory_id), None)
     if revision is not None and (not isinstance(revision, str) or revision != current_revision):
         raise ValidationError("记忆目录已变化，请重新读取目录")
-    record = next((r for r in records if r["id"] == memory_id), None)
     if record is None:
         raise ValidationError("绑定库中没有这条可用记忆")
     content = (record["value"] if field == "value" else
@@ -127,7 +139,7 @@ def memory_read(brain, library_id, library_name, *, memory_id, field="value", of
     if "assistant_statement" in header:
         header["assistant_statement"].pop("value", None)
     header["display"].pop("text", None)
-    return {"schema": READ_SCHEMA, "identity": identity, "revision": current_revision,
+    return {"schema": READ_SCHEMA, "identity": identity, "revision": current_revision,'view':view,
             "record": header, "field": field, "text": text, "offset": offset,
             "total_chars": len(content), "returned_chars": len(text),
             "next_offset": next_offset if next_offset < len(content) else None,
@@ -136,11 +148,13 @@ def memory_read(brain, library_id, library_name, *, memory_id, field="value", of
             "continuation": "A chunk is part of the same source; assemble remaining chunks before interpreting the full statement."}
 
 
-def memory_bootstrap(brain, library_id, library_name, *, max_chars=12000):
+def memory_bootstrap(brain, library_id, library_name, *, max_chars=12000, view='current'):
     identity = _identity(brain, library_id, library_name)
     max_chars = _count(max_chars, "max_chars", 2000, 32000)
+    from .versions import resolve_view
+    view=resolve_view(view)
     blocked = _disabled_evidence(brain)
-    records, excluded = _records(brain, library_id, _blocked_evidence=blocked)
+    records, excluded = _records(brain, library_id,view=view, _blocked_evidence=blocked)
     ordered = sorted(records, key=lambda r: (r["interpretation"] != "current_memory",
                                             r["epistemic_status"] != "user_confirmed_statement",
                                             -(r.get("recorded_at") or 0), r["id"]))
@@ -148,14 +162,14 @@ def memory_bootstrap(brain, library_id, library_name, *, max_chars=12000):
             "library_id": library_id, "truncated": len(ordered) > 1000}
     context = build_structured_context(brain, "恢复这个Agent的已有记忆与相处资料", base,
                                       max_chars=max_chars, library_id=library_id,
-                                      library_name=library_name, agent_id=library_id, _blocked_evidence=blocked)
-    return {"schema": BOOTSTRAP_SCHEMA, "identity": identity, "revision": _revision(records),
+                                      library_name=library_name, agent_id=library_id, view=view,_blocked_evidence=blocked)
+    return {"schema": BOOTSTRAP_SCHEMA, "identity": identity, "revision": _revision(records,view),'view':view,
             "total_memories": len(records), "included_memories": context["memory_context"]["counts"]["included"],
             "excluded": excluded, "persona": _persona(brain, now(), library_id),
             "memory_context": context["memory_context"], "read_only": True,
             "all_memory_loaded": (len(records) == context["memory_context"]["counts"]["included"]
                                   and not context["memory_context"]["truncation"]["truncated"]),
-            "next_action": {"tool": "memory_list", "arguments": {"limit": 25}},
+            "next_action": {"tool": "memory_list", "arguments": {"limit": 25,'view':view}},
             "retrieval": {"catalog_tool": "memory_list", "read_tool": "memory_read",
                           "fields": ["value", "assistant", "display"], "complete_access": "paginate_catalog_and_read_chunks",
                           "context_window_is_finite": True},

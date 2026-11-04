@@ -25,10 +25,10 @@ def _json(value):
 
 def _profile(stored):
     if not isinstance(stored, dict) or set(stored) - set(DEFAULT_PROFILE):
-        raise ValidationError('空闲回顾设置包含未知字段')
+        raise ValidationError('空闲整理设置包含未知字段')
     profile = {**DEFAULT_PROFILE, **stored}
     if type(profile['enabled']) is not bool:
-        raise ValidationError('空闲回顾enabled须为布尔值')
+        raise ValidationError('空闲整理enabled须为布尔值')
     for name, low, high in (('idle_seconds', 30, 86400), ('batch_size', 1, 12)):
         if type(profile[name]) is not int or not low <= profile[name] <= high:
             raise ValidationError(f'{name}须为{low}~{high}的整数')
@@ -78,72 +78,98 @@ def authorization(value):
             'source_scopes': deepcopy(source_scopes)}
 
 
-def source_records(brain, library_id, auth, *, stamp=None):
-    """Enumerate all current primary evidence, including records arriving late.
-
-    Generated organizer/review/reflection/persona material is intentionally not a
-    source. An archived assistant or tool statement keeps its actual role.
-    """
+def source_record(brain, node, library_id, auth, *, stamp=None, blocked_evidence=None, _validated_auth=False):
+    """Validate one primary source. Directory reads use current controls, not a graph scan."""
     from ..core.brain import _now
     from .structured import _record
+    if not isinstance(node, dict):
+        return None
+    if not _validated_auth:auth = authorization(auth)
+    if brain.meta.get('library_id') not in (None, library_id):
+        return None
+    stamp = _now() if stamp is None else stamp
+    allowed = auth['connection_scopes']  # validated keys; O(1) membership per source
+    blocked = brain.meta.get('memory_tombstones', {}).get('raw_ids', [])
+    if blocked_evidence is None:
+        controls = brain.meta.get('memory_source_controls')
+        if not isinstance(controls, dict) or controls.get('schema') != 'love-house-source-controls/v1' or not isinstance(controls.get('blocked_by'), dict):
+            return None  # Legacy sources need a one-time complete controls rebuild.
+        blockers = controls['blocked_by'].get(node['id'], [])
+        if not isinstance(blockers, list):
+            return None
+        def live_blocker(nid):
+            other=brain.get(nid)
+            if not other or not other.get('meta',{}).get('memory_disabled'):return False
+            m=other.get('meta',{})
+            atom=m.get('memory_atom') if isinstance(m.get('memory_atom'),dict) else {}
+            return any(isinstance(collection,list) and any(isinstance(ref,dict) and ref.get('id')==node['id'] for ref in collection)
+                       for collection in (m.get('organizer_evidence'),m.get('organizer_sources'),atom.get('evidence')))
+        blocked_nodes = {node['id']} if any(live_blocker(nid) for nid in blockers) else set()
+    else:
+        blocked_nodes = blocked_evidence
+    meta = node.get('meta', {})
+    if (meta.get('source') not in SOURCE_KINDS or node.get('kind') == 'reflection'
+            or meta.get('review_origin') or meta.get('simulation') or meta.get('internal_review')
+            or node['id'] in blocked_nodes):
+        return None
+    from .versions import readable
+    if not readable(brain,node,stamp,'history',library_id):
+        return None
+    connection = meta.get('connection_id')
+    if (connection and connection not in allowed) or (not connection and not auth['allow_local']):
+        return None
+    evidence = meta.get('evidence') if isinstance(meta.get('evidence'), dict) else {}
+    scope = auth['connection_scopes'].get(connection)
+    if scope:
+        from .ingestion import connected_session_id
+        window = scope['window_id']
+        if scope['policy'] != 'any' and (not window or node.get('session_id') != connected_session_id(connection, window)):
+            return None
+        if 'binding_revision' in evidence and evidence['binding_revision'] != scope['binding_revision']:
+            return None
+    source_scope = auth['source_scopes'].get(connection)
+    if source_scope:
+        if (evidence.get('source_id') != source_scope['source_id']
+                or evidence.get('source_runtime_agent_id') != source_scope['runtime_agent_id']):
+            return None
+    elif evidence.get('source_id') or evidence.get('source_runtime_agent_id'):
+        return None  # Registered-source evidence needs an explicit live identity.
+    if evidence.get('archive_receipt_id') in blocked:
+        return None
+    record, reason = _record(brain, node, stamp, library_id,blocked_evidence=blocked_nodes,view='history')
+    if reason:
+        return None
+    roles = _roles(node)
+    # Historical imports have transport-owned role lists; never promote an
+    # unknown imported speaker to the owner just because the prose says so.
+    if meta.get('source') == 'history_import' and not roles:
+        roles = {'unknown': node.get('text', '')}
+    content = [{'role': role, 'text': text} for role, text in roles.items()
+               if isinstance(text, str) and text]
+    if not content:
+        return None
+    return {'id': node['id'], 'hash': fingerprint(node), 'content': content,
+                    'connection_id': connection, 'session_id': node.get('session_id'),
+                    'recorded_at': node.get('created'), 'source_kind': meta.get('source'),
+                    'participant_scope': evidence.get('participant_scope', meta.get('participant_scope')),
+                    'participant_id': evidence.get('participant_id', meta.get('participant_id')),
+                    'source_id': evidence.get('source_id'), 'runtime_agent_id': evidence.get('source_runtime_agent_id'),
+                    'total_chars': sum(len(part['text']) for part in content),
+                    'label': node.get('label',''), 'revision': deepcopy(record.get('revision')),
+                    'event_at': None if meta.get('source_time_unknown') else node.get('event_at',node.get('created'))}
+
+def source_records(brain, library_id, auth, *, stamp=None):
+    """Enumerate a finite authorized primary-source cohort once."""
     from .memory import _disabled_evidence
     auth = authorization(auth)
     if brain.meta.get('library_id') not in (None, library_id):
-        raise ValidationError('回顾快照不属于当前记忆库')
-    stamp = _now() if stamp is None else stamp
-    allowed = set(auth['connection_ids'])
-    blocked = set(brain.meta.get('memory_tombstones', {}).get('raw_ids', []))
-    blocked_nodes = _disabled_evidence(brain)
+        raise ValidationError('目录快照不属于当前记忆库')
+    blocked = _disabled_evidence(brain)
     records = []
     for node in brain.nodes.values():
-        meta = node.get('meta', {})
-        if (meta.get('source') not in SOURCE_KINDS or node.get('kind') == 'reflection'
-                or meta.get('review_origin') or meta.get('simulation') or meta.get('internal_review')
-                or node['id'] in blocked_nodes):
-            continue
-        state = brain._node_state(node, stamp)
-        if not state.get('history_available') or not state.get('recoverable'):
-            continue
-        connection = meta.get('connection_id')
-        if (connection and connection not in allowed) or (not connection and not auth['allow_local']):
-            continue
-        evidence = meta.get('evidence') if isinstance(meta.get('evidence'), dict) else {}
-        scope = auth['connection_scopes'].get(connection)
-        if scope:
-            from .ingestion import connected_session_id
-            window = scope['window_id']
-            if scope['policy'] != 'any' and (not window or node.get('session_id') != connected_session_id(connection, window)):
-                continue
-            if 'binding_revision' in evidence and evidence['binding_revision'] != scope['binding_revision']:
-                continue
-        source_scope = auth['source_scopes'].get(connection)
-        if source_scope:
-            if (evidence.get('source_id') != source_scope['source_id']
-                    or evidence.get('source_runtime_agent_id') != source_scope['runtime_agent_id']):
-                continue
-        elif evidence.get('source_id') or evidence.get('source_runtime_agent_id'):
-            continue  # Registered-source evidence needs an explicit live identity.
-        if evidence.get('archive_receipt_id') in blocked:
-            continue
-        record, reason = _record(brain, node, stamp, library_id)
-        if reason:
-            continue
-        roles = _roles(node)
-        # Historical imports have transport-owned role lists; never promote an
-        # unknown imported speaker to the owner just because the prose says so.
-        if meta.get('source') == 'history_import' and not roles:
-            roles = {'unknown': node.get('text', '')}
-        content = [{'role': role, 'text': text} for role, text in roles.items()
-                   if isinstance(text, str) and text]
-        if not content:
-            continue
-        records.append({'id': node['id'], 'hash': fingerprint(node), 'content': content,
-                        'connection_id': connection, 'session_id': node.get('session_id'),
-                        'recorded_at': node.get('created'), 'source_kind': meta.get('source'),
-                        'participant_scope': evidence.get('participant_scope', meta.get('participant_scope')),
-                        'participant_id': evidence.get('participant_id', meta.get('participant_id')),
-                        'source_id': evidence.get('source_id'), 'runtime_agent_id': evidence.get('source_runtime_agent_id'),
-                        'total_chars': sum(len(part['text']) for part in content)})
+        row = source_record(brain, node, library_id, auth, stamp=stamp, blocked_evidence=blocked, _validated_auth=True)
+        if row is not None:
+            records.append(row)
     return sorted(records, key=lambda row: (row['recorded_at'], row['id']))
 
 
@@ -249,7 +275,14 @@ def revalidate_sources(brain, library_id, auth, expected, generation):
     auth = authorization(auth)
     if auth['generation'] != generation:
         raise OrganizerConflict('授权区域已经变化，未应用过时回顾')
-    current = {row['id']: row['hash'] for row in source_records(brain, library_id, auth)}
+    controls = brain.meta.get('memory_source_controls')
+    if isinstance(controls,dict) and controls.get('schema') == 'love-house-source-controls/v1':
+        current = {}
+        for nid in expected:
+            row = source_record(brain, brain.get(nid), library_id, auth, _validated_auth=True)
+            if row is not None:current[nid] = row['hash']
+    else:
+        current = {row['id']: row['hash'] for row in source_records(brain, library_id, auth)}
     if not expected or any(current.get(nid) != digest for nid, digest in expected.items()):
         raise OrganizerConflict('回顾来源已更正、停用或删除，未应用过时回顾')
 
@@ -270,25 +303,7 @@ def apply_review_plan(brain, plan, current_authorization):
             raise ValidationError('回顾撤回目标不正确')
         node['meta']['memory_disabled'] = True
         return {'id': nid, 'changed': True, 'restored_content': False}
-    if plan.get('action') != 'accept' or plan.get('proposal', {}).get('type') != 'reflection':
-        raise ValidationError('仅经验回顾可由用户采纳；策略与模拟保持待审材料')
-    revalidate_sources(brain, library_id, current_authorization, plan['source_hashes'], plan['authorization_generation'])
-    if nid in brain.meta.get('memory_tombstones', {}).get('node_ids', []):
-        raise OrganizerConflict('该回顾已被忘记，不能重新创建')
-    if brain.get(nid):
-        if brain.get(nid).get('meta', {}).get('memory_disabled'):
-            raise OrganizerConflict('该回顾已撤回，不能通过重复采纳重新启用')
-        return {'id': nid, 'changed': False, 'is_user_fact': False}
-    proposal = plan['proposal']
-    brain.add(proposal['title'], proposal['text'], id=nid, kind='reflection', salience=.35,
-              tags=['回顾经验'], meta={'source': 'idle_review', 'library_id': library_id,
-                'review_schema': REFLECTION_SCHEMA, 'review_proposal_id': plan['proposal_id'],
-                'review_origin': True, 'review_approved': True, 'speaker': 'assistant', 'confirmed': False,
-                'important': False, 'source_ids': sorted(plan['source_hashes']), 'members': sorted(plan['source_hashes']),
-                'source_revisions': deepcopy(plan['source_hashes']), 'review_evidence': deepcopy(proposal['evidence']),
-                'authorization_generation': plan['authorization_generation'], 'effectiveness': 'unverified',
-                'is_user_fact': False, 'is_real_experience': False})
-    return {'id': nid, 'changed': True, 'is_user_fact': False, 'effectiveness': 'unverified'}
+    raise ValidationError('旧版回顾仅可撤回；不再生成或采纳新的派生建议')
 
 
 def reflection_current(brain, node, library_id, stamp, *, blocked_evidence=None):

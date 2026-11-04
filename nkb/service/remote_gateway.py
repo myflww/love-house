@@ -73,9 +73,10 @@ def public_origin(value):
 def tool_definitions():
     descriptions={
         'memory_bootstrap':'恢复当前固定记忆库的身份、人格和初始记忆；初始包有界。',
-        'memory_list':'分页列出当前库可用记忆目录；不会切换库。',
-        'memory_read':'按目录ID分块读取当前库的完整原文。',
-        'memory_context':'根据话题召回当前库记忆；使用宿主真实会话ID。',
+        'memory_list':'分页列出绑定库记忆；view=current看当前说法，history看历史，comparison看前后变化。来源归属不代表内容被判定为真。',
+        'memory_directory':'只读浏览本地整理的获准来源目录，按人物/时间/前后记录定位；用memory_read读取原文。目录未就绪时使用memory_list。',
+        'memory_read':'按目录ID分块读取绑定库原文；历史或前后对照请指定view。保留原话与来源，不判定内容真伪。',
+        'memory_context':'按问题取回绑定库的原话和来源；可指定view=current/history/comparison，未指定时根据问题选择。使用宿主真实会话ID。',
         'memory_status':'检查连接和真实存档状态；工具连通不等于自动存档。',
         'memory_remember':'记录明确建议记住的信息；不会冒充用户确认或自动上报。',
         'memory_record_turn':'手动补录真实完整对话；不绑定待连接窗口，不证明自动存档。',
@@ -94,7 +95,7 @@ def tool_definitions():
             properties[key]=schema
         result.append({'name':name,'description':descriptions[name],
             'inputSchema':{'type':'object','properties':properties,'required':list(required),'additionalProperties':False},
-            'annotations':{'readOnlyHint':name in ('memory_bootstrap','memory_list','memory_read','memory_context','memory_status','memory_persona'),
+            'annotations':{'readOnlyHint':name in ('memory_bootstrap','memory_list','memory_directory','memory_read','memory_context','memory_status','memory_persona'),
                            'openWorldHint':False}})
     return result
 

@@ -10,6 +10,7 @@ _DATE = re.compile(r"(?<!\d)(\d{4})\s*(?:年|[-/])\s*(\d{1,2})\s*(?:月|[-/])\s*
 _RECENT = re.compile(r"最近|最新|刚才|刚刚|上次|上回|最后一次|\b(?:latest|recent|last time)\b", re.I)
 _HISTORY = re.compile(r"以前|曾经|当时|最初|过去|历史|\b(?:previously|historical|used to)\b", re.I)
 _CURRENT = re.compile(r"现在|目前|如今|当前|\b(?:currently|now)\b", re.I)
+_COMPARISON = re.compile(r'前后|对比|变化|变了|改口|后来|为什么改|\b(?:comparison|compare|changed|change over time)\b',re.I)
 _UNFINISHED = re.compile(r"没做完|未完成|还没完成|未解决|待跟进|尚未完成|\b(?:unfinished|unresolved|pending)\b", re.I)
 _FILLER = re.compile(r"还记得|记不记得|记得|请问|可以告诉我|告诉我|我们|那个|那件事|那件|这件事|这个|东西|事情|事儿|什么|怎么样|怎样|怎么|是否|是不是|我|你|她|它|的|了|吗|呢|呀|啊|[?？!！。，,\s]+")
 # Small auditable equivalence groups describe query wording, not user facts.
@@ -114,7 +115,7 @@ def plan_query(query, reference):
             start = datetime.combine(day, time.min).timestamp()
             end = datetime.combine(day + timedelta(days=7), time.min).timestamp()
             text = re.sub(r"上周|\blast week\b", " ", text, flags=re.I)
-    intent = ("comparison" if _HISTORY.search(text) and _CURRENT.search(text) else
+    intent = ("comparison" if _COMPARISON.search(text) or _HISTORY.search(text) and _CURRENT.search(text) else
               "historical" if _HISTORY.search(text) else "recent" if _RECENT.search(text) else
               "current" if _CURRENT.search(text) else None)
     unfinished = bool(_UNFINISHED.search(text))

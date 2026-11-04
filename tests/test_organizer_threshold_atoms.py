@@ -154,7 +154,7 @@ class OrganizerThresholdAtomTests(unittest.TestCase):
         self.assertTrue(all(i in self.brains['a'].nodes for i in sources))
         self.assertEqual({i for i,w in self.brains['a'].neighbors(node['id'])},set(sources))
 
-    def test_invalid_atom_fields_only_leave_literal_review_material_and_one_accounted_call(self):
+    def test_invalid_atom_fields_leave_only_literal_attributed_material_and_one_accounted_call(self):
         for atom in ({'subject':'user','predicate':'home.city','value':'上海'},
                      {'subject':'user','predicate':'home.city','value':'北京','created':1},
                      {'subject':'user','predicate':'home.city','value':'北京','qualifiers':{'event_at':1}},
@@ -167,31 +167,38 @@ class OrganizerThresholdAtomTests(unittest.TestCase):
                 original=deepcopy(brain.nodes[raw]);edges=deepcopy(brain.edges);calls_before=len(self.calls)
                 result=self.organizer.run_once(lid)
                 self.assertEqual(result['status'],'done',result)
-                self.assertEqual(self.facts(lid),[])
-                self.assertEqual(brain.nodes,{raw:original});self.assertEqual(brain.edges,edges)
-                candidates=brain.meta['organizer_candidates'];self.assertEqual(len(candidates),1)
-                candidate=candidates[0];operation=candidate['operation']
-                self.assertEqual(candidate['status'],'pending');self.assertEqual(candidate['library_id'],lid)
-                self.assertEqual(candidate['job_id'],result['job_id'])
-                self.assertEqual(candidate['reason_code'],'invalid_atom_verbatim_fallback')
-                self.assertEqual(operation['action'],'candidate');self.assertIs(operation['requires_review'],True)
+                self.assertEqual(len(self.facts(lid)),1)
+                self.assertEqual(brain.nodes[raw],original)
+                self.assertEqual(len(brain.nodes),2)
+                self.assertEqual(brain.meta['organizer_candidates'],[])
+                with self.organizer.db() as db:
+                    job=dict(db.execute('SELECT * FROM jobs WHERE id=?',(result['job_id'],)).fetchone())
+                    ledger=[dict(row) for row in db.execute('SELECT * FROM calls WHERE library_id=?',(lid,))]
+                operation=json.loads(job['plan_json'])['operations'][0]
+                node=brain.nodes[result['result']['created'][0]]
+                self.assertEqual(node['kind'],'episode');self.assertFalse(node['meta']['confirmed'])
+                self.assertTrue(node['meta']['attributed_material'])
+                self.assertEqual(node['meta']['material_basis'],'literal_atom_fallback')
+                self.assertEqual({nid for nid,_ in brain.neighbors(node['id'])},{raw})
+                self.assertTrue(all(edge in brain.edges for edge in edges))
+                self.assertEqual(operation['fallback_reason_code'],'invalid_atom_verbatim_fallback')
+                self.assertEqual(operation['action'],'remember');self.assertIs(operation['requires_review'],False)
                 self.assertEqual(operation['text'],original['text']);self.assertEqual(operation['verbatim_text'],original['text'])
-                self.assertEqual(operation['atom'],{'subject':'user','predicate':'home.city','value':original['text'],
+                self.assertEqual(operation['atom'],{'subject':'user','predicate':'recorded_statement','value':original['text'],
                     'qualifiers':{'polarity':'unknown'},'relation_status':'verbatim_fallback'})
                 self.assertEqual(operation['aliases'],[]);self.assertEqual(operation['related_ids'],[])
                 self.assertNotIn('target_id',operation)
                 self.assertEqual(operation['evidence'][0]['id'],raw)
                 self.assertEqual(operation['evidence'][0]['quote'],original['text'])
                 self.assertEqual(operation['evidence'][0]['receipt_id'],'receipt-'+raw)
-                self.assertEqual(result['result']['created'],[])
-                self.assertEqual(result['result']['candidates'],[candidate['id']])
+                self.assertEqual(result['result']['created'],[node['id']])
+                self.assertEqual(result['result']['candidates'],[])
                 log=brain.meta['organizer_log'];self.assertEqual(len(log),1)
                 self.assertEqual(log[0]['job_id'],result['job_id']);self.assertEqual(log[0]['result'],result['result'])
-                self.assertEqual(log[0]['before_nodes'],{});self.assertEqual(log[0]['before_edges'],{})
-                self.assertEqual(log[0]['after_nodes'],{});self.assertEqual(log[0]['after_edges'],{})
-                with self.organizer.db() as db:
-                    job=dict(db.execute('SELECT * FROM jobs WHERE id=?',(result['job_id'],)).fetchone())
-                    ledger=[dict(row) for row in db.execute('SELECT * FROM calls WHERE library_id=?',(lid,))]
+                self.assertNotIn(raw,log[0]['before_nodes'])
+                self.assertIsNone(log[0]['before_nodes'][node['id']])
+                self.assertEqual(set(log[0]['after_nodes']),{node['id']})
+                self.assertEqual(len(log[0]['after_edges']),1)
                 self.assertEqual((job['status'],job['attempts'],job['error_code']),('done',1,None))
                 self.assertEqual(json.loads(job['plan_json'])['operations'],[operation])
                 self.assertEqual(json.loads(job['result_json']),result['result'])
@@ -201,16 +208,27 @@ class OrganizerThresholdAtomTests(unittest.TestCase):
     def test_negation_cannot_be_converted_to_a_positive_machine_fact(self):
         self.reply=lambda p:{'version':1,'operations':[self.op(p,layer='preference',atom={'subject':'user','predicate':'likes','value':'咖啡','qualifiers':{'polarity':'affirmed'}})]}
         self.raw('我不喜欢咖啡。');self.organizer.run_once('a')
-        self.assertEqual(self.facts(),[]);self.assertEqual(len(self.brains['a'].meta['organizer_candidates']),1)
+        literal=self.facts()[0]
+        self.assertEqual(literal['text'],'我不喜欢咖啡。')
+        self.assertEqual(literal['kind'],'episode')
+        self.assertEqual(literal['meta']['memory_atom']['predicate'],'recorded_statement')
+        self.assertEqual(literal['meta']['memory_atom']['qualifiers']['polarity'],'unknown')
+        self.assertEqual(self.brains['a'].meta['organizer_candidates'],[])
         self.reply=lambda p:{'version':1,'operations':[self.op(p,layer='preference',atom={'subject':'user','predicate':'likes','value':'咖啡','qualifiers':{'polarity':'negated'}})]}
         self.raw('我不喜欢咖啡。');self.organizer.run_once('a')
-        self.assertEqual(self.facts()[0]['meta']['memory_atom']['qualifiers']['polarity'],'negated')
+        negative=[n for n in self.facts() if n['meta']['memory_atom']['qualifiers']['polarity']=='negated']
+        self.assertEqual(len(negative),1)
+        self.assertEqual(negative[0]['meta']['memory_atom']['value'],'咖啡')
 
-    def test_merge_different_values_is_reviewed_and_supersede_closes_old_atom_validity(self):
+    def test_merge_different_values_keeps_both_statements_and_explicit_supersede_closes_old_validity(self):
         self.reply=self.fact_reply;self.raw();self.organizer.run_once('a');old=self.facts()[0]
         self.reply=lambda p:{'version':1,'operations':[self.op(p,action='merge',target_id=old['id'],atom={'subject':'user','predicate':'home.city','value':'上海'})]}
-        self.raw('我住在上海。');self.organizer.run_once('a');self.assertEqual(len(self.facts()),1)
-        self.assertEqual(len(self.brains['a'].meta['organizer_candidates']),1)
+        self.raw('我住在上海。');self.organizer.run_once('a');self.assertEqual(len(self.facts()),2)
+        self.assertEqual(self.brains['a'].meta['organizer_candidates'],[])
+        recorded=next(n for n in self.facts() if n['meta'].get('attributed_material'))
+        self.assertEqual(recorded['text'],'我住在上海。')
+        self.assertEqual(recorded['meta']['memory_atom']['predicate'],'recorded_statement')
+        self.assertIsNone(old['valid_to'])
         self.reply=lambda p:{'version':1,'operations':[self.op(p,action='supersede',target_id=old['id'],atom={'subject':'user','predicate':'home.city','value':'上海'})]}
         self.raw('我现在住在上海。');self.organizer.run_once('a')
         self.assertIsNotNone(old['valid_to']);self.assertEqual(old['meta']['memory_atom']['valid_to'],old['valid_to'])
@@ -256,18 +274,18 @@ class OrganizerThresholdAtomTests(unittest.TestCase):
         self.transport_failed=False;self.organizer.retry(failed['job_id']);self.organizer.run_once('a',flush=False)
         self.assertEqual(len(self.calls),1);self.assertEqual(self.organizer.status('a')['jobs'][0]['status'],'aliased')
 
-    def test_user_review_keeps_a_failed_tool_observation_as_an_observation(self):
-        from nkb.organizer import review_candidate
+    def test_failed_tool_statement_keeps_its_actual_reported_outcome(self):
         brain=self.brains['a'];rid=brain.add('工具观察','权限不足',kind='episode',meta={'source':'tool_observation','outcome':'failed'})
         self.organizer.enqueue('a',[rid])
         self.reply=lambda p:{'version':1,'operations':[{'action':'candidate','layer':'fact','key':'browser.result','text':'浏览器返回权限不足',
             'domain':'real','certainty':'clear','evidence':[{'id':p['raw'][0]['id'],'role':'tool','quote':'权限不足'}],
             'atom':{'subject':'tool','predicate':'browser.result','value':'权限不足'}}]}
-        self.organizer.run_once('a');candidate=brain.meta['organizer_candidates'][0]
-        result=review_candidate(brain,candidate['id'],'accept');node=brain.nodes[result['node_id']]
+        result=self.organizer.run_once('a');self.assertEqual(result['result']['candidates'],[])
+        node=brain.nodes[result['result']['created'][0]]
         self.assertEqual(node['kind'],'episode');self.assertEqual(node['meta']['outcome'],'failed')
         self.assertEqual(node['meta']['memory_atom']['outcome'],'failed');self.assertEqual(node['meta']['memory_atom']['layer'],'experience')
-        self.assertIn('failed',node['text']);self.assertEqual(brain.nodes[rid]['text'],'权限不足')
+        self.assertEqual(node['text'],'权限不足');self.assertEqual(brain.nodes[rid]['text'],'权限不足')
+        self.assertEqual(node['meta']['memory_atom']['predicate'],'recorded_statement')
 
     def test_legacy_model_output_is_still_a_verbatim_machine_record(self):
         self.reply=lambda p:{'version':1,'operations':[{k:v for k,v in self.op(p).items() if k!='atom'}]}

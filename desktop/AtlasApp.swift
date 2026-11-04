@@ -31,6 +31,8 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
     private var smokeVersion = ""
     private var smokeSteps: [String] = []
     private var smokeFailure = ""
+    private var smokeHostReducedMotion: Bool?
+    private var smokeTestedMotionStates: [String] = []
     private let smokeSession = URLSession(configuration: .ephemeral)
     private var smokeReportURL: URL? {
         guard let index = CommandLine.arguments.firstIndex(of: "--smoke-report"), index + 1 < CommandLine.arguments.count else { return nil }
@@ -450,6 +452,8 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         let cleaned = !files.fileExists(atPath: smokeDirectory.path)
         let report: [String: Any] = ["ok": smokeExitCode == 0 && cleaned, "version": smokeVersion,
             "process_complete": process == nil, "stage": smokeStage, "steps": smokeSteps, "failure": smokeFailure,
+            "actual_host_reduce_motion": smokeHostReducedMotion.map { $0 as Any } ?? NSNull(),
+            "tested_synthetic_motion_states": smokeTestedMotionStates,
             "isolation": ["temporary_data": true, "data_removed": cleaned, "uses_user_data": false,
                           "real_provider_calls": false, "release_network": false],
             "startup_update_source": "synthetic_public_release_fixture"]
@@ -673,24 +677,51 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                 smokeSteps.append("viewport_zoom_reload_labels_fit_verified")
                 print("Native viewport controls: automatic view, manual zoom/reload, labels and fit verified")
                 let rotation = try await webView.callAsyncJavaScript("""
+                    const c=document.getElementById('cv'),art=document.getElementById('artCanvas');
+                    const originalMatchMedia=globalThis.matchMedia,motionQuery='(prefers-reduced-motion: reduce)';
+                    const actualHostReducedMotion=!!originalMatchMedia.call(globalThis,motionQuery).matches;
+                    const testedSyntheticMotionStates=[],oldPaused=S.paused,oldSelected=S.selected,oldHover=S.hover;
                     try {
                     if(!S.art||!artRenderer?.painter)throw new Error('Approved native atlas is unavailable');
-                    const c=document.getElementById('cv'),art=document.getElementById('artCanvas'),oldPaused=S.paused;
                     const wait=async(predicate)=>{const end=performance.now()+5000;while(!predicate()){if(performance.now()>end)throw new Error('Native atlas rotation did not settle '+JSON.stringify({reason:art.dataset.autoRotateReason,art:S.art,mode:S.graphMode,paused:S.paused,hidden:document.hidden}));await new Promise(r=>setTimeout(r,30));}};
-                    const pause=()=>new Promise(r=>setTimeout(r,350));S.paused=false;select(null);S.hover=S.nodes[0].id;
+                    const pause=()=>new Promise(r=>setTimeout(r,350));S.paused=false;select(null);S.hover=null;schedule();
+                    await wait(()=>art.dataset.autoRotateReason===(actualHostReducedMotion?'reduced-motion':'rotating'));
+                    const hostYaw=Number(art.dataset.autoRotateYaw);await pause();
+                    const hostPreferenceRespected=actualHostReducedMotion?Number(art.dataset.autoRotateYaw)===hostYaw:Number(art.dataset.autoRotateYaw)>hostYaw;
+                    if(!hostPreferenceRespected)throw new Error('Native system motion preference was not respected');
+                    // CI desktops may request reduced motion. Only this disposable
+                    // smoke probe controls this one media query; the real renderer,
+                    // frames and DOM handlers still exercise both preference states.
+                    let reduced=false;
+                    globalThis.matchMedia=function(query){
+                      const result=originalMatchMedia.apply(globalThis,arguments);
+                      return query===motionQuery?new Proxy(result,{get(target,key){const value=key==='matches'?reduced:Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;}}):result;
+                    };
+                    S.hover=S.nodes[0].id;
                     c.dispatchEvent(new PointerEvent('pointerenter',{pointerId:919,pointerType:'mouse',clientX:c.getBoundingClientRect().left+10,clientY:c.getBoundingClientRect().top+10}));schedule();
                     await wait(()=>art.dataset.autoRotateReason==='rotating');const before=Number(art.dataset.autoRotateYaw);await pause();
                     const hoverRotates=Number(art.dataset.autoRotateYaw)>before&&art.dataset.autoRotateHovered==='true';
-                    select(S.nodes[0].id);await wait(()=>art.dataset.autoRotateReason==='selected');const held=Number(art.dataset.autoRotateYaw);await pause();
+                    const row=document.querySelector('#nodeList .node-row');if(!row)throw new Error('Native node row missing');
+                    row.click();await wait(()=>!!S.selected&&art.dataset.autoRotateReason==='selected');const held=Number(art.dataset.autoRotateYaw);await pause();
                     const selectionStops=Math.abs(Number(art.dataset.autoRotateYaw)-held)<.000001;
                     select(null);await wait(()=>art.dataset.autoRotateReason==='rotating');const resume=Number(art.dataset.autoRotateYaw);await pause();
                     const resumes=Number(art.dataset.autoRotateYaw)>resume;
-                    S.hover=null;S.paused=oldPaused;c.dispatchEvent(new PointerEvent('pointerleave',{pointerId:919,pointerType:'mouse'}));schedule();
-                    return {painter:art.dataset.painter,hoverRotates,selectionStops,resumes};
-                    } catch(error) { return {nativeProbeFailure:String(error?.message||error),probe:'rotation'}; }
+                    if(!hoverRotates||!selectionStops||!resumes)throw new Error('Native hover, node selection or resume behavior failed');
+                    testedSyntheticMotionStates.push('no-preference');
+                    reduced=true;schedule();await wait(()=>art.dataset.autoRotateReason==='reduced-motion'&&art.dataset.autoRotate==='false');
+                    const reducedYaw=Number(art.dataset.autoRotateYaw);await pause();
+                    const reducedMotionRespected=Number(art.dataset.autoRotateYaw)===reducedYaw;
+                    if(!reducedMotionRespected)throw new Error('Native reduced-motion preference failed to stop rotation');
+                    testedSyntheticMotionStates.push('reduce');
+                    return {painter:art.dataset.painter,actualHostReducedMotion,hostPreferenceRespected,testedSyntheticMotionStates,hoverRotates,selectionStops,resumes,reducedMotionRespected};
+                    } catch(error) { return {nativeProbeFailure:String(error?.message||error),probe:'rotation',actualHostReducedMotion,testedSyntheticMotionStates}; }
+                    finally { globalThis.matchMedia=originalMatchMedia;select(oldSelected);c.dispatchEvent(new PointerEvent('pointerleave',{pointerId:919,pointerType:'mouse'}));S.hover=oldHover;S.paused=oldPaused;schedule(); }
                     """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                smokeHostReducedMotion = rotation?["actualHostReducedMotion"] as? Bool
+                smokeTestedMotionStates = rotation?["testedSyntheticMotionStates"] as? [String] ?? []
                 try requireSmoke(rotation?["nativeProbeFailure"] == nil, "Native rotation JavaScript: \(rotation?["nativeProbeFailure"] as? String ?? "unknown")")
                 try requireSmoke(rotation?["painter"] as? String == "approved-canvas" && rotation?["hoverRotates"] as? Bool == true && rotation?["selectionStops"] as? Bool == true && rotation?["resumes"] as? Bool == true, "Native atlas did not rotate on hover, suspend on selection and resume after deselection")
+                try requireSmoke(rotation?["hostPreferenceRespected"] as? Bool == true && rotation?["reducedMotionRespected"] as? Bool == true && smokeTestedMotionStates == ["no-preference", "reduce"], "Native system and synthetic motion preferences were not both verified")
                 print("Native viewport: sparse four-node close view; manual zoom survives real graph reload; fit restores auto; node labels toggle without writes")
                 smokeSteps.append("approved_atlas_rotation_selection_hover_and_viewport")
                 smokeStage = 5

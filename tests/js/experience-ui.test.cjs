@@ -3,6 +3,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const source=fs.readFileSync(path.join(__dirname,'../../nkb/viz/web/experience-ui.js'),'utf8');
+const pageSource=fs.readFileSync(path.join(__dirname,'../../nkb/viz/web/index.html'),'utf8');
 const plain=x=>JSON.parse(JSON.stringify(x));
 class Element{
  constructor(tag){this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.attributes={};this.events={};this.style={};this.disabled=false;this.hidden=false;this.open=false;this.textContent='';const classes=new Set();this.classList={add:name=>classes.add(name),contains:name=>classes.has(name)};}
@@ -119,4 +120,16 @@ test('network failure and rejected entries remain explicit, without false empty-
 
 test('showing raw tool evidence only changes presentation, never stored memory or model calls',async()=>{
  const c=context();await c.open();const toggle=c.get('experienceShowRawTools');assert.equal(toggle.checked,false);toggle.checked=true;toggle.onchange();assert.equal(c.S.memoryDisplay,'all');assert.deepEqual(c.presentation,[true]);assert.equal(c.calls.length,1);toggle.checked=false;toggle.onchange();assert.equal(c.S.memoryDisplay,'memories');assert.equal(c.calls.length,1);
+});
+
+test('the actual page keyboard handler leaves every modal Escape to cancel, preserving background and return focus',async()=>{
+ const c=context(),origin=c.get('experienceLibraryBtn');let focused=0;origin.isConnected=true;origin.closest=()=>null;origin.focus=()=>{focused++;};c.ctx.document.activeElement=origin;
+ c.ctx.document.querySelector=selector=>selector==='dialog[open]'?all(c.body).find(n=>n.tagName==='DIALOG'&&n.open)||null:null;
+ let keydown;c.ctx.document.addEventListener=(name,handler)=>{if(name==='keydown')keydown=handler;};c.ctx.$=selector=>c.get(selector.slice(1));c.ctx.PANELS={background:'unused'};
+ const background=new Element('aside');background.id='background';background.hidden=false;c.body.append(background);
+ const start=pageSource.lastIndexOf("document.addEventListener('keydown',e=>{");const end=pageSource.indexOf('new ResizeObserver(',start);assert(start>=0&&end>start);vm.runInNewContext(pageSource.slice(start,end),c.ctx);
+ await c.open();const event={key:'Escape',preventDefault(){this.prevented=true;}};keydown(event);assert.equal(event.prevented,undefined);assert.equal(c.panels.length,0);assert.equal(background.hidden,false);
+ const dialog=c.get('experienceTimelineDialog');dialog.events.cancel({});dialog.close();dialog.events.close({});assert.equal(dialog.open,false);assert.equal(focused,1,'native cancel restores the still-visible origin');assert.equal(c.panels.length,0);
+ const second={key:'Escape',preventDefault(){this.prevented=true;}};keydown(second);assert.deepEqual(c.panels.at(-1),['background',false]);assert.equal(second.prevented,true,'outside a modal the existing background shortcut remains');
+ c.ctx.document.activeElement={tagName:'INPUT'};const count=c.panels.length;keydown({key:'n',preventDefault(){throw Error('typing must not navigate');}});assert.equal(c.panels.length,count);
 });

@@ -1,5 +1,6 @@
 """UI component packaging and behavior, without external dependencies or API calls."""
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -35,7 +36,10 @@ class ButtonHintsTests(unittest.TestCase):
         script=Path(__file__).parent/'js/button-hints.test.cjs'
         result=subprocess.run([shutil.which('node'),'--test','--test-reporter=tap',str(script)],capture_output=True,text=True,timeout=15)
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
-        self.assertIn('# pass 4',result.stdout)
+        counts=re.findall(r'^# pass (\d+)$',result.stdout,re.MULTILINE)
+        self.assertEqual(len(counts),1,result.stdout)
+        self.assertGreaterEqual(int(counts[0]),4,result.stdout)
+        self.assertRegex(result.stdout,r'(?m)^# fail 0$')
 
 
 if __name__=='__main__':unittest.main()

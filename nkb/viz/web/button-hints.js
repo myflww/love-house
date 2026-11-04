@@ -59,8 +59,8 @@
     reloadPersonaBtn: hint('重新读取人格', '放弃当前未保存的编辑，读取已保存的人格版本。'),
     refreshActivityBtn: hint('刷新存档', '重新检查当前库实际收到的记录，不会调用聊天模型。'),
     previewOrganizer: hint('预览整理范围', '只查看本批原文数量和来源，不调用整理模型。'),
-    runOrganizer: hint('立即整理', '将待处理记录交给已启用的整理模型，仍遵守用量预算。'),
-    saveOrganizerSettings: hint('保存整理设置', '保存整理模型、处理节奏和预算，不会补写虚构记忆。'),
+    runOrganizer: hint('立即整理', '将待处理记录交给已启用的整理模型；按实际用量计费，失败任务保留进度继续重试。'),
+    saveOrganizerSettings: hint('保存整理设置', '保存当前库的模型、处理节奏和启用开关；上下文与输出留空时使用模型最高能力。'),
     createBackup: hint('创建备份', '保存当前库及其原始档案，不包含模型密钥或活动连接。'),
     confirmRestoreBackup: hint('恢复为新库', '从这份备份创建独立的新库，原记忆库与连接保持原样。'),
     confirmCorrectMemory: hint('保存纠正', '新建正确内容并停用旧记忆，保留原话便于追溯。'),
@@ -148,7 +148,7 @@
     const tip = document.createElement('div');
     tip.id = TIP_ID; tip.hidden = true; tip.setAttribute('role', 'tooltip');
     document.body.append(tip);
-    let current = null, timer = null, described = null, keyboard = true;
+    let current = null, timer = null, described = null, keyboard = true, suppressHover = false, clickedPoint = null;
     function rememberTitle(control) {
       if (control.hasAttribute('title')) {
         nativeTitles.set(control, clean(control.getAttribute('title')));
@@ -208,14 +208,31 @@
       hide(); rememberTitle(control); current = control;
       timer = setTimeout(() => {timer = null; if (current === control) show(control);}, delay);
     }
-    document.addEventListener('pointermove', event => {if (event.pointerType !== 'touch') schedule(targetOf(event), HOVER_DELAY);}, true);
-    document.addEventListener('pointerover', event => {if (event.pointerType !== 'touch') schedule(targetOf(event), HOVER_DELAY);}, true);
+    function pointerHelp(control) {
+      if (!control) return false;
+      if (control.disabled || control.getAttribute('aria-disabled') === 'true') return true;
+      // Text-labelled actions explain themselves. Keep hover help for symbols,
+      // while keyboard focus can still reveal a detailed description.
+      if (control.classList?.contains('node-row') || control.classList?.contains('neighbor-row')) return false;
+      if (control.classList?.contains('icon-btn')) return true;
+      if (control.classList?.contains('pixel-icon-only') && !control.classList?.contains('workspace-nav') && !control.classList?.contains('workspace-tool')) return true;
+      return !/[\p{L}\p{N}]/u.test(clean(control.textContent,80));
+    }
+    document.addEventListener('pointermove', event => {
+      if (event.pointerType === 'touch') return;
+      if (suppressHover) {
+        if (clickedPoint && Number.isFinite(event.clientX) && Number.isFinite(event.clientY) && Math.hypot(event.clientX-clickedPoint.x,event.clientY-clickedPoint.y)<5) return;
+        suppressHover=false;
+      }
+      const control=targetOf(event);if (pointerHelp(control)) schedule(control,HOVER_DELAY);else hide();
+    }, true);
+    document.addEventListener('pointerover', event => {if (event.pointerType !== 'touch' && !suppressHover) {const control=targetOf(event);if(pointerHelp(control))schedule(control,HOVER_DELAY);else hide();}}, true);
     document.addEventListener('pointerout', event => {if (!event.relatedTarget?.closest?.(SELECTOR) || event.relatedTarget.closest(SELECTOR) !== current) hide();}, true);
     document.addEventListener('focusin', event => {if (keyboard) schedule(event.target?.closest?.(SELECTOR), 0); else hide();}, true);
     document.addEventListener('focusout', hide, true);
-    document.addEventListener('pointerdown', () => {keyboard = false; hide();}, true);
-    document.addEventListener('click', hide, true);
-    document.addEventListener('keydown', event => {keyboard = true; if (event.key === 'Escape') {if (!tip.hidden || timer !== null) {hide(); event.preventDefault(); event.stopPropagation();}} else schedule(document.activeElement?.closest?.(SELECTOR), 0);}, true);
+    document.addEventListener('pointerdown', event => {keyboard=false;suppressHover=true;clickedPoint=Number.isFinite(event.clientX)&&Number.isFinite(event.clientY)?{x:event.clientX,y:event.clientY}:null;hide();},true);
+    document.addEventListener('click', () => {suppressHover=true;hide();}, true);
+    document.addEventListener('keydown', event => {keyboard=true;suppressHover=false; if (event.key === 'Escape') {if (!tip.hidden || timer !== null) {const modal=current?.closest?.('dialog[open]');hide();if(!modal){event.preventDefault();event.stopPropagation();}}} else schedule(document.activeElement?.closest?.(SELECTOR), 0);}, true);
     document.addEventListener('scroll', hide, true);
     window.addEventListener('resize', hide);
     window.addEventListener('blur', hide);

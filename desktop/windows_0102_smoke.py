@@ -1,6 +1,7 @@
 """Real WebView2 acceptance on disposable libraries; never calls a real model."""
 import json
 import threading
+from workspace_smoke import CONTROL_HELPER
 
 EXPECTED={'status':'passed','astrbot_setup':'passed','organizer_api_status':'passed',
           'library_isolation':'passed','nebula_left_rotation':'passed',
@@ -35,7 +36,7 @@ class Release0102Failure(AssertionError):
         self.motion_diag=safe_motion_diagnostic(motion_diag)
         super().__init__(self.code)
 
-SCRIPT=r"""
+SCRIPT=CONTROL_HELPER+r"""
 const original=S.libraryId,by=id=>document.getElementById(id);
 const originalMatchMedia=globalThis.matchMedia,motionQuery='(prefers-reduced-motion: reduce)';
 const motionReasons=['idle','rotating','disabled','hidden','paused','reduced-motion','flat','transition','interaction','hover','selected'];
@@ -51,8 +52,8 @@ let paid=0;const originalApi=api;
 api=async function(route,...args){if(['organizer/run','persona/organize','sharing/summary'].includes(route)){paid++;throw Error('paid_request');}return originalApi(route,...args);};
 try{
  await selectMemoryLibrary(TEST_GRAPH_LIBRARY);
- if(S.graphMode!=='nebula'){by('viewBtn').click();await wait(()=>S.graphMode==='nebula'&&!artRenderer.isTransitioning(),'rotation_ready');}
- if(S.paused)by('pauseBtn').click();
+ if(S.graphMode!=='nebula'){await nativeClick('viewBtn');await wait(()=>S.graphMode==='nebula'&&!artRenderer.isTransitioning(),'rotation_ready');}
+ if(S.paused)await nativeClick('pauseBtn');
  const cv=by('cv'),art=by('artCanvas');
  // A library reload seeds 110 existing host-physics steps. They legitimately
  // move UI x/y independently of the approved renderer; snapshot after settling.
@@ -78,7 +79,7 @@ try{
   const hovered=Number(art.dataset.autoRotateYaw);await sleep(300);
   check(Number(art.dataset.autoRotateYaw)>hovered,'rotation_hover_continues');
   const selectedRow=by('nodeList').querySelector('.node-row');
-  check(!!selectedRow,'rotation_selected');selectedRow.click();
+  check(!!selectedRow,'rotation_selected');if(!nativeVisible(selectedRow))await nativeClick('menuBtn');selectedRow.scrollIntoView({block:'nearest'});check(nativeVisible(selectedRow),'rotation_selected');selectedRow.click();
   await wait(()=>art.dataset.autoRotateReason==='selected','rotation_selected');
   const stopped=Number(art.dataset.autoRotateYaw);await sleep(300);
   check(Number(art.dataset.autoRotateYaw)===stopped,'rotation_selected_stable');

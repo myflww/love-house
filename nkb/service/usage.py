@@ -10,7 +10,9 @@ from contextlib import contextmanager
 import math
 import os
 from pathlib import Path
+import json
 import re
+import secrets
 import sqlite3
 import threading
 import time
@@ -19,7 +21,7 @@ from weakref import WeakValueDictionary
 from ..errors import StorageError, ValidationError
 
 DAY = 86400
-KINDS = frozenset({"recall", "mention"})
+KINDS = frozenset({"recall", "mention", "cited", "confirmed"})
 _LIBRARY_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 _MAX_BATCH = 1000
 _LOCKS_GUARD = threading.Lock()
@@ -47,7 +49,7 @@ def _library(value):
 
 def _kind(value):
     if not isinstance(value, str) or value not in KINDS:
-        raise ValidationError("记忆使用类型只能是 recall 或 mention")
+        raise ValidationError("记忆使用类型只能是 recall、mention、cited 或 confirmed")
     return value
 
 
@@ -85,11 +87,22 @@ class UsageJournal:
         self.clock = clock or time.time
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         with self.db() as db:
+            old=db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='memory_usage'").fetchone()
+            if old is not None and "'cited'" not in old[0]:
+                db.execute('ALTER TABLE memory_usage RENAME TO memory_usage_v1')
+                db.execute('DROP INDEX IF EXISTS memory_usage_pending')
+                db.execute("""CREATE TABLE memory_usage (
+                    library_id TEXT NOT NULL,node_id TEXT NOT NULL,kind TEXT NOT NULL
+                    CHECK(kind IN ('recall','mention','cited','confirmed')),
+                    last_at REAL NOT NULL,last_day INTEGER NOT NULL,pending_at REAL,
+                    pending_day INTEGER,applied_at REAL,PRIMARY KEY(library_id,node_id,kind))""")
+                db.execute('INSERT INTO memory_usage SELECT * FROM memory_usage_v1')
+                db.execute('DROP TABLE memory_usage_v1')
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS memory_usage (
                     library_id TEXT NOT NULL,
                     node_id TEXT NOT NULL,
-                    kind TEXT NOT NULL CHECK(kind IN ('recall','mention')),
+                    kind TEXT NOT NULL CHECK(kind IN ('recall','mention','cited','confirmed')),
                     last_at REAL NOT NULL,
                     last_day INTEGER NOT NULL,
                     pending_at REAL,
@@ -99,7 +112,19 @@ class UsageJournal:
                 );
                 CREATE INDEX IF NOT EXISTS memory_usage_pending
                     ON memory_usage(library_id,pending_at) WHERE pending_at IS NOT NULL;
+                CREATE TABLE IF NOT EXISTS memory_deliveries (
+                    id TEXT PRIMARY KEY,library_id TEXT NOT NULL,connection_id TEXT NOT NULL,
+                    session_id TEXT NOT NULL,node_ids TEXT NOT NULL,issued_at REAL NOT NULL,expires_at REAL NOT NULL,
+                    binding_revision INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE INDEX IF NOT EXISTS memory_delivery_expiry ON memory_deliveries(expires_at);
+                CREATE TABLE IF NOT EXISTS memory_feedback (
+                    delivery_id TEXT NOT NULL,node_id TEXT NOT NULL,kind TEXT NOT NULL,
+                    PRIMARY KEY(delivery_id,node_id,kind)
+                );
             """)
+            if 'binding_revision' not in {row[1] for row in db.execute('PRAGMA table_info(memory_deliveries)')}:
+                db.execute('ALTER TABLE memory_deliveries ADD COLUMN binding_revision INTEGER NOT NULL DEFAULT 0')
         self.path.chmod(0o600)
 
     @contextmanager
@@ -205,7 +230,91 @@ class UsageJournal:
             else:
                 db.executemany("DELETE FROM memory_usage WHERE library_id=? AND node_id=?",
                                [(library_id, nid) for nid in ids])
-            return db.total_changes - before
+            removed=db.total_changes-before
+            # A forgotten ID may never be accepted later through a stale ticket.
+            deliveries=db.execute('SELECT id,node_ids FROM memory_deliveries WHERE library_id=?',(library_id,)).fetchall()
+            for delivery in deliveries:
+                if ids is None or set(json.loads(delivery['node_ids']))&set(ids):
+                    db.execute('DELETE FROM memory_feedback WHERE delivery_id=?',(delivery['id'],))
+                    db.execute('DELETE FROM memory_deliveries WHERE id=?',(delivery['id'],))
+            return removed
+
+    def issue_delivery(self, library_id, connection_id, session_id, node_ids, *, binding_revision=0, at=None):
+        """A short-lived metadata receipt is not a grant of access or model-use proof."""
+        library_id,ids=_library(library_id),_node_ids(node_ids)
+        for value in (connection_id,session_id):
+            if not isinstance(value,str) or not value.strip() or len(value)>200:
+                raise ValidationError('记忆回执需要已授权的连接和窗口')
+        stamp=_stamp(self.clock() if at is None else at)
+        if type(binding_revision) is not int or binding_revision<0:raise ValidationError('连接绑定版本无效')
+        delivery={'id':'delivery_'+secrets.token_urlsafe(24),'library_id':library_id,
+                  'connection_id':connection_id,'session_id':session_id,'node_ids':ids,
+                  'issued_at':stamp,'expires_at':stamp+DAY,'binding_revision':binding_revision}
+        with self.db() as db:
+            db.execute('DELETE FROM memory_feedback WHERE delivery_id IN (SELECT id FROM memory_deliveries WHERE expires_at<=?)',(stamp,))
+            db.execute('DELETE FROM memory_deliveries WHERE expires_at<=?',(stamp,))
+            db.execute('INSERT INTO memory_deliveries VALUES(?,?,?,?,?,?,?,?)',
+                       (delivery['id'],library_id,connection_id,session_id,json.dumps(ids),stamp,stamp+DAY,binding_revision))
+        return delivery
+
+    def delivery(self, identifier, library_id, connection_id, session_id, *, binding_revision=None, at=None):
+        library_id=_library(library_id)
+        if not isinstance(identifier,str) or not 1<=len(identifier)<=100:
+            raise ValidationError('记忆回执无效或已过期')
+        stamp=_stamp(self.clock() if at is None else at)
+        with self.db() as db:
+            row=db.execute('SELECT * FROM memory_deliveries WHERE id=? AND library_id=? AND connection_id=? AND session_id=? AND expires_at>?',
+                           (identifier,library_id,connection_id,session_id,stamp)).fetchone()
+        if row is None or binding_revision is not None and row['binding_revision']!=binding_revision:
+            raise ValidationError('记忆回执无效、已过期或不属于当前窗口绑定')
+        result=dict(row);result['node_ids']=_node_ids(json.loads(result['node_ids']))
+        return result
+
+    def latest_delivery(self, library_id, connection_id, *, binding_revision=None):
+        library_id=_library(library_id)
+        with self.db() as db:
+            row=db.execute('SELECT * FROM memory_deliveries WHERE library_id=? AND connection_id=? AND expires_at>? ORDER BY issued_at DESC,id DESC LIMIT 1',
+                           (library_id,connection_id,_stamp(self.clock()))).fetchone()
+        if row is None or binding_revision is not None and row['binding_revision']!=binding_revision:return None
+        result=dict(row);result['node_ids']=_node_ids(json.loads(result['node_ids']))
+        return result
+
+    def feedback(self, identifier, library_id, connection_id, session_id, ids, kind, *,
+                 verified_cited_ids=(), management=False, binding_revision=None, at=None):
+        """Only the host may supply verified IDs or explicit management authority.
+
+        These keyword arguments must never be populated from a request body.
+        Scope/authentication and citation verification are separate host checks.
+        """
+        ids=_node_ids(ids)
+        if kind not in ('cited','confirmed') or kind=='confirmed' and management is not True:
+            raise ValidationError('用户确认仅可由本机管理操作提交')
+        stamp=_stamp(self.clock() if at is None else at)
+        receipt=self.delivery(identifier,library_id,connection_id,session_id,binding_revision=binding_revision,at=stamp)
+        if not ids or not set(ids)<=set(receipt['node_ids']):
+            raise ValidationError('只能反馈本窗口这次实际提供的记忆')
+        if kind=='cited' and not set(ids)<=set(verified_cited_ids):
+            raise ValidationError('缺少已归档回复中的可核引用')
+        # Keep the feedback marker and the durable pending use in one transaction.
+        with self.db() as db:
+            current=db.execute('SELECT binding_revision FROM memory_deliveries WHERE id=? AND library_id=? AND connection_id=? AND session_id=? AND expires_at>?',
+                              (identifier,library_id,connection_id,session_id,stamp)).fetchone()
+            if current is None or binding_revision is not None and current['binding_revision']!=binding_revision:
+                raise ValidationError('记忆回执已失效')
+            added=[]
+            for nid in ids:
+                cursor=db.execute('INSERT OR IGNORE INTO memory_feedback VALUES(?,?,?)',(identifier,nid,kind))
+                if cursor.rowcount:added.append(nid)
+            day=int(stamp//DAY)
+            for nid in added:
+                db.execute('''INSERT INTO memory_usage(library_id,node_id,kind,last_at,last_day,pending_at,pending_day)
+                    VALUES(?,?,?,?,?,?,?) ON CONFLICT(library_id,node_id,kind) DO UPDATE SET
+                    last_at=excluded.last_at,last_day=excluded.last_day,pending_at=excluded.pending_at,pending_day=excluded.pending_day
+                    WHERE excluded.last_day>memory_usage.last_day AND excluded.last_at-memory_usage.last_at>=?''',
+                    (library_id,nid,kind,stamp,day,stamp,day,DAY))
+        return {'accepted':True,'kind':kind,'recorded_ids':added,'duplicate_ids':[nid for nid in ids if nid not in added],
+                'evidence':'archived_reply_reference' if kind=='cited' else 'explicit_user_feedback',
+                'model_adoption_verified':False}
 
     def discard(self, library_id, node_ids):
         """Drop metadata only for IDs the caller proved deleted/unavailable.

@@ -176,8 +176,8 @@ def record_memory_use(brain, ids, *, kind="recall", now=None):
     profile assertions, source text, IDs in another library or arbitrary code
     are introduced here. Stale events never move reinforcement time backwards.
     """
-    if kind not in ("recall", "mention"):
-        raise ValidationError("使用类型须为 recall 或 mention")
+    if kind not in ("recall", "mention", "cited", "confirmed"):
+        raise ValidationError("使用类型须为 recall、mention、cited 或 confirmed")
     if not isinstance(ids, (list, tuple)) or len(ids) > MAX_USE_IDS or any(not isinstance(i, str) or not i or len(i)>200 for i in ids):
         raise ValidationError("一次最多提交128个本库存档记忆ID")
     ts = _now() if now is None else now
@@ -206,7 +206,8 @@ def record_memory_use(brain, ids, *, kind="recall", now=None):
                 or not brain._node_state(node, ts)["recoverable"]):
             skipped.append(requested);continue
         saved = _usage(node)
-        fields=('last_recall_at','last_mention_at','recall_count','mention_count','base_at','base_salience',
+        fields=('last_recall_at','last_mention_at','recall_count','mention_count',
+                'last_cited_at','last_confirmed_at','cited_count','confirmed_count','base_at','base_salience',
                 'prior_reinforced_at','older')
         usage = {key:deepcopy(saved[key]) for key in fields if key in saved}
         if isinstance(saved.get('traces'),list):usage['traces']=deepcopy(saved['traces'][-MAX_TRACES:])
@@ -214,12 +215,16 @@ def record_memory_use(brain, ids, *, kind="recall", now=None):
         if _finite(last) and (ts <= last or ts-last < DAY
                 or _day(last) == day):
             skipped.append(requested);continue
-        previous = [v for v in (usage.get("last_recall_at"),usage.get("last_mention_at"),node.get("created"))
+        previous = [v for v in (usage.get('last_'+level+'_at') for level in ('recall','mention','cited','confirmed'))
                     if _finite(v) and v <= ts]
+        previous.append(node.get('created',ts))
         spacing_days = max(0.0, ts-max(previous or [ts])) / DAY
         # Spaced practice has bounded additional weight; it never weakens
         # unrelated memories merely because many other messages arrived.
         weight = 0.75 + min(1.25, math.log1p(spacing_days) / 2)
+        # Delivery proves availability, not adoption. Explicit human feedback
+        # is strongest; archived citations prove only an observable reference.
+        weight *= {'recall':0.2,'mention':1.0,'cited':1.35,'confirmed':1.8}[kind]
         if not usage.get("traces") and "prior_reinforced_at" not in usage:
             prior=node.get("reinforced")
             if _finite(prior) and prior > node.get("created",prior):usage["prior_reinforced_at"]=prior
@@ -229,7 +234,8 @@ def record_memory_use(brain, ids, *, kind="recall", now=None):
         count=usage.get(kind+"_count",0)
         usage[kind+"_count"]=min(1000000000,count+1) if type(count) is int and count>=0 else 1
         usage["last_"+kind+"_at"]=ts
-        usage["evidence"]="delivered_retrieval" if kind=="recall" else "lexical_remention"
+        usage["evidence"]={'recall':'delivered_retrieval','mention':'lexical_remention',
+                           'cited':'archived_reply_reference','confirmed':'explicit_user_feedback'}[kind]
         _practice_trace(usage, ts, weight, kind)
         node.setdefault("meta",{})["memory_usage"]=usage
         node["reinforced"] = max(node.get("reinforced",ts), ts)

@@ -13,6 +13,7 @@ from .model import OrganizerConflict, OrganizerError
 from .atoms import normalize_atom,make_atom,atom_signature,source_references,evidence_event_at
 from .rules import RULES_VERSION, PERSONA_RULES_VERSION, SYSTEM_GUIDANCE, runtime_policy
 from .experiences import normalize_episode,episode_key,episode_conflicts,make_experience,merge_experience,render_experience,SCHEMA as EXPERIENCE_SCHEMA
+from ..retrieval.session import prepare_recall, PreparedRecall
 
 LAYERS = {"fact": "fact", "preference": "preference", "experience": "episode", "commitment": "commitment", "persona": None}
 ACTIONS = {"remember", "merge", "supersede", "relate", "candidate"}
@@ -866,34 +867,89 @@ def review_candidate(brain, candidate_id, action):
     return {"id": candidate_id, "node_id": nid, "status": "accepted"}
 
 
-def semantic_recall(brain, query, k=8, **kwargs):
-    """Read-only semantic aliases supplement lexical retrieval, with explicit match provenance."""
-    from ..companion.dedup import is_duplicate
-    data = deepcopy(brain.to_dict())
-    data["nodes"] = {nid:n for nid,n in data["nodes"].items() if not disabled(n) and not is_duplicate(n,brain)}
-    data["edges"] = {key:e for key,e in data["edges"].items() if all(i in data["nodes"] for i in key.split("|",1))}
-    brain = Brain(data)
-    base = brain.recall(query, k=k, **kwargs)
+def semantic_recall(brain, query, k=8, *, prepared=None, **kwargs):
+    """Scoped read-only retrieval with conservative time cues and alias evidence.
+
+    A prepared object may be shared by the two lanes of one context request.
+    Every call rechecks live eligibility and encoding inputs; it never caches a
+    previous response or treats time words as permission to recover old facts.
+    """
+    from ..retrieval.query import plan_query, topic_alias_match, source_event_time
+    if not isinstance(query, str) or not query.strip():
+        raise ValidationError('查询内容不能为空')
+    if prepared is not None and (not isinstance(prepared, PreparedRecall) or prepared.brain is not brain):
+        raise ValidationError('召回准备资料不属于当前记忆库')
+    prepared = prepared or prepare_recall(brain)
+    stamp = now() if kwargs.get('as_of') is None else kwargs['as_of']
+    # Keep the core's validation of explicit timestamps, including bool/NaN.
+    stamp = brain._number(stamp, 'as_of')
+    plan = plan_query(query, stamp)
+    candidates = kwargs.pop('candidate_ids', None)
+    if candidates is not None and (not isinstance(candidates, (set, frozenset, list, tuple))
+                                   or any(not isinstance(i, str) for i in candidates)):
+        raise ValidationError('candidate_ids必须是本图节点ID集合')
+    if plan.needs_clarification or plan.invalid_date:
+        return {'query': query, 'hits': [], 'steps': kwargs.get('steps', brain.config.steps),
+                'seeds': [], 'trail': [], 'visited': 0, 'semantic_expansions': [],
+                'query_understanding': plan.public(),
+                'note': '请补充要回忆的话题或有效日期，未猜测你指的是哪段经历'}
+    view, selected_ids = prepared.view(candidates, plan=plan)
+    options = {**kwargs, 'as_of': stamp, 'candidate_ids': selected_ids}
+    search = plan.search
+    count = max(k, k * 3) if plan.intent in ('recent', 'historical') else k
+    base = view.recall(search, k=count, **options)
+    base['query'] = query
     hits = {h["id"]: h for h in base["hits"]}
-    expansions = []
-    qv = brain.encoder(query)
-    for node in brain.export()["nodes"]:
+    matches = []
+    qv = set(brain.encoder(search.casefold()))
+    for nid in selected_ids:
+        node = brain.get(nid)
         metadata = node.get("meta", {})
-        if metadata.get("source") != "organizer" or disabled(node) or not node.get("recoverable"):
+        if metadata.get('source') != 'organizer' or not brain._node_state(node, stamp)['recoverable']:
             continue
-        if kwargs.get('candidate_ids') is not None and node['id'] not in kwargs['candidate_ids']:
-            continue
-        terms = [term for term in metadata.get("organizer_aliases", [])
-                 if term in query or dice(set(qv), set(brain.encoder(term))) >= .35]
-        if not terms: continue
-        expanded = brain.recall(query + " " + node["label"] + " " + node["text"][:180], k=k, **kwargs)
+        aliases = metadata.get('organizer_aliases', [])
+        aliases = aliases if isinstance(aliases, list) else []
+        terms, weight = [], 0.0
+        for term in aliases:
+            if not isinstance(term, str) or not term.strip():
+                continue
+            exact = term.casefold() in search.casefold()
+            score = 1.0 if exact else max(.8 if topic_alias_match(search, term) else 0,
+                                         dice(qv, set(brain.encoder(term.casefold()))))
+            if exact or score >= .35:
+                terms.append(term)
+                weight = max(weight, score)
+        if terms:
+            matches.append((weight, nid, terms))
+    # Strongest alias evidence wins over graph insertion order. Combining at
+    # most four matching aliases needs one extra recall, rather than four full
+    # graph copies/exports/scans. This is a query budget, never a storage limit.
+    matches.sort(key=lambda item: (-item[0], item[1]))
+    expansions = [{'memory_id': nid, 'terms': terms} for _, nid, terms in matches[:4]]
+    if expansions:
+        material = ' '.join(brain.get(item['memory_id'])['label'] + ' ' + brain.get(item['memory_id'])['text'][:180]
+                            for item in expansions)
+        expanded = view.recall(search + ' ' + material, k=count, **options)
         for h in expanded["hits"]:
             if h["id"] not in hits:
-                hits[h["id"]] = {**h, "semantic_match": {"terms": terms, "memory_id": node["id"],
-                                                        "evidence_ids": [e["id"] for e in metadata.get("organizer_evidence", [])]}}
-        expansions.append({"memory_id": node["id"], "terms": terms})
-        if len(expansions) >= 4: break
-    selected = sorted(hits.values(), key=lambda h: -h["score"])[:k]
+                match = next((item for item in expansions if item['memory_id'] in h.get('path', [])), None)
+                match = match or next((item for item in expansions if item['memory_id'] == h['id']), expansions[0])
+                metadata = brain.get(match['memory_id']).get('meta', {})
+                hits[h["id"]] = {**h, 'semantic_match': {**match,
+                    'evidence_ids': [e['id'] for e in metadata.get('organizer_evidence', []) if isinstance(e, dict) and isinstance(e.get('id'), str)]}}
+    def rank(hit):
+        node = brain.get(hit['id'])
+        event = source_event_time(node)
+        known = (type(event) in (int, float) and 0 <= event <= stamp
+                 and not node.get('meta', {}).get('source_time_unknown'))
+        bonus = 0.0
+        if known and plan.intent in ('recent', 'historical'):
+            age = max(0, stamp - event) / 86400
+            recent = 1 / (1 + age / 7)
+            bonus = .12 * (recent if plan.intent == 'recent' else 1 - recent)
+            hit['temporal_match'] = {'intent': plan.intent, 'event_at': event, 'ranking_only': True}
+        return (-hit['score'] - bonus, -hit['score'])
+    selected = sorted(hits.values(), key=rank)[:k]
     for hit in selected:
         node = brain.get(hit["id"])
         metadata = node.get("meta", {})
@@ -902,7 +958,7 @@ def semantic_recall(brain, query, k=8, **kwargs):
                                 "evidence":deepcopy(metadata.get("organizer_evidence",[])),
                                 "valid_from":node.get("valid_from"), "valid_to":node.get("valid_to"),
                                 "current":node.get("valid_to") is None}
-    return {**base, "hits": selected, "semantic_expansions": expansions}
+    return {**base, "hits": selected, "semantic_expansions": expansions, 'query_understanding': plan.public()}
 
 
 def forget_plan_data(brain, raw_ids, node_ids=None):

@@ -302,7 +302,7 @@ verify.onclick=async()=>{
  else guideNotice.textContent=c.archive_status==='automatic_connected'?'已收到完整对话，记忆正在保存到“'+libraryName(c.library_id)+'”。':'还没收到完整对话。请回聊天窗口发消息并等 AI 回复；这里不会主动调用付费模型。';
 };
 openTarget.onclick=()=>{const id=(MEMORY.config&&MEMORY.config.connection&&MEMORY.config.connection.library_id);if(id)selectMemoryLibrary(id);};
-by('emptyAction').onclick=()=>{setPanelOpen('aiPanel',true);memoryTab('connect');if(!MEMORY.connections.some(c=>c.library_id===S.libraryId&&!c.revoked))openWizard();};
+by('emptyAction').onclick=()=>{if(S.mode==='error'){location.reload();return;}if(S.nodes.length){resetFilters();return;}if(!canManageMemory()||MEMORY.busy||writeBusy||S.libraryChanging){toast(writeBlockedReason());return;}setPanelOpen('aiPanel',true,{focus:false});memoryTab('connect');openWizard();};
 window.LoveHouseConnect={open:openWizard};
 renderConnections();
 })();

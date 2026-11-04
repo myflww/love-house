@@ -16,32 +16,34 @@
 
 | 系统 | 最新版本 | 下载 | 系统要求 |
 |---|---|---|---|
-| Windows x64 | **0.10.3rc1 · 完整发行包** | [安装版 EXE](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/LoveHouse-Setup-0.10.3rc1-Windows-x64.exe) · [便携版 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/LoveHouse-0.10.3rc1-Windows-x64.zip) | Intel / AMD 64 位；Windows 10 2004（19041）及以上或 Windows 11 |
-| macOS | **0.10.3rc1 · 完整更新** | [下载 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/LoveHouse-0.10.3rc1-macOS-arm64.zip) | Apple Silicon（M 系列）；macOS 13.0+ |
+| Windows x64 | **0.10.4rc1 · 完整预发布** | [安装版 EXE](https://github.com/myflww/love-house/releases/download/v0.10.4rc1/LoveHouse-Setup-0.10.4rc1-Windows-x64.exe) · [便携版 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.4rc1/LoveHouse-0.10.4rc1-Windows-x64.zip) | Intel / AMD 64 位；目标为 Windows 10 2004（19041）及以上或 Windows 11 |
+| macOS | **0.10.4rc1 · 完整预发布** | [下载 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.4rc1/LoveHouse-0.10.4rc1-macOS-arm64.zip) | Apple Silicon（M 系列）；macOS 13.0+ |
 | Android | **0.8.0rc2 · 预览版** | [下载 APK](https://github.com/myflww/love-house/releases/download/v0.8.0rc2/LoveHouse-0.8.0rc2-Android.apk) | Android 8.0+；保持系统 WebView 更新 |
 | iPhone | **0.8.0rc2 · 主屏幕版** | [打开网页版](https://love-house-mobile-myflww.haixiac34.chatgpt.site) | iOS 15.4+；Safari 打开 → 分享 → 添加到主屏幕 |
 
-Windows 0.10.3rc1 提供完整安装版和便携版，本轮验证范围见发布说明。iPhone 使用 PWA 网页应用，无需下载 IPA。目前没有 macOS Intel、Windows ARM64／32 位或 Linux 桌面安装包。
+0.10.4rc1 为完整预发布，两端分别完成本轮 CI 构建与原生运行检查，具体范围见下方说明。发布资产上传与下载状态以发布页为准；Windows 10 是支持目标，不代表全部系统已实测。
+
+iPhone 使用 PWA 网页应用，无需下载 IPA。目前没有 macOS Intel、Windows ARM64／32 位或 Linux 桌面安装包。
 
 ## 各系统最新版
 
-### Windows 0.10.3rc1
+### Windows 0.10.4rc1（完整预发布）
 
-- **整理继续完成**：移除每日调用、字符及累计100条候选的硬上限；普通失败任务持续退避重试，旧失败任务重新排队，保留原文和进度。
-- **多窗口与边界**：多个明确连接的窗口可同时导入与召回；每条连接固定所属记忆库和获准窗口，重复交付去重。
-- **模型与强度**：读取可用模型并选择推理强度；上下文和输出默认模型最高，未知能力由服务决定，也可手动设置 token 数。
-- **星云操作**：普通拖动旋转、Shift 平移；悬停和空白点击继续自旋，拖动松开恢复，选中具体节点或明确暂停时停止。
-- **版本提醒**：自动检查开启时，每次打开检查当前平台的新版本，有更新时弹窗展示说明与可信下载入口。
+- **记忆与纠正**：改进自然问法、时间线索及原文召回；更正由用户确认，保存后可按原主题重验。
+- **一个记忆窗口**：集中查看经历、约定、连接状态与待核对事项；约定完成或取消后保留历史，提供资料与模型采纳分开说明。
+- **更简单的操作**：合并显示和添加入口，高级字段按需展开，普通记事默认经历；补齐分页、错误回执及键盘焦点。
+- **持续整理**：个人记忆无固定库存上限，普通旧失败任务续排，保留原文、进度和淡忘规则；多个已授权窗口仍严格按库和区域导入、召回。
+- **空闲回顾**：默认关闭，在原整理面板中按需启用，使用已有模型与强度生成有证据的提案；反思需明确采纳，策略和模拟不自动生效，效果未验证，不训练模型参数。
 
-保留 AstrBot 快速配置、整理 API 状态、人格学习、独立记忆和动态／平面两种星图。升级前备份完整数据目录。
+保留模型/强度选择、默认最高上下文和输出、星云拖动旋转与 Shift 平移、选中节点才停止自旋，以及启动更新提醒。补充大库基准、分层反馈与长期回归，具体范围见发布说明。
 
-[发布页](https://github.com/myflww/love-house/releases/tag/v0.10.3rc1) · [本版说明与验证范围](docs/ReleaseNotes-0.10.3rc1-Windows.md) · [升级与恢复步骤](docs/WINDOWS-0103-UPDATE.md)
+[发布页](https://github.com/myflww/love-house/releases/tag/v0.10.4rc1) · [本版说明与验证范围](docs/ReleaseNotes-0.10.4rc1-Windows.md) · [升级与恢复步骤](docs/WINDOWS-0104-UPDATE.md)
 
-### macOS 0.10.3rc1
+### macOS 0.10.4rc1（完整预发布）
 
-同步本轮记忆持续整理、模型与强度选择、多窗口授权边界、星云旋转及启动版本提醒，使用原生 AppKit / WKWebView 窗口和内置 Python。保留原有记忆数据目录与 Keychain 保存方式。
+同步本轮共享记忆服务、统一记忆窗口及空闲回顾，继续使用 AppKit / WKWebView 和内置 Python。本轮 arm64 包已在 Apple Silicon CI 编译并运行原生窗口，ZIP 解压后再次通过检查；保留原数据目录及 Keychain helper。未覆盖所有 Mac 系统或真实用户旧版应用升级。
 
-[发布说明与验证范围](docs/ReleaseNotes-0.10.3rc1-macOS.md) · [Mac 升级步骤](docs/MACOS-0103-UPDATE.md)
+[发布说明与验证范围](docs/ReleaseNotes-0.10.4rc1-macOS.md) · [Mac 升级步骤](docs/MACOS-0104-UPDATE.md)
 
 ### Android / iPhone 0.8.0rc2
 
@@ -53,7 +55,7 @@ Windows 0.10.3rc1 提供完整安装版和便携版，本轮验证范围见发�
 
 1. **安装或解压**：Windows 便携版完整解压后打开 `LoveHouse.exe`；macOS 解压后将“爱之屋.app”放入应用程序目录。桌面安装包无需另装 Python 或 Node。
 2. **选择记忆库并连接 Agent**：桌面版使用 Harness 向导或通用 MCP 配置；桌面最新版也可用 AstrBot 来源配置。完成一轮真实对话，确认记录已入库；自动存档需要宿主提供轮次结束回调。
-3. **按需配置整理模型**：在“记忆整理”中填写模型与 Key、选择模型强度，再开启自动整理。桌面 0.10.3rc1 不设每日调用或字符硬上限，API 按实际用量计费。保存原文、检索和完整导出无需整理 API。
+3. **按需配置整理模型**：在“记忆整理”中填写模型与 Key、选择模型强度，再开启自动整理。桌面版不设每日调用或字符硬上限，API 按实际用量计费。保存原文、检索和完整导出无需整理 API；可选的空闲回顾默认关闭。
 
 升级前备份完整数据目录。完整安装要求、文件校验、签名状态和验证范围见 [下载与系统支持](docs/下载与系统支持.md)。
 

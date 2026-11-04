@@ -2,7 +2,7 @@ name: macOS Apple Silicon release validation
 
 on:
   push:
-    branches: [codex/windows-0103-release]
+    branches: [codex/windows-0103-release, codex/experience-0104]
     paths: ['nkb/**', 'desktop/**', 'scripts/**', 'tests/**', 'assets/**', '.github/workflows/macos-release.yml']
   pull_request:
     paths: ['nkb/**', 'desktop/**', 'scripts/**', 'tests/**', 'assets/**', '.github/workflows/macos-release.yml']
@@ -34,10 +34,18 @@ jobs:
         with:
           node-version: '24.19.0'
       - name: Verify native Apple Silicon runner and version
+        id: product
         run: |
           set -euo pipefail
           test "$(uname -m)" = arm64
-          python -c "from nkb._version import __version__; assert __version__ == '0.10.3rc1'"
+          python - <<'PY'
+          import os,re
+          from nkb._version import __version__ as version
+          assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:[a-z]+[0-9]+)?',version)
+          numeric=re.match(r'[0-9]+\.[0-9]+\.[0-9]+',version).group().replace('.','')
+          with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as output:
+              output.write('version='+version+'\narchive=LoveHouse-'+version+'-macOS-arm64.zip\nverification=macOS-'+numeric+'-verification.json\n')
+          PY
           mkdir -p build/macos/reports dist/macos
           git rev-parse HEAD > build/macos/reports/source-commit.txt
           sw_vers > build/macos/reports/runner.txt
@@ -56,40 +64,41 @@ jobs:
       - name: Build actual AppKit and WKWebView app, run isolated packaged checks
         run: |
           set -euo pipefail
-          python scripts/build_macos.py --python build/macos/runtime/bin/python3.12 --output 'dist/macos/爱之屋.app' --expected-version 0.10.3rc1 --native-smoke --report-dir build/macos/reports 2>&1 | tee build/macos/build.log
+          python scripts/build_macos.py --python build/macos/runtime/bin/python3.12 --output 'dist/macos/爱之屋.app' --expected-version '${{ steps.product.outputs.version }}' --native-smoke --report-dir build/macos/reports 2>&1 | tee build/macos/build.log
       - name: Package signed app and re-run native smoke after ZIP extraction
         run: |
           set -euo pipefail
-          ditto -c -k --sequesterRsrc --keepParent 'dist/macos/爱之屋.app' dist/LoveHouse-0.10.3rc1-macOS-arm64.zip
+          ditto -c -k --sequesterRsrc --keepParent 'dist/macos/爱之屋.app' dist/${{ steps.product.outputs.archive }}
           mkdir -p build/macos/consumer
-          ditto -x -k dist/LoveHouse-0.10.3rc1-macOS-arm64.zip build/macos/consumer
+          ditto -x -k dist/${{ steps.product.outputs.archive }} build/macos/consumer
           codesign --verify --deep --strict 'build/macos/consumer/爱之屋.app'
           'build/macos/consumer/爱之屋.app/Contents/MacOS/NeuralAtlas' --smoke-test --smoke-report "$PWD/build/macos/reports/zip-native.json" 2>&1 | tee build/macos/consumer.log
           python - <<'PY'
-          import hashlib,json
+          import hashlib,json,re
+          from nkb._version import __version__ as version
           from pathlib import Path
           root=Path.cwd();reports=root/'build/macos/reports'
           for name in ('build.json','native.json','zip-native.json'):
               value=json.loads((reports/name).read_text())
               assert value.get('ok') is True and value.get('process_complete') is True
-              assert value.get('version') == '0.10.3rc1'
-          archive=root/'dist/LoveHouse-0.10.3rc1-macOS-arm64.zip'
+              assert value.get('version') == version
+          archive=root/f'dist/LoveHouse-{version}-macOS-arm64.zip'
           digest=hashlib.file_digest(archive.open('rb'),'sha256').hexdigest()
           (root/'dist/macOS-SHA256SUMS.txt').write_text(digest+'  '+archive.name+'\n',encoding='ascii')
-          proof={'schema':'love-house-macos-release/v1','version':'0.10.3rc1',
+          proof={'schema':'love-house-macos-release/v1','version':version,
                  'source_commit':(reports/'source-commit.txt').read_text().strip(),
                  'architecture':'arm64','minimum_macos':'13.0','signing':'ad-hoc','notarized':False,
                  'package':{'name':archive.name,'bytes':archive.stat().st_size,'sha256':digest},
                  'checks':{name:json.loads((reports/name).read_text()) for name in ('build.json','native.json','zip-native.json')},
                  'runtime':json.loads((root/'build/macos/runtime-provenance.json').read_text()),
                  'ok':True,'process_complete':True,'installed_in_user_applications':False}
-          (root/'dist/macOS-0103-verification.json').write_text(json.dumps(proof,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          (root/('dist/macOS-'+re.match(r'[0-9]+\.[0-9]+\.[0-9]+',version).group().replace('.','')+'-verification.json')).write_text(json.dumps(proof,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           PY
       - name: Preserve Mac build diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: macos-0103-build-evidence-${{ github.sha }}
+          name: macos-build-evidence-${{ github.sha }}
           path: |
             build/macos/reports/
             build/macos/build.log
@@ -99,9 +108,9 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: love-house-0.10.3rc1-macos-arm64
+          name: love-house-${{ steps.product.outputs.version }}-macos-arm64
           path: |
-            dist/LoveHouse-0.10.3rc1-macOS-arm64.zip
+            dist/${{ steps.product.outputs.archive }}
             dist/macOS-SHA256SUMS.txt
-            dist/macOS-0103-verification.json
+            dist/${{ steps.product.outputs.verification }}
           if-no-files-found: error

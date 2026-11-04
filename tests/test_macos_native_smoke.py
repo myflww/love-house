@@ -66,11 +66,32 @@ vm.runInNewContext(FIXTURE,ctx);
 
     @unittest.skipUnless(shutil.which('node'), 'Node optional')
     def test_every_native_async_javascript_probe_parses(self):
-        probes = re.findall(r'callAsyncJavaScript\("""\n(.*?)\n\s*""", arguments:', SWIFT, re.S)
+        probes = re.findall(r'callAsyncJavaScript\((?:Self\.smokeControlHelper\s*\+\s*)?"""\n(.*?)\n\s*""", arguments:', SWIFT, re.S)
+        from scripts.build_macos import native_workspace_script
+        probes.append(native_workspace_script())
         self.assertGreaterEqual(len(probes), 3)
         script = 'const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;for(const source of '+json.dumps(probes)+'){new AsyncFunction(source)}'
         result = subprocess.run([shutil.which('node'), '-e', script], capture_output=True, text=True, encoding='utf-8', timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_both_native_platforms_share_the_visible_scoped_workspace_probe(self):
+        from scripts.build_macos import native_workspace_script
+        import sys
+        sys.path.insert(0, str(ROOT / 'desktop'))
+        from workspace_smoke import SCRIPT, CONTROL_HELPER, CHECKS
+        self.assertEqual(native_workspace_script(), SCRIPT)
+        self.assertIn('NativeWorkspaceSmoke', SWIFT)
+        self.assertIn('try await verifyGuidedWorkspace()', SWIFT)
+        self.assertIn('Self.smokeControlHelper +', SWIFT)
+        self.assertIn("e.getClientRects().length>0", CONTROL_HELPER)
+        self.assertIn('idle_review_opt_in', CHECKS)
+        self.assertIn('idle_review_preview_read_only', CHECKS)
+        self.assertIn("review.profile.enabled===false", SCRIPT)
+        self.assertIn("value.read_only===true&&value.model_called===false", SCRIPT)
+        self.assertIn("'idle-review/run'", SCRIPT)
+        self.assertIn('"idle_review_preview_read_only"', SWIFT)
+        self.assertIn('"idle_review_default_opt_in_and_preview_no_model"', SWIFT)
+        self.assertNotIn("current_version:'0.10.3rc1'", SWIFT)
 
 
 if __name__ == '__main__':

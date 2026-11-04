@@ -54,6 +54,7 @@ node_modules/
 
 # Local validation and intentionally exported personal memories are private by default
 /reports/
+/outputs/
 *.lovehouse.json
 *.lovehouse.md
 /爱之屋.html

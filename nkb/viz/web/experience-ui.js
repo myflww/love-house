@@ -5,28 +5,34 @@ const by=id=>document.getElementById(id);
 if(typeof S==='undefined'||typeof MEMORY==='undefined'||typeof api!=='function'||!by('libraryPanel'))return;
 const make=(tag,cls,text)=>el(tag,cls,text);
 const state={owner:null,serial:0,limit:30,loading:false,data:null};
+const subscribers=new Set();
+let returnFocus=null,restoreOnClose=true;
+function notify(kind){for(const listener of subscribers)try{listener({kind,scope:state.owner?{...state.owner}:null,open:d.open});}catch{/* Optional workspace navigation cannot block the original experience view. */}}
 const owner=()=>({id:S.libraryId,epoch:S.libraryEpoch});
 const current=o=>o&&o.id===S.libraryId&&o.epoch===S.libraryEpoch;
 const idle=()=>S.mode==='serve'&&!S.libraryChanging&&!MEMORY.busy&&!writeBusy;
 function button(id,text,hint,fn){const b=make('button','btn',text);b.id=id;b.type='button';b.dataset.hintDescription=hint;b.onclick=fn;return b;}
-const libraryEntry=button('experienceLibraryBtn','她的经历','按发生的事情查看这条鱼的经历、已表达的原因和结果；不调用模型。',open);
-const organizerEntry=button('experienceOrganizerBtn','她的经历','查看整理后可核对来源的生活经历，技术记录仍作为依据保留。',open);
+const libraryEntry=button('experienceLibraryBtn','经历与记忆','按发生的事情查看这条鱼的经历、已表达的原因和结果；不调用模型。',open);
+const organizerEntry=button('experienceOrganizerBtn','经历与记忆','查看整理后可核对来源的生活经历，技术记录仍作为依据保留。',open);
 for(const entry of [libraryEntry,organizerEntry]){entry.setAttribute('aria-haspopup','dialog');entry.setAttribute('aria-controls','experienceTimelineDialog');entry.setAttribute('aria-expanded','false');}
 const newLibrary=by('newLibraryBtn');if(newLibrary)newLibrary.before(libraryEntry);else by('libraryPanel').append(libraryEntry);
 const organizer=by('previewOrganizer');if(organizer)organizer.parentElement.append(organizerEntry);
 const d=make('dialog','experience-dialog');d.id='experienceTimelineDialog';d.setAttribute('aria-labelledby','experienceTimelineTitle');
-const head=make('div','dialog-title'),title=make('h2','','她的经历'),close=button('closeExperienceTimeline','×','关闭经历页面，不改变已保存资料。',dismiss);title.id='experienceTimelineTitle';close.className='icon-btn';close.setAttribute('aria-label','关闭她的经历');head.append(title,close);
+const head=make('div','dialog-title'),title=make('h2','','经历与记忆'),close=button('closeExperienceTimeline','×','关闭经历页面，不改变已保存资料。',dismiss);title.id='experienceTimelineTitle';close.className='icon-btn';close.setAttribute('aria-label','关闭经历与记忆');head.append(title,close);
 const identity=make('p','experience-identity');identity.id='experienceTimelineIdentity';
 const note=make('p','form-note','围绕真实发生的事情，保留时间、经过、原话中的原因与实际结果。没有证据的部分保持未知。');
+note.id='experienceIntro';
 const status=make('p','experience-status');status.id='experienceTimelineStatus';status.setAttribute('role','status');status.setAttribute('aria-live','polite');
 const list=make('div','experience-timeline');list.id='experienceTimelineList';
 const technical=make('details'),technicalTitle=make('summary','','原始依据与图谱显示'),rawLabel=make('label','experience-raw-toggle'),rawToggle=make('input');rawToggle.id='experienceShowRawTools';rawToggle.type='checkbox';rawLabel.append(rawToggle,document.createTextNode('显示原始工具依据'));technical.append(technicalTitle,rawLabel,make('p','form-note','仅调整图谱显示，不删除原文。生活经历与工具调用记录分开查看；点击依据也会显示对应原始来源。'));
+technical.id='experienceTechnical';
 const controlsBox=make('div','experience-controls');
+controlsBox.id='experienceControls';
 const refresh=button('refreshExperienceTimeline','刷新经历','只读重新检查本库经历及来源，不调用模型或强化记忆。',load);
 const more=button('moreExperienceTimeline','再看一些','增加本次展示数量，最多100条；其余仍保存在原库。',()=>{if(state.loading||!current(state.owner)||!idle())return;state.limit=Math.min(100,state.limit+30);load();});
-const organize=button('continueExperienceOrganization','继续整理','打开本库的记忆整理设置；不会自动启动模型调用。',()=>{if(!idle()||!current(state.owner)||S.isDemo)return;dismiss();setPanelOpen('organizerPanel',true,{focus:false});});
-const sources=button('experienceSourcesBtn','活动来源','查看哪些宿主或平台来源归属于当前这条鱼。',()=>{if(!idle()||!current(state.owner))return;dismiss();if(window.LoveHouseSources?.open)window.LoveHouseSources.open();else if(typeof toast==='function')toast('活动来源页面尚未就绪，请稍后再试。',true);});
-const all=button('experienceAllNodesBtn','在列表中搜索','打开当前存档的节点列表，继续搜索本次未展示的经历和已保存资料。',()=>{if(!idle()||!current(state.owner))return;dismiss();setPanelOpen('sidebar',true,{focus:false});});
+const organize=button('continueExperienceOrganization','继续整理','打开本库的记忆整理设置；不会自动启动模型调用。',()=>{if(!idle()||!current(state.owner)||S.isDemo)return;dismiss({restoreFocus:false});setPanelOpen('organizerPanel',true,{focus:false});});
+const sources=button('experienceSourcesBtn','活动来源','查看哪些宿主或平台来源归属于当前这条鱼。',()=>{if(!idle()||!current(state.owner))return;dismiss({restoreFocus:false});if(window.LoveHouseSources?.open)window.LoveHouseSources.open();else if(typeof toast==='function')toast('活动来源页面尚未就绪，请稍后再试。',true);});
+const all=button('experienceAllNodesBtn','在列表中搜索','打开当前存档的节点列表，继续搜索本次未展示的经历和已保存资料。',()=>{if(!idle()||!current(state.owner))return;dismiss({restoreFocus:false});setPanelOpen('sidebar',true,{focus:false});});
 controlsBox.append(more,refresh,organize,sources,all);d.append(head,identity,note,status,list,technical,controlsBox);document.body.append(d);
 const style=make('style');style.textContent=`
 .experience-dialog{width:min(720px,calc(100vw - 30px));max-height:calc(100vh - 40px);overflow:auto}.experience-dialog .form-note{margin:9px 0 14px}.experience-identity{font-size:12px;color:var(--muted);margin:5px 0 10px}.experience-status{font-size:12px;line-height:1.8;overflow-wrap:anywhere}.experience-status[data-error=true]{color:var(--danger)}.experience-timeline{padding:3px 0 2px 10px}.experience-card{position:relative;border:1px solid var(--line);border-left:3px solid var(--accent);background:var(--paper);padding:16px 18px;margin:15px 0;box-shadow:3px 3px 0 var(--soft);overflow-wrap:anywhere}.experience-card:before{content:'♥';position:absolute;left:-11px;top:17px;background:var(--panel);color:var(--accent);font-size:13px;line-height:17px}.experience-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px}.experience-time{font-size:12px;color:var(--muted);line-height:1.7}.experience-time small{display:block;font-size:10px}.experience-result-tag{font-size:10px;padding:4px 7px;border:1px solid var(--line);background:var(--soft);white-space:nowrap}.experience-what{font-size:15px;line-height:1.85;white-space:pre-wrap;margin:8px 0 15px}.experience-claim-label{display:block;font-size:10px;color:var(--muted);margin-bottom:3px}.experience-field{margin:12px 0;font-size:13px;line-height:1.85;white-space:pre-wrap}.experience-field strong{font-size:12px;display:block;margin-bottom:4px}.experience-field small{font-size:10px;font-weight:400;color:var(--muted);margin-left:8px}.experience-unknown{color:var(--muted)}.experience-card-actions,.experience-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}.experience-card-actions .btn{font-size:11px}.experience-controls{padding-top:13px;border-top:1px solid var(--line)}.experience-controls .btn{flex:1 1 120px}.experience-empty{border:1px dashed var(--line);background:var(--soft);padding:18px;line-height:1.9;font-size:13px;margin:18px 0}.experience-parties{font-size:11px;line-height:1.8;color:var(--muted);margin-top:13px}.experience-dialog :is(button,a):focus-visible{outline:2px solid var(--accent);outline-offset:3px}`;document.head.append(style);
@@ -39,7 +45,7 @@ function safeReference(ref){return ref&&typeof ref==='object'&&typeof ref.quote=
 function validEntry(entry){const e=entry?.episode;return entry&&typeof entry.id==='string'&&e?.schema==='love-house-experience/v1'&&e.library_id===state.owner.id&&safeReference(e.what)&&(e.reason===null||e.reason===undefined||safeReference(e.reason))&&(e.outcome===null||e.outcome===undefined||safeReference(e.outcome));}
 function setStatus(text,error=false){status.textContent=text;status.dataset.error=String(error);}
 function eligible(){return idle()&&current(state.owner)&&d.open;}
-function cardAction(id,label,hint,entry,move,o,serial){return button(id,label,hint,()=>{if(!idle()||!current(o)||serial!==state.serial||!d.open)return;let target=entry.id;const sourceId=entry.episode?.what?.id;if(!move&&typeof sourceId==='string'&&S.byId?.has?.(sourceId)){target=sourceId;if(window.LoveHouseMemoryPresentation?.set)window.LoveHouseMemoryPresentation.set(true);}if(S.byId?.has&&!S.byId.has(target)){if(typeof toast==='function')toast('图谱暂未载入这条经历，请刷新当前存档后再查看。',true);return;}dismiss();select(target,move);});}
+function cardAction(id,label,hint,entry,move,o,serial){return button(id,label,hint,()=>{if(!idle()||!current(o)||serial!==state.serial||!d.open)return;let target=entry.id;const sourceId=entry.episode?.what?.id;if(!move&&typeof sourceId==='string'&&S.byId?.has?.(sourceId)){target=sourceId;if(window.LoveHouseMemoryPresentation?.set)window.LoveHouseMemoryPresentation.set(true);}if(S.byId?.has&&!S.byId.has(target)){if(typeof toast==='function')toast('图谱暂未载入这条经历，请刷新当前存档后再查看。',true);return;}dismiss({restoreFocus:false});select(target,move);});}
 function card(entry,index){const e=entry.episode,o=state.owner,serial=state.serial,article=make('article','experience-card');article.dataset.memoryId=entry.id;const header=make('div','experience-card-head'),time=make('div','experience-time',timeText(entry.event_at));
  if(stamp(entry.recorded_at))time.append(make('small','','存入：'+timeText(entry.recorded_at)));
  const resultLabel={success:'来源报告成功',failed:'来源报告失败',observed:'已有观察结果',reported:'结果待核对',unknown:'结果未提供'}[e.status]||'结果状态未知';header.append(time,make('span','experience-result-tag',resultLabel));
@@ -54,10 +60,11 @@ function render(data){if(data?.read_only!==true||data.will_call_model!==false||d
  const total=count(data.total),unavailable=count(data.unavailable_experiences)+invalid;let message=shown?`本次展示 ${shown} / ${total} 条经历。`:`已保存资料与可展示经历分别统计；当前展示 ${shown} 条。`;if(unavailable)message+=` ${unavailable} 条经历的依据暂不可用，已保留但没有当作完整经历展示。`;if(data.more&&state.limit>=100)message+=' 当前最多展示100条，其余仍在存档，可在节点列表继续搜索。';setStatus(message);more.hidden=!data.more||state.limit>=100;controls();}
 async function load(){if(!idle()||!current(state.owner)||!d.open)return;const o=state.owner,serial=++state.serial;state.loading=true;setStatus('正在读取本库可核对来源的经历…');controls();try{const data=await api('experiences?limit='+state.limit,undefined,{libraryId:o.id});if(!current(o)||serial!==state.serial||!d.open)return;render(data);}catch(e){if(current(o)&&serial===state.serial&&d.open)setStatus('暂时无法读取经历：'+e.message+'。原始资料没有被改动。',true);}finally{if(serial===state.serial){state.loading=false;controls();}}}
 function expanded(value){for(const entry of [libraryEntry,organizerEntry])entry.setAttribute('aria-expanded',String(value));}
-function open(){if(!idle())return;state.owner=owner();state.serial++;state.limit=30;state.data=null;state.loading=false;identity.textContent=libraryName(state.owner.id);list.replaceChildren();more.hidden=true;d.showModal();expanded(true);load();}
-function dismiss(){state.serial++;state.loading=false;state.data=null;list.replaceChildren();d.close();expanded(false);controls();}
+function open(){if(!idle())return;returnFocus=document.activeElement;restoreOnClose=true;state.owner=owner();state.serial++;state.limit=30;state.data=null;state.loading=false;identity.textContent=libraryName(state.owner.id);list.replaceChildren();more.hidden=true;d.showModal();expanded(true);notify('open');load();}
+function dismiss(options={}){restoreOnClose=options?.restoreFocus!==false;state.serial++;state.loading=false;state.data=null;list.replaceChildren();d.close();expanded(false);controls();notify('close');}
 rawToggle.onchange=()=>{if(!eligible()||S.isDemo||typeof window.LoveHouseMemoryPresentation?.set!=='function')return;window.LoveHouseMemoryPresentation.set(rawToggle.checked);controls();};
-close.onclick=dismiss;d.addEventListener('cancel',()=>{state.serial++;state.loading=false;state.data=null;list.replaceChildren();expanded(false);});
+close.onclick=dismiss;d.addEventListener('cancel',()=>{restoreOnClose=true;state.serial++;state.loading=false;state.data=null;list.replaceChildren();expanded(false);notify('close');});
+d.addEventListener('close',()=>{if(!restoreOnClose||document.querySelector?.('dialog[open]'))return;const target=returnFocus?.isConnected!==false&&!returnFocus?.closest?.('[hidden],[inert]')?returnFocus:null;(target||by('companionBtn'))?.focus?.({preventScroll:true});returnFocus=null;});
 const previous=updateMemoryButtons;updateMemoryButtons=function(...args){previous(...args);if(d.open&&state.owner&&!current(state.owner))dismiss();controls();};
-window.LoveHouseExperiences={open,refresh:load};controls();
+window.LoveHouseExperiences={open,refresh:load,close:dismiss,getScope:()=>state.owner?{...state.owner}:null,subscribe(listener){if(typeof listener==='function')subscribers.add(listener);return()=>subscribers.delete(listener);}};controls();
 })();

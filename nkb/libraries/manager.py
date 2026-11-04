@@ -260,9 +260,15 @@ class LibraryManager:
             if not path.is_file():raise LibraryError("记忆库文件缺失，未用空库替代；请先找回原文件或备份")
             try:
                 brain=Brain.open(path)
+                changed='idle_review_current_authorization_generation' in brain.meta
+                brain.meta.pop('idle_review_current_authorization_generation',None)
                 profile=brain.meta.get("organizer_profile")
                 if isinstance(profile,dict) and profile.get("enabled") is not False:
-                    profile["enabled"]=False;brain.persist()
+                    profile["enabled"]=False;changed=True
+                review=brain.meta.get('idle_review_profile')
+                if isinstance(review,dict) and review.get('enabled') is not False:
+                    review['enabled']=False;changed=True
+                if changed:brain.persist()
             except Exception as exc:
                 raise LibraryError("记忆库暂时无法安全恢复，原文件和回收站记录均保留") from exc
             entry.pop("deleted_at",None)

@@ -106,6 +106,8 @@ def _response_snapshot(value):
 
 
 def make_handler(brain: Brain):
+    # A saved/imported graph is never a current desktop authorization grant.
+    brain.meta.pop('idle_review_current_authorization_generation',None)
     # Lock the whole operation, including a stable result snapshot and persistence.
     # A save-only lock still lets two operations mutate one another's working state.
     operation_lock = threading.RLock()
@@ -648,24 +650,37 @@ def make_handler(brain: Brain):
     def snapshot():
         with operation_lock:
             return copy.deepcopy(brain.to_dict())
-    def transaction(callback):
+    def transaction(callback, *, commit_guard=None):
+        from contextlib import nullcontext
         with operation_lock:
             with rollback_guard(brain) as guard:
-                result = _response_snapshot(callback(brain))
-                guard.persist()
-                return result
-    def structured_material(data, *, library_id, library_name):
+                with commit_guard() if commit_guard is not None else nullcontext():
+                    result = _response_snapshot(callback(brain))
+                    guard.persist()
+                    return result
+    def structured_material(data, *, library_id, library_name, review_generation=None):
         # One locked read over the existing index. Avoid a loopback HTTP query
         # followed by a full graph deepcopy and re-encoding on every action.
         from ..companion.structured import build_structured_context
         with operation_lock:
-            result=build_structured_context(brain,data.get('query'),max_chars=data.get('max_chars',8000),
-                library_id=library_id,library_name=library_name,agent_id=library_id,
-                session_id=data.get('session_id'))
-            return _response_snapshot(result)
+            key='idle_review_current_authorization_generation'
+            # Runtime authority must never survive into a saved graph or a later
+            # direct adapter request without the desktop's current bindings.
+            brain.meta.pop(key,None)
+            if review_generation:brain.meta[key]=review_generation
+            try:
+                result=build_structured_context(brain,data.get('query'),max_chars=data.get('max_chars',8000),
+                    library_id=library_id,library_name=library_name,agent_id=library_id,
+                    session_id=data.get('session_id'))
+                return _response_snapshot(result)
+            finally:brain.meta.pop(key,None)
+    def read(callback):
+        with operation_lock:
+            return _response_snapshot(callback(brain))
     Handler.memory_snapshot = staticmethod(snapshot)
     Handler.memory_transaction = staticmethod(transaction)
     Handler.memory_structured_material = staticmethod(structured_material)
+    Handler.memory_read = staticmethod(read)
     return Handler
 
 

@@ -660,12 +660,14 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         let script = try String(contentsOf: resource, encoding: .utf8)
         let result = try await webView.callAsyncJavaScript(script, arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
         let checks = ["navigation", "no_overflow", "add_and_import_menu", "escape_focus_restored", "add_cancel_read_only",
-                      "display_menu", "experience_scope", "commitment_scope", "connection_scope", "model_adoption_not_claimed", "read_only"]
+                      "display_menu", "experience_scope", "commitment_scope", "connection_scope", "model_adoption_not_claimed",
+                      "idle_review_opt_in", "idle_review_preview_read_only", "read_only"]
         for key in checks {
             try requireSmoke(result?[key] as? Bool == true, "Native workspace check failed: \(key)")
         }
         try requireSmoke(result?["model_calls"] as? Int == 0, "Native workspace probe attempted a model call")
         smokeSteps.append("guided_workspace_visible_navigation_menus_focus_and_scoped_views")
+        smokeSteps.append("idle_review_default_opt_in_and_preview_no_model")
         print("Native workspace: labelled navigation, visible menus, Escape focus, read-only experiences and connection status verified")
     }
 

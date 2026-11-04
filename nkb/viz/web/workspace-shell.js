@@ -193,6 +193,7 @@ html[data-workspace=guided] .workspace-detail-note{font-size:12px;line-height:1.
     if(row&&row.parentElement===by('addForm'))newMemoryAdvanced.append(row);
     else {const label=by('addForm')?.querySelector('label[for='+id+']');if(label)newMemoryAdvanced.append(label);newMemoryAdvanced.append(control);}
   }
+  if(by('newMemoryAdvancedNote'))newMemoryAdvanced.append(by('newMemoryAdvancedNote'));
   const important=by('newImportant')?.closest('label');if(important)important.before(newMemoryAdvanced);else by('addForm')?.querySelector('.dialog-actions')?.before(newMemoryAdvanced);
   function arrangeDetailActions(expanded={}) {
     const detail=by('detail'),row=detail?.querySelector('.detail-actions');
@@ -201,12 +202,14 @@ html[data-workspace=guided] .workspace-detail-note{font-size:12px;line-height:1.
     advanced.append(make('summary','','更多操作'),make('p','workspace-detail-note','纠正会保留原话与更正关系；直接编辑会覆盖此条内容。手动强化只调整记忆强度。'),extra);
     const danger=make('details','workspace-detail-danger'),dangerActions=make('div','detail-actions');
     danger.append(make('summary','','删除与隐私'),make('p','workspace-detail-note','暂不使用可以恢复。永久忘记会先展示原文与派生资料的影响范围，再由你确认。'),dangerActions);
-    for(const button of [...row.querySelectorAll('button')]){
+    const lifecycle=detail.querySelector('.lifecycle-actions');
+    for(const button of [...row.querySelectorAll('button'),...(lifecycle?.querySelectorAll('button')||[])]){
       const name=button.textContent.replace(/^[^\p{L}\p{N}]+/u,'').trim();
       if(/真正忘记|永久忘记/.test(name))dangerActions.append(button);
-      else if(/纠正|暂不使用|恢复使用/.test(name))continue;
+      else if(/纠正|暂不使用|恢复使用/.test(name))row.append(button);
       else {if(/编辑记忆/.test(name)){button.textContent='编辑原条目';button.dataset.hintDescription='直接覆盖这条内容；如需保留更正前后关系，请使用“纠正内容”。';}extra.append(button);}
     }
+    if(lifecycle&&!lifecycle.children.length)lifecycle.remove();row.hidden=!row.children.length;
     row.after(advanced,danger);advanced.hidden=!extra.children.length;danger.hidden=!dangerActions.children.length;
     advanced.open=!!expanded.advanced;danger.open=!!expanded.danger;
   }

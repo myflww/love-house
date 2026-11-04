@@ -89,7 +89,8 @@ def _role(node):
 def _source_refs(brain, node, atom, stamp, library_id=None):
     meta = node.get("meta", {})
     evidence = atom.get("evidence") if isinstance(atom, dict) else None
-    evidence = evidence or meta.get("organizer_sources") or meta.get("organizer_evidence") or []
+    evidence = evidence or meta.get("organizer_sources") or meta.get("organizer_evidence") or (
+        meta.get('review_evidence') if meta.get('source') == 'idle_review' else []) or []
     result = []
     for item in evidence if isinstance(evidence, list) else []:
         if not isinstance(item, dict) or not isinstance(item.get("id"), str):
@@ -180,7 +181,7 @@ def _safe_atom(node):
     return deepcopy(raw)
 
 
-def _record(brain, node, stamp, library_id):
+def _record(brain, node, stamp, library_id, *, blocked_evidence=None):
     meta = node.get("meta", {})
     if library_id and meta.get("library_id") not in (None, library_id):
         return None, "different_library"
@@ -190,6 +191,11 @@ def _record(brain, node, stamp, library_id):
         return None, "confirmed_duplicate"
     if not isinstance(node.get("text"), str):return None, "invalid_record"
     origin = str(meta.get("source", "local"))[:100]
+    if origin == 'idle_review':
+        from .review import reflection_current
+        if not reflection_current(brain, node, library_id or brain.meta.get('library_id'), stamp,
+                                  blocked_evidence=blocked_evidence):
+            return None, 'unavailable_review_evidence'
     if origin=='organizer' and meta.get('statement_attribution')=='assistant':
         from ..organizer.state import fingerprint
         revisions=meta.get('statement_source_revisions')
@@ -219,7 +225,10 @@ def _record(brain, node, stamp, library_id):
         layer, domain, certainty = atom["layer"], atom.get("domain", "unknown"), atom.get("certainty", "uncertain")
         relation_status = atom.get("relation_status", "model_extracted")
         if relation_status not in ("model_extracted","verbatim_fallback"):relation_status="verbatim_fallback"
-    if origin == "conversation_turn":
+    if origin == 'idle_review':
+        layer, subject, predicate = 'reflection', 'agent', 'reviewed_hypothesis'
+        status, interpretation, domain = 'user_approved_review_hypothesis', 'unverified_material', 'review'
+    elif origin == "conversation_turn":
         layer, subject, predicate = "dialogue", "user", "said"
         status, interpretation = "historical_user_statement", "historical_evidence"
         if any(ref.get('participant_scope')=='external_participant' for ref in refs):
@@ -270,6 +279,9 @@ def _record(brain, node, stamp, library_id):
               "source": {"kind": origin, "evidence": refs, "evidence_count": evidence_total,
                          "evidence_omitted": max(0, evidence_total - len(refs))},
               "display": {"title": str(node.get("label", ""))[:100]}}
+    if origin == 'idle_review':
+        record.update(is_user_fact=False, is_real_experience=False, effectiveness='unverified',
+                      priority='supporting_material', strategy_activated=False)
     if node.get('kind')=='commitment':
         from .lifecycle import commitment_status
         status=commitment_status(node)
@@ -349,7 +361,7 @@ def _persona(brain, stamp, library_id=None):
 
 
 def build_structured_context(brain, query, base_context=None, max_chars=8000, *, library_id=None,
-                             library_name=None, agent_id=None, session_id=None):
+                             library_name=None, agent_id=None, session_id=None, _blocked_evidence=None):
     """Project one already scoped Brain into complete bounded machine-readable JSON.
 
     Explicit library/agent IDs are root-supplied authority. Text in memories cannot
@@ -361,8 +373,11 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
     max_chars = _count(max_chars, "max_chars", 512, 32000)
     library_id = _identifier(library_id, "library_id")
     agent_id = _identifier(agent_id, "agent_id")
+    from .memory import _disabled_evidence
+    blocked = _disabled_evidence(brain) if _blocked_evidence is None else _blocked_evidence
     if base_context is None:
-        base_context = build_context(brain, query, session_id=session_id, max_chars=max_chars,library_id=library_id)
+        base_context = build_context(brain, query, session_id=session_id, max_chars=max_chars,library_id=library_id,
+                                     _blocked_evidence=blocked)
     if not isinstance(base_context, dict):
         raise ValidationError("base_context必须是本库上下文对象")
     if library_id and base_context.get("library_id") not in (None, library_id):
@@ -380,7 +395,7 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
     if (not isinstance(declared_recent, list) or len(declared_recent) > 2
             or any(not isinstance(nid, str) or len(nid) > 200 for nid in declared_recent)):
         raise ValidationError("平台最近对话ID列表不合法")
-    valid_recent = {n["id"] for n in _platform_recent_turns(brain, query, stamp=stamp, library_id=library_id)}
+    valid_recent = {n["id"] for n in _platform_recent_turns(brain, query, stamp=stamp, library_id=library_id, blocked_evidence=blocked)}
     recent_ids = [nid for nid in dict.fromkeys(declared_recent) if nid in ids and nid in valid_recent]
     persona_enabled = persona_state(brain)["enabled"]
     for nid in ids:
@@ -391,7 +406,7 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
         if not persona_enabled and node.get("meta", {}).get("source") == "persona_import_source":
             reasons["persona_disabled"] += 1
             continue
-        record, reason = _record(brain, node, stamp, library_id)
+        record, reason = _record(brain, node, stamp, library_id, blocked_evidence=blocked)
         if reason:
             reasons[reason] += 1
         else:

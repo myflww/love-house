@@ -70,6 +70,8 @@ class MemoryHost:
         self.share_summaries=ReadingSummaryService(self)
         from .updates import UpdateChecker
         self.updates=UpdateChecker(self.root)
+        from .idle_review import IdleReviewService
+        self.reviews=IdleReviewService(self,transport=organizer_transport)
         self.worker=threading.Thread(target=self._retry,daemon=True);self.worker.start()
         self.organizer.start()
     def port_for(self,library_id):
@@ -81,8 +83,12 @@ class MemoryHost:
                     from ..companion.retention import enable_temporal_retention
                     from ..core.transaction import rollback_guard
                     with rollback_guard(brain) as guard:
+                        identity_changed=brain.meta.get('library_id')!=library_id
+                        # The manager-owned file binding is the authoritative
+                        # identity, including legacy default files without one.
+                        brain.meta['library_id']=library_id
                         migrated=enable_temporal_retention(brain)
-                        if migrated['changed']:guard.persist()
+                        if migrated['changed'] or identity_changed:guard.persist()
                     self._usage_enabled[library_id]=migrated['usage_reinforcement']
                 server=ThreadingHTTPServer(('127.0.0.1',0),make_handler(brain))
                 thread=threading.Thread(target=server.serve_forever,kwargs={'poll_interval':.1},daemon=True)
@@ -91,7 +97,7 @@ class MemoryHost:
     def snapshot(self,library_id):
         self.port_for(library_id)
         return self._servers[library_id].RequestHandlerClass.memory_snapshot()
-    def transact(self,library_id,callback):
+    def transact(self,library_id,callback,*,commit_guard=None):
         if self.library(library_id)['is_demo']:raise ValidationError('示例库不能修改')
         self.port_for(library_id)
         try:pending=self.usage.pending(library_id) if self.usage else []
@@ -106,7 +112,8 @@ class MemoryHost:
                 for item in pending:
                     record_memory_use(brain,[item['node_id']],kind=item['kind'],now=item['at'])
             return result
-        result=self._servers[library_id].RequestHandlerClass.memory_transaction(apply)
+        if commit_guard is None:result=self._servers[library_id].RequestHandlerClass.memory_transaction(apply)
+        else:result=self._servers[library_id].RequestHandlerClass.memory_transaction(apply,commit_guard=commit_guard)
         # The graph has committed. Failure of auxiliary metadata acknowledgement
         # leaves an idempotent pending use; never report the saved body as lost.
         if pending:
@@ -278,7 +285,10 @@ class MemoryHost:
         data=data or {}
         if set(data)-{'enabled','confirm'}:raise ValidationError('来源设置含未声明字段')
         if action=='disconnect' and data.get('confirm') is not True:raise ValidationError('请确认断开该活动来源')
-        return {'source':self.sources.set_enabled(source_id,data.get('enabled',False),disconnect=action=='disconnect')}
+        with self.connections.binding_lock:
+            result={'source':self.sources.set_enabled(source_id,data.get('enabled',False),disconnect=action=='disconnect')}
+            self.reviews.engine.invalidate(library_id)
+            return result
     def experiences_view(self,library_id,*,limit=30):
         from ..core.brain import Brain
         from ..organizer.experiences import project_experience,render_experience
@@ -483,6 +493,9 @@ class MemoryHost:
             def commit(brain):
                 plan=forget_plan(brain,nid)
                 actual.update(plan)
+                # Both review commit paths take host -> journal locks, never the
+                # reverse. Clear copied quotes before releasing the graph lock.
+                self.reviews.engine.forget(library_id,plan['raw_ids'],node_ids=plan['node_ids'])
                 self.organizer.forget(library_id,plan['raw_ids'],node_ids=plan['node_ids'])
                 return forget(brain,plan)
             result=self.transact(library_id,commit)
@@ -496,8 +509,11 @@ class MemoryHost:
     def structured_context(self,library_id,data):
         meta=self.library(library_id)
         self.port_for(library_id)
-        return self._servers[library_id].RequestHandlerClass.memory_structured_material(
-            data,library_id=library_id,library_name=meta['name'])
+        with self.connections.binding_lock:
+            self.reviews.touch(library_id)
+            generation=self.reviews.authorization(library_id)['generation']
+            return self._servers[library_id].RequestHandlerClass.memory_structured_material(
+                data,library_id=library_id,library_name=meta['name'],review_generation=generation)
     def memory_access(self,library_id,action,data):
         from ..core.brain import Brain
         from ..companion.catalog import memory_bootstrap,memory_catalog,memory_read
@@ -506,13 +522,16 @@ class MemoryHost:
         meta=self.library(library_id)
         functions={'bootstrap':memory_bootstrap,'list':memory_catalog,'read':memory_read}
         if action not in functions:raise ValidationError('未知记忆读取方式')
-        return functions[action](Brain(self.snapshot(library_id)),library_id,meta['name'],**args)
+        with self.connections.binding_lock:
+            self.reviews.touch(library_id)
+            return functions[action](Brain(self.reviews.contextual_snapshot(library_id)),library_id,meta['name'],**args)
     def window_handoff(self,library_id,data):
         from ..core.brain import Brain
         from ..companion.handoff import window_handoff
         if set(data)-{'profile'}:raise ValidationError('记忆包只接受 S/M/L 大小，不接受其他存档参数')
         meta=self.library(library_id)
-        return window_handoff(Brain(self.snapshot(library_id)),library_id,meta['name'],profile=data.get('profile','M'))
+        with self.connections.binding_lock:
+            return window_handoff(Brain(self.reviews.contextual_snapshot(library_id)),library_id,meta['name'],profile=data.get('profile','M'))
     def dialogue_import(self,library_id,data,*,apply=False):
         from ..core.brain import Brain
         from ..ingest.dialogues import plan_dialogues,import_dialogues
@@ -619,11 +638,13 @@ class MemoryHost:
                             module.set_enabled(config,False,remove=True)
                         except Exception:warnings.append('服务已拒绝旧连接；宿主插件停用尚未确认，请重载或移除该连接插件。')
                 self.organizer.forget(library_id,[],node_ids=[])
+                self.reviews.engine.invalidate(library_id)
                 server=self._servers.get(library_id)
                 if server:
                     # This shares the operation lock with every ordinary graph request.
                     def pause(brain):
                         if brain.meta.get('organizer_profile'):brain.meta['organizer_profile']['enabled']=False
+                        if brain.meta.get('idle_review_profile'):brain.meta['idle_review_profile']['enabled']=False
                         return {}
                     if not self.manager.get_library(library_id)['is_demo'] and self.manager.path_for(library_id).exists():server.RequestHandlerClass.memory_transaction(pause)
                     server.shutdown();server.server_close()
@@ -880,6 +901,7 @@ class MemoryHost:
                                                automatic=record.get('schema') in ('love-house-agent-hook/v1','deepseek-harness-event/v1'))
             if rejected:return rejected
         result=self.connections.receive(c,event)
+        self.reviews.touch(c['library_id'])
         self.process_pending(library_id=c['library_id'],receipt_id=result['receipt_id'],limit=1)
         current=self.connections.get(cid)
         return {**result,'status':next((e['status'] for e in self.connections.activity(c['library_id'])['events'] if e['id']==result['receipt_id']),result['status']),
@@ -892,6 +914,7 @@ class MemoryHost:
             if self.sources.for_connection(cid):raise ValidationError('固定Agent活动来源不能改作单窗口连接')
             self.connections.rebind(cid,data)
             self.update_agent_config(cid)
+            self.reviews.engine.invalidate(self.connections.get(cid)['library_id'])
             return self.connection_config(cid)
 
 
@@ -949,7 +972,8 @@ class MemoryHost:
                     e={**normalized,'connection_id':receipt['connection_id'],'session_id':receipt['session_id']}
                     e.setdefault('status','complete');e.setdefault('turn_id',str(outer.get('event_id',receipt['id'])))
                     e.setdefault('origin','harness_hook' if outer.get('record',{}).get('schema')=='deepseek-harness-event/v1' else 'api_proxy')
-                    e['evidence']={**(e.get('evidence') if isinstance(e.get('evidence'),dict) else {}),'archive_receipt_id':receipt['id'],'raw_event_preserved':True}
+                    e['evidence']={**(e.get('evidence') if isinstance(e.get('evidence'),dict) else {}),'archive_receipt_id':receipt['id'],'raw_event_preserved':True,
+                                   'binding_revision':receipt.get('binding_revision',0)}
                     record=outer.get('record') or {}
                     source=self.sources.for_connection(receipt['connection_id'])
                     if source:
@@ -1008,6 +1032,7 @@ class MemoryHost:
             self.drain_agent_outboxes()
     def stop(self):
         self.updates.stop()
+        self.reviews.stop()
         self.stopping.set();self.organizer.stop();self.worker.join(timeout=5)
         with self._lock:
             for server in self._servers.values():server.shutdown();server.server_close()
@@ -1040,6 +1065,7 @@ def make_controller(host):
             return (path in ('/api/connections','/api/memory/status','/api/agent/sources','/api/activity',
                             '/api/memory/experience','/api/memory/timeline','/api/memory/feedback')
                     or path in ('/api/persona/organize-preview','/api/persona/organize')
+                    or path=='/api/idle-review' or path.startswith('/api/idle-review/')
                     or path.startswith(('/api/connections/','/api/agent/sources/','/api/activity/','/api/persona/traits/','/api/commitments/')))
         def _guard_connection_surface(self,path):
             # A memory bearer is a per-connection capability, not a desktop
@@ -1074,6 +1100,7 @@ def make_controller(host):
             return selected
         def _proxy(self,path,body=None):
             lib=self._chosen();meta=host.library(lib)
+            if body is not None:host.reviews.touch(lib)
             if path.split('?',1)[0]=='/api/ai/chat':
                 raise RequestError('星图只负责记忆存储；请在你的客户端聊天，并使用连接页的API网关或宿主自动存档插件',410)
             if meta['is_demo'] and self.command=='POST' and path not in ('/api/recall','/api/preview','/api/ai/context','/api/memory/context','/api/import/preview'):
@@ -1119,6 +1146,13 @@ def make_controller(host):
                     host.updates.start()
                     return self._json(host.updates.status())
                 if path=='/api/retention':return self._json(host.retention_view(self._chosen()))
+                if path=='/api/idle-review':
+                    from urllib.parse import parse_qs
+                    query=parse_qs(parsed.query)
+                    try:limit=int(query.get('limit',['25'])[0])
+                    except (ValueError,TypeError):raise ValidationError('每页提案数量须为有效整数') from None
+                    return self._json(host.reviews.engine.status(self._chosen(),
+                        cursor=query.get('cursor',[None])[0],limit=limit))
                 if path=='/api/memory/experience':return self._json(host.memory_experience(self._chosen()))
                 if path=='/api/memory/timeline':
                     from urllib.parse import parse_qs
@@ -1294,6 +1328,18 @@ def make_controller(host):
                     from ..companion.dedup import separate_recordings
                     return self._json(host.transact(self._chosen(),lambda brain:separate_recordings(brain,data.get('node_id'),data.get('expected'))))
                 if path=='/api/organizer/settings':return self._json(host.organizer_settings(self._chosen(),data))
+                if path.startswith('/api/idle-review/'):
+                    lib=self._chosen()
+                    if path=='/api/idle-review/preview':
+                        if data:raise ValidationError('回顾预览不接受其他参数')
+                        return self._json(host.reviews.engine.preview(lib))
+                    if host.library(lib)['is_demo']:raise ValidationError('示例库只供浏览，不能修改或调用回顾模型')
+                    if path=='/api/idle-review/settings':return self._json(host.reviews.settings(lib,data))
+                    if data:raise ValidationError('回顾操作不接受其他参数')
+                    if path=='/api/idle-review/run':return self._json(host.reviews.run(lib))
+                    if len(parts)==5 and parts[:3]==['api','idle-review','proposals']:
+                        return self._json(host.reviews.engine.decide(lib,parts[3],parts[4]))
+                    raise ValidationError('未知回顾操作')
                 if path=='/api/organizer/models':return self._json(host.organizer_models(self._chosen(),data))
                 if path=='/api/organizer/preview':return self._json(host.organizer.preview(self._chosen()))
                 if path=='/api/organizer/run':
@@ -1342,7 +1388,9 @@ def make_controller(host):
                     if action in ('enabled','disconnect'):
                         config=host.connection_config(cid)
                         harness_config=host.harness_connection_config(cid) if config['connection']['host']=='agent' and config['connection'].get('configured_at') else config
-                        changed=host.connections.toggle(cid,data.get('enabled',False),disconnect=action=='disconnect')
+                        with host.connections.binding_lock:
+                            changed=host.connections.toggle(cid,data.get('enabled',False),disconnect=action=='disconnect')
+                            host.reviews.engine.invalidate(changed['library_id'])
                         result={'connection':changed}
                         if changed['host']=='agent':host.update_agent_config(cid)
                         if changed['host'] in ('harness','agent') and changed.get('configured_at'):

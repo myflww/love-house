@@ -136,10 +136,10 @@ def model_options(profile):
     return request_data
 
 
-def call_model(profile, credential, payload, send=transport):
+def call_model(profile, credential, payload, send=transport, *, system_guidance=None):
     resolved, key, url = resolve_model(profile, credential)
-    policy = SYSTEM_GUIDANCE
-    if profile.get('max_ops') == 1 and payload.get('purpose') != 'persona':
+    policy = SYSTEM_GUIDANCE if system_guidance is None else system_guidance
+    if system_guidance is None and profile.get('max_ops') == 1 and payload.get('purpose') != 'persona':
         policy += '\n本次是输出截断后的缩小分片重试，operations最多1项，使用简短JSON；逐字证据与其他规则仍须完整遵守。'
     request_data = {"model": resolved["model"], "messages": [{"role": "system", "content": policy},
                            {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],

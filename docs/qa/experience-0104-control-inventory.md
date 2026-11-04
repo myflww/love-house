@@ -336,7 +336,7 @@
 | `.workspace-detail-advanced` / `.workspace-detail-danger` | 编辑/强化/定位与常用纠正停用区分；永久忘记仍独立预览确认 | DOM：原处理器保留、危险区默认收起、同节点重绘保留展开、换节点重置 | 真实更正/停用/忘记预览、无障碍焦点 |
 | `personaOrganizerSettings` 等模型设置入口 | 不再跳焦点到密钥输入框；标题与整体状态可见 | 导航只读；异步页内转跳仍由原业务处理 | 实际滚动、标题焦点、跨库旧响应 |
 
-已执行回归：workspace-shell 6项DOM用例、button-hints 4项DOM用例；experience、persona-growth、organizer-configuration 等原UI逻辑回归，以及可视化装配/分享/模型UI的Python回归通过。上述回归验证作用与状态，不冒充所有控件已在真实系统点击。
+已执行回归：workspace-shell 7项DOM用例、button-hints 7项DOM用例；experience、persona-growth、organizer-configuration 等原UI逻辑回归，以及可视化装配/分享/模型UI的Python回归通过。上述回归验证作用与状态，不冒充所有控件已在真实系统点击。
 
 ## 经历与记忆统一窗口新增控件
 
@@ -344,7 +344,7 @@
 
 | 标识或生成族 | 意图与必要性 | 写入和状态边界 | 现有证据 |
 | --- | --- | --- | --- |
-| `memoryWorkspaceTab-experiences` | 保留原经历、原话原因和结果卡 | 只读；不足的原因和结果仍未知 | 原经历13项DOM与统一窗口切换 |
+| `memoryWorkspaceTab-experiences` | 保留原经历、原话原因和结果卡 | 只读；不足的原因和结果仍未知 | 原经历14项DOM与统一窗口切换 |
 | `memoryWorkspaceTab-commitments` | 约定及结清历史 | 默认待跟进，已完成和取消单独查看 | 分页与显式状态更新DOM |
 | `memoryWorkspaceTab-connections` | 窗口、库及来源/归档/整理/提供阶段 | 只称已提供；零命中明确显示；回执故障局部提示 | 范围、零命中、侧表故障DOM |
 | `memoryWorkspaceTab-corrections` | 本人纠正与平台发言待核对 | 不自动选目标或改写事实 | 一手原话、外部认领、不自动写入DOM |
@@ -363,10 +363,34 @@
 | `reviewCorrection-{candidate}` | 核对旧条目并打开原更正表单 | 正确事实初始留空，由用户编辑确认 | 实际openMemoryCorrection执行DOM |
 | `viewCorrectionSource-{candidate}` | 查看原始发言来源 | 只定位当前库资料，文本不执行 | 未信任标记安全渲染DOM |
 | `correctMemoryNotice` | 来源、保存和独立核验状态 | 保存失败、核验失败、图谱刷新失败分别显示 | 实际submit的成功、失败、旧owner、矛盾核验DOM |
+| `memoryCorrectionVerifiedAt` / `memoryCorrectionVerificationState` | 核验记录时间和当前状态投影 | 停用、更正、遗忘、失效或未载入时不把旧成功当现状；历史折叠；不自动核验 | 状态变化、恢复后仍需重验、核验中变化三项DOM |
 | `memoryCorrectionVerifyQuery` | 按原主题重验 | 改问题不改已保存事实 | 初始使用旧标题，避免只用新正文自证 |
 | `verifyLatestCorrection` | 独立重验新旧资料选择 | 只读POST，不再保存更正，不证明模型采用 | 失败可重试、解除忙碌后恢复按钮DOM |
 
-新增 `memory-workspace.test.cjs` 12项通过；连同导航、原经历、人格、整理配置和提示组件共63项JS回归通过。连接卡的五阶段概览保持紧凑，详细流程与最近提供条目默认折叠；具名操作不自动弹出鼠标提示，复杂图标与禁用原因仍有帮助。约定变更保留明确回执并还焦到状态筛选；任意原生对话框打开时，页面全局快捷键不操作背景，单次 Escape 交由对话框取消与还焦处理。真实系统的文件交互、画面尺寸、完整点击与键盘流程由本轮界面验收记录补足。
+新增 `memory-workspace.test.cjs` 16项通过，整理的待处理、实际运行和等待重试分别显示；连同导航、原经历、人格、整理配置、提示组件、普通记事和空闲回顾共91项JS回归通过。连接卡的五阶段概览保持紧凑，详细流程与最近提供条目默认折叠；具名操作不自动弹出鼠标提示，复杂图标与禁用原因仍有帮助。约定变更保留明确回执并还焦到状态筛选；任意原生对话框打开时，页面全局快捷键不操作背景，单次 Escape 交由对话框取消与还焦处理。真实系统的文件交互、画面尺寸、完整点击与键盘流程由本轮界面验收记录补足。
+
+## 整理面板的空闲回顾与普通记事
+
+`idle-review-ui.js` 在原整理面板中增加默认折叠的区域，复用原整理模型，不增加顶部入口、对话框或第二套密钥。这里的 DOM 证据执行生产模块；真实模型结果和原生系统操作须分别验收。
+
+| 标识或生成族 | 意图与必要性 | 写入和状态边界 | 现有证据 |
+| --- | --- | --- | --- |
+| `idleReviewSection` | 在整理流程内查看回顾状态 | 默认折叠；展开仅 GET；关闭和换库丢弃旧响应 | 默认不读取、库/epoch/关闭旧响应DOM |
+| `idleReviewEnabled` | 用户选择空闲自动回顾 | 默认关闭；勾选不直接写入，需保存 | 未保存草稿与轮询保留DOM |
+| `idleReviewAdvanced` | 按需调整调度 | 空闲秒数及每批来源数；分批并非容量或每日额度 | 与服务校验范围同步、无每日预算输入 |
+| `saveIdleReviewSettings` | 保存本库回顾设置 | 管理权限、示例只读、busy互斥；不立即运行模型 | 显式请求、禁用和输入错误DOM |
+| `previewIdleReview` | 只读预览覆盖进度和提案 | 必须有只读、未调用模型回执；不启用或强化 | 实际请求、伪回执拒绝DOM |
+| `moreIdleReviewProposals` | 继续查看后续提案 | 同库只读GET；失效分页重新第一页；无库存数量上限 | 真实api helper、追加去重、展开保持、分页变化和断网DOM |
+| `runIdleReview` | 用户明确启动后台回顾 | queued回执后仅GET状态；自动开关不因此打开 | 点击前无调用、queued与只读轮询DOM |
+| `idleReviewCounts` / `idleReviewStatus` | 合格、待处理、已处理、提案和错误 | 故障不冒充完成；已确认操作与刷新失败区分 | 错误、空库存、busy及刷新失败DOM |
+| `idleReview-accept-{id}` | 采纳低优先经验材料 | 仅待审反思；不是用户事实或真实经历；效果未验证 | reflection可采纳，simulation/strategy无入口DOM |
+| `idleReview-reject-{id}` | 拒绝待审提案 | 明确管理动作；回执须对应本库和所选提案 | busy不称成功、错误回执及显式请求DOM |
+| `idleReview-rollback-{id}` | 撤回已采纳反思 | 仅停用；不能恢复已遗忘原文 | 采纳→刷新→撤回及请求内容DOM |
+| `viewIdleReviewSource-{proposal}-{id}` | 按需查看原始证据 | 只定位本库仍有效条目；证据文本不执行 | 标记安全显示、失效来源可见错误DOM |
+| `newKind` / `openAdd` | 普通记事默认经历 | 新建表单设episode；高级仍可选concept；既有节点和保护核心不变 | 实际openAdd及submit三项DOM |
+| `newMemoryAdvancedNote` | 会话/情感说明随高级字段展开 | 主说明先呈现目标记忆库与普通记事规律 | source与导航DOM；实际尺寸由系统验收补足 |
+
+空闲回顾20项专项DOM通过，普通记事3项实际处理器回归通过。未保存的回顾设置在读取状态或审阅提案时保留；操作回执不完整或刷新失败时须重新只读预览，避免重复写入。显式操作busy失焦后仅在同库同epoch、区域仍开且用户没有转移焦点时还焦；自动读取不请求焦点，完成后已禁用或消失的控件接续到可见按钮。服务自己的来源核验、授权事务、后台恢复及API模型行为由后端专项验收，不能以这些UI测试替代。
 
 ## 原生窗口与平台操作
 

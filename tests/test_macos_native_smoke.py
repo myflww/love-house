@@ -78,12 +78,19 @@ vm.runInNewContext(FIXTURE,ctx);
         from scripts.build_macos import native_workspace_script
         import sys
         sys.path.insert(0, str(ROOT / 'desktop'))
-        from workspace_smoke import SCRIPT, CONTROL_HELPER
+        from workspace_smoke import SCRIPT, CONTROL_HELPER, CHECKS
         self.assertEqual(native_workspace_script(), SCRIPT)
         self.assertIn('NativeWorkspaceSmoke', SWIFT)
         self.assertIn('try await verifyGuidedWorkspace()', SWIFT)
         self.assertIn('Self.smokeControlHelper +', SWIFT)
         self.assertIn("e.getClientRects().length>0", CONTROL_HELPER)
+        self.assertIn('idle_review_opt_in', CHECKS)
+        self.assertIn('idle_review_preview_read_only', CHECKS)
+        self.assertIn("review.profile.enabled===false", SCRIPT)
+        self.assertIn("value.read_only===true&&value.model_called===false", SCRIPT)
+        self.assertIn("'idle-review/run'", SCRIPT)
+        self.assertIn('"idle_review_preview_read_only"', SWIFT)
+        self.assertIn('"idle_review_default_opt_in_and_preview_no_model"', SWIFT)
         self.assertNotIn("current_version:'0.10.3rc1'", SWIFT)
 
 

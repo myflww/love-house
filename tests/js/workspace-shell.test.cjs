@@ -3,8 +3,9 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const source=fs.readFileSync(path.join(__dirname,'../../nkb/viz/web/workspace-shell.js'),'utf8');
+const html=fs.readFileSync(path.join(__dirname,'../../nkb/viz/web/index.html'),'utf8'),realDetail=html.split('\n').find(line=>line.startsWith('function renderDetail(){'));
 
-function environment(){
+function environment({actualDetail=false}={}){
   let document;
   const all=node=>[node,...(node.childNodes||[]).flatMap(all)];
   class Text{
@@ -18,6 +19,7 @@ function environment(){
     set textContent(text){this.childNodes=[];this.append(new Text(text));}
     remove(){if(this.parentElement)this.parentElement.childNodes=this.parentElement.childNodes.filter(n=>n!==this);this.parentElement=null;}
     append(...nodes){for(let n of nodes){if(typeof n==='string')n=new Text(n);n.remove();n.parentElement=this;this.childNodes.push(n);}}
+    replaceChildren(...nodes){for(const n of this.childNodes)n.parentElement=null;this.childNodes=[];this.append(...nodes);}
     prepend(...nodes){for(const n of [...nodes].reverse()){n.remove();n.parentElement=this;this.childNodes.unshift(n);}}
     before(...nodes){if(!this.parentElement)return;const parent=this.parentElement;for(const n of nodes){n.remove();n.parentElement=parent;parent.childNodes.splice(parent.childNodes.indexOf(this),0,n);}}
     after(...nodes){if(!this.parentElement)return;const parent=this.parentElement;let index=parent.childNodes.indexOf(this)+1;for(const n of nodes){n.remove();n.parentElement=parent;parent.childNodes.splice(index++,0,n);}}
@@ -69,6 +71,12 @@ function environment(){
   const draw=()=>{detail.childNodes=[];const row=make('div','',detail,'detail-actions');for(const [id,name]of [['correct','纠正内容'],['disable','暂不使用'],['edit','编辑记忆'],['reinforce','强化记忆'],['focus','聚焦邻居'],['forget','真正忘记']]){const b=make('button',id,row,'btn',name);b.onclick=()=>detailCalls.push(id);}};draw();
   const callbacks=Object.fromEntries(Object.entries(originals).map(([id,button])=>[id,button.onclick]));
   const observers=[],context={document,window:{events:{},addEventListener(type,fn){(this.events[type]??=[]).push(fn);}},MutationObserver:class{constructor(fn){this.fn=fn;observers.push(this);}observe(){}},queueMicrotask:fn=>fn(),PANELS:{settings:'settingsBtn'},setPanelOpen:(...args)=>calls.push(args),S:{libraryId:'fish-a',libraryEpoch:1,selected:'memory-a'},renderDetail:draw};
+  if(actualDetail){
+    make('div','inspectorLabel',main);make('div','detailFoot',main);
+    const node=id=>({id,label:'饮品偏好 '+id,kind:'preference',text:'现在喝茶',tags:[],meta:{},salience:.6,protected:false});Object.assign(context.S,{mode:'serve',days:0,config:{},byId:new Map([['memory-a',node('memory-a')],['memory-b',node('memory-b')]]),adj:new Map([['memory-a',[]],['memory-b',[]]])});
+    Object.assign(context,{$:selector=>document.getElementById(selector.slice(1)),el:(tag,cls,text)=>make(tag,'',new Element('fragment'),cls||'',text||''),MEMORY:{busy:false},anchor:()=>false,stateLabel:()=> '活跃',canWrite:()=>true,writeBlockedReason:()=>'',memoryIsEnabled:()=>true,sal:()=>.6,num:v=>Number(v)||0,state:()=> 'active',date:v=>String(v||''),fact:(dl,label,value)=>{dl.append(new Text(label+':'+value));},renderContextSnippets(){},focusNode:id=>detailCalls.push('focus:'+id),locate:n=>detailCalls.push('locate:'+n.id),openEdit:id=>detailCalls.push('edit:'+id),reinforce:ids=>detailCalls.push('reinforce:'+ids[0]),openMemoryCorrection:id=>detailCalls.push('correct:'+id),setMemoryUse:(id,use)=>detailCalls.push('use:'+id+':'+use),previewForgetMemory:id=>detailCalls.push('forget:'+id)});
+    vm.runInNewContext(realDetail,context);context.renderDetail();
+  }
   vm.runInNewContext(source,context,{filename:'workspace-shell.js'});
   const by=id=>document.getElementById(id);
   const fire=(type,event)=>{event.preventDefault??=()=>{event.prevented=true;};event.stopPropagation??=()=>{event.stopped=true;};for(const fn of document.events[type]||[])fn(event);return event;};
@@ -115,4 +123,10 @@ test('correction and disable stay primary; edit and forget retain independent or
   assert.equal(e.by('edit').textContent,'编辑原条目');assert.equal(danger.open,false);e.by('forget').click();assert.deepEqual(e.detailCalls,['forget']);
   advanced.open=true;e.context.renderDetail();assert.equal(e.by('edit').closest('details').open,true);
   e.context.S.selected='memory-b';e.context.renderDetail();assert.equal(e.by('edit').closest('details').open,false);
+});
+
+test('the complete production renderDetail groups its separate lifecycle row, with no empty action placeholder',()=>{
+ const e=environment({actualDetail:true}),detail=e.by('detail'),button=text=>detail.querySelectorAll('button').find(n=>n.textContent===text);
+ const correct=button('纠正内容'),disable=button('暂不使用'),forget=button('真正忘记'),edit=button('编辑原条目');assert(correct&&disable&&forget&&edit);assert.equal(correct.parentElement,disable.parentElement);assert.equal(correct.parentElement.hidden,false);assert.equal(correct.closest('details'),null);assert.equal(correct.parentElement.children.length,2);assert.equal(detail.querySelector('.lifecycle-actions'),null);assert(forget.closest('details').classList.contains('workspace-detail-danger'));assert.equal(forget.closest('details').open,false);assert(edit.closest('details').classList.contains('workspace-detail-advanced'));assert.equal(edit.closest('details').open,false);
+ correct.click();disable.click();forget.click();assert.deepEqual(e.detailCalls,['correct:memory-a','use:memory-a:false','forget:memory-a']);edit.closest('details').open=true;forget.closest('details').open=true;e.context.renderDetail();assert.equal(button('编辑原条目').closest('details').open,true);assert.equal(button('真正忘记').closest('details').open,true);e.context.S.selected='memory-b';e.context.renderDetail();assert.equal(button('真正忘记').closest('details').open,false);assert.equal(button('编辑原条目').closest('details').open,false);assert.equal(detail.querySelectorAll('.workspace-detail-danger').length,1);
 });

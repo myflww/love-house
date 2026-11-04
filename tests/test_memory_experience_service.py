@@ -85,6 +85,13 @@ class MemoryExperienceServiceTests(unittest.TestCase):
         self.assertNotIn(self.token, encoded)
         self.assertNotIn(self.other_cid, encoded)
 
+    def test_legacy_library_correction_receipt_uses_manager_owned_identity(self):
+        status,value=self.request(f'/api/memories/{self.note}/correct',{'text':'现在改为周日早晨在公园散步。'})
+        self.assertEqual(status,200,value)
+        self.assertTrue(value['saved'])
+        self.assertEqual(value['change_scope']['library_id'],self.library)
+        self.assertEqual(self.host.snapshot(self.library)['nodes'][value['id']]['meta']['library_id'],self.library)
+
     def test_delivery_explanation_shows_real_provided_ids_only_in_owner_library(self):
         ticket = self.delivered()
         value = self.request('/api/memory/experience')[1]['connections'][0]

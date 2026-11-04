@@ -164,14 +164,14 @@ def _projection_time():
     return _now()
 
 
-def history(brain: Brain, session_id: str, limit: int = 6, max_chars: int = 6000) -> list[dict]:
+def history(brain: Brain, session_id: str, limit: int = 6, max_chars: int = 6000, *, _blocked_evidence=None) -> list[dict]:
     """同会话最多六轮的真实角色消息，按时间顺序返回且不强化。"""
     session_id = _session(session_id)
     limit = _count(limit, "limit", 0, 6)
     max_chars = _count(max_chars, "max_chars", 0, 24000)
     if limit == 0 or max_chars == 0:
         return []
-    blocked=_disabled_evidence(brain)
+    blocked=_disabled_evidence(brain) if _blocked_evidence is None else _blocked_evidence
     from .dedup import canonical_turns
     selected_ids={n["id"] for n in canonical_turns(brain,session_id)}
     candidates = [n for n in _context_nodes(brain,_projection_time()) if n["id"] not in blocked
@@ -241,7 +241,7 @@ def source_coverage(sources):
     return counts
 
 
-def _platform_recent_turns(brain, query, *, candidates=None, stamp=None, library_id=None):
+def _platform_recent_turns(brain, query, *, candidates=None, stamp=None, library_id=None, blocked_evidence=None):
     """Supplement explicit platform/current-time questions with two whole turns.
 
     This changes relevance selection inside the already scoped Brain, never
@@ -254,7 +254,7 @@ def _platform_recent_turns(brain, query, *, candidates=None, stamp=None, library
     stamp = now() if stamp is None else stamp
     library_id = library_id or brain.meta.get("library_id")
     tombstones = brain.meta.get("memory_tombstones", {}).get("node_ids", [])
-    blocked = _disabled_evidence(brain)
+    blocked = _disabled_evidence(brain) if blocked_evidence is None else blocked_evidence
     from .dedup import is_duplicate
     selected = []
     for node in candidates if candidates is not None else brain.nodes.values():
@@ -287,7 +287,7 @@ def _platform_recent_turns(brain, query, *, candidates=None, stamp=None, library
 
 
 def build_context(brain: Brain, query: str, session_id: str | None = None,
-                  max_chars: int = 8000, *, library_id: str | None = None) -> dict:
+                  max_chars: int = 8000, *, library_id: str | None = None, _blocked_evidence=None) -> dict:
     """组装可预览/复制/发送的有界材料包；不保存、不强化、不联网。"""
     query = _text(query, "query", MAX_TEXT)
     session_id = _session(session_id, optional=True)
@@ -304,7 +304,7 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
                          "user_name": profile["user_name"] if persona["enabled"] else ""}
     stamp=_projection_time()
     from .dedup import is_duplicate
-    blocked=_disabled_evidence(brain)
+    blocked=_disabled_evidence(brain) if _blocked_evidence is None else _blocked_evidence
     from .structured import _record
     by_id={};priority_ids=set()
     from .lifecycle import commitment_status
@@ -318,13 +318,13 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
         # Validate against the complete Brain, including raw evidence that is
         # not itself selected for transmission. Invalid derived records cannot
         # consume the organized retrieval lane and hide valid memories.
-        record,reason=_record(brain,brain.get(node['id']),stamp,namespace)
+        record,reason=_record(brain,brain.get(node['id']),stamp,namespace,blocked_evidence=blocked)
         if not reason:
             by_id[node['id']]=node
             source=node.get('meta',{}).get('source')
             if source=='user_confirmed' or source=='organizer' and any(ref['id']!=node['id'] for ref in record['source']['evidence']):
                 priority_ids.add(node['id'])
-    platform_recent = [] if query_plan.unfinished else _platform_recent_turns(brain, query, candidates=by_id.values(),stamp=stamp,library_id=namespace)
+    platform_recent = [] if query_plan.unfinished else _platform_recent_turns(brain, query, candidates=by_id.values(),stamp=stamp,library_id=namespace,blocked_evidence=blocked)
     platform_recent_ids = {n["id"] for n in platform_recent}
     from ..organizer import semantic_recall
     from ..organizer.state import prepare_recall
@@ -405,6 +405,10 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
             elif n.get('meta',{}).get('source')=='agent_output':
                 data['speaker']='assistant';data['is_user_fact']=False
                 data.update(_source_labels(n))
+            elif n.get('meta',{}).get('source')=='idle_review':
+                data.update(speaker='assistant',is_user_fact=False,is_real_experience=False,
+                            epistemic_status='user_approved_review_hypothesis',effectiveness='unverified',
+                            strategy_activated=False,priority='supporting_material')
             snippets = (n.get("anchor_info") or {}).get("context_snippets", [])
             if snippets:
                 data["real_context_excerpts"] = [{"id": s["id"], "excerpt": s.get("excerpt", "")[:120],
@@ -413,6 +417,7 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
             display_category=category
             if n.get("meta",{}).get("source")=="conversation_turn":display_category="历史对话原话"
             elif n.get("meta",{}).get("source")=="organizer":display_category="当前有效整理记忆"
+            elif n.get("meta",{}).get("source")=="idle_review":display_category="已审阅的回顾推测（非用户事实）"
             block = display_category + "：" + escape(json.dumps(data, ensure_ascii=False)) + "\n"
             if used + len(block) <= max_chars:
                 pieces.append(block)
@@ -435,7 +440,7 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
     packet = "".join(pieces) + suffix
     # An old chat about a plan does not prove that it is still pending. Pending
     # queries use current open records, not raw history that predates completion.
-    recent = history(brain, session_id) if session_id and not query_plan.unfinished else []
+    recent = history(brain, session_id, _blocked_evidence=blocked) if session_id and not query_plan.unfinished else []
     messages = [{"role": "system", "content": SYSTEM_MESSAGE}, {"role": "user", "content": packet}]
     messages.extend(recent)
     messages.append({"role": "user", "content": query})

@@ -36,15 +36,15 @@ def _identity(brain, library_id, library_name):
             "is_demo": bool(brain.meta.get("demo"))}
 
 
-def _records(brain, library_id):
+def _records(brain, library_id, *, _blocked_evidence=None):
     stamp = now()
     records, excluded = [], Counter()
-    blocked=_disabled_evidence(brain)
+    blocked=_disabled_evidence(brain) if _blocked_evidence is None else _blocked_evidence
     for node in sorted(brain.nodes.values(), key=lambda n: (n.get("created", 0), n["id"])):
         if node['id'] in blocked:
             excluded['paused_evidence']+=1
             continue
-        record, reason = _record(brain, node, stamp, library_id)
+        record, reason = _record(brain, node, stamp, library_id, blocked_evidence=blocked)
         if reason:
             excluded[reason] += 1
         else:
@@ -139,7 +139,8 @@ def memory_read(brain, library_id, library_name, *, memory_id, field="value", of
 def memory_bootstrap(brain, library_id, library_name, *, max_chars=12000):
     identity = _identity(brain, library_id, library_name)
     max_chars = _count(max_chars, "max_chars", 2000, 32000)
-    records, excluded = _records(brain, library_id)
+    blocked = _disabled_evidence(brain)
+    records, excluded = _records(brain, library_id, _blocked_evidence=blocked)
     ordered = sorted(records, key=lambda r: (r["interpretation"] != "current_memory",
                                             r["epistemic_status"] != "user_confirmed_statement",
                                             -(r.get("recorded_at") or 0), r["id"]))
@@ -147,7 +148,7 @@ def memory_bootstrap(brain, library_id, library_name, *, max_chars=12000):
             "library_id": library_id, "truncated": len(ordered) > 1000}
     context = build_structured_context(brain, "恢复这个Agent的已有记忆与相处资料", base,
                                       max_chars=max_chars, library_id=library_id,
-                                      library_name=library_name, agent_id=library_id)
+                                      library_name=library_name, agent_id=library_id, _blocked_evidence=blocked)
     return {"schema": BOOTSTRAP_SCHEMA, "identity": identity, "revision": _revision(records),
             "total_memories": len(records), "included_memories": context["memory_context"]["counts"]["included"],
             "excluded": excluded, "persona": _persona(brain, now(), library_id),

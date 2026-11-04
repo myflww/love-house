@@ -73,6 +73,9 @@ class BackupStore:
         # are not portable. The restored Agent is idle until explicitly connected.
         profile=brain.get('meta',{}).get('organizer_profile',{})
         profile.update(enabled=False,provider_id='',base_url='',model='')
+        brain['meta'].pop('idle_review_current_authorization_generation',None)
+        review=brain['meta'].get('idle_review_profile')
+        if isinstance(review,dict):review['enabled']=False
         mapping={r['id']:hashlib.sha256((new_id+':'+r['id']).encode()).hexdigest() for r in value['archives']}
         def remap_receipts(value):
             # Only typed archive references change. Quotes and original textual

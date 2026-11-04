@@ -61,7 +61,8 @@ def experience_view(host, library_id):
                   'running': '最近一条来源正在整理', 'retry': '最近一条来源等待自动重试',
                   'failed': '最近一条来源需要检查', 'rejected': '最近一条来源已停止整理'}
         stages.append(_stage('organized', '记忆整理', 'complete' if item_status == 'done' else
-            'pending' if item_status in ('pending', 'running', 'retry') else 'attention' if item_status == 'failed' else 'waiting',
+            'queued' if item_status == 'pending' else 'running' if item_status == 'running' else
+            'retry' if item_status == 'retry' else 'attention' if item_status == 'failed' else 'waiting',
             labels.get(item_status, '最近来源尚无整理记录；原文保存与整理分开进行')))
         recall = connection.get('last_recall')
         provided_count = sum(recall.get(key, 0) for key in ('organized_count', 'source_count', 'other_count')) if recall else 0

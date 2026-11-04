@@ -446,7 +446,7 @@ def make_handler(brain: Brain):
                     raise RequestError("没有待保存的修改")
                 brain.update(nid, **fields)
                 from ..service.controls import rebuild_source_controls
-                rebuild_source_controls(brain)
+                rebuild_source_controls(brain,changed=True)
                 node = next(n for n in brain.export()["nodes"] if n["id"] == nid)
                 return {"id": nid, "node": node}
 
@@ -495,7 +495,7 @@ def make_handler(brain: Brain):
                 nid = brain.add(**fields)
                 if meta.get('memory_disabled'):
                     from ..service.controls import rebuild_source_controls
-                    rebuild_source_controls(brain)
+                    rebuild_source_controls(brain,changed=True)
                 links = brain.auto_link(nid, top=2) if auto_link else []
                 return {"id": nid, "linked_to": links}
 

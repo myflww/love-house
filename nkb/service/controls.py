@@ -43,15 +43,17 @@ def set_enabled(brain,nid,enabled):
     for i in ids:
         brain.nodes[i]['meta'].update(memory_disabled=not enabled,
             memory_disabled_origin='explicit_user_action',memory_enabled_changed_at=time.time())
-    rebuild_source_controls(brain)
+    rebuild_source_controls(brain,changed=True)
     return {'id':nid,'enabled':enabled,'affected_ids':sorted(ids)}
 
 
-def rebuild_source_controls(brain):
+def rebuild_source_controls(brain,*,changed=False):
     """Rebuild after opaque edits/imports under the graph write transaction.
 
     The map is only an index of user controls, never a source of permission.
     Readers still check each indexed blocker against its live disabled state.
+    Explicit control/opaque edits invalidate cursors even for a raw source with
+    no derived blockers; an unchanged startup rebuild stays idempotent.
     """
     mapping={}
     for nid,node in brain.nodes.items():
@@ -70,7 +72,7 @@ def rebuild_source_controls(brain):
                and previous.get('blocked_by')==blocked_by and type(generation) is int and generation>=1)
     value={'schema':'love-house-source-controls/v1','generation':generation+1 if type(generation) is int else 1,
            'blocked_by':blocked_by}
-    if unchanged:value['generation']=generation
+    if unchanged and not changed:value['generation']=generation
     brain.meta['memory_source_controls']=value
     return {'schema':value['schema'],'generation':value['generation'],'blocked_sources':len(mapping)}
 
@@ -152,7 +154,7 @@ def restore_history(brain,nid,*,confirm=False,expected_revision=None):
         brain.nodes[target]['meta']['memory_revision']={'schema':REVISION_SCHEMA,'status':'historical',
             'reason':'legacy_history_restore','at':stamp}
     _refresh_unchanged_source_guards(brain,original_sources)
-    rebuild_source_controls(brain)
+    rebuild_source_controls(brain,changed=True)
     return {'id':nid,'library_id':brain.meta.get('library_id'),'restored':True,
             'historical_ids':sorted(set(plan['node_ids'])|set(plan['source_ids'])),
             'node_count':plan['node_count'],'source_count':plan['source_count'],
@@ -289,6 +291,6 @@ def forget(brain,plan):
             if 'excerpt' in snippet:snippet['excerpt']=redacted(snippet['excerpt'])
         brain._vec[node['id']]=brain._vec_for(node)
     for key in list(profile):profile[key]=redacted(profile[key])
-    rebuild_source_controls(brain)
+    rebuild_source_controls(brain,changed=True)
     return {'forgotten':True,'removed_nodes':len(ids),'raw_ids':sorted(raw_ids),
             'persona_history_cleared':persona is not None}

@@ -703,8 +703,8 @@
     },
     {
       "path": "docs/MACOS-0103-UPDATE.md",
-      "bytes": 2561,
-      "sha256": "902d1b6bea296ba65792e32f9cb5ad920d29887e78a214dc2832e27b742e5004"
+      "bytes": 2553,
+      "sha256": "352d5fdac63d9dc7b1844e316719dd3b75173c11877e289bf09dd055a31a8303"
     },
     {
       "path": "docs/MACOS-060-HANDOFF.md",
@@ -818,8 +818,8 @@
     },
     {
       "path": "docs/WINDOWS-0103-UPDATE.md",
-      "bytes": 4943,
-      "sha256": "364c894a72f369800b62dd7cc4b8f144bf458ef549238ec9a1d3abbc8466486a"
+      "bytes": 4904,
+      "sha256": "0947acd767c02f6dbfbb9e95728e97ebf4e3a735531ebc0fbca187cdee0b2ced"
     },
     {
       "path": "docs/WINDOWS-080-HANDOFF.md",

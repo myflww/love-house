@@ -14,6 +14,6 @@
 
 回退时先退出本版，再恢复升级前的完整数据备份与配套旧程序。不要通过清空数据目录处理启动问题。
 
-本包已在真实 Apple Silicon runner 完成 AppKit / WKWebView 与 Keychain helper 编译、ad-hoc 签名校验、隔离后端和原生窗口自检，并在 ZIP 解压后再次运行通过。受测源码为 `8d097a6a146ecff584906a18047e97b03ea05e32`，[构建记录](https://github.com/myflww/love-house/actions/runs/41745570866)和 [macOS-0103-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/macOS-0103-verification.json) 可供核对。最终发行源码只追加文档与清单，Mac 运行和打包输入一致；公开下载后的摘要复核见 [Public-download-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/Public-download-verification.json)。完整验证范围见 [本版说明](ReleaseNotes-0.10.3rc1-macOS.md#验证记录)。
+本包已在真实 Apple Silicon runner 完成 AppKit / WKWebView 与 Keychain helper 编译、ad-hoc 签名校验、隔离后端和原生窗口自检，并在 ZIP 解压后再次运行通过。受测源码为 `8d097a6a146ecff584906a18047e97b03ea05e32`，[构建记录](https://github.com/myflww/love-house/actions/runs/41745570866)和 [macOS-0103-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/macOS-0103-verification.json) 可供核对。最终发行源码与受测源码的 Mac 运行和打包输入一致；公开下载后的摘要复核见 [Public-download-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/Public-download-verification.json)。完整验证范围见 [本版说明](ReleaseNotes-0.10.3rc1-macOS.md#验证记录)。
 
 自检使用合成资料、临时凭据与独立目录，未覆盖安装用户已有应用或读写真实记忆。现有 Mac 的 Keychain 授权和首次打开系统提示需要在升级机器上确认；本轮没有执行用户旧版 Mac 数据的真实覆盖升级。

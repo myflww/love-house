@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries><package android:name="io.github.myflww.lovehouse.preview" /></queries>
+    <application android:forceQueryable="true">
+        <!-- Installed only with the test APK. A single synthetic in-memory document,
+             never a path into either app's private files or the user's documents. -->
+        <provider
+            android:name="io.github.myflww.lovehouse.SyntheticDocumentProvider"
+            android:authorities="io.github.myflww.lovehouse.preview.test.synthetic-saf"
+            android:exported="true"
+            android:grantUriPermissions="false" />
+    </application>
+</manifest>

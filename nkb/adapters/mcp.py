@@ -38,7 +38,7 @@ TOOLS = [
     },
     {
         "name": "kb_add",
-        "description": "往知识库里加一条知识。会自动按字面重合连到最近的既有节点。",
+        "description": "往知识库里加一条知识，默认独立保存；不按共同措辞猜测关系。明确关系可用kb_link。",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -53,6 +53,8 @@ TOOLS = [
                 "session_id": {"type": "string", "description": "同一会话标识，用于情绪锚点的有限前后文"},
                 "event_at": {"type": "number", "description": "真实事件时间，Unix 秒，缺省为当前时间"},
                 "important": {"type": "boolean", "default": False},
+                "auto_link": {"type":"boolean","default":False,
+                              "description":"仅用户明确要求时设true：高级词面近似连线，不构成事实关系证明；默认不连"},
             },
             "required": ["label"],
         },
@@ -151,6 +153,8 @@ def _dispatch_tool(brain: Brain, name: str, args: dict) -> dict:
             return {"content": [{"type": "text", "text": text}]}
 
         if name == "kb_add":
+            auto_link=args.get('auto_link',False)
+            if type(auto_link) is not bool:raise ValueError('auto_link必须为布尔值；默认不猜测关联')
             nid = brain.add(
                 label=args["label"], text=args.get("text", ""),
                 kind=args.get("kind", "concept"),
@@ -160,7 +164,7 @@ def _dispatch_tool(brain: Brain, name: str, args: dict) -> dict:
                 session_id=args.get("session_id"), event_at=args.get("event_at"),
                 meta={"important": args.get("important", False)},
             )
-            links = brain.auto_link(nid, top=2)
+            links = brain.auto_link(nid, top=2) if auto_link else []
             return {"content": [{"type": "text", "text": json.dumps(
                 {"id": nid, "linked_to": [{"id": i, "w": w} for i, w in links]},
                 ensure_ascii=False)}]}

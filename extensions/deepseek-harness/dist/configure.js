@@ -7349,7 +7349,7 @@ import { createHash, randomUUID } from "node:crypto";
 // src/runtime.ts
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-var SUPPORTED_HOSTS = ["0.2.1-rc.3"];
+var SUPPORTED_HOSTS = ["0.2.1-rc.3", "0.2.1-rc.5"];
 var expandHome = (path) => path.startsWith("~/") ? join(homedir(), path.slice(2)) : resolve(path);
 var claimsKey = Symbol.for("neural-knowledge.session-claims.v1");
 var sessionClaims = globalThis[claimsKey] ??= /* @__PURE__ */ new Map();
@@ -7461,7 +7461,7 @@ function applyConfiguration(input) {
   }
   if (existsSync(prepared.install_dir) && (lstatSync(prepared.install_dir).isSymbolicLink() || readdirSync(prepared.install_dir).length > 0 && !existsSync(join2(prepared.install_dir, "managed.json")))) throw new Error("Installation directory is linked or contains unrecognized files");
   mkdirSync(prepared.install_dir, { recursive: true, mode: 448 });
-  writePrivate(join2(prepared.install_dir, "managed.json"), JSON.stringify({ managed_by: OWNER, version: "0.4.0" }));
+  writePrivate(join2(prepared.install_dir, "managed.json"), JSON.stringify({ managed_by: OWNER, version: "0.4.1" }));
   for (const file of ["index.js", "configure.js", "proxy.js", "THIRD_PARTY_LICENSES.txt"]) if (existsSync(join2(sourceDir, file)) && resolve2(sourceDir, file) !== resolve2(prepared.install_dir, file)) copyFileSync(join2(sourceDir, file), join2(prepared.install_dir, file));
   writePrivate(prepared.connection_file, JSON.stringify(connection));
   writePrivate(join2(prepared.install_dir, "package.json"), JSON.stringify({ name: "neural-knowledge-local-adapter", private: true, type: "module" }));

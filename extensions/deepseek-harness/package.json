@@ -1,6 +1,6 @@
 {
   "name": "@neural-knowledge/deepseek-harness-host",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "type": "module",
   "license": "PolyForm-Noncommercial-1.0.0",
@@ -21,7 +21,8 @@
     "configure.py",
     "README.md",
     "samples",
-    "host-contract.json"
+    "host-contract.json",
+    "host-contract-fingerprints.json"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",

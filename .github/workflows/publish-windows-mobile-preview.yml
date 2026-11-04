@@ -1,0 +1,37 @@
+name: Publish verified Windows and mobile 0.8 preview
+
+on:
+  push:
+    branches: [codex/mobile-agent-080]
+    paths:
+      - '.github/workflows/publish-windows-mobile-preview.yml'
+      - 'scripts/publish_windows_mobile_preview.py'
+      - 'release-handoff/0.8.0rc1/**'
+      - 'docs/WINDOWS-MOBILE-080RC1.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-verified-windows-mobile-080rc1
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'myflww/love-house' && github.ref == 'refs/heads/codex/mobile-agent-080'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify original tested bytes and publish a separate prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python scripts/publish_windows_mobile_preview.py

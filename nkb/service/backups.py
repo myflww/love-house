@@ -88,6 +88,8 @@ class BackupStore:
         remap_receipts(brain)
         def apply(target):
             loaded=Brain(brain)
+            from ..organizer.experiences import rebind_experiences_after_import
+            rebind_experiences_after_import(loaded,new_id)
             for field in ('nodes','edges','meta','_vec','name','config','half_life'):setattr(target,field,deepcopy(getattr(loaded,field)))
             return {'node_count':len(target.nodes)}
         try:

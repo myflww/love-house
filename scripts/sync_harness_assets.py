@@ -9,7 +9,7 @@ for name in ('index.js','configure.js','proxy.js'):
  p=source/'dist'/name
  if not p.is_file():raise SystemExit('请先构建宿主适配器：'+str(p))
  shutil.copy2(p,target/'dist'/name)
-for name in ('configure.py','host-contract.json','README.md','LICENSE','NOTICE'):
+for name in ('configure.py','host-contract.json','host-contract-fingerprints.json','README.md','LICENSE','NOTICE'):
  p=source/name
  if p.is_file():shutil.copy2(p,target/name)
 shutil.copy2(source/'dist/THIRD_PARTY_LICENSES.txt',target/'dist/THIRD_PARTY_LICENSES.txt')

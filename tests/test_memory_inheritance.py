@@ -49,6 +49,7 @@ class MemoryInheritanceTests(unittest.TestCase):
     def api(self, path, data=None, token=None, lib=None):
         headers = {'Content-Type': 'application/json'}
         if token: headers['Authorization'] = 'Bearer ' + token
+        else: headers['X-LoveHouse-Management'] = self.host.management_token
         if lib: headers['X-NKB-Library'] = lib
         req = urllib.request.Request('http://127.0.0.1:' + str(self.server.server_port) + path,
                                      data=None if data is None else json.dumps(data).encode(), headers=headers)
@@ -228,6 +229,13 @@ class MemoryInheritanceTests(unittest.TestCase):
         self.assertFalse(state.get('isError'), state)
         self.assertEqual(state['structuredContent']['library_id'], self.other)
         self.assertNotIn('/api/libraries', paths)
+        self.assertNotIn('/api/memory/status', paths)
+        self.assertNotIn('/api/connections', paths)
+        self.assertIn('/api/memory/list', paths)
+        self.assertEqual(state['structuredContent']['passive_sources'], [])
+        self.assertFalse(state['structuredContent']['automatic_memory'])
+        self.assertNotIn(self.a, json.dumps(state, ensure_ascii=False))
+        self.assertNotIn(self.b, json.dumps(state, ensure_ascii=False))
         boot = bridge.call_tool('memory_bootstrap', {})
         self.assertEqual(boot['structuredContent']['identity']['library_id'], self.other)
         self.assertNotIn('A库独有的原话', json.dumps(boot, ensure_ascii=False))

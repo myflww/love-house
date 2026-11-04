@@ -80,25 +80,23 @@ class OrganizerThresholdAtomTests(unittest.TestCase):
         self.assertEqual(self.organizer.run_once('a',flush=False)['status'],'done')
         self.assertEqual(self.organizer.status('a')['counts'].get('done'),2)
 
-    def test_cycle_membership_survives_worker_restart_and_budget_pause(self):
+    def test_cycle_membership_survives_worker_restart_with_old_daily_limit(self):
         save_profile(self.brains['a'],daily_call_limit=1)
         for i in range(3):self.raw(str(i)+'。')
         self.assertEqual(self.organizer.run_once('a',flush=False)['status'],'done')
-        self.assertEqual(self.organizer.run_once('a',flush=False)['status'],'budget_limited')
         self.assertTrue(self.organizer.status('a')['trigger']['draining'])
         self.organizer.stop();restored=self.make();self.addCleanup(restored.stop)
-        with restored.db() as db:db.execute('UPDATE calls SET at=at-86401')
         self.assertEqual(restored.run_once('a',flush=False)['status'],'done')
         self.assertEqual(restored.status('a')['counts'].get('done'),3)
 
     def test_failed_batch_does_not_block_cycle_tail_or_lose_failed_originals(self):
         save_profile(self.brains['a'],max_attempts=1)
         ids=[self.raw(str(i)+'。') for i in range(3)];self.transport_failed=True
-        failed=self.organizer.run_once('a',flush=False);self.assertEqual(failed['status'],'failed')
+        failed=self.organizer.run_once('a',flush=False);self.assertEqual(failed['status'],'retry')
         self.transport_failed=False
         self.assertEqual(self.organizer.run_once('a',flush=False)['status'],'done')
-        self.assertEqual(self.organizer.status('a')['counts'].get('failed'),2)
-        self.organizer.retry(failed['job_id'])
+        self.assertEqual(self.organizer.status('a')['counts'].get('retry'),2)
+        with self.organizer.db() as db:db.execute('UPDATE jobs SET next_run=0 WHERE id=?',(failed['job_id'],))
         self.assertEqual(self.organizer.run_once('a',flush=False)['status'],'done')
         self.assertEqual(self.organizer.status('a')['counts'].get('done'),3)
         self.assertTrue(all(i in self.brains['a'].nodes for i in ids))
@@ -156,7 +154,7 @@ class OrganizerThresholdAtomTests(unittest.TestCase):
         self.assertTrue(all(i in self.brains['a'].nodes for i in sources))
         self.assertEqual({i for i,w in self.brains['a'].neighbors(node['id'])},set(sources))
 
-    def test_atom_forged_values_code_fields_and_model_timestamps_are_rejected(self):
+    def test_invalid_atom_fields_only_leave_literal_review_material_and_one_accounted_call(self):
         for atom in ({'subject':'user','predicate':'home.city','value':'上海'},
                      {'subject':'user','predicate':'home.city','value':'北京','created':1},
                      {'subject':'user','predicate':'home.city','value':'北京','qualifiers':{'event_at':1}},
@@ -165,8 +163,40 @@ class OrganizerThresholdAtomTests(unittest.TestCase):
             with self.subTest(atom=atom):
                 lid='bad-'+str(len(self.brains));self.brains[lid]=Brain.new();save_profile(self.brains[lid],enabled=True,base_url='https://offline.invalid/v1',model='FAKE')
                 self.reply=lambda p,atom=atom:{'version':1,'operations':[self.op(p,atom=atom)]}
-                self.raw(lid=lid);result=self.organizer.run_once(lid)
-                self.assertEqual(result['code'],'invalid_atom');self.assertEqual(self.facts(lid),[])
+                raw=self.raw(lid=lid);brain=self.brains[lid]
+                original=deepcopy(brain.nodes[raw]);edges=deepcopy(brain.edges);calls_before=len(self.calls)
+                result=self.organizer.run_once(lid)
+                self.assertEqual(result['status'],'done',result)
+                self.assertEqual(self.facts(lid),[])
+                self.assertEqual(brain.nodes,{raw:original});self.assertEqual(brain.edges,edges)
+                candidates=brain.meta['organizer_candidates'];self.assertEqual(len(candidates),1)
+                candidate=candidates[0];operation=candidate['operation']
+                self.assertEqual(candidate['status'],'pending');self.assertEqual(candidate['library_id'],lid)
+                self.assertEqual(candidate['job_id'],result['job_id'])
+                self.assertEqual(candidate['reason_code'],'invalid_atom_verbatim_fallback')
+                self.assertEqual(operation['action'],'candidate');self.assertIs(operation['requires_review'],True)
+                self.assertEqual(operation['text'],original['text']);self.assertEqual(operation['verbatim_text'],original['text'])
+                self.assertEqual(operation['atom'],{'subject':'user','predicate':'home.city','value':original['text'],
+                    'qualifiers':{'polarity':'unknown'},'relation_status':'verbatim_fallback'})
+                self.assertEqual(operation['aliases'],[]);self.assertEqual(operation['related_ids'],[])
+                self.assertNotIn('target_id',operation)
+                self.assertEqual(operation['evidence'][0]['id'],raw)
+                self.assertEqual(operation['evidence'][0]['quote'],original['text'])
+                self.assertEqual(operation['evidence'][0]['receipt_id'],'receipt-'+raw)
+                self.assertEqual(result['result']['created'],[])
+                self.assertEqual(result['result']['candidates'],[candidate['id']])
+                log=brain.meta['organizer_log'];self.assertEqual(len(log),1)
+                self.assertEqual(log[0]['job_id'],result['job_id']);self.assertEqual(log[0]['result'],result['result'])
+                self.assertEqual(log[0]['before_nodes'],{});self.assertEqual(log[0]['before_edges'],{})
+                self.assertEqual(log[0]['after_nodes'],{});self.assertEqual(log[0]['after_edges'],{})
+                with self.organizer.db() as db:
+                    job=dict(db.execute('SELECT * FROM jobs WHERE id=?',(result['job_id'],)).fetchone())
+                    ledger=[dict(row) for row in db.execute('SELECT * FROM calls WHERE library_id=?',(lid,))]
+                self.assertEqual((job['status'],job['attempts'],job['error_code']),('done',1,None))
+                self.assertEqual(json.loads(job['plan_json'])['operations'],[operation])
+                self.assertEqual(json.loads(job['result_json']),result['result'])
+                self.assertEqual(len(self.calls)-calls_before,1);self.assertEqual(len(ledger),1)
+                self.assertEqual(ledger[0]['chars'],len(json.dumps(self.calls[-1],ensure_ascii=False)))
 
     def test_negation_cannot_be_converted_to_a_positive_machine_fact(self):
         self.reply=lambda p:{'version':1,'operations':[self.op(p,layer='preference',atom={'subject':'user','predicate':'likes','value':'咖啡','qualifiers':{'polarity':'affirmed'}})]}

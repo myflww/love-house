@@ -28,6 +28,16 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
     private var smokeConnectionID = ""
     private var smokeConnectionToken = ""
     private var smokeControllerPort: Int?
+    private var smokeVersion = ""
+    private var smokeSteps: [String] = []
+    private var smokeFailure = ""
+    private var smokeHostReducedMotion: Bool?
+    private var smokeTestedMotionStates: [String] = []
+    private let smokeSession = URLSession(configuration: .ephemeral)
+    private var smokeReportURL: URL? {
+        guard let index = CommandLine.arguments.firstIndex(of: "--smoke-report"), index + 1 < CommandLine.arguments.count else { return nil }
+        return URL(fileURLWithPath: CommandLine.arguments[index + 1])
+    }
     private let files = FileManager.default
     private let appName = "爱之屋"
     private lazy var smokeDirectory = files.temporaryDirectory.appendingPathComponent("neural-atlas-native-" + UUID().uuidString)
@@ -46,7 +56,14 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
+        if smokeMode {
+            // Only public update fixtures are intercepted. Memory/model API
+            // requests still use the real isolated local Controller.
+            configuration.userContentController.addUserScript(WKUserScript(source: Self.smokeUpdateFixture,
+                injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
         configuration.userContentController.add(self, name: "saveMemoryFile")
+        configuration.userContentController.add(self, name: "exportAstrBotAdapter")
         webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = self
         webView.uiDelegate = self
@@ -92,7 +109,7 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         NSApp.activate(ignoringOtherApps: true)
         startServer()
         if smokeMode {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 120) { [weak self] in
                 guard let self = self else { return }
                 print("Native WKWebView self-test timed out: \(self.statusLabel.stringValue)")
                 if let log = try? String(contentsOf: self.logURL, encoding: .utf8) { print(log) }
@@ -114,6 +131,7 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         stopServer()
         if smokeMode {
             try? files.removeItem(at: smokeDirectory)
+            writeSmokeReport()
             print("Native cleanup: backend stopped and temporary data removed")
             fflush(stdout)
             exit(smokeExitCode)
@@ -126,6 +144,8 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         menu.addItem(app)
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "关于爱之屋", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        let update = appMenu.addItem(withTitle: "检查更新…", action: #selector(checkForUpdates), keyEquivalent: "")
+        update.target = self
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "退出爱之屋", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         app.submenu = appMenu
@@ -206,6 +226,10 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         if let url = serviceURL { webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)) }
         else { startServer() }
     }
+
+    @objc private func checkForUpdates() {
+        webView.evaluateJavaScript("window.LoveHouseUpdates?.check()")
+    }
     @objc private func fitGraph() {
         webView.evaluateJavaScript("document.getElementById('clearFocus')?.click(); document.getElementById('fitBtn')?.click();", completionHandler: nil)
     }
@@ -232,6 +256,13 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         do {
             try files.createDirectory(at: dataURL, withIntermediateDirectories: true,
                                       attributes: [.posixPermissions: 0o700])
+            if smokeMode {
+                // Native acceptance never calls GitHub, a model or real user data.
+                let updatePreferences = dataURL.appendingPathComponent("updates.json")
+                if !files.fileExists(atPath: updatePreferences.path) {
+                    try Data("{\"auto_check\":false,\"channel\":\"stable\"}".utf8).write(to: updatePreferences, options: .atomic)
+                }
+            }
             let runtime = dataURL.appendingPathComponent(".runtime", isDirectory: true)
             try files.createDirectory(at: runtime, withIntermediateDirectories: true,
                                       attributes: [.posixPermissions: 0o700])
@@ -309,6 +340,7 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                 self.pollTimer?.invalidate()
                 self.pollTimer = nil
                 self.serviceURL = url
+                if self.smokeMode { self.smokeVersion = health["version"] as? String ?? "" }
                 self.webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
             }
         }.resume()
@@ -388,7 +420,7 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: payload)
         }
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await smokeData(request, management: token == nil)
         guard let response = response as? HTTPURLResponse, response.statusCode == 200,
               let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw NSError(domain: "NeuralAtlasSmoke", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
@@ -397,12 +429,76 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         return object
     }
 
+    private func smokeData(_ original: URLRequest, management: Bool = true) async throws -> (Data, URLResponse) {
+        guard let base = serviceURL, let url = original.url, url.scheme == "http",
+              url.host == "127.0.0.1", url.port == base.port else {
+            throw NSError(domain: "NeuralAtlasSmoke", code: 3, userInfo: [NSLocalizedDescriptionKey: "Native request escaped the isolated Controller"])
+        }
+        var request = original
+        request.setValue(base.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")), forHTTPHeaderField: "Origin")
+        if management {
+            let cookies: [HTTPCookie] = await withCheckedContinuation { continuation in
+                webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { continuation.resume(returning: $0) }
+            }
+            let session = cookies.filter { $0.name == "LoveHouseUI" && $0.domain == "127.0.0.1" }
+            try requireSmoke(!session.isEmpty, "WKWebView management session was not established")
+            for (key, value) in HTTPCookie.requestHeaderFields(with: session) { request.setValue(value, forHTTPHeaderField: key) }
+        }
+        return try await smokeSession.data(for: request)
+    }
+
+    private func writeSmokeReport() {
+        guard let destination = smokeReportURL else { return }
+        let cleaned = !files.fileExists(atPath: smokeDirectory.path)
+        let report: [String: Any] = ["ok": smokeExitCode == 0 && cleaned, "version": smokeVersion,
+            "process_complete": process == nil, "stage": smokeStage, "steps": smokeSteps, "failure": smokeFailure,
+            "actual_host_reduce_motion": smokeHostReducedMotion.map { $0 as Any } ?? NSNull(),
+            "tested_synthetic_motion_states": smokeTestedMotionStates,
+            "isolation": ["temporary_data": true, "data_removed": cleaned, "uses_user_data": false,
+                          "real_provider_calls": false, "release_network": false],
+            "startup_update_source": "synthetic_public_release_fixture"]
+        do {
+            try files.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try JSONSerialization.data(withJSONObject: report, options: [.sortedKeys, .prettyPrinted]).write(to: destination, options: .atomic)
+        } catch { print("Native smoke report could not be written") }
+    }
+
+    private static let smokeUpdateFixture = #"""
+    (()=>{
+      const original=window.fetch.bind(window),state={calls:[],checked:false};window.__nativeSmokeUpdates=state;
+      window.fetch=async(input,options={})=>{
+        const url=new URL(typeof input==='string'?input:input.url,location.href);
+        if(url.origin===location.origin&&['/api/updates','/api/updates/check'].includes(url.pathname)){
+          state.calls.push(url.pathname);if(url.pathname.endsWith('/check'))state.checked=true;
+          const release={version:'99.0.0',tag:'v99.0.0',notes:'Synthetic native startup update notice.',prerelease:false,
+            url:'https://github.com/myflww/love-house/releases/tag/v99.0.0',
+            asset_url:'https://github.com/myflww/love-house/releases/download/v99.0.0/LoveHouse-macOS-arm64.zip'};
+          return new Response(JSON.stringify({current_version:'0.10.3rc1',platform:'macos',architecture:'arm64',
+            settings:{auto_check:true,channel:'stable'},status:state.checked?'available':'not_checked',checking:false,
+            available:state.checked,checked_at:state.checked?1700000000:null,release:state.checked?release:null,retry_after:0}),
+            {status:200,headers:{'Content-Type':'application/json'}});
+        }
+        return original(input,options);
+      };
+    })();
+    """#
+
     private func requireSmoke(_ condition: Bool, _ message: String) throws {
         if !condition { throw NSError(domain: "NeuralAtlasSmoke", code: 2, userInfo: [NSLocalizedDescriptionKey: message]) }
     }
 
     private func failSmoke(_ error: Error) {
         print("Native desktop self-test failed: \(error.localizedDescription)")
+        let details = error as NSError
+        // WKError otherwise replaces our fixed acceptance failures with the
+        // generic "A JavaScript exception occurred". Only isolated synthetic
+        // smoke probes use this path; no provider text or cookie is reported.
+        if let message = details.userInfo["WKJavaScriptExceptionMessage"] as? String {
+            smokeFailure = String(message.prefix(500))
+            print("Native JavaScript failure: \(smokeFailure)")
+        } else {
+            smokeFailure = String(error.localizedDescription.prefix(500))
+        }
         NSApp.terminate(nil)
     }
 
@@ -433,12 +529,66 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                 let libraries = try await smokeRequest("api/libraries")
                 try requireSmoke(libraries["selected_id"] as? String == "default", "First GUI selection was not default")
                 let organizerUI = try await webView.callAsyncJavaScript(
-                    "setPanelOpen('organizerPanel',true,{focus:false}); await refreshOrganizer(); const panel=document.getElementById('organizerPanel'); const enabled=document.getElementById('organizerEnabled'); const result={open:!!panel&&!panel.hidden, enabled:enabled?.checked===true, preview:!!document.getElementById('previewOrganizer')}; setPanelOpen('organizerPanel',false,{restore:false}); return result;",
+                    "setPanelOpen('organizerPanel',true,{focus:false}); await refreshOrganizer(); const panel=document.getElementById('organizerPanel'); const enabled=document.getElementById('organizerEnabled'); const options=window.LoveHouseOrganizerModels?.settingsPayload(); const result={open:!!panel&&!panel.hidden, enabled:enabled?.checked===true, preview:!!document.getElementById('previewOrganizer'), models:!!document.getElementById('organizerReadModels'), defaults:options?.max_input_chars===0&&options?.context_window===0&&options?.max_output_tokens===0&&options?.reasoning_effort==='auto', noDailyLimit:!document.getElementById('organizerCallLimit')&&!document.getElementById('organizerCharLimit')}; setPanelOpen('organizerPanel',false,{restore:false}); return result;",
                     arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
                 try requireSmoke(organizerUI?["open"] as? Bool == true && organizerUI?["enabled"] as? Bool == false && organizerUI?["preview"] as? Bool == true, "Organizer panel was unavailable or unexpectedly enabled")
+                try requireSmoke(organizerUI?["models"] as? Bool == true && organizerUI?["defaults"] as? Bool == true && organizerUI?["noDailyLimit"] as? Bool == true, "Organizer did not expose automatic model capabilities without daily ceilings")
                 let organizerPreview = try await smokeRequest("api/organizer/preview", method: "POST", payload: [:])
                 try requireSmoke(organizerPreview["will_call_model"] as? Bool == false, "Organizer preview attempted a model call")
                 print("Native organizer: real panel opens, starts disabled, preview performs no model call")
+                smokeSteps.append("organizer_auto_capabilities_no_model_call")
+                let newUI = try await webView.callAsyncJavaScript(
+                    "return {importChat:!!document.getElementById('dialogueImportBtn'),handoff:!!document.getElementById('windowHandoffBtn'),updates:!!document.getElementById('checkForUpdates'),retention:!!document.getElementById('memoryRetentionBtn'),rules:!!document.getElementById('organizerRulesBtn')};",
+                    arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                try requireSmoke(newUI?["importChat"] as? Bool == true && newUI?["handoff"] as? Bool == true && newUI?["updates"] as? Bool == true, "New desktop controls are missing")
+                try requireSmoke(newUI?["retention"] as? Bool == true && newUI?["rules"] as? Bool == true, "Adaptive memory controls are missing")
+                let retention = try await smokeRequest("api/retention")
+                try requireSmoke(retention["node_limit"] is NSNull && retention["count_eviction"] as? Bool == false && retention["automatic_deletion"] as? Bool == false, "Personal library still has count eviction or timed deletion")
+                let ruleView = try await webView.callAsyncJavaScript(
+                    "await window.LoveHouseOrganizerRules.open(); const d=document.getElementById('organizerRulesDialog'); const text=document.getElementById('organizerFullGuide').textContent; const result={open:d.open,guide:text.includes('统一保存期限')&&text.includes('逐字')}; d.close(); return result;",
+                    arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                try requireSmoke(ruleView?["open"] as? Bool == true && ruleView?["guide"] as? Bool == true, "Organizer guide is not readable in the actual native UI")
+                print("Native 0.7: unlimited personal archive, no TTL, adaptive settings and exact organizer guide verified without model calls")
+                smokeSteps.append("adaptive_retention_and_read_only_rules")
+                let lifeUI = try await webView.callAsyncJavaScript(
+                    "return {sources:!!document.getElementById('agentSourcesBtn'),experiences:!!document.getElementById('experienceLibraryBtn'),plugin:!!document.getElementById('exportAstrBotPlugin')};",
+                    arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                try requireSmoke(lifeUI?["sources"] as? Bool == true && lifeUI?["experiences"] as? Bool == true && lifeUI?["plugin"] as? Bool == true, "Experience/source controls are missing")
+                let life = try await smokeRequest("api/experiences")
+                try requireSmoke(life["read_only"] as? Bool == true && life["will_call_model"] as? Bool == false, "Experience view is not read-only")
+                let source = try await smokeRequest("api/agent/sources", method:"POST", payload:["name":"原生合成来源","adapter":"sdk","runtime_agent_id":"SYNTHETIC-NATIVE-FISH","platforms":["qq","browser"]])
+                try requireSmoke(source["config_ready"] as? Bool == true && (source["source"] as? [String:Any])?["full_activity_coverage_verified"] as? Bool == false, "Source configuration claimed unsupported coverage")
+                let packageURL = serviceURL!.appendingPathComponent("api/adapters/astrbot/package")
+                let (pluginData, pluginResponse) = try await smokeData(URLRequest(url: packageURL))
+                let bundled = try Data(contentsOf:Bundle.main.resourceURL!.appendingPathComponent("Adapters/LoveHouse-AstrBot-0.3.0-experimental.zip"))
+                try requireSmoke((pluginResponse as? HTTPURLResponse)?.statusCode == 200 && pluginData == bundled && pluginData.prefix(2) == Data([0x50,0x4b]), "Experimental adapter export bytes differ from the bundled source package")
+                print("Native 0.8: human experience/source controls, fixed-source registration and exact experimental plugin ZIP verified; no external Agent or model used")
+                smokeSteps.append("management_session_source_registration_astrbot_030_export")
+                let updates = try await smokeRequest("api/updates")
+                try requireSmoke(updates["auto_install"] as? Bool == false && (updates["settings"] as? [String: Any])?["auto_check"] as? Bool == false, "Isolated update preferences did not prevent network checks")
+                let startup = try await webView.callAsyncJavaScript("""
+                    const end=performance.now()+10000;
+                    while(!document.getElementById('updateAvailableDialog')?.open){if(performance.now()>end)throw new Error('Native startup update notice missing');await new Promise(r=>setTimeout(r,40));}
+                    const d=document.getElementById('updateAvailableDialog'),fixture=window.__nativeSmokeUpdates;
+                    const result={opened:d.open,checks:fixture.calls.filter(path=>path==='/api/updates/check').length,
+                      text:document.getElementById('updateAvailableVersions').textContent.includes('99.0.0'),
+                      link:document.getElementById('updateAvailableDownload').href.endsWith('/LoveHouse-macOS-arm64.zip')};
+                    document.getElementById('deferUpdateAvailable').click();return {...result,closed:!d.open};
+                    """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                try requireSmoke(startup?["opened"] as? Bool == true && startup?["checks"] as? Int == 1 && startup?["text"] as? Bool == true && startup?["link"] as? Bool == true && startup?["closed"] as? Bool == true, "Startup update fixture did not complete the real native notice flow")
+                smokeSteps.append("startup_fresh_check_and_update_notice_fixture")
+                let rescue = try await smokeRequest("api/libraries", method: "POST", payload: ["name":"原生聊天导入自检库"])
+                let rescueID = (rescue["library"] as? [String: Any])?["id"] as? String ?? ""
+                try requireSmoke(!rescueID.isEmpty, "Historical import test library missing")
+                let oldChat = "[{\"role\":\"user\",\"content\":\"旧窗口的测试约定\"},{\"role\":\"assistant\",\"content\":\"保留这段测试原文\"}]"
+                let chatPreview = try await smokeRequest("api/dialogue-import/preview", method: "POST", payload: ["content": oldChat], libraryID: rescueID)
+                try requireSmoke(chatPreview["read_only"] as? Bool == true && chatPreview["added"] as? Int == 1, "Historical chat preview failed")
+                let chatImport = try await smokeRequest("api/dialogue-import/apply", method: "POST", payload: ["content": oldChat, "confirm": true, "expected_fingerprint": chatPreview["fingerprint"] as? String ?? ""], libraryID: rescueID)
+                try requireSmoke(chatImport["saved"] as? Bool == true && chatImport["added"] as? Int == 1, "Historical chat was not saved")
+                let handoff = try await smokeRequest("api/memory/handoff", method: "POST", payload: ["profile":"S"], libraryID: rescueID)
+                try requireSmoke(handoff["read_only"] as? Bool == true && handoff["automatic_recording"] as? Bool == false && (handoff["text"] as? String ?? "").contains("旧窗口的测试约定"), "Bounded new-window packet failed")
+                print("Native 0.6: historical chat preview/import, scoped handoff and update controls verified; no model or release-network calls")
+                smokeSteps.append("historical_role_import_and_scoped_handoff")
                 let a = try await smokeRequest("api/libraries", method: "POST", payload: ["name": "原生自检库甲"])
                 let b = try await smokeRequest("api/libraries", method: "POST", payload: ["name": "原生自检库乙"])
                 smokeLibraryA = (a["library"] as? [String: Any])?["id"] as? String ?? ""
@@ -449,12 +599,16 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                 smokeConnectionID = (created["connection"] as? [String: Any])?["id"] as? String ?? ""
                 smokeConnectionToken = (created["config"] as? [String: Any])?["connectionToken"] as? String ?? ""
                 try requireSmoke(!smokeConnectionToken.isEmpty, "Connection token missing")
-                try await captureSmokeTurn("persona", user: "导入人格：\n原生测试明确人格原文")
-                try await captureSmokeTurn("style-1", user: "我希望你说话幽默一点")
-                try await captureSmokeTurn("style-2", user: "以后请你说话幽默一点")
+                let initialPersona = try await smokeRequest("api/persona", libraryID: smokeLibraryA)
+                try requireSmoke(initialPersona["enabled"] as? Bool == true && initialPersona["learning_enabled"] as? Bool == true && (initialPersona["manual"] as? String ?? "").isEmpty, "New personal library did not start with enabled empty persona learning")
+                try await captureSmokeTurn("persona", user: "这是普通合成聊天资料，今天一起看看星空。")
+                try await captureSmokeTurn("style-1", user: "这个窗口保存第一条合成约定。")
+                try await captureSmokeTurn("style-2", user: "这个窗口保存第二条合成约定。")
                 let persona = try await smokeRequest("api/persona", libraryID: smokeLibraryA)
-                try requireSmoke((persona["manual"] as? String ?? "").contains("明确人格原文"), "Connected persona import missing")
-                try requireSmoke(!(persona["learned"] as? [String: Any] ?? [:]).isEmpty, "Evidence style learning missing")
+                try requireSmoke((persona["manual"] as? String ?? "").isEmpty && (persona["learned"] as? [String: Any] ?? [:]).isEmpty && (persona["formed_traits"] as? [[String: Any]] ?? []).isEmpty, "Chat material fabricated manual or model-learned persona without a model")
+                let importedPersona = try await smokeRequest("api/persona/import", method: "POST", payload: ["text":"原生测试明确人格原文", "source":["origin":"native_smoke_explicit_import"], "enabled":true, "expected_revision":persona["revision"] as? Int ?? 0], libraryID:smokeLibraryA)
+                try requireSmoke((importedPersona["manual"] as? String ?? "") == "原生测试明确人格原文", "Explicit persona API import was not retained")
+                smokeSteps.append("persona_defaults_roles_and_explicit_import_boundary")
                 smokeStage = 2
                 try await setSmokeLibrary(smokeLibraryB, alreadySelected: true)
             } catch { failSmoke(error) }
@@ -475,6 +629,7 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                 try requireSmoke((fallback["nodes"] as? [[String: Any]] ?? []).isEmpty, "Unscoped API stopped defaulting to default")
                 try requireSmoke(oldPID == process?.processIdentifier, "GUI selection restarted the backend")
                 print("Native Controller: registry two libraries; completed events; GUI switch keeps connection binding; persona import/learning OK")
+                smokeSteps.append("fixed_connection_window_and_library_isolation")
                 smokeStage = 4
                 try await setSmokeLibrary(smokeLibraryA)
             } catch { failSmoke(error) }
@@ -484,9 +639,11 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
     private func verifyViewportAndRestart() {
         Task {
             do {
+                smokeSteps.append("viewport_probe_started")
                 let result = try await webView.callAsyncJavaScript("""
+                    try {
                     const c=document.getElementById('cv');
-                    const wait=async(predicate)=>{const end=performance.now()+6000;while(!predicate()){if(performance.now()>end)throw new Error('Native viewport did not settle');await new Promise(r=>setTimeout(r,30));}};
+                    const wait=async(predicate)=>{const end=performance.now()+6000;while(!predicate()){if(performance.now()>end)throw new Error('Native viewport did not settle '+JSON.stringify({mode:S.view.mode,sim:S.sim,visible:S.visible.length,hidden:document.hidden,target:!!S.view.target,k:S.cam.k,targetK:S.view.target?.k}));await new Promise(r=>setTimeout(r,30));}};
                     const paint=async()=>{schedule();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));};
                     await wait(()=>S.view.mode==='auto'&&S.sim===0&&S.view.target&&Math.abs(Math.log(S.cam.k/S.view.target.k))<.01);
                     await paint();
@@ -500,8 +657,11 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                     document.getElementById('labelToggle').click();await paint();
                     const labelsOff=c.dataset.labelMode==='focus';
                     document.getElementById('fitBtn').click();await paint();
+                    await wait(()=>S.view.mode==='auto'&&c.dataset.viewMode==='auto'&&!!S.view.target);
                     return {initial,manualMode:manual.mode,preserved,restored:c.dataset.viewMode,labelsOn,labelsOff};
+                    } catch(error) { return {nativeProbeFailure:String(error?.message||error),probe:'viewport'}; }
                     """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                try requireSmoke(result?["nativeProbeFailure"] == nil, "Native viewport JavaScript: \(result?["nativeProbeFailure"] as? String ?? "unknown")")
                 let initial = result?["initial"] as? [String: Any]
                 try requireSmoke(initial?["mode"] as? String == "auto" && initial?["count"] as? Int == 4,
                                  "Four-node graph did not start in automatic viewport")
@@ -514,7 +674,56 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                 try requireSmoke(result?["manualMode"] as? String == "manual" && result?["preserved"] as? Bool == true,
                                  "Zoom button failed to lock the manual viewport across graph refresh")
                 try requireSmoke(result?["restored"] as? String == "auto", "Fit button did not restore automatic viewport")
+                smokeSteps.append("viewport_zoom_reload_labels_fit_verified")
+                print("Native viewport controls: automatic view, manual zoom/reload, labels and fit verified")
+                let rotation = try await webView.callAsyncJavaScript("""
+                    const c=document.getElementById('cv'),art=document.getElementById('artCanvas');
+                    const originalMatchMedia=globalThis.matchMedia,motionQuery='(prefers-reduced-motion: reduce)';
+                    const actualHostReducedMotion=!!originalMatchMedia.call(globalThis,motionQuery).matches;
+                    const testedSyntheticMotionStates=[],oldPaused=S.paused,oldSelected=S.selected,oldHover=S.hover;
+                    try {
+                    if(!S.art||!artRenderer?.painter)throw new Error('Approved native atlas is unavailable');
+                    const wait=async(predicate)=>{const end=performance.now()+5000;while(!predicate()){if(performance.now()>end)throw new Error('Native atlas rotation did not settle '+JSON.stringify({reason:art.dataset.autoRotateReason,art:S.art,mode:S.graphMode,paused:S.paused,hidden:document.hidden}));await new Promise(r=>setTimeout(r,30));}};
+                    const pause=()=>new Promise(r=>setTimeout(r,350));S.paused=false;select(null);S.hover=null;schedule();
+                    await wait(()=>art.dataset.autoRotateReason===(actualHostReducedMotion?'reduced-motion':'rotating'));
+                    const hostYaw=Number(art.dataset.autoRotateYaw);await pause();
+                    const hostPreferenceRespected=actualHostReducedMotion?Number(art.dataset.autoRotateYaw)===hostYaw:Number(art.dataset.autoRotateYaw)>hostYaw;
+                    if(!hostPreferenceRespected)throw new Error('Native system motion preference was not respected');
+                    // CI desktops may request reduced motion. Only this disposable
+                    // smoke probe controls this one media query; the real renderer,
+                    // frames and DOM handlers still exercise both preference states.
+                    let reduced=false;
+                    globalThis.matchMedia=function(query){
+                      const result=originalMatchMedia.apply(globalThis,arguments);
+                      return query===motionQuery?new Proxy(result,{get(target,key){const value=key==='matches'?reduced:Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;}}):result;
+                    };
+                    S.hover=S.nodes[0].id;
+                    c.dispatchEvent(new PointerEvent('pointerenter',{pointerId:919,pointerType:'mouse',clientX:c.getBoundingClientRect().left+10,clientY:c.getBoundingClientRect().top+10}));schedule();
+                    await wait(()=>art.dataset.autoRotateReason==='rotating');const before=Number(art.dataset.autoRotateYaw);await pause();
+                    const hoverRotates=Number(art.dataset.autoRotateYaw)>before&&art.dataset.autoRotateHovered==='true';
+                    const row=document.querySelector('#nodeList .node-row');if(!row)throw new Error('Native node row missing');
+                    row.click();await wait(()=>!!S.selected&&art.dataset.autoRotateReason==='selected');const held=Number(art.dataset.autoRotateYaw);await pause();
+                    const selectionStops=Math.abs(Number(art.dataset.autoRotateYaw)-held)<.000001;
+                    select(null);await wait(()=>art.dataset.autoRotateReason==='rotating');const resume=Number(art.dataset.autoRotateYaw);await pause();
+                    const resumes=Number(art.dataset.autoRotateYaw)>resume;
+                    if(!hoverRotates||!selectionStops||!resumes)throw new Error('Native hover, node selection or resume behavior failed');
+                    testedSyntheticMotionStates.push('no-preference');
+                    reduced=true;schedule();await wait(()=>art.dataset.autoRotateReason==='reduced-motion'&&art.dataset.autoRotate==='false');
+                    const reducedYaw=Number(art.dataset.autoRotateYaw);await pause();
+                    const reducedMotionRespected=Number(art.dataset.autoRotateYaw)===reducedYaw;
+                    if(!reducedMotionRespected)throw new Error('Native reduced-motion preference failed to stop rotation');
+                    testedSyntheticMotionStates.push('reduce');
+                    return {painter:art.dataset.painter,actualHostReducedMotion,hostPreferenceRespected,testedSyntheticMotionStates,hoverRotates,selectionStops,resumes,reducedMotionRespected};
+                    } catch(error) { return {nativeProbeFailure:String(error?.message||error),probe:'rotation',actualHostReducedMotion,testedSyntheticMotionStates}; }
+                    finally { globalThis.matchMedia=originalMatchMedia;select(oldSelected);c.dispatchEvent(new PointerEvent('pointerleave',{pointerId:919,pointerType:'mouse'}));S.hover=oldHover;S.paused=oldPaused;schedule(); }
+                    """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                smokeHostReducedMotion = rotation?["actualHostReducedMotion"] as? Bool
+                smokeTestedMotionStates = rotation?["testedSyntheticMotionStates"] as? [String] ?? []
+                try requireSmoke(rotation?["nativeProbeFailure"] == nil, "Native rotation JavaScript: \(rotation?["nativeProbeFailure"] as? String ?? "unknown")")
+                try requireSmoke(rotation?["painter"] as? String == "approved-canvas" && rotation?["hoverRotates"] as? Bool == true && rotation?["selectionStops"] as? Bool == true && rotation?["resumes"] as? Bool == true, "Native atlas did not rotate on hover, suspend on selection and resume after deselection")
+                try requireSmoke(rotation?["hostPreferenceRespected"] as? Bool == true && rotation?["reducedMotionRespected"] as? Bool == true && smokeTestedMotionStates == ["no-preference", "reduce"], "Native system and synthetic motion preferences were not both verified")
                 print("Native viewport: sparse four-node close view; manual zoom survives real graph reload; fit restores auto; node labels toggle without writes")
+                smokeSteps.append("approved_atlas_rotation_selection_hover_and_viewport")
                 smokeStage = 5
                 smokeControllerPort = serviceURL?.port
                 startServer()
@@ -535,7 +744,10 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                 let connections = try await smokeRequest("api/connections")
                 let connection = (connections["connections"] as? [[String: Any]] ?? []).first { $0["id"] as? String == smokeConnectionID }
                 try requireSmoke(connection?["library_id"] as? String == smokeLibraryA, "Persisted binding changed")
+                let persona = try await smokeRequest("api/persona", libraryID: smokeLibraryA)
+                try requireSmoke((persona["manual"] as? String ?? "") == "原生测试明确人格原文" && persona["enabled"] as? Bool == true, "Explicit persona did not survive native restart")
                 print("Native restart: stable Controller port, isolated graph, original dialogue and activity restored")
+                smokeSteps.append("clean_restart_originals_binding_and_persona")
                 smokeExitCode = 0
                 NSApp.terminate(nil)
             } catch { failSmoke(error) }
@@ -549,9 +761,9 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
             return
         }
         let panel = NSOpenPanel()
-        panel.title = "选择要导入的笔记或记忆分享包"
+        panel.title = "选择聊天记录、笔记或记忆分享包"
         panel.message = "只读取你在此明确选择的文件，不扫描其他文件或文件夹。"
-        panel.prompt = "选择笔记"
+        panel.prompt = "选择文件"
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = parameters.allowsMultipleSelection
@@ -566,6 +778,10 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
     // Only the app's own main frame may request a local, user-selected export.
     // The page never supplies an absolute destination or obtains filesystem access.
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "exportAstrBotAdapter" {
+            exportAstrBotAdapter(message)
+            return
+        }
         guard message.name == "saveMemoryFile", message.frameInfo.isMainFrame,
               let origin = message.frameInfo.request.url, origin.scheme == "http",
               origin.host == "127.0.0.1", origin.port == serviceURL?.port,
@@ -593,6 +809,34 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
             guard let json = try? JSONSerialization.data(withJSONObject: result),
                   let literal = String(data: json, encoding: .utf8) else { return }
             self.webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('lovehouse-file-saved',{detail:\(literal)}));", completionHandler: nil)
+        }
+    }
+
+    private func exportAstrBotAdapter(_ message: WKScriptMessage) {
+        guard message.frameInfo.isMainFrame,
+              let origin = message.frameInfo.request.url, origin.scheme == "http",
+              origin.host == "127.0.0.1", origin.port == serviceURL?.port,
+              let body = message.body as? [String: Any],
+              let requestID = body["request_id"] as? String,
+              requestID.range(of: "^[a-zA-Z0-9_-]{1,80}$", options: .regularExpression) != nil,
+              let resource = Bundle.main.resourceURL?.appendingPathComponent("Adapters/LoveHouse-AstrBot-0.3.0-experimental.zip"),
+              let data = try? Data(contentsOf: resource), data.count <= 4 * 1024 * 1024 else { return }
+        let panel = NSSavePanel()
+        panel.title = "导出 AstrBot 实验插件"
+        panel.message = "插件不包含个人记忆或绑定凭证。请按包内 README 安装，并在实际宿主核验。"
+        panel.nameFieldStringValue = "LoveHouse-AstrBot-0.3.0-experimental.zip"
+        panel.allowedContentTypes = [.zip]
+        panel.canCreateDirectories = true
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard let self = self else { return }
+            var result: [String: Any] = ["request_id":requestID,"saved":false,"cancelled":response != .OK]
+            if response == .OK, let url = panel.url {
+                do { try data.write(to:url,options:.atomic); result["saved"] = true }
+                catch { result["error"] = "插件未能保存，请检查目标文件夹。" }
+            }
+            guard let json = try? JSONSerialization.data(withJSONObject:result),
+                  let literal = String(data:json,encoding:.utf8) else { return }
+            self.webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('lovehouse-adapter-exported',{detail:\(literal)}));",completionHandler:nil)
         }
     }
 

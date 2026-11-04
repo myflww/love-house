@@ -1,0 +1,76 @@
+{
+  "status": "unreleased_handoff",
+  "published_baseline": "18b80cd90ec2b1aa73568ba54cb290a70ca3757d",
+  "current_source_version": "0.5.0",
+  "planned_hotfix": "0.5.1",
+  "actual_windows_consumer_verification": false,
+  "new_audit_subtasks_modified_code": false,
+  "limited_mac_tests": {
+    "command": "python3.12 -m unittest tests.test_windows_packaging tests.test_credentials_windows tests.test_agent_session_privacy tests.test_agent_window_privacy -v",
+    "passed": 67,
+    "actual_windows_test": false
+  },
+  "code_changes_before_handoff_docs": [
+    {
+      "path": ".github/workflows/release.yml",
+      "change": "modified",
+      "published_sha256": "4cbf2f15392cd7922963734384f3f2bd35f299d03b6332ad6b2e6db2ebb33287",
+      "local_sha256": "1c6f08eb13ae77e6e3f091f4677a4773549fc126130862858868404b884ca00a"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "change": "modified",
+      "published_sha256": "66fb4774d5f5fe713cc36e7cdd507262008bef9655eed8b89258f19ce45cbeee",
+      "local_sha256": "ddc313783819022f11d225c0009a9d64fd6769e8d0798b353a5fef9b21550c4b"
+    },
+    {
+      "path": "README.md",
+      "change": "modified",
+      "published_sha256": "e7e1b54a2973f413c6aea1e73b3ace33edca3160bf4eeea032fe83a7ecf642ab",
+      "local_sha256": "8a6892a063d906c087cee1528cd0d2c5d49dee44623e0e994b8c48811c0ad108"
+    },
+    {
+      "path": "desktop/windows-installer.iss",
+      "change": "modified",
+      "published_sha256": "27d2cb371688d457c56f08ae3558a24d2177c16696eec64fc6fa61fa75918063",
+      "local_sha256": "c5f27f4789ac628ed112cac1ee3a461a7e0a4eb69519eadf3f77ea555e72e19a"
+    },
+    {
+      "path": "desktop/windows_app.py",
+      "change": "modified",
+      "published_sha256": "871cf9906626dd9ba9e68e1075a7bd44ea356da06d80eeefeb23cfa528a40bfb",
+      "local_sha256": "81bca30b75568e2c529771c338050594bd63dc63ed7b056d267b411a7219d12b"
+    },
+    {
+      "path": "desktop/windows_diagnostics.py",
+      "change": "added",
+      "published_sha256": null,
+      "local_sha256": "460c4e55fff9bd413fa1964de9023873bd1b8fce009f7be9b0f203d696dadf3c"
+    },
+    {
+      "path": "docs/发布与许可.md",
+      "change": "modified",
+      "published_sha256": "6b9e0fa5580044a4114481cbf411511324c6b3640bb612c88f3469b0d8479341",
+      "local_sha256": "ee0a3eda1c88be5e02f3a5e89e191009faa1d7a50a17259ce13a4ed76d9a40bb"
+    },
+    {
+      "path": "scripts/build_windows.py",
+      "change": "modified",
+      "published_sha256": "386282f6ea920b794d7bbb59deb711d92f96a63ec6a54141304677d8ac49c625",
+      "local_sha256": "299c879e149ff4d0ab2923da078bc0a9daf778a2a04b5f74206a3ba287f59279"
+    },
+    {
+      "path": "tests/test_windows_packaging.py",
+      "change": "modified",
+      "published_sha256": "8ac9174f3cf1d3d8b0b8d16a98cef4368a5f6bc695af7d6b9c5a163112fa9a13",
+      "local_sha256": "3c8b10f00f41d3461161694db34bb33c4badba0b4f7246361507ec830687a780"
+    }
+  ],
+  "handoff_docs_added": [
+    "docs/WINDOWS-HANDOFF.md",
+    "docs/WINDOWS-TASK-PROMPT.md",
+    "docs/WINDOWS-HANDOFF-CHANGES.json",
+    "docs/WINDOWS-RUNTIME-ORIGIN.json"
+  ],
+  "runtime_installer_included_in_source": false
+}

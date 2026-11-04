@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import threading
+import time
 import unittest
 
 from nkb import Brain
@@ -162,16 +163,16 @@ class OrganizerTests(unittest.TestCase):
         self.assertEqual(result['library_id'],'b');self.assertEqual(len(self.generated('b')),1)
         self.assertEqual(self.generated('a'),[])
 
-    def test_budget_limited_library_does_not_starve_an_enabled_other_library(self):
-        save_profile(self.brains['a'],daily_call_limit=1)
+    def test_legacy_daily_limits_do_not_pause_either_library(self):
+        save_profile(self.brains['a'],daily_call_limit=1,daily_char_limit=3000)
         self.run_raw()
-        a=self.raw('另一个未整理事实',lid='a');b=self.raw('另一个库的事实',lid='b')
-        self.organizer.enqueue('a',[a]);self.organizer.enqueue('b',[b])
-        result=self.organizer.run_once()
-        self.assertEqual(result['status'],'done');self.assertEqual(result['library_id'],'b')
-        self.assertEqual(len(self.generated('b')),1)
-        self.assertEqual(self.organizer.status('a')['counts'].get('pending'),1)
-        self.assertEqual(self.organizer.run_once()['status'],'budget_limited')
+        for lid in ('a','b'):
+            self.organizer.enqueue(lid,[self.raw('另一个未整理事实',lid=lid)])
+        results=[self.organizer.run_once() for _ in range(2)]
+        self.assertTrue(all(r['status']=='done' for r in results))
+        self.assertEqual({r['library_id'] for r in results},{'a','b'})
+        self.assertEqual(self.organizer.status('a')['counts'].get('pending',0),0)
+        self.assertEqual(self.organizer.status('a')['usage_24h']['count'],2)
 
     def test_automatic_library_selection_is_round_robin_even_with_a_backlog(self):
         for lid in ('a','b'):
@@ -198,23 +199,38 @@ class OrganizerTests(unittest.TestCase):
         self.run_raw("另一个明确事实")
         self.assertEqual(len(self.calls),2)
 
-    def test_session_cadence_and_daily_budget_limit_actual_batches(self):
+    def test_session_cadence_continues_past_historical_daily_call_limit(self):
         save_profile(self.brains['a'],cadence='session',daily_call_limit=1)
         a=self.raw();b=self.raw("我喜欢喝茶")
         self.organizer.enqueue('a',[a,b])
         self.assertEqual(self.organizer.run_once('a',flush=False)['status'],'done')
-        self.assertEqual(self.organizer.run_once('a')['status'],'budget_limited')
-        self.assertEqual(len(self.calls),1)
+        self.assertEqual(self.organizer.run_once('a')['status'],'done')
+        self.assertEqual(len(self.calls),2)
+        self.assertEqual(self.organizer.status('a')['counts'].get('done'),2)
 
-    def test_daily_material_character_limit_keeps_unfinished_tail_in_queue(self):
-        save_profile(self.brains['a'],cadence='session',daily_char_limit=3000)
-        nid=self.raw('用户明确原文内容'*300)
+    def test_character_usage_above_600000_does_not_stop_long_record_slices(self):
+        save_profile(self.brains['a'],cadence='session',daily_char_limit=600000,max_input_chars=3000)
+        nid=self.raw('用户明确原文内容'*1000)
         self.reply=lambda p:{'version':1,'operations':[]}
         self.organizer.enqueue('a',[nid])
-        self.assertEqual(self.organizer.run_once('a')['status'],'done')
-        self.assertEqual(self.organizer.run_once('a')['status'],'budget_limited')
-        self.assertLessEqual(self.organizer.status('a')['usage_24h']['chars'],3000)
-        self.assertEqual(self.organizer.status('a')['counts'].get('pending'),1)
+        with self.organizer.db() as db:
+            db.execute('INSERT INTO calls VALUES(?,?,?,?)',('old-usage','a',time.time(),599650))
+        for _ in range(20):
+            state=self.organizer.status('a')
+            if state['counts'].get('done')==1:break
+            self.assertEqual(self.organizer.run_once('a')['status'],'done')
+        self.assertEqual(self.organizer.status('a')['counts'].get('done'),1)
+        self.assertGreater(self.organizer.status('a')['usage_24h']['chars'],600000)
+        self.assertGreater(len(self.calls),1)
+        self.assertTrue(all(len(json.dumps(p,ensure_ascii=False))<=3000 for p in self.calls))
+
+    def test_old_stored_daily_settings_are_unlimited_without_editing_library(self):
+        self.brains['a'].meta['organizer_profile'].update(daily_call_limit=300,daily_char_limit=600000)
+        before=deepcopy(self.brains['a'].to_dict())
+        profile=get_profile(self.brains['a'])
+        self.assertEqual(profile['daily_call_limit'],0)
+        self.assertEqual(profile['daily_char_limit'],0)
+        self.assertEqual(before,self.brains['a'].to_dict())
 
     def test_failed_apply_keeps_validated_plan_and_retries_without_second_model_call(self):
         nid=self.raw();self.organizer.enqueue('a',[nid]);self.apply_failure=True

@@ -1,6 +1,7 @@
 """Native Windows/WebView2 shell. It never opens an external browser as its UI."""
 from __future__ import annotations
 import argparse
+import errno
 import json
 import os
 from pathlib import Path
@@ -10,31 +11,45 @@ import sys
 import tempfile
 import threading
 import time
-import traceback
-from http.server import ThreadingHTTPServer
-from urllib.parse import urlsplit
-from urllib.request import urlopen
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
+sys.path.insert(0,str(Path(__file__).resolve().parent))
 from nkb._version import __version__
 from nkb.core.atlas import atlas_brain
 from nkb.service.host import MemoryHost,make_controller
+from nkb.service.httpd import LoopbackHTTPServer as ThreadingHTTPServer
 from nkb.service.credentials import KeyStore
 from nkb.storage.jsonfile import JsonFileStorage
+from windows_diagnostics import (WEBVIEW2_URL,AlreadyRunning,StartupLog,WebView2Unavailable,
+                                 DotNetUnavailable,NativeStartupTimeout,
+                                 diagnostic_report,failure_record,runtime_folder,startup_facts,
+                                 startup_log_path,system_facts,webview2_status)
+from windows_prerequisites import runtime_status,dotnet_status,repair_runtime,bundled_installer_status
 
-WEBVIEW2_URL='https://developer.microsoft.com/microsoft-edge/webview2/'
 SMOKE_PREFIX='love-house-webview2-smoke-'
+ALREADY_RUNNING_MESSAGE=('爱之屋已经在运行。\n\n请切回已经打开的窗口。如果看不到窗口，'
+                         '请在任务管理器里结束 LoveHouse.exe 后再打开。\n\n启动日志：\n{log}')
+WEBVIEW2_MESSAGE=('爱之屋需要微软 WebView2 运行时才能显示界面，这台电脑上还没有找到。\n\n'
+                  '安装 Microsoft Edge WebView2 Runtime 后重新打开爱之屋即可，记忆数据不受影响。\n\n'
+                  '是否现在打开微软官方下载页？\n'+WEBVIEW2_URL)
+FAILURE_MESSAGE=('爱之屋未能打开。\n\n错误类型：{kind}\n启动日志：\n{log}\n\n'
+                 '现有记忆数据已保留。是否打开日志所在文件夹？')
+smoke_failure=failure_record
 
 
-def smoke_failure(exc):
-    """Safe exception diagnostics: code/location, never exception text or keys."""
-    frames=traceback.extract_tb(exc.__traceback__)
-    result={'type':type(exc).__name__,'errno':getattr(exc,'errno',None),'winerror':getattr(exc,'winerror',None)}
-    if getattr(exc,'filename',None):result['file']=Path(exc.filename).name
-    if frames:
-        last=frames[-1];result['at']={'file':Path(last.filename).name,'function':last.name,'line':last.lineno}
-    return result
+def sanitize_native_environment():
+    """Keep launcher/other Python apps from selecting a foreign CLR or browser.
+
+    Never log values: they can contain paths, credentials or debug endpoints.
+    Only this child process is changed; the user's system environment is intact.
+    """
+    removed=[]
+    for name in list(os.environ):
+        upper=name.upper()
+        if upper in ('PYTHONHOME','PYTHONPATH','PYWEBVIEW_GUI') or upper.startswith(('PYTHONNET_','WEBVIEW2_')):
+            removed.append(name);os.environ.pop(name,None)
+    return sorted(removed)
 
 
 def smoke_report(path,value):
@@ -60,10 +75,11 @@ def cleanup_smoke_profile(directory,attempts=8):
     if owner!={'schema':'love-house-native-smoke/v1','pid':os.getpid(),'directory':root.name}:
         raise ValueError('Native smoke ownership marker does not match')
     profile=root/'WebView2'
-    vanished=0
+    vanished=0;callback_path=None
     def profile_race(function,path,exc):
-        nonlocal vanished
+        nonlocal vanished,callback_path
         target=Path(path).resolve()
+        callback_path=target
         # Use shutil's complete callback path, not OSError.filename (which can
         # be only a relative cache filename). Never generalise this to ENOENT
         # elsewhere in the test data or to an entry that still exists.
@@ -74,6 +90,7 @@ def cleanup_smoke_profile(directory,attempts=8):
     def legacy_profile_race(function,path,exc_info):
         return profile_race(function,path,exc_info[1])
     for attempt in range(1,attempts+1):
+        callback_path=None
         try:
             options={'onexc':profile_race} if sys.version_info>=(3,12) else {'onerror':legacy_profile_race}
             shutil.rmtree(root,**options)
@@ -82,11 +99,19 @@ def cleanup_smoke_profile(directory,attempts=8):
             if not root.exists():return {'status':'removed','attempts':attempt,'isolated':True,'vanished_profile_entries':vanished}
             raise
         except OSError as exc:
-            filename=getattr(exc,'filename',None)
-            known_lock=(getattr(exc,'winerror',None) in (32,33) and filename
-                        and Path(filename).resolve().is_relative_to(profile))
-            if not known_lock:raise
+            filename=callback_path or getattr(exc,'filename',None)
+            beneath_profile=bool(filename and Path(filename).resolve().is_relative_to(profile))
+            known_lock=getattr(exc,'winerror',None) in (32,33) and beneath_profile
+            # Chromium may create a cache file between rmtree's scan and
+            # rmdir. Retry this race only inside the owned WebView2 scratch.
+            profile_write_race=getattr(exc,'winerror',None)==145 and beneath_profile
+            # WebView2 can briefly report ACCESS_DENIED during shutdown rather
+            # than SHARING_VIOLATION. Retry only this owned profile; a persistent
+            # denial still fails and can never be reported as deferred success.
+            profile_access_race=getattr(exc,'winerror',None)==5 and beneath_profile
+            if not (known_lock or profile_write_race or profile_access_race):raise
             if attempt==attempts:
+                if not known_lock:raise
                 return {'status':'deferred_profile_lock','attempts':attempt,'isolated':True,
                         'directory':root.name,'winerror':exc.winerror,'file':Path(filename).name,
                         'vanished_profile_entries':vanished,
@@ -112,8 +137,11 @@ class DesktopLock:
             else:
                 import fcntl
                 fcntl.flock(stream.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
-        except OSError:
-            stream.close();raise RuntimeError('爱之屋已经打开，请切回原来的窗口。') from None
+        except OSError as exc:
+            stream.close()
+            if exc.errno in (errno.EACCES,errno.EAGAIN) or getattr(exc,'winerror',None) in (32,33,36):
+                raise AlreadyRunning('爱之屋已经打开，请切回原来的窗口。') from None
+            raise
         self.file=stream
     def release(self):
         if self.file:
@@ -132,6 +160,7 @@ class ControllerRuntime:
         self.lock.acquire()
         try:
             self.host=MemoryHost(self.root,key_store=KeyStore(allow_source_build=False,allow_keychain=not self.testing))
+            if self.testing:self.host.updates.settings({'auto_check':False})
             example=self.root/'framework-example.brain.json'
             if not self.host.manager.demo_suppressed:
                 if not example.exists():atlas_brain(example).save()
@@ -147,18 +176,28 @@ class ControllerRuntime:
             self.server.daemon_threads=False;self.host.controller_port=self.server.server_port
             self.url='http://127.0.0.1:'+str(self.server.server_port)+'/'
             self.thread=threading.Thread(target=self.server.serve_forever,kwargs={'poll_interval':.1},daemon=True);self.thread.start()
-            state={'pid':os.getpid(),'controller_port':self.server.server_port,'port':self.server.server_port,
+            state={'pid':os.getpid(),'controller_instance_id':self.host.instance_id,'controller_port':self.server.server_port,'port':self.server.server_port,
                    'personal_port':self.server.server_port,'service_version':'0.4.0','name':'爱之屋记忆服务'}
             JsonFileStorage(self.ready).save(state)
             JsonFileStorage(self.root/'controller-state.json').save({'controller_port':self.server.server_port,'service_version':'0.4.0'})
             return self
         except BaseException:self.stop();raise
     def stop(self):
-        if self.server:
-            self.server.shutdown();self.server.server_close();self.server=None
-        if self.thread:self.thread.join(timeout=5);self.thread=None
-        if self.host:self.host.stop();self.host=None
-        self.ready.unlink(missing_ok=True);self.lock.release()
+        # A failed second instance owns nothing. In particular, its finally
+        # block must never remove the first writer's ready file.
+        if self.lock.file is None:return
+        try:
+            if self.server:
+                # BaseServer.shutdown waits forever if serve_forever never ran.
+                if self.thread and self.thread.is_alive():self.server.shutdown()
+                self.server.server_close();self.server=None
+            if self.thread:
+                if self.thread.ident is not None:self.thread.join(timeout=5)
+                self.thread=None
+            if self.host:self.host.stop();self.host=None
+        finally:
+            try:self.ready.unlink(missing_ok=True)
+            finally:self.lock.release()
 
 
 def valid_export(filename,content):
@@ -184,32 +223,123 @@ def atomic_export(path,data):
         if temporary:Path(temporary).unlink(missing_ok=True)
 
 
+def export_save_dialog(window,filename):
+    """Return an explicit user selection; do not turn dialog failures into cancel.
+
+    The pywebview 6.2 WinForms helper catches dialog exceptions and returns None,
+    the same value as cancellation. Own the small dialog on the existing STA UI
+    thread so a broken dialog can be reported and missing HOMEPATH is harmless.
+    """
+    from System import Func,Object
+    from System.Windows.Forms import SaveFileDialog,DialogResult
+    owner=window.native
+    if owner is None:raise ValueError('Native window is not ready')
+    extension=Path(filename).suffix.lower()
+    filters={'.json':'Love House JSON (*.json)|*.json','.md':'Markdown (*.md)|*.md',
+             '.zip':'Love House plugin ZIP (*.zip)|*.zip'}
+    if extension not in filters:raise ValueError('Unsupported export extension')
+    def choose():
+        dialog=SaveFileDialog()
+        try:
+            dialog.FileName=filename;dialog.Filter=filters[extension]
+            dialog.DefaultExt=extension.lstrip('.');dialog.AddExtension=True
+            dialog.OverwritePrompt=True;dialog.CheckPathExists=True;dialog.RestoreDirectory=True
+            dialog.InitialDirectory=str(Path.home())
+            result=dialog.ShowDialog(owner)
+            if result==DialogResult.Cancel:return None
+            if result!=DialogResult.OK:raise OSError('Unexpected save dialog result')
+            return str(dialog.FileName)
+        finally:dialog.Dispose()
+    return owner.Invoke(Func[Object](choose)) if owner.InvokeRequired else choose()
+
+
 class NativeAPI:
-    def __init__(self,url):self._url=url;self._window=None;self._saving=threading.Lock()
-    def platform_info(self):return {'platform':'windows','native':True,'renderer':'WebView2','version':__version__,'harness_supported':False}
+    def __init__(self,url,host=None):self._url=url;self._host=host;self._window=None;self._saving=threading.Lock();self._choose_export=None
+    def platform_info(self):return {'platform':'windows','native':True,'renderer':'WebView2','version':__version__,'harness_supported':True}
+    def _check_export_origin(self):
+        if not self._window or self._window.get_current_url()!=self._url:
+            raise ValueError('只能从爱之屋本机页面保存文件')
+    def _save_export(self,filename,data):
+        self._check_export_origin()
+        target=(self._choose_export or export_save_dialog)(self._window,filename)
+        if not target:return {'saved':False,'cancelled':True}
+        self._check_export_origin()
+        if Path(target).suffix.lower()!=Path(filename).suffix.lower():target+=Path(filename).suffix
+        atomic_export(target,data)
+        return {'saved':True,'cancelled':False}
     def save_memory_file(self,filename,content):
         if not self._saving.acquire(False):return {'saved':False,'cancelled':False,'error':'另一个保存窗口尚未关闭。'}
         try:
             data=valid_export(filename,content)
-            if not self._window or self._window.get_current_url()!=self._url:
-                raise ValueError('只能从爱之屋本机页面保存分享文件')
-            import webview
-            selected=self._window.create_file_dialog(webview.FileDialog.SAVE,save_filename=filename,
-                         file_types=('Love House JSON (*.json)','Markdown (*.md)'))
-            if not selected:return {'saved':False,'cancelled':True}
-            target=selected if isinstance(selected,str) else selected[0]
-            if Path(target).suffix.lower()!=Path(filename).suffix.lower():target+=Path(filename).suffix
-            atomic_export(target,data)
-            return {'saved':True,'cancelled':False}
-        except (OSError,ValueError,UnicodeError):return {'saved':False,'cancelled':False,'error':'文件未保存，请检查位置、文件名和磁盘空间。'}
+            return self._save_export(filename,data)
+        except Exception:return {'saved':False,'cancelled':False,'error':'文件未保存，请检查保存窗口、位置、文件名和磁盘空间后重试。'}
+        finally:self._saving.release()
+    def export_astrbot_adapter(self):
+        # No caller-supplied path, URL, package bytes or private runtime files.
+        if not self._saving.acquire(False):return {'saved':False,'cancelled':False,'error':'另一个保存窗口尚未关闭。'}
+        try:
+            self._check_export_origin()
+            if self._host is None:raise ValueError('Memory service is not ready')
+            return self._save_export('LoveHouse-AstrBot-0.3.0-experimental.zip',self._host.astrbot_package())
+        except Exception:return {'saved':False,'cancelled':False,'error':'插件未保存，请检查保存窗口、位置和磁盘空间后重试。'}
         finally:self._saving.release()
 
 
-def notify(message):
+def notify(message,title='爱之屋',flags=0x10):
     if sys.platform=='win32':
         import ctypes
-        ctypes.windll.user32.MessageBoxW(None,message,'爱之屋',0x10)
+        ctypes.windll.user32.MessageBoxW(None,message,title,flags)
     elif sys.stderr:print(message,file=sys.stderr)
+
+
+def ask_yes_no(message,title='爱之屋'):
+    """只有用户明确点"是"才继续；非 Windows 环境一律不猜。"""
+    if sys.platform=='win32':
+        import ctypes
+        return ctypes.windll.user32.MessageBoxW(None,message,title,0x04|0x40)==6
+    if sys.stderr:print(message,file=sys.stderr)
+    return False
+
+
+def open_target(target):
+    """打开官方下载页或日志目录；失败只记录，不改变退出码。"""
+    try:
+        if sys.platform=='win32':os.startfile(str(target));return True
+        if sys.platform=='darwin':
+            import subprocess
+            subprocess.run(['open',str(target)],check=False);return True
+        return False
+    except OSError:return False
+
+
+def write_diagnostics(data_dir,log):
+    """把只含运行时事实的诊断文本写到数据目录，供用户直接转发。"""
+    facts=startup_facts(data_dir)
+    facts['log']=str(log.path)
+    report=diagnostic_report(facts,log.tail())
+    name=time.strftime('diagnostics-%Y%m%d-%H%M%S')+'.txt'
+    for folder in (Path(data_dir)/'logs',Path(tempfile.gettempdir())/'LoveHouse'):
+        try:
+            folder.mkdir(parents=True,exist_ok=True)
+            target=folder/name;target.write_text(report,encoding='utf-8');return target
+        except OSError:continue
+    raise OSError('diagnostics could not be written')
+
+
+def require_smoke_turn_saved(host,library_id,user,assistant,*,timeout=10):
+    """A queue ACK is intermediate; verify the exact second-party roles in its fixed library.
+
+    The desktop retry worker can deliver a file before the submitting process
+    drains its own snapshot. That valid race must not turn a saved turn into a
+    failed smoke, nor may an unsaved queue entry be reported as success.
+    """
+    deadline=time.monotonic()+timeout
+    while True:
+        nodes=host.snapshot(library_id)['nodes']
+        if any(node.get('text')==user and node.get('meta',{}).get('source')=='conversation_turn'
+               and node.get('meta',{}).get('assistant_reply')==assistant for node in nodes.values()):return
+        if time.monotonic()>=deadline:raise AssertionError('Exact hook roles were not saved in the bound library')
+        time.sleep(.05)
 
 
 def backend_smoke(report):
@@ -220,9 +350,27 @@ def backend_smoke(report):
         root=Path(directory);runtime=ControllerRuntime(root/'data',testing=True).start()
         try:
             cfg=runtime.host.new_connection({'host':'agent','name':'FAKE Windows Agent','library_id':'default'})
+            from nkb.service.host import local_json
+            latest={'retention':local_json(runtime.server.server_port,'/api/retention'),
+                    'rules':local_json(runtime.server.server_port,'/api/organizer/rules'),
+                    'sources':local_json(runtime.server.server_port,'/api/agent/sources',headers={'X-LoveHouse-Management':runtime.host.management_token}),
+                    'experiences':local_json(runtime.server.server_port,'/api/experiences'),
+                    'updates':local_json(runtime.server.server_port,'/api/updates'),
+                    'handoff':local_json(runtime.server.server_port,'/api/memory/handoff',{'profile':'S'})}
+            assert latest['retention']['mode']=='adaptive'
+            assert runtime.host.snapshot('default')['config']['max_nodes'] is None
+            assert latest['rules']['read_only'] and latest['rules']['guidance']
+            assert latest['sources']['agent_id']=='default' and latest['experiences']['read_only']
+            assert latest['updates']['current_version']==__version__ and not latest['updates']['settings']['auto_check']
+            assert latest['handoff']['read_only']
+            plugin=runtime.host.astrbot_package()
+            assert plugin.startswith(b'PK'), 'Reviewed AstrBot source package missing'
             client=AgentClient(cfg['private_path'])
             assert client.status()['connected']
-            assert client.submit_hook({'session_id':'fake-window','turn_id':'one','user':'假数据：我不喜欢被曲解。','assistant':'这是完整的助手原话。','status':'complete'})['saved']
+            first={'session_id':'fake-window','turn_id':'one','user':'假数据：我不喜欢被曲解。','assistant':'这是完整的助手原话。','status':'complete'}
+            receipt=client.submit_hook(first)
+            assert receipt.get('saved') or receipt.get('local_queue_committed')
+            require_smoke_turn_saved(runtime.host,'default',first['user'],first['assistant'])
             boot=client.tool('memory_bootstrap',{});assert boot['total_memories']==1
             page=client.tool('memory_list',{});nid=page['entries'][0]['id']
             assert client.tool('memory_read',{'memory_id':nid})['text']=='假数据：我不喜欢被曲解。'
@@ -245,7 +393,10 @@ def backend_smoke(report):
                 assert rows[2]['result']['structuredContent']['identity']['library_id']=='default'
                 hook=cfg['hook_config'];fake={'session_id':'fake-window','turn_id':'two','user':'假数据：第二条实际原文','assistant':'第二条实际回复','status':'complete'}
                 got=subprocess.run([hook['command'],*hook['args']],input=json.dumps(fake),capture_output=True,text=True,encoding='utf-8',timeout=30)
-                assert got.returncode==0 and json.loads(got.stdout)['saved']
+                assert got.returncode==0
+                receipt=json.loads(got.stdout)
+                assert receipt.get('saved') or receipt.get('local_queue_committed')
+                require_smoke_turn_saved(runtime.host,'default',fake['user'],fake['assistant'])
             expected=runtime.host.snapshot('default');port=runtime.server.server_port
         finally:runtime.stop()
         assert not runtime.ready.exists()
@@ -253,23 +404,128 @@ def backend_smoke(report):
         try:
             assert runtime.server.server_port==port and runtime.host.snapshot('default')==expected
         finally:runtime.stop()
+        from windows_organizer_smoke import organizer_smoke
+        organizer=organizer_smoke(root)
+        from windows_latest_smoke import latest_backend_smoke
+        latest_backend=latest_backend_smoke(root)
         result={'ok':True,'version':__version__,'controller':'passed','stdio_and_hook':'passed' if getattr(sys,'frozen',False) else 'source-only',
-                'sharing_roundtrip':'passed','restart':'passed','real_model_calls':0,'real_credentials_accessed':False}
+                'sharing_roundtrip':'passed','restart':'passed','latest_feature_apis':'passed','astrbot_source_package':'passed','organizer':organizer,'latest_backend':latest_backend,'real_model_calls':0,'real_credentials_accessed':False}
     result.update(phase='complete',process_complete=True,cleanup={'status':'removed','isolated':True})
     smoke_report(report,result)
     return result
 
 
-def run_window(data_dir,*,smoke=False,report=None,result=None):
-    import webview
+def verify_native_exports(window,api,runtime,directory):
+    """Use the shipped UI and JS bridge, replacing only the user's path choice.
+
+    Runs only inside an explicitly owned native-smoke scratch. It does not grant
+    a production webpage a save-path API or open/cancel a user's own dialog.
+    """
+    import hashlib
+    from nkb.companion.memory import record_turn
+    root=Path(directory)/'synthetic-export';root.mkdir()
+    user='SYNTHETIC_EXPORT_USER_喜欢无糖茶';assistant='SYNTHETIC_EXPORT_ASSISTANT_记住了'
+    runtime.host.transact('default',lambda brain:record_turn(brain,user,assistant,'synthetic-export-window','synthetic-export-turn'))
+    organizer_view=runtime.host.organizer_view
+    def broken_optional_organizer(unused):raise RuntimeError('Synthetic unavailable optional organizer')
+    runtime.host.organizer_view=broken_optional_organizer
+    choices=[]
+    def evaluate(script):
+        ready=threading.Event();box={}
+        def received(value):box['value']=value;ready.set()
+        window.evaluate_js(script,received)
+        assert ready.wait(30),'Native export UI response timed out'
+        return box['value']
+    def choose(target):
+        def selected(unused,filename):choices.append(filename);return str(target) if target else None
+        api._choose_export=selected
+    def share(button):
+        return evaluate("""(async()=>{const d=document.getElementById('memoryShareDialog');if(d.open)d.close();await window.LoveHousePortability.openShare();const c=document.getElementById('sharePersonalConsent');c.checked=true;c.dispatchEvent(new Event('change'));const b=document.getElementById('"""+button+"""');if(b.disabled)throw Error('Synthetic share is disabled');await b.onclick();return {notice:d.querySelector('.portability-notice').textContent};})()""")
+    def share_with_optional_status(button,kind):
+        return evaluate("""(async()=>{
+          const original=api,d=document.getElementById('memoryShareDialog');let queries=0;
+          try{
+            api=function(route,...args){if(route==='sharing/summary-provider'){queries++;return """+json.dumps(kind)+"""==='rejected'?Promise.reject(Error('Synthetic optional provider rejected')):new Promise(()=>{});}return original(route,...args);};
+            if(d.open)d.close();await window.LoveHousePortability.openShare();
+            const consent=document.getElementById('sharePersonalConsent');consent.checked=true;consent.dispatchEvent(new Event('change'));
+            const details=document.getElementById('shareAIOptions');
+            const toggled=new Promise(resolve=>details.addEventListener('toggle',resolve,{once:true}));details.open=true;
+            await Promise.race([toggled,new Promise((_,reject)=>setTimeout(()=>reject(Error('Synthetic optional details did not open')),1500))]);
+            await Promise.resolve();await Promise.resolve();
+            const allowed=!document.getElementById('downloadMemoryJSON').disabled&&!document.getElementById('downloadMemoryMarkdown').disabled;
+            const unavailable=document.getElementById('generateShareSummary').dataset.ready==='false';
+            await document.getElementById("""+json.dumps(button)+""").onclick();
+            return {notice:d.querySelector('.portability-notice').textContent,allowed,unavailable,queries};
+          }finally{api=original;if(d.open)d.close();}
+        })()""")
+    try:
+        saved=root/'合成分享.json';choose(saved);value=share('downloadMemoryJSON')
+        assert '文件已保存' in value['notice'],value
+        package=json.loads(saved.read_text('utf-8'));nodes=package['memory']['nodes'].values()
+        assert any(node['text']==user and node.get('meta',{}).get('assistant_reply')==assistant for node in nodes)
+        assert package['scope']=='single_library'
+        markdown=root/'合成阅读.md';choose(markdown);value=share('downloadMemoryMarkdown')
+        assert '文件已保存' in value['notice'] and user in markdown.read_text('utf-8') and assistant in markdown.read_text('utf-8'),value
+        choose(None);value=share('downloadMemoryJSON');assert '已取消保存' in value['notice'],value
+        choose(root/'missing-parent'/'cannot-write.json');value=share('downloadMemoryJSON')
+        assert '导出未完成' in value['notice'] and '已取消' not in value['notice'],value
+        count=len(choices);original=api._window
+        class ForeignPage:
+            def get_current_url(self):return 'https://example.invalid/'
+        api._window=ForeignPage()
+        try:value=share('downloadMemoryJSON')
+        finally:api._window=original
+        assert '导出未完成' in value['notice'] and len(choices)==count,value
+        for kind in ('rejected','pending'):
+            for button,suffix in (('downloadMemoryJSON','.json'),('downloadMemoryMarkdown','.md')):
+                target=root/('optional-'+kind+suffix);choose(target)
+                value=share_with_optional_status(button,kind)
+                assert value['allowed'] and value['unavailable'] and value['queries']==1 and '文件已保存' in value['notice'],value
+                text=target.read_text('utf-8')
+                assert user in text and assistant in text
+        runtime.host.organizer_view=organizer_view
+        plugin=root/'合成插件.zip';choose(plugin)
+        value=evaluate("""(async()=>{document.getElementById('memoryShareDialog').close();await window.LoveHouseSources.open();await document.getElementById('exportAstrBotPlugin').onclick();return {notice:document.getElementById('agentSourcesStatus').textContent};})()""")
+        assert '实验插件已导出' in value['notice'] and plugin.read_bytes()==runtime.host.astrbot_package(),value
+        return {'json_original_roles':'passed','markdown':'passed','cancel':'passed','write_error':'passed','organizer_independent_preview':'passed',
+                'optional_provider_rejected_and_pending':'passed',
+                'foreign_origin':'passed','astrbot_zip':'passed','dialog_selection':'synthetic_owned_path',
+                'astrbot_sha256':hashlib.sha256(plugin.read_bytes()).hexdigest()}
+    finally:api._choose_export=None;runtime.host.organizer_view=organizer_view
+
+
+def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=False,smoke_expected=None):
+    # Arbitrate the writer before testing the renderer. A second instance must
+    # consistently report already_running even when its environment is broken.
     runtime=ControllerRuntime(data_dir,testing=smoke).start()
     if result is None:result={}
     result.update(ok=False,version=__version__,renderer='edgechromium',phase='window_start',process_complete=False)
+    finished=threading.Event();native_checks_finished=threading.Event()
     try:
-        api=NativeAPI(runtime.url)
+        dotnet=dotnet_status()
+        if log:log.write('prerequisites',phase='dotnet_check',dotnet=dotnet)
+        if dotnet.get('ok') is False:raise DotNetUnavailable()
+        facts=runtime_status()
+        if log:log.write('webview2',phase='runtime_check',**facts)
+        if not facts['available']:
+            if facts.get('code') in ('loader_missing','loader_load_failed'):
+                raise ImportError('Packaged WebView2Loader is unavailable')
+            raise WebView2Unavailable(facts)
+        result['runtime']=facts
+        result['system_runtime_preinstalled']=True
+        result['phase']='clr_initialization'
+        import webview
+        if log:log.write('window',phase='window_start',smoke=smoke)
+        api=NativeAPI(runtime.url,runtime.host)
         window=webview.create_window('爱之屋',runtime.url,js_api=api,width=1360,height=900,min_size=(900,600),
-                                    background_color='#fffaf0',text_select=True,hidden=smoke)
+                                    background_color='#fffaf0',text_select=True,hidden=smoke and not visible)
         api._window=window
+        def loaded():
+            finished.set()
+            if not smoke:result.update(ok=True,phase='window_ready')
+            if log:log.write('window',phase='window_ready',renderer=result.get('renderer'))
+        window.events.loaded+=loaded
+        window.events.closed+=lambda:finished.set()
         def require_edge(renderer):
             result['renderer']=renderer
             if renderer!='edgechromium':
@@ -279,22 +535,62 @@ def run_window(data_dir,*,smoke=False,report=None,result=None):
         window.events.initialized+=require_edge
         webview.settings['ALLOW_DOWNLOADS']=False
         webview.settings['OPEN_EXTERNAL_LINKS_IN_BROWSER']=True
+        def watchdog():
+            # pywebview logs (rather than raises) some async initialization
+            # errors. Bound that wait, close the blank window, and let main
+            # produce a safe diagnostic instead of hanging indefinitely.
+            if not finished.wait(60):
+                result.update(ok=False,startup_timeout=True,phase='webview2_initialization_timeout')
+                if log:log.write('failure',phase='webview2_initialization_timeout')
+                window.destroy()
         if smoke:
+            def native_deadline():
+                if not native_checks_finished.wait(120):
+                    result.update(ok=False,smoke_timeout=True,smoke_checkpoint='native_deadline',phase='native_checks_timeout')
+                    window.destroy()
             def verify():
                 try:
                     ready=threading.Event();box={}
                     def received(value):box['value']=value;ready.set()
-                    window.evaluate_js("(async()=>{const h=await(await fetch('/api/health')).json();const l=await(await fetch('/api/libraries')).json();const gl=document.createElement('canvas').getContext('webgl2');return {health:h,library_count:l.libraries.length,title:document.title,save_bridge:typeof window.pywebview.api.save_memory_file==='function',graph:!!document.querySelector('canvas'),webgl:!!gl};})()",received)
+                    window.evaluate_js("(async()=>{const h=await(await fetch('/api/health')).json();const l=await(await fetch('/api/libraries')).json();const gl=document.createElement('canvas').getContext('webgl2');return {health:h,library_count:l.libraries.length,title:document.title,save_bridge:typeof window.pywebview.api.save_memory_file==='function',graph:!!document.querySelector('canvas'),webgl:!!gl,latest_controls:['memoryRetentionDialog','organizerRulesBtn','dialogueImportDialog','windowHandoffBtn','checkForUpdates','agentSourcesDialog','experienceTimelineDialog','organizerReadModels','organizerReasoningEffort','organizerContextWindow','organizerMaxOutputTokens','updateAvailableDialog'].every(id=>!!document.getElementById(id))};})()",received)
                     assert ready.wait(45),'WebView2 JS response timed out'
                     value=box['value'];assert value['health']['ok'] and value['health']['version']==__version__
-                    assert value['save_bridge'] and value['graph'] and value['webgl'],value
+                    assert value['save_bridge'] and value['graph'] and value['webgl'] and value['latest_controls'],value
+                    result['native_exports']=verify_native_exports(window,api,runtime,data_dir)
+                    from windows_latest_smoke import verify_latest_ui
+                    # A hidden WebView2 surface can suspend animation frames.
+                    # Show only this owned smoke window to exercise real drawing.
+                    window.show()
+                    result['latest_features'],expected=verify_latest_ui(window,runtime)
+                    from windows_0102_smoke import verify as verify_0102
+                    result['release_0102_environment']={}
+                    result['release_0102']=verify_0102(window,expected['library'],environment=result['release_0102_environment'])
+                    if smoke_expected is not None:smoke_expected.update(expected)
                     result.update(ok=True,webview=value,phase='native_checks_passed')
-                except Exception as exc:result.update(failure=smoke_failure(exc),phase='native_checks_failed')
-                finally:window.destroy()
+                except Exception as exc:
+                    result.update(failure=smoke_failure(exc),phase='native_checks_failed')
+                    from windows_0102_smoke import Release0102Failure
+                    if isinstance(exc,Release0102Failure):
+                        result['release_0102_checkpoint']=exc.code
+                        result['release_0102_environment']=exc.motion_diag
+                    from windows_latest_smoke import NativeFeatureFailure
+                    if isinstance(exc,NativeFeatureFailure):
+                        result['smoke_checkpoint']=exc.code
+                        if exc.diagnostic:result['smoke_diagnostic']=exc.diagnostic
+                finally:native_checks_finished.set();window.destroy()
             window.events.loaded+=verify
+            threading.Thread(target=native_deadline,daemon=True).start()
+        guard=threading.Thread(target=watchdog,daemon=True);guard.start()
+        result['phase']='webview2_initialization'
         webview.start(gui='edgechromium',debug=False,private_mode=False,storage_path=str(Path(data_dir)/'WebView2'))
-        if result.get('error') and not result['ok']:raise RuntimeError('WebView2 unavailable; no legacy renderer fallback')
+        finished.set();guard.join(timeout=1)
+        if result.get('smoke_timeout'):raise RuntimeError('Owned native checks exceeded their deadline')
+        if result.get('startup_timeout'):raise NativeStartupTimeout()
+        if log:log.write('window',phase='window_closed',renderer=result.get('renderer'))
+        if result.get('error') and not result['ok']:
+            raise WebView2Unavailable({'available':False,'renderer':result.get('renderer'),'checked':webview2_status()})
     finally:
+        finished.set();native_checks_finished.set()
         result['window_phase']=result.get('phase')
         result['phase']='controller_shutdown'
         try:runtime.stop();result['controller_stopped']=True
@@ -305,15 +601,24 @@ def run_window(data_dir,*,smoke=False,report=None,result=None):
     return result
 
 
-def native_smoke(report):
+def native_smoke(report,log=None,*,visible=False):
     """Own the native test scratch explicitly; report only after final cleanup."""
-    directory=Path(tempfile.mkdtemp(prefix=SMOKE_PREFIX)).resolve()
+    directory=Path(tempfile.mkdtemp(prefix=SMOKE_PREFIX+'中文 路径-')).resolve()
     (directory/'.love-house-smoke-owner.json').write_text(json.dumps({
         'schema':'love-house-native-smoke/v1','pid':os.getpid(),'directory':directory.name}),encoding='utf-8')
     result={'ok':False,'version':__version__,'phase':'native_start','process_complete':False}
+    if log:log.write('smoke',phase='native_start',isolated=True)
+    scratch_log=StartupLog(Path(directory)/'startup.log')
     primary=None
     try:
-        run_window(directory,smoke=True,result=result)
+        latest_expected={}
+        run_window(directory,smoke=True,result=result,log=scratch_log,visible=visible,smoke_expected=latest_expected)
+        # Re-open only the owned synthetic Controller data after the native
+        # window and writer have closed; this is a backend restart proof.
+        from windows_latest_smoke import verify_latest_restart
+        restarted=ControllerRuntime(directory,testing=True).start()
+        try:result['latest_features']['backend_restart']=verify_latest_restart(restarted,latest_expected)
+        finally:restarted.stop()
     except Exception as exc:
         primary=exc;result['ok']=False;result.setdefault('failure',smoke_failure(exc))
     finally:
@@ -333,24 +638,75 @@ def native_smoke(report):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-dir',type=Path);parser.add_argument('--backend-smoke',action='store_true')
-    parser.add_argument('--smoke-test',action='store_true');parser.add_argument('--report',type=Path)
+    parser.add_argument('--smoke-test',action='store_true');parser.add_argument('--diagnose',action='store_true')
+    parser.add_argument('--consumer-smoke',action='store_true')
+    parser.add_argument('--runtime-status',action='store_true');parser.add_argument('--repair-runtime',action='store_true')
+    parser.add_argument('--report',type=Path)
     args=parser.parse_args()
-    if (args.backend_smoke or args.smoke_test) and not args.report:parser.error('smoke tests require --report')
-    if not args.backend_smoke and sys.platform!='win32':parser.error('Windows native shell requires Windows 10/11 x64')
+    smoke=args.backend_smoke or args.smoke_test or args.consumer_smoke
+    if smoke and not args.report:parser.error('smoke tests require --report')
+    if sum(bool(x) for x in (args.backend_smoke,args.smoke_test,args.consumer_smoke,args.diagnose,args.runtime_status,args.repair_runtime))>1:
+        parser.error('select only one diagnostic or test action')
+    native=not (smoke or args.diagnose or args.runtime_status or args.repair_runtime)
+    if native and sys.platform!='win32':parser.error('Windows native shell requires Windows 10/11 x64')
+    removed=sanitize_native_environment()
+    data_dir=args.data_dir or default_data_dir()
+    log=StartupLog(startup_log_path(data_dir))
+    log.write('start',version=__version__,native=native,**system_facts())
+    if removed:log.write('environment_sanitized',variables=removed)
     try:
         if args.backend_smoke:backend_smoke(args.report)
-        elif args.smoke_test:native_smoke(args.report)
-        else:run_window(args.data_dir or default_data_dir())
+        elif args.smoke_test or args.consumer_smoke:native_smoke(args.report,log=log,visible=args.consumer_smoke)
+        elif args.runtime_status or args.repair_runtime:
+            if args.repair_runtime:value=repair_runtime(force=True)
+            else:
+                facts=runtime_status();net=dotnet_status()
+                value={'ok':facts['available'] and net.get('ok') is not False,'runtime':facts,'dotnet':net}
+            value.update(process_complete=True,version=__version__)
+            smoke_report(args.report,value)
+            if sys.stdout:print(json.dumps(value,ensure_ascii=False))
+            return 0 if value.get('ok') else 1
+        elif args.diagnose:
+            target=write_diagnostics(data_dir,log);log.write('diagnostics',file=target.name)
+            open_target(target.parent);return 0
+        else:
+            run_window(data_dir,log=log)
         return 0
+    except AlreadyRunning:
+        log.write('already_running')
+        if native:notify(ALREADY_RUNNING_MESSAGE.format(log=log.path),flags=0x40)
+        smoke_report(args.report,{'ok':False,'code':'already_running','process_complete':False})
+        return 1
+    except WebView2Unavailable as exc:
+        log.write('webview2_unavailable',renderer=exc.facts.get('renderer'),checked=exc.facts.get('checked'))
+        if native:
+            installer=bundled_installer_status()
+            if installer.get('verified'):
+                consent=('爱之屋需要微软 WebView2 运行时。安装包已附带经过微软数字签名验证的离线组件。\n\n'
+                         '是否现在安装或修复？现有记忆数据不受影响。\n微软组件说明：\n'+WEBVIEW2_URL)
+                if ask_yes_no(consent):
+                    fixed=repair_runtime()
+                    log.write('runtime_repair',**fixed)
+                    if fixed.get('ok'):
+                        try:run_window(data_dir,log=log);return 0
+                        except Exception as retry:
+                            record=failure_record(retry);log.write('failure',**record)
+                    notify('运行时修复或启动未完成，请查看启动日志：\n'+str(log.path))
+            elif ask_yes_no(WEBVIEW2_MESSAGE):open_target(WEBVIEW2_URL)
+        smoke_report(args.report,{'ok':False,'code':'webview2_unavailable','process_complete':False})
+        return 1
     except Exception as exc:
-        if args.backend_smoke or args.smoke_test:
+        record=failure_record(exc);log.write('failure',**record)
+        if smoke or args.runtime_status or args.repair_runtime:
             try:
                 previous=json.loads(args.report.read_text('utf-8')) if args.report.exists() else {}
-                previous.update(ok=False,process_complete=False,failure=smoke_failure(exc))
+                previous.update(ok=False,process_complete=False)
+                previous.setdefault('failure',record)
                 if previous.get('phase') in (None,'complete'):previous['phase']='process_finalization_failed'
                 smoke_report(args.report,previous)
             except Exception:pass  # The nonzero exit remains mandatory even if disk reporting fails.
-        if not (args.smoke_test or args.backend_smoke):notify('爱之屋未能打开。若另一窗口已经打开，请切回该窗口。\n本程序需要微软WebView2 Runtime，请从微软官方页面安装后重试：\n'+WEBVIEW2_URL+'\n现有记忆数据已保留。')
+        else:
+            if ask_yes_no(FAILURE_MESSAGE.format(kind=record.get('kind',record['type']),log=log.path)):open_target(log.path.parent)
         return 1
 
 

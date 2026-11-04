@@ -1,0 +1,238 @@
+{
+  "format": "love-house-memory-share/v1",
+  "name": "一只鱼 · 手机迁移",
+  "created": 123456.0,
+  "scope": "single_library",
+  "memory": {
+    "version": 1,
+    "name": "一只鱼 · 手机迁移",
+    "config": {
+      "half_life": {
+        "concept": null,
+        "source": null,
+        "fact": 365.0,
+        "preference": 365.0,
+        "question": 180.0,
+        "answer": 180.0,
+        "doc": 240.0,
+        "episode": 120,
+        "commitment": null,
+        "reflection": null
+      },
+      "drop_below": 0.05,
+      "edge_max": 0.999,
+      "edge_half_life": 90.0,
+      "seed_floor": 0.06,
+      "steps": 3,
+      "damping": 0.6,
+      "retain": 0.86,
+      "k": 8,
+      "min_score": 0.08,
+      "hebbian_lr": 0.14,
+      "salience_bump": 0.34,
+      "auto_link_top": 2,
+      "recovery_days": 365,
+      "anchor_threshold": 0.75,
+      "important_threshold": 0.95,
+      "context_before": 2,
+      "context_after": 2,
+      "context_window_hours": 6.0,
+      "bridge_window_hours": 24.0,
+      "bridge_max_events": 6,
+      "max_nodes": 10000
+    },
+    "nodes": {
+      "n_turn": {
+        "id": "n_turn",
+        "kind": "episode",
+        "label": "无糖茶的一天🙂",
+        "text": "我喜欢无糖茶。原文 é / é 不合并🙂",
+        "tags": [],
+        "salience": 0.6,
+        "created": 1793299136.6651506,
+        "reinforced": 1793299136.6651506,
+        "decay_at": 1793299136.6651506,
+        "recalls": 0,
+        "impact": 0.0,
+        "valid_from": 1793299136.6651506,
+        "valid_to": 1234567.0,
+        "superseded_by": "n_fact",
+        "event_at": 1793299136.6651506,
+        "event_recorded": true,
+        "event_explicit": false,
+        "session_id": null,
+        "important": false,
+        "meta": {
+          "source": "companion",
+          "assistant_reply": "我记住啦。\n❤️",
+          "speaker": "user",
+          "evidence": {
+            "archive_receipt_id": "receipt_one",
+            "event_id": "原轮次"
+          },
+          "custom_original": {
+            "quote": "原始元数据完整保留",
+            "order": [
+              3,
+              1,
+              2
+            ]
+          }
+        }
+      },
+      "n_fact": {
+        "id": "n_fact",
+        "kind": "preference",
+        "label": "饮品偏好",
+        "text": "用户偏爱无糖茶",
+        "tags": [],
+        "salience": 0.6,
+        "created": 1793299136.6651506,
+        "reinforced": 1793299136.6651506,
+        "decay_at": 1793299136.6651506,
+        "recalls": 0,
+        "impact": 0.0,
+        "valid_from": 1793299136.6651506,
+        "valid_to": null,
+        "superseded_by": null,
+        "event_at": 1793299136.6651506,
+        "event_recorded": false,
+        "event_explicit": false,
+        "session_id": null,
+        "important": false,
+        "meta": {
+          "source": "organizer",
+          "memory_disabled": true,
+          "organizer_evidence": [
+            {
+              "id": "n_turn",
+              "role": "user",
+              "quote": "我喜欢无糖茶。原文 é / é 不合并🙂"
+            }
+          ],
+          "memory_atom": {
+            "evidence": [
+              {
+                "id": "n_turn",
+                "role": "user",
+                "quote": "我喜欢无糖茶。"
+              }
+            ],
+            "confidence": 0.91
+          }
+        }
+      }
+    },
+    "edges": {
+      "n_fact|n_turn": {
+        "w": 0.5,
+        "n": 1,
+        "last": 1793299136.6651506,
+        "decay_at": 1793299136.6651506,
+        "valid_from": 1793299136.6651506,
+        "valid_to": null
+      }
+    },
+    "meta": {
+      "created": 1793299136.6651506,
+      "companion_profile": {
+        "name": "小鱼",
+        "persona": "语气温柔。",
+        "user_name": "朋友"
+      },
+      "companion_persona": {
+        "revision": 1,
+        "enabled": true,
+        "learning_enabled": true,
+        "learned": {},
+        "proposals": [],
+        "learning_ignored_ids": [],
+        "user_disabled": false,
+        "revisions": [
+          {
+            "revision": 0,
+            "profile": {
+              "name": "",
+              "persona": "",
+              "user_name": ""
+            },
+            "learned": {},
+            "enabled": false,
+            "learning_enabled": true,
+            "user_disabled": false,
+            "raw_text": "",
+            "source": {
+              "origin": "existing_profile"
+            },
+            "explicit": false,
+            "at": 1793299136.6651506
+          },
+          {
+            "revision": 1,
+            "profile": {
+              "name": "小鱼",
+              "persona": "语气温柔。",
+              "user_name": "朋友"
+            },
+            "learned": {},
+            "enabled": true,
+            "learning_enabled": true,
+            "raw_text": "语气温柔。",
+            "user_disabled": false,
+            "source": {
+              "origin": "manual_profile"
+            },
+            "explicit": true,
+            "at": 1793299136.6651506
+          }
+        ]
+      },
+      "long_term_archive": true
+    }
+  },
+  "archives": [
+    {
+      "id": "receipt_one",
+      "session_id": "原窗口",
+      "kind": "turn",
+      "status": "saved",
+      "received": 1234.0,
+      "applied": 1235.0,
+      "node_ids": [
+        "n_turn"
+      ],
+      "record": {
+        "session_id": "原窗口",
+        "event_id": "原轮次",
+        "normalized": {
+          "type": "turn",
+          "user": "我喜欢无糖茶。原文 é / é 不合并🙂",
+          "assistant": "我记住啦。\n❤️",
+          "status": "complete"
+        }
+      }
+    }
+  ],
+  "counts": {
+    "node_count": 2,
+    "edge_count": 1,
+    "archive_count": 1,
+    "disabled_count": 1,
+    "superseded_count": 1
+  },
+  "privacy": {
+    "includes_keys": false,
+    "includes_connections": false,
+    "includes_local_paths": false,
+    "redactions": {
+      "credential_fields": 0,
+      "credential_texts": 0,
+      "local_paths": 0,
+      "url_parameters": 0,
+      "forgotten_texts": 0
+    },
+    "requires_user_review": true,
+    "note": "仅自动隐藏可识别的凭据与本机路径；正文可能含个人经历，分享前请检查。"
+  },
+  "content_revision": "013aedbdf420b121e64fbb80fcced56c6d696db0c59caca268947e486a2b744f"
+}

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from ..errors import ValidationError
 
 HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.M)
 TEXT_EXT = {".md", ".markdown", ".txt", ".rst"}
@@ -38,7 +39,8 @@ def split_markdown(text: str) -> list[tuple[str, str]]:
 
 def ingest_dir(brain, root: str | Path, kind: str = "doc",
                mode: str = "heading", tags_from_path: bool = True,
-               link: bool = True, verbose: bool = True) -> dict:
+               link: bool = False, verbose: bool = True) -> dict:
+    if type(link) is not bool:raise ValidationError('link必须为布尔值；仅明确True时执行高级词面近似关联')
     root = Path(root)
     if not root.exists():
         raise FileNotFoundError(f"目录不存在: {root}")
@@ -79,7 +81,8 @@ def ingest_dir(brain, root: str | Path, kind: str = "doc",
 
 
 def ingest_text(brain, text: str, source: str = "manual", kind: str = "doc",
-                link: bool = True) -> dict:
+                link: bool = False) -> dict:
+    if type(link) is not bool:raise ValidationError('link必须为布尔值；仅明确True时执行高级词面近似关联')
     added = 0
     for title, body in split_markdown(text):
         if not body:

@@ -316,21 +316,43 @@ html[data-house-theme=pixel] .pixel-text-icon::before{content:'';display:inline-
 html[data-house-theme=pixel] .empty-actions .subtle{color:var(--ink);border-color:var(--line);box-shadow:2px 2px 0 #0005}
 html[data-house-theme=pixel] .search>.symbol{font-size:0;width:20px;height:20px;top:12px;background-image:var(--house-icon-atlas);background-size:500% 400%;background-position:75% 66.6667%;background-repeat:no-repeat;image-rendering:pixelated;mix-blend-mode:multiply}
 `;
+/* Graph canvas appearance only. Original pixel UI, licensed assets and button
+ * surfaces above are unchanged. Keep these tokens separate from --bg/--ink. */
+style.textContent+=`
+html[data-house-theme=pixel][data-theme=light]{--graph-bg:#ffffff;--graph-ink:#111111;--graph-muted:#626262;--graph-line:20,20,20;--halo:90,90,90}
+html[data-house-theme=pixel][data-theme=dark]{--graph-bg:#080808;--graph-ink:#f5f5f5;--graph-muted:#a9a9a9;--graph-line:240,240,240;--halo:170,170,170}
+html[data-house-theme=pixel][data-theme] .stage-heading h1{color:var(--graph-ink)}
+html[data-house-theme=pixel] :is(#viewModeBadge,#artBadge){color:var(--graph-muted)!important}
+html[data-house-theme=pixel] .minimap{background:var(--graph-bg);border-color:var(--graph-muted)}
+`;
 document.head.append(style);
 html.dataset.houseTheme='pixel';
 document.getElementById('emptyAction')?.classList.add('primary');
 const brandImage=document.querySelector('.house-brand img'),emptyBody=document.querySelector('#emptyStage>div');if(brandImage&&emptyBody&&!document.getElementById('warmEmptyHeart')){const mark=document.createElement('img');mark.id='warmEmptyHeart';mark.src=brandImage.src;mark.alt='';mark.setAttribute('aria-hidden','true');emptyBody.prepend(mark);}
-function setColorway(colorway,persist=false){
- html.dataset.theme='light';html.dataset.colorway=colorway==='blossom'?'blossom':'cream';
- const themeButton=document.getElementById('themeBtn');
- if(themeButton){const blossom=html.dataset.colorway==='blossom';themeButton.setAttribute('aria-label',blossom?'切换奶油配色':'切换樱花配色');themeButton.setAttribute('data-hint-title',blossom?'切换奶油配色':'切换樱花配色');themeButton.setAttribute('data-hint-description',blossom?'回到奶油白、浅粉与鼠尾草色的像素界面；神经网络仍保持黑色。':'换成柔和樱花粉的像素界面；神经网络仍保持黑色。');}
- if(persist)try{localStorage.setItem('love-house-colorway',html.dataset.colorway);}catch{}
+// Restore the original interface colorway independently from the graph theme.
+// This graph button never changes or persists the cream/blossom preference.
+let initialColorway='cream';try{if(localStorage.getItem('love-house-colorway')==='blossom')initialColorway='blossom';}catch{}
+html.dataset.colorway=initialColorway;
+function setTheme(theme,persist=false){
+ const next=theme==='light'||theme==='dark'?theme:html.dataset.theme==='light'?'light':'dark';
+ html.dataset.theme=next;
+ const themeButton=document.getElementById('themeBtn'),target=next==='dark'?'白色':'黑色';
+ if(themeButton){
+  themeButton.setAttribute('aria-label','切换星云画布'+target+'主题');
+  themeButton.setAttribute('data-hint-title','切换星云画布'+target+'主题');
+  themeButton.setAttribute('data-hint-description',next==='dark'?'仅将神经星云画布切换为白底黑色星云与连线；奶油粉色像素界面与彩色按钮保持原样。':'仅将神经星云画布切换为黑底白色星云与连线；奶油粉色像素界面与彩色按钮保持原样。');
+ }
+ if(persist)try{localStorage.setItem('nkb-theme',next);}catch{}
  if(typeof schedule==='function')schedule();
+ return next;
 }
-let colorway='cream';try{if(localStorage.getItem('love-house-colorway')==='blossom')colorway='blossom';}catch{}
-setColorway(colorway);
-const themeButton=document.getElementById('themeBtn');if(themeButton)themeButton.onclick=()=>setColorway(html.dataset.colorway==='cream'?'blossom':'cream',true);
-const viewButton=document.getElementById('viewBtn');if(viewButton){const previous=viewButton.onclick;viewButton.onclick=function(event){previous?.call(this,event);setColorway(html.dataset.colorway);};}
+// Legacy cream/blossom calls leave both the original UI and graph theme alone.
+function setColorway(value,persist=false){return setTheme(value==='dark'||value==='light'?value:html.dataset.theme,persist);}
+let initialTheme=html.dataset.theme==='light'?'light':'dark';
+try{const saved=localStorage.getItem('nkb-theme');if(saved==='dark'||saved==='light')initialTheme=saved;}catch{}
+setTheme(initialTheme);
+const themeButton=document.getElementById('themeBtn');if(themeButton)themeButton.onclick=()=>setTheme(html.dataset.theme==='dark'?'light':'dark',true);
+// Preserve the graph view handler; switching mode never resets the graph theme.
 const iconIds={companionBtn:0,addBtn:1,importBtn:2,menuBtn:3,filterBtn:4,timeBtn:5,detailBtn:6,settingsBtn:7,viewBtn:8,layoutBtn:9,pauseBtn:10,themeBtn:11,fullscreenBtn:12,zoomIn:13,zoomOut:14,fitBtn:15,minimapBtn:3,searchBtn:0,closeNodes:17,closeDetail:17,closeSettings:17,closeFilters:17,closeTime:17,closeMemoryPanel:17,closeLibraries:17,closeOrganizer:17,closeBackups:17,closeConnectionWizard:17};
 function decorateIcons(){
  for(const [id,index]of Object.entries(iconIds)){const button=document.getElementById(id);if(!button)continue;button.classList.add('pixel-icon-only');button.style.setProperty('--house-icon-x',(index%5*25)+'%');button.style.setProperty('--house-icon-y',(Math.floor(index/5)*100/3)+'%');}
@@ -342,5 +364,5 @@ function decorateIcons(){
 }
 decorateIcons();
 let decorating=false;new MutationObserver(()=>{if(decorating)return;decorating=true;queueMicrotask(()=>{decorateIcons();decorating=false;});}).observe(document.body,{subtree:true,childList:true});
-window.LoveHouseAppearance={setColorway};
+window.LoveHouseAppearance={setTheme,setColorway};
 })();

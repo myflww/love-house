@@ -9,7 +9,8 @@ import sys
 import tempfile
 import time
 import unittest
-from urllib.request import Request, urlopen
+from urllib.request import Request, urlopen, build_opener, HTTPCookieProcessor, ProxyHandler
+from http.cookiejar import CookieJar
 from unittest.mock import patch
 from harness_bridge import Bridge, overlay_for_app
 
@@ -17,6 +18,25 @@ ROOT=Path(__file__).resolve().parent.parent
 DESKTOP=ROOT/"desktop"
 
 class BridgeProtocolTests(unittest.TestCase):
+    def test_status_uses_scoped_identity_without_management_capability(self):
+        bridge=Bridge('/nonexistent-test-runtime',library_id='bound-fish')
+        for identity in ({'library_id':'bound-fish','is_demo':False},
+                         {'library_id':'other-fish','is_demo':False}):
+            calls=[]
+            def request(port,route,body=None):
+                calls.append((route,body))
+                if route=='/api/stats':return {'nodes':3}
+                if route=='/api/memory/list':return {'identity':identity,'entries':[]}
+                raise AssertionError('Legacy bridge must not acquire management: '+route)
+            with patch.object(bridge,'_personal_port',return_value=23456),patch.object(bridge,'_request',side_effect=request):
+                result=bridge.call_tool('memory_status',{})
+            self.assertEqual(calls,[('/api/stats',None),('/api/memory/list',{'limit':1})])
+            if identity['library_id']=='bound-fish':
+                self.assertFalse(result.get('isError'),result)
+                self.assertEqual(result['structuredContent']['stats'],{'nodes':3})
+                self.assertEqual(result['structuredContent']['passive_sources'],[])
+                self.assertFalse(result['structuredContent']['automatic_memory'])
+            else:self.assertTrue(result.get('isError'),result)
     def test_product_patch_version_and_controller_protocol_are_independent(self):
         with tempfile.TemporaryDirectory() as directory:
             ready = Path(directory) / "app.json"
@@ -56,11 +76,33 @@ class BridgeProtocolTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             messages=[{"jsonrpc":"2.0","id":1,"method":"initialize"},
                       {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"memory_status","arguments":{}}}]
-            result=subprocess.run([sys.executable,str(DESKTOP/"harness_bridge.py"),"--runtime-dir",directory,"--library-id","default"],input="\n".join(json.dumps(m) for m in messages)+"\n{\n",capture_output=True,text=True,timeout=10)
+            result=subprocess.run([sys.executable,str(DESKTOP/"harness_bridge.py"),"--runtime-dir",directory,"--library-id","default"],input="\n".join(json.dumps(m) for m in messages)+"\n{\n",capture_output=True,text=True,encoding="utf-8",timeout=10)
             self.assertEqual(result.returncode,0,result.stderr)
             rows=[json.loads(line) for line in result.stdout.splitlines()]
             self.assertEqual([r["id"] for r in rows],[1,2,None]);self.assertTrue(rows[1]["result"]["isError"])
             self.assertEqual(result.stderr,"")
+
+    def test_legacy_status_uses_only_scoped_catalog_and_never_management(self):
+        bridge=Bridge("/nonexistent-test-runtime",library_id="fish-one")
+        def read(port,path,payload=None):
+            if path=="/api/stats":return {"nodes":2}
+            if path=="/api/memory/list":
+                self.assertEqual(payload,{"limit":1})
+                return {"identity":{"library_id":"fish-one","is_demo":False}}
+            self.fail("Unexpected management or bootstrap request: "+path)
+        with patch.object(bridge,"_personal_port",return_value=23456),patch.object(bridge,"_request",side_effect=read):
+            result=bridge.call_tool("memory_status",{})
+        self.assertFalse(result.get("isError"),result)
+        packet=result["structuredContent"]
+        self.assertEqual(packet["library_id"],"fish-one")
+        self.assertFalse(packet["automatic_memory"])
+        self.assertEqual(packet["passive_sources"],[])
+        self.assertEqual(packet["passive_source_status"],"not_verified_by_legacy_bridge")
+
+    def test_legacy_status_rejects_another_catalog_identity(self):
+        bridge=Bridge("/nonexistent-test-runtime",library_id="fish-one")
+        with patch.object(bridge,"_personal_port",return_value=23456),patch.object(bridge,"_request",side_effect=[{}, {"identity":{"library_id":"fish-two"}}]):
+            self.assertTrue(bridge.call_tool("memory_status",{})["isError"])
 
 @unittest.skipIf(os.name == "nt", "POSIX fcntl/signal desktop server; native Windows ControllerRuntime is tested separately")
 class ControllerDesktopTests(unittest.TestCase):
@@ -74,11 +116,15 @@ class ControllerDesktopTests(unittest.TestCase):
     def tearDown(self):
         self.stop();self.log.close();self.tmp.cleanup()
     def start(self):
+        self.ui_cookie=None
         self.child=subprocess.Popen([sys.executable,"-u",str(DESKTOP/"server.py"),"--data-dir",str(self.data),"--ready-file",str(self.ready),"--parent-pid",str(os.getpid())],cwd=ROOT,env=self.env,stdout=self.log,stderr=self.log)
         deadline=time.monotonic()+20
         while not self.ready.exists() and self.child.poll() is None and time.monotonic()<deadline:time.sleep(.03)
         self.assertTrue(self.ready.exists(),(self.temp/"backend.log").read_text())
         self.state=json.loads(self.ready.read_text())
+        self.opener=build_opener(ProxyHandler({}),HTTPCookieProcessor(CookieJar()))
+        with self.opener.open(f"http://127.0.0.1:{self.state['controller_port']}/",timeout=10) as response:
+            self.assertEqual(response.status,200)
     def stop(self):
         if self.child:
             self.child.terminate()
@@ -89,8 +135,13 @@ class ControllerDesktopTests(unittest.TestCase):
         headers={"Content-Type":"application/json"}
         if library:headers["X-NKB-Library"]=library
         if token:headers["Authorization"]="Bearer "+token
+        if not token:
+            if not self.ui_cookie:
+                with urlopen(f"http://127.0.0.1:{self.state['controller_port']}/",timeout=10) as page:
+                    self.ui_cookie=page.headers['Set-Cookie'].split(';')[0]
+            headers['Cookie']=self.ui_cookie
         req=Request(f"http://127.0.0.1:{self.state['controller_port']}"+path,data=None if body is None else json.dumps(body,ensure_ascii=False).encode(),headers=headers)
-        with urlopen(req,timeout=10) as response:return json.load(response)
+        with (urlopen(req,timeout=10) if token else self.opener.open(req,timeout=10)) as response:return json.load(response)
     def tool(self,name,args,library="default"):
         result=Bridge(self.runtime,library).call_tool(name,args)
         self.assertFalse(result.get("isError"),result)

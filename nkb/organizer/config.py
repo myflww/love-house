@@ -2,12 +2,14 @@
 from copy import deepcopy
 from urllib.parse import urlsplit
 import ipaddress
+import re
 
 from ..errors import ValidationError
 
 DEFAULT_PROFILE = {"enabled": False, "provider_id": "", "base_url": "", "model": "", "cadence": "batch",
-                   "batch_size": 6, "auto_trigger_count": 0, "max_input_chars": 18000, "max_ops": 12,
-                   "daily_call_limit": 100, "daily_char_limit": 200000, "max_attempts": 3}
+                   "batch_size": 6, "auto_trigger_count": 0, "max_input_chars": 0, "max_ops": 12,
+                   "context_window": 0, "max_output_tokens": 0, "reasoning_effort": "auto",
+                   "daily_call_limit": 0, "daily_char_limit": 0, "max_attempts": 3}
 
 
 def validate_profile(data):
@@ -24,18 +26,33 @@ def validate_profile(data):
         if key == "base_url" and any(ord(c)<32 or ord(c)==127 for c in result[key]):
             raise ValidationError("整理API地址不能包含控制字符")
         result[key] = result[key].strip()
-    for key, low, high in (("batch_size", 1, 12), ("auto_trigger_count", 0, 500), ("max_input_chars", 3000, 48000),
-                           ("max_ops", 1, 24), ("daily_call_limit", 1, 1000),
-                           ("daily_char_limit", 3000, 2000000), ("max_attempts", 1, 8)):
+    for key, low, high in (("batch_size", 1, 12), ("auto_trigger_count", 0, 500), ("max_input_chars", 0, 1000000000),
+                           ("context_window", 0, 1000000000), ("max_output_tokens", 0, 1000000000),
+                           ("max_ops", 1, 24), ("max_attempts", 1, 8)):
         if type(result[key]) is not int or not low <= result[key] <= high:
             raise ValidationError(f"{key}必须是{low}~{high}的整数")
+    if not isinstance(result['reasoning_effort'], str) or not re.fullmatch(r'[a-z][a-z0-9_-]{0,31}', result['reasoning_effort']):
+        raise ValidationError('推理强度必须是服务支持的选项或auto')
+    if result['context_window'] and result['context_window'] < 512:
+        raise ValidationError('自定上下文窗口至少512 tokens，0表示服务最高配置')
+    if result['context_window'] and result['max_output_tokens'] >= result['context_window']:
+        raise ValidationError('输出tokens须小于上下文窗口，为原文和整理指令保留空间')
+    # Historical daily ceilings are accepted for compatibility, then retired.
+    # Per-request input limits still bound each batch, never the memory library.
+    for key in ("daily_call_limit", "daily_char_limit"):
+        if type(result[key]) is not int or result[key] < 0:
+            raise ValidationError(f"{key}必须是非负整数")
+        result[key] = 0
     if result["base_url"]:
         endpoint(result["base_url"])
     return result
 
 
 def get_profile(brain):
-    return validate_profile(brain.meta.get("organizer_profile", {}))
+    settings = dict(brain.meta.get("organizer_profile", {}))
+    if not any(key in settings for key in ('context_window', 'max_output_tokens', 'reasoning_effort')) and settings.get('max_input_chars') == 18000:
+        settings['max_input_chars'] = 0
+    return validate_profile(settings)
 
 
 def save_profile(brain, **settings):

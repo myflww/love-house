@@ -45,11 +45,13 @@ class ProductDeliveryTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def req(self, path, body=None, *, library=None, token=None, headers=None):
-        request_headers = {"Content-Type": "application/json", **(headers or {})}
+        request_headers = {"Content-Type": "application/json", "X-LoveHouse-Management": self.host.management_token, **(headers or {})}
         if library:
             request_headers["X-NKB-Library"] = library
         if token:
             request_headers["Authorization"] = "Bearer " + token
+        if not any(k.lower() in ("authorization", "x-nkb-connection-key") for k in request_headers):
+            request_headers.setdefault("X-LoveHouse-Management", self.host.management_token)
         request = Request(f"http://127.0.0.1:{self.server.server_port}" + path,
                           data=None if body is None else json.dumps(body, ensure_ascii=False).encode(), headers=request_headers)
         try:

@@ -5,22 +5,45 @@ from __future__ import annotations
 import argparse
 import ast
 import hashlib
+import http.cookiejar
 import json
 import importlib.util
 import os
 import plistlib
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
-from urllib.request import Request, urlopen
+from urllib.request import Request, urlopen, build_opener, HTTPCookieProcessor, ProxyHandler
 from urllib.error import HTTPError
 
 ROOT = Path(__file__).resolve().parent.parent
 APP_NAME = "爱之屋"
 BUNDLE_ID = "local.neural-knowledge.atlas"
+ASTRBOT_PACKAGE = "LoveHouse-AstrBot-0.3.0-experimental.zip"
+
+
+class SmokeController:
+    """Obtain a real local UI session; keep it off bearer/source requests."""
+    def __init__(self, base):
+        self.base = base
+        self.public = build_opener(ProxyHandler({}))
+        self.management = build_opener(ProxyHandler({}), HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        with self.management.open(base + "/", timeout=10) as response:
+            assert b"<html" in response.read()
+
+    def api(self, path, body=None, library=None, credential=None):
+        headers = {"Content-Type": "application/json", "Origin": self.base}
+        if library:
+            headers["X-NKB-Library"] = library
+        if credential:
+            headers["Authorization"] = "Bearer " + credential
+        request = Request(self.base + path, data=None if body is None else json.dumps(body, ensure_ascii=False).encode(), headers=headers)
+        with (self.public if credential else self.management).open(request, timeout=12) as response:
+            return json.load(response)
 
 
 def project_version():
@@ -121,13 +144,8 @@ def smoke_test(resources):
                     old_port = state["controller_port"]
                     base = f"http://127.0.0.1:{old_port}"
 
-                    def api(path, body=None, library=None, credential=None):
-                        headers = {"Content-Type": "application/json"}
-                        if library: headers["X-NKB-Library"] = library
-                        if credential: headers["Authorization"] = "Bearer " + credential
-                        request = Request(base + path, data=None if body is None else json.dumps(body, ensure_ascii=False).encode(), headers=headers)
-                        with urlopen(request, timeout=12) as response:
-                            return json.load(response)
+                    controller = SmokeController(base)
+                    api = controller.api
 
                     def capture(event_id, user):
                         payload = {"session_id": "packaged-session", "event_id": event_id, "event_type": "turn/end",
@@ -148,11 +166,14 @@ def smoke_test(resources):
                         library_b = api("/api/libraries", {"name": "打包测试库乙"})["library"]["id"]
                         connection = api("/api/connections", {"name": "打包被动存档", "host": "harness", "library_id": library_a, "session_scope": "connection"})
                         cid, token = connection["connection"]["id"], connection["config"]["connectionToken"]
-                        assert capture("persona", "导入人格：\n只由测试用户明确写下的人格原文")["accepted"]
-                        capture("style-one", "我希望你说话温柔一点")
-                        capture("style-two", "以后请你语气温柔一点")
+                        assert capture("persona", "打包测试的第一轮原始对话")["accepted"]
+                        capture("style-one", "今天聊到海边的风")
+                        capture("style-two", "明天还有新的话题")
                         persona = api("/api/persona", library=library_a)
-                        assert "明确写下" in persona["manual"] and persona["learned"]
+                        assert persona["manual"] == "" and not persona["learned"]
+                        assert persona["enabled"] and persona["learning_enabled"]
+                        api("/api/persona/import", {"text":"只由测试用户明确写下的人格原文","source":"packaged_explicit_smoke"}, library=library_a)
+                        assert "明确写下" in api("/api/persona", library=library_a)["manual"]
                         api("/api/library/select", {"library_id": library_b})
                         capture("after-switch", "换画面后仍只属于甲库的原文")
                         assert capture("after-switch", "换画面后仍只属于甲库的原文")["duplicate"]
@@ -219,11 +240,8 @@ def smoke_harness(resources):
                 while not ready.exists() and child.poll() is None and time.monotonic() < deadline: time.sleep(.05)
                 assert ready.exists(), (temp / "backend.log").read_text()
                 port = json.loads(ready.read_text())["controller_port"]
-                def api(path, body=None, library=None):
-                    headers = {"Content-Type": "application/json"}
-                    if library: headers["X-NKB-Library"] = library
-                    req = Request(f"http://127.0.0.1:{port}" + path, data=None if body is None else json.dumps(body).encode(), headers=headers)
-                    with urlopen(req, timeout=8) as response: return json.load(response)
+                controller = SmokeController(f"http://127.0.0.1:{port}")
+                api = controller.api
                 other = api("/api/libraries", {"name": "GUI正在查看的另一库"})["library"]["id"]
                 def rpc(name, args, library="default"):
                     messages = [{"jsonrpc":"2.0","id":1,"method":"initialize"},
@@ -266,9 +284,10 @@ def smoke_agent(resources):
         log = (temp / "backend.log").open("ab")
         child = None
         base = ""
+        controller = None
 
         def start():
-            nonlocal child, base
+            nonlocal child, base, controller
             child = subprocess.Popen([str(python), "-s", "-u", str(backend / "desktop_server.py"),
                                       "--data-dir", str(data), "--ready-file", str(ready),
                                       "--parent-pid", str(os.getpid())], cwd=backend, env=env, stdout=log, stderr=log)
@@ -276,6 +295,7 @@ def smoke_agent(resources):
             while not ready.exists() and child.poll() is None and time.monotonic() < deadline: time.sleep(.05)
             assert ready.exists(), (temp / "backend.log").read_text()
             base = "http://127.0.0.1:" + str(json.loads(ready.read_text())["controller_port"])
+            controller = SmokeController(base)
 
         def stop():
             nonlocal child
@@ -287,11 +307,7 @@ def smoke_agent(resources):
             child = None
 
         def api(path, body=None, library=None):
-            headers = {"Content-Type": "application/json"}
-            if library: headers["X-NKB-Library"] = library
-            request = Request(base + path, data=None if body is None else json.dumps(body, ensure_ascii=False).encode(), headers=headers)
-            with urlopen(request, timeout=12) as response: return json.load(response)
-
+            return controller.api(path, body, library)
         def execute(command, payload, *, lines=False):
             assert command["command"] == str(python), command["command"]
             assert command["env"]["PYTHONHOME"] == str(resources / "python")
@@ -340,7 +356,10 @@ def smoke_agent(resources):
             complete = {**partial, "status":"complete", "assistant":"原生钩子完整助手回复"}
             result = execute(hook, json.dumps(complete, ensure_ascii=False))
             assert result["accepted"] and result["saved"] and not result["queued"]
-            assert rpc("memory_status")["automatic_memory"] is True
+            # A generic host callback proves this completed turn was archived,
+            # not that every future turn is automatically observed by its host.
+            status = rpc("memory_status")
+            assert status["automatic_memory"] is False and status["capture_mode"] == "host_hook_received"
             assert len(api("/api/graph", library=library)["nodes"]) == 2
             assert api("/api/graph")["nodes"] == []
             stop()
@@ -359,55 +378,70 @@ def smoke_agent(resources):
             outbox = data / "agent-outbox" / cid
             assert not list(outbox.glob("*.json"))
             assert api("/api/graph")["nodes"] == []
-            print("Bundled Agent MCP: generated command/PYTHONHOME works; no vendor key; manual/partial stays tools_only; complete hook records automatically; offline queue/reconnect preserves fixed library")
+            print("Bundled Agent MCP: generated command/PYTHONHOME works; no vendor key; manual/partial stays tools_only; completed hook archived with coverage unclaimed; offline queue/reconnect preserves fixed library")
 
-            single_library = api("/api/libraries", {"name":"打包默认单窗口隐私库"})["library"]["id"]
-            single = api("/api/connections", {"name":"默认只记所选窗口", "host":"agent", "library_id":single_library})
-            single_cid = single["connection"]["id"]
-            assert single["connection"]["session_scope"] == "next_session"
-            single_config = api(f"/api/connections/{single_cid}/config")
-            assert single_config["connection_config_public"]["window_only"] is True
-            assert single_config["connection_config_public"]["bound_session_id"] is None
-            single_hook = single_config["hook_config"]
-            own = {"session_id":"packaged-window-A", "turn_id":"first-real-turn", "status":"complete",
-                   "user":"PACKAGED-OWN-WINDOW-A", "assistant":"Actual reply from the selected packaged window"}
-            saved = execute(single_hook, json.dumps(own))
-            assert saved["accepted"] and saved["saved"] and not saved["queued"]
-            private = Path(single_config["private_path"])
-            assert json.loads(private.read_text())["bound_session_id"] == own["session_id"]
-            foreign_marker = "PACKAGED-FOREIGN-WINDOW-B-MUST-NEVER-BE-COLLECTED"
-            foreign = {**own, "session_id":"packaged-window-B", "turn_id":"foreign-turn", "user":foreign_marker}
-            ignored = execute(single_hook, json.dumps(foreign))  # A new real client process reloads the saved local claim.
-            assert ignored["status"] == "ignored_scope" and not ignored["accepted"] and not ignored["queued"]
-            assert not ignored["saved"] and not ignored["local_queue_committed"]
-            assert not list((data / "agent-outbox" / single_cid).glob("*.json"))
-            assert all(foreign_marker.encode() not in p.read_bytes() for p in data.rglob("*") if p.is_file())
-            stop(); start()
-            refreshed = api(f"/api/connections/{single_cid}/config")
-            assert refreshed["connection"]["session_scope"] == own["session_id"]
-            assert refreshed["connection_config_public"]["bound_session_id"] == own["session_id"]
-            assert json.loads(private.read_text())["bound_session_id"] == own["session_id"]
-            graph = api("/api/graph", library=single_library)
-            assert len(graph["nodes"]) == 1 and "PACKAGED-OWN-WINDOW-A" in graph["nodes"][0]["text"]
-            assert api("/api/graph")["nodes"] == []
-            print("Bundled default single-window privacy: next_session binds only real hook A; client B ignored before outbox/raw disk; reloaded Controller/config remains A")
+            smoke_single_window(api, execute, start, stop, data)
         finally:
             try: stop()
             finally: log.close()
+
+
+def smoke_single_window(api, execute, start, stop, data):
+    """Exercise the current scope policy and durable binding through real APIs/hooks."""
+    single_library = api("/api/libraries", {"name":"打包默认单窗口隐私库"})["library"]["id"]
+    single = api("/api/connections", {"name":"默认只记所选窗口", "host":"agent", "library_id":single_library})
+    single_cid = single["connection"]["id"]
+    assert single["connection"]["session_scope"] == "next_session"
+    single_config = api(f"/api/connections/{single_cid}/config")
+    assert single_config["connection_config_public"]["window_only"] is True
+    assert single_config["connection_config_public"]["bound_session_id"] is None
+    single_hook = single_config["hook_config"]
+    own = {"session_id":"packaged-window-A", "turn_id":"first-real-turn", "status":"complete",
+           "user":"PACKAGED-OWN-WINDOW-A", "assistant":"Actual reply from the selected packaged window"}
+    saved = execute(single_hook, json.dumps(own))
+    assert saved["accepted"] and saved["saved"] and not saved["queued"]
+    private = Path(single_config["private_path"])
+    assert json.loads(private.read_text())["bound_session_id"] == own["session_id"]
+    foreign_marker = "PACKAGED-FOREIGN-WINDOW-B-MUST-NEVER-BE-COLLECTED"
+    foreign = {**own, "session_id":"packaged-window-B", "turn_id":"foreign-turn", "user":foreign_marker}
+    ignored = execute(single_hook, json.dumps(foreign))  # A new real client process reloads the saved local claim.
+    assert ignored["status"] == "ignored_scope" and not ignored["accepted"] and not ignored["queued"]
+    assert not ignored["saved"] and not ignored["local_queue_committed"]
+    assert not list((data / "agent-outbox" / single_cid).glob("*.json"))
+    assert all(foreign_marker.encode() not in p.read_bytes() for p in data.rglob("*") if p.is_file())
+    stop(); start()
+    refreshed = api(f"/api/connections/{single_cid}/config")
+    assert refreshed["connection"]["session_scope"] == "next_session"
+    assert refreshed["connection"]["session_scope_policy"] == "next_session"
+    assert refreshed["connection"]["bound_session_id"] == own["session_id"]
+    assert refreshed["connection_config_public"]["session_scope_policy"] == "next_session"
+    assert refreshed["connection_config_public"]["bound_session_id"] == own["session_id"]
+    assert json.loads(private.read_text())["bound_session_id"] == own["session_id"]
+    graph = api("/api/graph", library=single_library)
+    assert len(graph["nodes"]) == 1 and "PACKAGED-OWN-WINDOW-A" in graph["nodes"][0]["text"]
+    assert api("/api/graph")["nodes"] == []
+    print("Bundled default single-window privacy: next_session binds only real hook A; client B ignored before outbox/raw disk; reloaded Controller/config remains A")
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--python", type=Path, default=Path(shutil.which("python3.12") or sys.executable))
     parser.add_argument("--output", type=Path, default=ROOT / "dist" / f"{APP_NAME}.app")
     parser.add_argument("--skip-smoke", action="store_true")
+    parser.add_argument("--expected-version", help="Reject a tag/version mismatch before building")
+    parser.add_argument("--report-dir", type=Path, default=ROOT/"build/macos/reports")
     parser.add_argument("--native-smoke", action="store_true", help="Run isolated WKWebView self-test; never installs")
     parser.add_argument("--icon", type=Path, default=ROOT / "assets/branding/love-house-icon.png", help="Approved imagegen PNG source; only iconset resizing/encoding is performed")
     args = parser.parse_args()
+    if args.expected_version and args.expected_version != project_version():
+        raise SystemExit("Requested Mac release and core version differ")
+    reports = args.report_dir.resolve()
+    reports.mkdir(parents=True, exist_ok=True)
+    proof = {"schema":"love-house-macos-build/v1", "version":project_version(), "ok":False,
+             "architecture":"arm64", "minimum_macos":"13.0", "signing":"ad-hoc", "notarized":False,
+             "installed":False, "model_calls":0, "checks":{}}
     icon = args.icon.expanduser().resolve()
     if not icon.is_file():
         raise SystemExit(f"Approved Love House icon PNG is required: {icon}")
-    if project_version() != "0.5.0":
-        raise SystemExit("Freeze project version at 0.5.0 before creating this desktop candidate")
     extension = ROOT / "extensions/deepseek-harness"
     if not (extension / "dist/index.js").is_file() or not (extension / "configure.py").is_file():
         raise SystemExit("Automatic-capture extension is not built/frozen: dist/index.js and configure.py are required")
@@ -449,6 +483,15 @@ def main():
         elif source.is_file():
             shutil.copy2(source, target_extension / filename)
     assert not list((backend / "extensions").rglob("node_modules")), "Development dependencies must not ship"
+    astrbot_source=ROOT/'extensions/astrbot-love-house'
+    astrbot_target=backend/'extensions/astrbot-love-house'
+    astrbot_target.mkdir(parents=True)
+    for filename in ('__init__.py','main.py','bridge.py','source_client.py','metadata.yaml','_conf_schema.json','README.md','LICENSE','package.py'):
+        source=astrbot_source/filename
+        if not source.is_file() or source.is_symlink():raise SystemExit('AstrBot experimental source package is incomplete')
+        shutil.copy2(source,astrbot_target/filename)
+    adapters=resources/'Adapters';adapters.mkdir()
+    run([sys.executable,astrbot_target/'package.py','--check','--output',adapters/ASTRBOT_PACKAGE])
     overlay = "# Generate the connection in Love House > Connect Chat.\n# Paths and private credentials are generated for the current user at runtime.\n"
     (resources / "deepseek-harness-overlay.example.yaml").write_text(overlay, encoding="utf-8")
     (app.parent / "deepseek-harness-overlay.example.yaml").write_text(overlay, encoding="utf-8")
@@ -498,8 +541,9 @@ def main():
     info = {
         "CFBundleName": APP_NAME, "CFBundleDisplayName": APP_NAME,
         "CFBundleIdentifier": BUNDLE_ID, "CFBundleExecutable": "NeuralAtlas",
-        "CFBundlePackageType": "APPL", "CFBundleShortVersionString": project_version(),
-        "CFBundleVersion": "8", "CFBundleIconFile": "LoveHouse",
+        "CFBundlePackageType": "APPL", "CFBundleShortVersionString": re.match(r"\d+\.\d+\.\d+", project_version()).group(),
+        "LoveHouseProductVersion": project_version(),
+        "CFBundleVersion": "17", "CFBundleIconFile": "LoveHouse",
         "LSMinimumSystemVersion": "13.0", "NSHighResolutionCapable": True,
         "NSSupportsAutomaticGraphicsSwitching": True,
         "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
@@ -514,17 +558,25 @@ def main():
         assert credential_identity(credential_helper) == existing_identity, "Credential helper identity changed; candidate must preserve existing Keychain ACL"
         print("Credential helper identity preserved: " + json.dumps(existing_identity))
     if not args.skip_smoke:
-        smoke_credentials(resources)
-        smoke_test(resources)
-        smoke_harness(resources)
-        smoke_agent(resources)
+        for name, check in (("fake_credentials",smoke_credentials),("backend_restart",smoke_test),
+                            ("legacy_mcp",smoke_harness),("agent_mcp_hook_offline",smoke_agent)):
+            check(resources)
+            proof["checks"][name] = "passed"
     if app.exists():
         shutil.rmtree(app)
     staging.rename(app)
     run(["/usr/bin/codesign", "--verify", "--deep", "--strict", app])
     if args.native_smoke:
-        run([app / "Contents/MacOS/NeuralAtlas", "--smoke-test"], timeout=90)
+        native_report = reports / "native.json"
+        run([app / "Contents/MacOS/NeuralAtlas", "--smoke-test", "--smoke-report", native_report], timeout=120)
+        native = json.loads(native_report.read_text("utf-8"))
+        if native.get("ok") is not True or native.get("process_complete") is not True or native.get("version") != project_version():
+            raise RuntimeError("Packaged WKWebView smoke did not finalize successfully")
+        proof["checks"]["native_wkwebview"] = "passed"
     total = sum(p.stat().st_size for p in app.rglob("*") if p.is_file() and not p.is_symlink())
+    proof.update(ok=not args.skip_smoke and args.native_smoke, process_complete=True, bundle_id=BUNDLE_ID,
+                 bytes=total, astrbot_package=ASTRBOT_PACKAGE)
+    (reports / "build.json").write_bytes((json.dumps(proof,ensure_ascii=False,indent=2)+"\n").encode("utf-8"))
     print(json.dumps({"app": str(app), "bundle_id": BUNDLE_ID,
                       "bytes": total, "icon_source_sha256": hashlib.sha256(icon.read_bytes()).hexdigest(),
                       "installed": False}, ensure_ascii=False))

@@ -19,13 +19,24 @@ def load(name,path):
 
 windows=load('love_house_windows_shell','desktop/windows_app.py')
 builder=load('love_house_windows_builder','scripts/build_windows.py')
+runtime_fetcher=load('love_house_runtime_fetcher','scripts/fetch_windows_runtime.py')
 
 
 class WindowsPackagingTests(unittest.TestCase):
+    def test_native_motion_diagnostics_never_publish_arbitrary_error_or_private_values(self):
+        import windows_0102_smoke as release
+        error=release.Release0102Failure('PRIVATE synthetic response',{
+            'system_reduced_motion':True,'document_hidden':'false',
+            'auto_rotate_reason':'PRIVATE synthetic response','test_motion_preference':'reduce',
+            'token':'FAKE private token','path':'PRIVATE synthetic profile'})
+        self.assertEqual(error.code,'release_0102_response')
+        self.assertEqual(error.motion_diag,{'system_reduced_motion':True,'test_motion_preference':'reduce'})
+
     def test_gui_and_console_are_distinct_bundles_with_only_safe_assets(self):
         command=builder.freeze_command('LoveHouse',ROOT/'desktop/windows_app.py',Path('out'),Path('build'),Path('icon.ico'),console=False)
         self.assertIn('--windowed',command);self.assertNotIn('--console',command)
         self.assertIn('webview.platforms.winforms',command)
+        self.assertIn('plistlib',command);self.assertIn('zipfile',command)
         bridge=builder.freeze_command('LoveHouseBridge',ROOT/'desktop/agent_memory_bridge.py',Path('out'),Path('build'),Path('icon.ico'),console=True)
         self.assertIn('--console',bridge);self.assertNotIn('--windowed',bridge)
         for source,destination in builder.data_files():
@@ -33,6 +44,39 @@ class WindowsPackagingTests(unittest.TestCase):
             self.assertNotIn('data/',str(source.relative_to(ROOT)))
             self.assertNotIn('reports',str(source.relative_to(ROOT)))
             self.assertNotIn('node_modules',str(source.relative_to(ROOT)))
+
+    def test_latest_source_downloads_are_explicit_and_include_the_sdk_integrity_input(self):
+        files=builder.data_files()
+        plugin={(source.name,destination) for source,destination in files if 'astrbot-love-house' in source.parts}
+        allowed={'__init__.py','main.py','bridge.py','source_client.py','metadata.yaml',
+                 '_conf_schema.json','README.md','LICENSE','package.py'}
+        self.assertEqual(plugin,{(name,'extensions/astrbot-love-house') for name in allowed})
+        self.assertIn((ROOT/'nkb/service/source_client.py','nkb/service'),files)
+
+    def test_native_testing_disables_background_update_network_and_publishes_instance_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime=windows.ControllerRuntime(Path(directory)/'data',testing=True).start()
+            try:
+                self.assertFalse(runtime.host.updates.status()['settings']['auto_check'])
+                ready=json.loads(runtime.ready.read_text('utf-8'))
+                self.assertEqual(ready['controller_instance_id'],runtime.host.instance_id)
+                self.assertEqual(runtime.host.retention_view('default')['mode'],'adaptive')
+                self.assertIsNone(runtime.host.snapshot('default')['config']['max_nodes'])
+            finally:runtime.stop()
+
+    def test_smoke_accepts_background_delivery_only_after_exact_bound_roles_exist(self):
+        host=MagicMock()
+        correct={'text':'actual user','meta':{'source':'conversation_turn','assistant_reply':'actual assistant'}}
+        host.snapshot.side_effect=[{'nodes':{}},{'nodes':{'saved':correct}}]
+        with patch.object(windows.time,'sleep'):
+            windows.require_smoke_turn_saved(host,'fixed-library','actual user','actual assistant')
+        self.assertEqual(host.snapshot.call_args_list,[unittest.mock.call('fixed-library'),unittest.mock.call('fixed-library')])
+        for node in ({**correct,'text':'different user'},
+                     {'text':'actual user','meta':{'source':'conversation_turn','assistant_reply':'wrong assistant'}},
+                     {'text':'actual user','meta':{'source':'harness_recorded','assistant_reply':'actual assistant'}}):
+            host.snapshot.side_effect=None;host.snapshot.return_value={'nodes':{'unproven':node}}
+            with patch.object(windows.time,'monotonic',side_effect=[0,11]),self.assertRaises(AssertionError):
+                windows.require_smoke_turn_saved(host,'fixed-library','actual user','actual assistant')
 
     def test_frozen_windows_config_uses_console_exes_and_no_pythonhome_or_token(self):
         from nkb.service.agent_client import make_agent_config
@@ -60,27 +104,51 @@ class WindowsPackagingTests(unittest.TestCase):
     def test_native_save_preserves_unicode_content_and_never_accepts_direct_paths(self):
         with tempfile.TemporaryDirectory() as directory:
             target=Path(directory)/'分享.json';window=MagicMock();window.get_current_url.return_value='http://127.0.0.1:8768/'
-            window.create_file_dialog.return_value=(str(target),)
             api=windows.NativeAPI('http://127.0.0.1:8768/');api._window=window
-            fake=SimpleNamespace(FileDialog=SimpleNamespace(SAVE=1))
-            with patch.dict(sys.modules,{'webview':fake}):
+            with patch.object(windows,'export_save_dialog',return_value=str(target)) as dialog:
                 self.assertTrue(api.save_memory_file('分享.json','完整用户原话：不喜欢咖啡。\n实际助手回复。')['saved'])
                 self.assertFalse(api.save_memory_file('../escape.json','x')['saved'])
                 self.assertFalse(api.save_memory_file('C:\\escape.json','x')['saved'])
+            dialog.assert_called_once_with(window,'分享.json')
             self.assertEqual(target.read_text('utf-8'),'完整用户原话：不喜欢咖啡。\n实际助手回复。')
-            self.assertEqual(window.create_file_dialog.call_count,1)
             self.assertFalse(list(Path(directory).glob('*.tmp')))
 
     def test_cancel_and_foreign_origin_do_not_write_or_open_save_dialog(self):
         api=windows.NativeAPI('http://127.0.0.1:8768/');api._window=MagicMock()
         api._window.get_current_url.return_value='https://example.com/'
-        self.assertFalse(api.save_memory_file('copy.json','x')['saved'])
-        api._window.create_file_dialog.assert_not_called()
-        api._window.get_current_url.return_value='http://127.0.0.1:8768/'
-        api._window.create_file_dialog.return_value=None
-        with patch.dict(sys.modules,{'webview':SimpleNamespace(FileDialog=SimpleNamespace(SAVE=1))}):
+        with patch.object(windows,'export_save_dialog',return_value=None) as dialog:
+            self.assertFalse(api.save_memory_file('copy.json','x')['saved'])
+            dialog.assert_not_called()
+            api._window.get_current_url.return_value='http://127.0.0.1:8768/'
             result=api.save_memory_file('copy.json','x')
         self.assertFalse(result['saved']);self.assertTrue(result['cancelled'])
+
+    def test_save_dialog_and_disk_failures_are_errors_and_navigation_during_save_cannot_write(self):
+        api=windows.NativeAPI('http://127.0.0.1:8768/');api._window=MagicMock()
+        api._window.get_current_url.return_value=api._url
+        with patch.object(windows,'export_save_dialog',side_effect=RuntimeError('PRIVATE PATH')):
+            result=api.save_memory_file('copy.json','x')
+        self.assertFalse(result['saved']);self.assertFalse(result['cancelled']);self.assertNotIn('PRIVATE PATH',result['error'])
+        with patch.object(windows,'export_save_dialog',return_value='copy.json'),patch.object(windows,'atomic_export',side_effect=PermissionError('PRIVATE PATH')):
+            result=api.save_memory_file('copy.json','x')
+        self.assertFalse(result['saved']);self.assertFalse(result['cancelled'])
+        api._window.get_current_url.side_effect=[api._url,'https://example.com/']
+        with patch.object(windows,'export_save_dialog',return_value='copy.json'),patch.object(windows,'atomic_export') as write:
+            self.assertFalse(api.save_memory_file('copy.json','x')['saved']);write.assert_not_called()
+
+    def test_astrbot_native_export_accepts_no_remote_bytes_or_path_and_uses_host_package(self):
+        host=MagicMock();host.astrbot_package.return_value=b'REVIEWED SYNTHETIC PLUGIN ZIP'
+        api=windows.NativeAPI('http://127.0.0.1:8768/',host);api._window=MagicMock()
+        api._window.get_current_url.return_value=api._url
+        with tempfile.TemporaryDirectory() as directory:
+            target=Path(directory)/'插件.zip'
+            with patch.object(windows,'export_save_dialog',return_value=str(target)) as dialog:
+                self.assertTrue(api.export_astrbot_adapter()['saved'])
+            self.assertEqual(target.read_bytes(),host.astrbot_package.return_value)
+            dialog.assert_called_once_with(api._window,'LoveHouse-AstrBot-0.3.0-experimental.zip')
+        with self.assertRaises(TypeError):api.export_astrbot_adapter('untrusted-path.zip')
+        api._window.get_current_url.return_value='https://example.com/'
+        host.astrbot_package.reset_mock();self.assertFalse(api.export_astrbot_adapter()['saved']);host.astrbot_package.assert_not_called()
 
     def test_reserved_windows_export_names_and_non_utf8_are_rejected(self):
         for filename in ['CON.json','lpt1.md','NUL.json','wrong.exe','end.md ','a|b.json','/tmp/x.json','..\\x.json']:
@@ -126,6 +194,8 @@ class WindowsPackagingTests(unittest.TestCase):
         workflow=(ROOT/'.github/workflows/release.yml').read_text('utf-8')
         self.assertIn('runs-on: windows-latest',workflow)
         self.assertIn('installed-native.json',workflow)
+        self.assertIn('--diagnose',workflow)
+        self.assertIn('installed-diagnostics.txt',workflow)
         self.assertIn('needs: windows',workflow)
         self.assertNotIn('continue-on-error: true',workflow)
         self.assertIn('native.json',(ROOT/'scripts/build_windows.py').read_text('utf-8'))
@@ -171,6 +241,25 @@ class WindowsPackagingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='unrelated-') as other:
             with self.assertRaises(ValueError):windows.cleanup_smoke_profile(other)
             self.assertTrue(Path(other).is_dir())
+
+    def test_owned_profile_temporary_access_denial_retries_with_complete_callback_path(self):
+        import shutil
+        directory=self.smoke_directory();original=shutil.rmtree;calls=[]
+        entry=directory/'WebView2/locked.tmp'
+        def transient(path,**kwargs):
+            calls.append(path)
+            if len(calls)==1:
+                exc=PermissionError(13,'Synthetic shutdown race',entry.name);exc.winerror=5
+                if 'onexc' in kwargs:kwargs['onexc'](os.unlink,str(entry),exc)
+                else:kwargs['onerror'](os.unlink,str(entry),(type(exc),exc,None))
+            return original(path)
+        try:
+            with patch.object(windows.shutil,'rmtree',side_effect=transient),patch.object(windows.time,'sleep'):
+                result=windows.cleanup_smoke_profile(directory,attempts=3)
+            self.assertEqual(result['status'],'removed');self.assertEqual(result['attempts'],2)
+            self.assertFalse(directory.exists())
+        finally:
+            if directory.exists():original(directory)
 
     def test_webview2_concurrently_deleted_cache_tmp_is_ignored_only_after_it_vanishes(self):
         import shutil
@@ -224,10 +313,26 @@ class WindowsPackagingTests(unittest.TestCase):
             if directory.exists():original(directory)
 
     def test_native_success_is_finalized_after_shutdown_and_explicit_cleanup(self):
-        def verified(directory,**kwargs):kwargs['result'].update(ok=True,controller_stopped=True,renderer='edgechromium')
+        import windows_latest_smoke
+        events=[]
+        def verified(directory,**kwargs):
+            events.append('native-window-closed')
+            kwargs['smoke_expected'].update(selected='synthetic-library')
+            kwargs['result'].update(ok=True,controller_stopped=True,renderer='edgechromium',latest_features={})
+        def checked_restart(runtime,expected):
+            self.assertEqual(events,['native-window-closed','restart-started'])
+            self.assertEqual(expected,{'selected':'synthetic-library'})
+            events.append('restart-verified')
+            return 'passed'
+        restart=MagicMock()
+        restart.start.side_effect=lambda:(events.append('restart-started'),restart)[1]
+        restart.stop.side_effect=lambda:events.append('restart-stopped')
         with tempfile.TemporaryDirectory() as directory:
             report=Path(directory)/'native.json'
-            with patch.object(windows,'run_window',side_effect=verified):value=windows.native_smoke(report)
+            with patch.object(windows,'run_window',side_effect=verified),patch.object(windows,'ControllerRuntime',return_value=restart),patch.object(windows_latest_smoke,'verify_latest_restart',side_effect=checked_restart):
+                value=windows.native_smoke(report)
+            self.assertEqual(events,['native-window-closed','restart-started','restart-verified','restart-stopped'])
+            self.assertEqual(value['latest_features']['backend_restart'],'passed')
             self.assertTrue(value['ok']);self.assertTrue(value['process_complete'])
             self.assertEqual(value['phase'],'complete');self.assertEqual(value['cleanup']['status'],'removed')
             self.assertEqual(json.loads(report.read_text('utf-8')),value)
@@ -241,6 +346,94 @@ class WindowsPackagingTests(unittest.TestCase):
             self.assertEqual(value['failure']['type'],'PermissionError')
             self.assertNotIn('FAKE-PRIVATE-KEY',report.read_text('utf-8'))
             self.assertEqual(value['cleanup']['status'],'removed')
+
+    def test_native_latest_failure_reports_only_fixed_control_codes(self):
+        import windows_latest_smoke as latest
+        for code,expected in [('graph_labels_on','graph_labels_on'),
+                              ('FAKE-PRIVATE-KEY from JavaScript','graph_response'),
+                              (['FAKE-PRIVATE-KEY'],'graph_response')]:
+            window=MagicMock()
+            window.evaluate_js.side_effect=lambda script,callback:callback({'ok':False,'code':code})
+            with self.assertRaises(latest.NativeFeatureFailure) as raised:
+                latest.evaluate(window,'throw Error("synthetic")',timeout=.1)
+            self.assertEqual(raised.exception.code,expected)
+            self.assertNotIn('FAKE-PRIVATE-KEY',str(raised.exception))
+
+    def test_native_nebula_wait_accepts_a_target_created_by_a_later_frame(self):
+        import shutil
+        import subprocess
+        import windows_latest_smoke as latest
+        node=shutil.which('node')
+        if not node:self.skipTest('Node is required for the real JS predicate check')
+        line=next(line for line in latest.GRAPH_SCRIPT.splitlines() if "await wait(()=>S.graphMode==='nebula'" in line)
+        expression=line.split('await wait(()=>',1)[1].split(');await paint()',1)[0]
+        script="const assert=require('node:assert/strict');const S={graphMode:'nebula',view:{target:null},cam:{k:1}};const artRenderer={isTransitioning:()=>false};const ready=()=>"+expression+";assert.equal(ready(),false);S.view.target={k:2};assert.equal(ready(),false);S.view.target={k:1};assert.equal(ready(),true);"
+        subprocess.run([node,'-e',script],check=True,capture_output=True,timeout=10)
+
+    def test_main_preserves_initial_native_failure_instead_of_final_runtime_wrapper(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report=Path(directory)/'native.json'
+            original={'type':'NativeFeatureFailure','kind':'unexpected','at':{'file':'desktop/windows_latest_smoke.py','function':'evaluate','line':1}}
+            def failed(*arguments,**keywords):
+                report.write_text(json.dumps({'ok':False,'process_complete':False,'phase':'profile_cleanup',
+                    'failure':original,'smoke_checkpoint':'graph_wait_automatic-viewport'}),encoding='utf-8')
+                raise RuntimeError('FAKE-PRIVATE-KEY final wrapper')
+            with patch.object(windows,'native_smoke',side_effect=failed),patch.object(sys,'argv',
+                    ['LoveHouse.exe','--smoke-test','--data-dir',directory,'--report',str(report)]):
+                self.assertEqual(windows.main(),1)
+            value=json.loads(report.read_text('utf-8'))
+            self.assertEqual(value['failure'],original)
+            self.assertEqual(value['smoke_checkpoint'],'graph_wait_automatic-viewport')
+            self.assertFalse(value['ok']);self.assertFalse(value['process_complete'])
+            self.assertNotIn('FAKE-PRIVATE-KEY',report.read_text('utf-8'))
+
+    def test_loaded_releases_startup_watchdog_before_independent_native_checks_deadline(self):
+        import threading
+        import windows_latest_smoke as latest
+        import windows_0102_smoke as release
+        events=[];threads=[]
+        class Signal:
+            def __init__(self):self.handlers=[]
+            def __iadd__(self,callback):self.handlers.append(callback);return self
+        class Event:
+            def __init__(self):self.ready=False;self.waits=[];events.append(self)
+            def set(self):self.ready=True
+            def wait(self,timeout):self.waits.append(timeout);return self.ready
+        class Thread:
+            def __init__(self,*,target,daemon):self.target=target;threads.append(self)
+            def start(self):pass
+            def join(self,timeout):pass
+        window=MagicMock()
+        window.events=SimpleNamespace(loaded=Signal(),closed=Signal(),initialized=Signal())
+        value={'health':{'ok':True,'version':windows.__version__},'save_bridge':True,'graph':True,
+               'webgl':True,'latest_controls':True}
+        window.evaluate_js.side_effect=lambda script,callback:callback(value)
+        browser=SimpleNamespace(settings={},create_window=lambda *args,**kwargs:window)
+        def start(**kwargs):
+            window.events.loaded.handlers[0]()
+            self.assertTrue(events[0].ready)
+            self.assertFalse(events[1].ready)
+            next(t for t in threads if t.target.__name__=='watchdog').target()
+            self.assertEqual(events[0].waits,[60])
+            window.destroy.assert_not_called()
+            window.events.loaded.handlers[1]()
+            self.assertTrue(events[1].ready)
+            next(t for t in threads if t.target.__name__=='native_deadline').target()
+            self.assertEqual(events[1].waits,[120])
+        browser.start=start
+        runtime=MagicMock();runtime.start.return_value=runtime
+        runtime.url='http://127.0.0.1:12345/'
+        thread_api=SimpleNamespace(Event=Event,Thread=Thread,Lock=threading.Lock)
+        with tempfile.TemporaryDirectory() as directory,patch.dict(sys.modules,{'webview':browser}),\
+             patch.object(windows,'threading',thread_api),patch.object(windows,'ControllerRuntime',return_value=runtime),\
+             patch.object(windows,'dotnet_status',return_value={'ok':True}),\
+             patch.object(windows,'runtime_status',return_value={'available':True}),\
+             patch.object(windows,'verify_native_exports',return_value={}),\
+             patch.object(latest,'verify_latest_ui',return_value=({'status':'passed'},{'library':'synthetic'})),\
+             patch.object(release,'verify',return_value=release.EXPECTED.copy()):
+            result=windows.run_window(directory,smoke=True)
+        self.assertTrue(result['ok']);self.assertNotIn('smoke_timeout',result)
+        runtime.stop.assert_called_once()
 
     def test_nonzero_exit_is_rejected_even_with_success_report(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -259,6 +452,193 @@ class WindowsPackagingTests(unittest.TestCase):
                 return SimpleNamespace(returncode=0)
             with patch.object(builder.subprocess,'run',side_effect=process),self.assertRaises(RuntimeError):
                 builder.require_report(['FAKE-LoveHouse.exe'],report)
+
+
+    def test_webview2_detection_reads_every_documented_channel(self):
+        diagnostics=load('love_house_windows_diagnostics','desktop/windows_diagnostics.py')
+        channel='{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+        user_path='Software\\Microsoft\\EdgeUpdate\\Clients\\'+channel
+        machine_path='Software\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients\\'+channel
+        class Key:
+            def __init__(self,values):self.values=values
+            def __enter__(self):return self
+            def __exit__(self,*arguments):return False
+        class Registry:
+            HKEY_CURRENT_USER='HKCU';HKEY_LOCAL_MACHINE='HKLM'
+            def __init__(self,values):self.values=values
+            def OpenKey(self,hive,key):
+                if (hive,key) in self.values:return Key(self.values[(hive,key)])
+                raise OSError(2,'FAKE missing key')
+            def QueryValueEx(self,key,name):
+                if name in key.values:return key.values[name],1
+                raise OSError(2,'FAKE missing value')
+        registry=Registry({('HKCU',user_path):{'pv':'120.0.2210.144'},
+                           ('HKLM',machine_path):{'pv':'7.0.0.0'}})
+        self.assertEqual(diagnostics.registry_channels(registry),
+                         [{'channel':'runtime','hive':'HKCU','version':'120.0.2210.144'}])
+        self.assertEqual(diagnostics.registry_channels(Registry({})),[])
+
+    def test_webview2_status_accepts_standard_files_and_never_guesses(self):
+        diagnostics=load('love_house_windows_diagnostics','desktop/windows_diagnostics.py')
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);executable=root/'Microsoft/EdgeWebView/Application/120.0.2210.144/msedgewebview2.exe'
+            executable.parent.mkdir(parents=True);executable.write_bytes(b'FAKE loader')
+            found=diagnostics.webview2_status({'LOCALAPPDATA':str(root)},registry=lambda:[])
+            self.assertTrue(found['available']);self.assertEqual(found['version'],'120.0.2210.144')
+            self.assertEqual(found['file_hits'],1)
+            missing=diagnostics.webview2_status({'LOCALAPPDATA':str(root/'empty')},registry=lambda:[])
+            self.assertFalse(missing['available']);self.assertIsNone(missing['version'])
+
+    def test_bundled_fixed_runtime_is_offered_to_pywebview(self):
+        diagnostics=load('love_house_windows_diagnostics','desktop/windows_diagnostics.py')
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);exe=root/'LoveHouse.exe';exe.write_bytes(b'FAKE')
+            folder=root/'WebView2Runtime';folder.mkdir();(folder/'msedgewebview2.exe').write_bytes(b'FAKE')
+            with patch.object(diagnostics.sys,'executable',str(exe)):
+                self.assertEqual(diagnostics.runtime_folder(),folder.resolve())
+                status=diagnostics.webview2_status({'LOCALAPPDATA':str(root/'empty')},registry=lambda:[])
+                self.assertTrue(status['available']);self.assertTrue(status['custom_folder'])
+
+    def test_startup_log_records_failure_type_without_exception_text(self):
+        diagnostics=load('love_house_windows_diagnostics','desktop/windows_diagnostics.py')
+        with tempfile.TemporaryDirectory() as directory:
+            log=diagnostics.StartupLog(Path(directory)/'logs/startup.log',max_bytes=500)
+            for _ in range(30):log.write('failure',type='PermissionError',note='x'*80)
+            self.assertTrue((Path(directory)/'logs/startup.1.log').is_file())
+            text=(Path(directory)/'logs/startup.log').read_text('utf-8')
+            self.assertLess(len(text),1400);self.assertIn('"event": "failure"',text)
+            try:raise PermissionError(13,'FAKE-PRIVATE-KEY',str(Path(directory)/'secret.txt'))
+            except PermissionError as exc:record=diagnostics.failure_record(exc)
+            self.assertEqual(record['type'],'PermissionError');self.assertNotIn('FAKE-PRIVATE-KEY',json.dumps(record))
+            self.assertEqual(diagnostics.classify(WindowsErrorStub()),'unexpected')
+
+    def test_main_offers_official_page_when_webview2_is_missing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            asked=[];opened=[]
+            controller=MagicMock();controller.start.return_value=controller
+            with patch.object(windows.sys,'platform','win32'),\
+                 patch.object(windows,'ControllerRuntime',return_value=controller),\
+                 patch.object(windows,'dotnet_status',return_value={'ok':True,'available':True}),\
+                 patch.object(windows,'runtime_status',return_value={'available':False,'code':'runtime_missing'}),\
+                 patch.object(windows,'bundled_installer_status',return_value={'available':False,'verified':False}),\
+                 patch.object(windows,'ask_yes_no',side_effect=lambda message:asked.append(message) or True),\
+                 patch.object(windows,'open_target',side_effect=opened.append),\
+                 patch.object(sys,'argv',['LoveHouse.exe','--data-dir',directory]):
+                self.assertEqual(windows.main(),1)
+            log=(Path(directory)/'logs/startup.log').read_text('utf-8')
+            self.assertIn('webview2_unavailable',log)
+            self.assertIn('WebView2',asked[0])
+            self.assertEqual(opened,[windows.WEBVIEW2_URL])
+            self.assertNotIn('已经在运行',asked[0])
+            controller.start.assert_called_once();controller.stop.assert_called_once()
+
+    def test_main_reports_running_instance_separately_from_missing_runtime(self):
+        with tempfile.TemporaryDirectory() as directory:
+            messages=[]
+            with patch.object(windows.sys,'platform','win32'),\
+                 patch.object(windows,'run_window',side_effect=windows.AlreadyRunning('FAKE lock busy')),\
+                 patch.object(windows,'notify',side_effect=lambda message,**keywords:messages.append(message)),\
+                 patch.object(sys,'argv',['LoveHouse.exe','--data-dir',directory]):
+                self.assertEqual(windows.main(),1)
+            self.assertIn('已经在运行',messages[0]);self.assertNotIn('WebView2',messages[0])
+            self.assertIn('already_running',(Path(directory)/'logs/startup.log').read_text('utf-8'))
+
+    def test_main_logs_only_failure_type_and_opens_log_folder(self):
+        with tempfile.TemporaryDirectory() as directory:
+            opened=[]
+            def explode(*arguments,**keywords):raise ValueError('FAKE-PRIVATE-KEY')
+            with patch.object(windows.sys,'platform','win32'),\
+                 patch.object(windows,'run_window',side_effect=explode),\
+                 patch.object(windows,'ask_yes_no',return_value=True),\
+                 patch.object(windows,'open_target',side_effect=opened.append),\
+                 patch.object(sys,'argv',['LoveHouse.exe','--data-dir',directory]):
+                self.assertEqual(windows.main(),1)
+            log=(Path(directory)/'logs/startup.log').read_text('utf-8')
+            self.assertIn('"type": "ValueError"',log);self.assertNotIn('FAKE-PRIVATE-KEY',log)
+            self.assertEqual(opened,[(Path(directory)/'logs')])
+
+    def test_diagnose_writes_runtime_facts_and_opens_their_folder(self):
+        with tempfile.TemporaryDirectory() as directory:
+            opened=[]
+            with patch.object(windows,'open_target',side_effect=opened.append),\
+                 patch.object(sys,'argv',['LoveHouse.exe','--diagnose','--data-dir',directory]):
+                self.assertEqual(windows.main(),0)
+            reports=list((Path(directory)/'logs').glob('diagnostics-*.txt'))
+            self.assertEqual(len(reports),1)
+            text=reports[0].read_text('utf-8')
+            self.assertIn('WebView2',text);self.assertIn('本文件不含记忆',text)
+            self.assertNotIn(str(Path.home()),text)
+            self.assertEqual(opened,[reports[0].parent])
+
+    def test_installer_repairs_only_after_explicit_confirmation_and_checks_again(self):
+        installer=(ROOT/'desktop/windows-installer.iss').read_text('utf-8')
+        self.assertIn('RuntimeCommand',installer);self.assertIn('CurStepChanged',installer)
+        self.assertNotIn('RegKeyExists',installer)
+        self.assertIn('MB_YESNO',installer)
+        self.assertEqual(installer.count("RuntimeCommand('--runtime-status')"),2)
+        self.assertIn("RuntimeCommand('--repair-runtime')",installer)
+        self.assertIn('RaiseException',installer)
+
+    def test_gui_bundles_offline_runtime_without_tripling_console_adapter_size(self):
+        common=['Fake',ROOT/'desktop/windows_app.py',Path('out'),Path('build'),Path('icon.ico')]
+        gui=builder.freeze_command(*common,console=False)
+        console=builder.freeze_command(*common,console=True)
+        runtime_asset=str(ROOT/'resources/runtime')+os.pathsep+'resources/runtime'
+        self.assertIn(runtime_asset,gui);self.assertNotIn(runtime_asset,console)
+
+    def test_runtime_fetch_refuses_wrong_hash_before_signature_or_installation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);candidate=root/'download.exe';candidate.write_bytes(b'FAKE incorrect installer')
+            verify=MagicMock(return_value={'verified':True})
+            with patch.object(runtime_fetcher.sys,'platform','win32'),\
+                 patch.dict(sys.modules,{'windows_prerequisites':SimpleNamespace(bundled_installer_status=verify)}),\
+                 self.assertRaisesRegex(RuntimeError,'SHA256'):
+                runtime_fetcher.ensure_runtime(root,installer_path=candidate)
+            verify.assert_not_called()
+            self.assertFalse((root/'resources/runtime'/runtime_fetcher.FILENAME).exists())
+
+    def test_runtime_fetch_refuses_invalid_signature_after_matching_hash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);candidate=root/'download.exe';candidate.write_bytes(b'FAKE installer')
+            verify=MagicMock(return_value={'verified':False,'code':'signature_invalid'})
+            with patch.object(runtime_fetcher.sys,'platform','win32'),\
+                 patch.object(runtime_fetcher,'sha256',return_value=runtime_fetcher.SHA256),\
+                 patch.dict(sys.modules,{'windows_prerequisites':SimpleNamespace(bundled_installer_status=verify)}),\
+                 self.assertRaisesRegex(RuntimeError,'signature_invalid'):
+                runtime_fetcher.ensure_runtime(root,installer_path=candidate)
+            verify.assert_called_once()
+            self.assertFalse((root/'resources/runtime'/runtime_fetcher.FILENAME).exists())
+
+    def test_cached_runtime_is_reverified_and_rejected_without_redownload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);cached=root/'resources/runtime'/runtime_fetcher.FILENAME
+            cached.parent.mkdir(parents=True);cached.write_bytes(b'FAKE tampered cache')
+            verify=MagicMock(return_value={'verified':False,'code':'hash_mismatch'})
+            with patch.object(runtime_fetcher.sys,'platform','win32'),\
+                 patch.dict(sys.modules,{'windows_prerequisites':SimpleNamespace(bundled_installer_status=verify)}),\
+                 patch.object(runtime_fetcher.urllib.request,'urlopen') as download,\
+                 self.assertRaisesRegex(RuntimeError,'hash_mismatch'):
+                runtime_fetcher.ensure_runtime(root)
+            download.assert_not_called()
+            self.assertEqual(cached.read_bytes(),b'FAKE tampered cache')
+
+    def test_release_preserves_historical_assets_and_requires_consumer_evidence(self):
+        workflow=(ROOT/'.github/workflows/release.yml').read_text('utf-8')
+        self.assertNotIn('--clobber',workflow)
+        self.assertIn('inputs.consumer_validation_evidence',workflow)
+        self.assertIn('system_runtime_preinstalled',workflow)
+        self.assertIn('--consumer-smoke',workflow)
+
+    def test_native_shell_separates_startup_log_from_memory_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log=windows.StartupLog(windows.startup_log_path(directory))
+            log.write('start',version='FAKE')
+            self.assertTrue(Path(directory,'logs/startup.log').is_file())
+            self.assertFalse(Path(directory,'brain.json').exists())
+
+
+class WindowsErrorStub(Exception):
+    """Stand-in for a non-diagnostic exception in classification tests."""
 
 
 if __name__=='__main__':unittest.main()

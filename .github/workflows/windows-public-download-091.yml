@@ -1,0 +1,170 @@
+name: Verify public Windows 0.9.1rc1 downloads
+
+on:
+  push:
+    branches: [codex/windows-091-public-check]
+    paths: [.github/workflows/windows-public-download-091.yml]
+
+permissions: {}
+
+jobs:
+  public_windows_download:
+    if: github.repository == 'myflww/love-house' && github.ref == 'refs/heads/codex/windows-091-public-check'
+    runs-on: windows-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      # No checkout, Python setup, authenticated asset API or build artifacts.
+      # Replace this sentinel only after the reviewed files are public.
+      - name: Verify and run the anonymous public installer and portable ZIP
+        env:
+          EXPECTED_CHECKSUMS_SHA256: d07224a7872a1c508616aca056a3682159904b48b5c13db649c19227a30d741b
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+          $expectedManifest = $env:EXPECTED_CHECKSUMS_SHA256
+          if ($expectedManifest -cnotmatch '\A[a-f0-9]{64}\z') { throw 'The reviewed public checksum manifest hash must be pinned before running this workflow' }
+          $tag = 'v0.9.1rc1'
+          $version = '0.9.1rc1'
+          $baseUrl = 'https://github.com/myflww/love-house/releases/download/' + $tag
+          $setupName = 'LoveHouse-Setup-0.9.1rc1-Windows-x64.exe'
+          $zipName = 'LoveHouse-0.9.1rc1-Windows-x64.zip'
+          $manifestName = 'Windows-SHA256SUMS.txt'
+          $runnerRoot = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\') + '\'
+          $scratch = [IO.Path]::GetFullPath((Join-Path $env:RUNNER_TEMP '爱之屋 公开下载 0.9.1rc1'))
+          if (-not $scratch.StartsWith($runnerRoot, [StringComparison]::OrdinalIgnoreCase)) { throw 'Public download workspace must stay inside RUNNER_TEMP' }
+          if (Test-Path -LiteralPath $scratch) { throw 'Expected a fresh disposable download workspace' }
+          $download = Join-Path $scratch '公开 附件'
+          $reports = Join-Path $env:RUNNER_TEMP 'love-house-public-091-reports'
+          New-Item -ItemType Directory -Path $download, $reports | Out-Null
+          $assets = [Collections.Generic.List[object]]::new()
+          $curl = Join-Path $env:SystemRoot 'System32\curl.exe'
+          foreach ($name in @($manifestName, $setupName, $zipName)) {
+            $file = Join-Path $download $name
+            $url = $baseUrl + '/' + $name
+            & $curl --disable --fail --location --silent --show-error --retry 3 --retry-delay 3 --connect-timeout 30 --max-time 600 --proto '=https' --proto-redir '=https' --header 'Authorization:' $url --output $file
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Anonymous public download failed: $name" }
+            $item = Get-Item -LiteralPath $file
+            if ($item.Length -le 0) { throw "Empty public download: $name" }
+            $assets.Add([ordered]@{name=$name; url=$url; bytes=$item.Length; sha256=(Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()})
+          }
+          $manifestPath = Join-Path $download $manifestName
+          $manifestHash = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($manifestHash -cne $expectedManifest) { throw 'Anonymous checksum manifest differs from the pinned reviewed manifest' }
+          if ((Get-Item -LiteralPath $manifestPath).Length -gt 4096) { throw 'Oversized public checksum manifest' }
+          $checksums = [Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
+          foreach ($line in [IO.File]::ReadAllLines($manifestPath, [Text.UTF8Encoding]::new($false, $true))) {
+            $entry = [regex]::Match($line, '\A([a-fA-F0-9]{64})  ([^\\/]+)\z')
+            if (-not $entry.Success) { throw 'Malformed public SHA256 entry' }
+            $name = $entry.Groups[2].Value
+            if ($name -cne $setupName -and $name -cne $zipName) { throw 'Unexpected public SHA256 filename' }
+            if ($checksums.ContainsKey($name)) { throw 'Duplicate public SHA256 filename' }
+            $checksums.Add($name, $entry.Groups[1].Value.ToLowerInvariant())
+          }
+          if ($checksums.Count -ne 2 -or -not $checksums.ContainsKey($setupName) -or -not $checksums.ContainsKey($zipName)) { throw 'Manifest must describe exactly this installer and ZIP' }
+          foreach ($name in @($setupName, $zipName)) {
+            $actual = (Get-FileHash -LiteralPath (Join-Path $download $name) -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -cne $checksums[$name]) { throw "Anonymous public file differs from the reviewed build: $name" }
+          }
+          [ordered]@{tag=$tag; version=$version; anonymous_public_download=$true; manifest_sha256=$manifestHash; expected_manifest_sha256=$expectedManifest; exact_manifest_entries=2; assets=$assets; run_id=$env:GITHUB_RUN_ID; workflow_sha=$env:GITHUB_SHA} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $reports 'public-checksums.json') -Encoding utf8
+          $portable = Join-Path $scratch '完整解压 Portable'
+          Expand-Archive -LiteralPath (Join-Path $download $zipName) -DestinationPath $portable
+          $portableRoot = Join-Path $portable 'LoveHouse'
+          $portableExe = Join-Path $portableRoot 'LoveHouse.exe'
+          foreach ($relative in @('LoveHouse.exe', 'bridge\LoveHouseBridge.exe', 'hook\LoveHouseHook.exe')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $portableRoot $relative) -PathType Leaf)) { throw "Public ZIP is incomplete: $relative" }
+          }
+          $installedRoot = Join-Path $scratch '爱之屋 当前用户 安装'
+          $installedExe = Join-Path $installedRoot 'LoveHouse.exe'
+          $variables = @('PATH','LOCALAPPDATA','APPDATA','TEMP','TMP','PYTHONHOME','PYTHONPATH','PYTHONNET_RUNTIME','PYTHONNET_PYDLL','WEBVIEW2_BROWSER_EXECUTABLE_FOLDER','WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS')
+          $saved = @{}
+          foreach ($name in $variables) { $saved[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
+          $facts = [ordered]@{tag=$tag; environment='github_hosted_windows_runner'; os=[Environment]::OSVersion.VersionString; architecture=[Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString(); anonymous_public_download=$true; clean_consumer_validation=$false; disposable_paths=$true; portable=$false; installed=$false; completed_smokes=@()}
+          function Save-Facts {
+            $facts | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $reports 'public-runner.json') -Encoding utf8
+          }
+          function Invoke-PublicSmoke([string]$Executable, [string]$Mode, [string]$Name) {
+            $report = Join-Path $reports ($Name + '.json')
+            if (Test-Path -LiteralPath $report) { throw "Smoke report already exists: $Name" }
+            $process = Start-Process -FilePath $Executable -ArgumentList @($Mode, '--report', "`"$report`"") -WindowStyle Hidden -PassThru
+            if (-not $process.WaitForExit(150000)) { $process.Kill($true); throw "$Name timed out" }
+            if ($process.ExitCode -ne 0) { throw "$Name exited unsuccessfully: $($process.ExitCode)" }
+            if (-not (Test-Path -LiteralPath $report -PathType Leaf)) { throw "$Name did not write its completion report" }
+            if ((Get-Item -LiteralPath $report).Length -gt 2MB) { throw "$Name report is oversized" }
+            $result = Get-Content -LiteralPath $report -Raw -Encoding utf8 | ConvertFrom-Json
+            if ($null -eq $result -or $result.ok -isnot [bool] -or $result.ok -ne $true -or $result.process_complete -isnot [bool] -or $result.process_complete -ne $true) { throw "$Name did not finalize successfully" }
+            if ($result.version -cne '0.9.1rc1' -or $result.phase -cne 'complete') { throw "$Name is not the finalized 0.9.1rc1 application" }
+            if ($Mode -ceq '--backend-smoke') {
+              $proof = $result.organizer
+              if ($proof.status -cne 'passed' -or $proof.transport -cne 'loopback-http' -or $proof.fake_api_calls -ne 1 -or $proof.source_evidence_preserved -isnot [bool] -or $proof.source_evidence_preserved -ne $true -or $proof.session_only_credential -isnot [bool] -or $proof.session_only_credential -ne $true -or $proof.real_model_calls -ne 0 -or $proof.real_credentials_accessed -isnot [bool] -or $proof.real_credentials_accessed -ne $false -or $proof.cleanup -cne 'removed') { throw "$Name did not verify the isolated organizer API" }
+            } else {
+              foreach ($check in @('json_original_roles','markdown','cancel','write_error','organizer_independent_preview','foreign_origin','astrbot_zip')) {
+                if ($result.native_exports.$check -cne 'passed') { throw "$Name failed a native export check: $check" }
+              }
+              if ($result.native_exports.dialog_selection -cne 'synthetic_owned_path' -or $result.native_exports.astrbot_sha256 -cne '8b81a51f87547e05596b0ab715764f6cf424a905b68f8cdcd48d2f1a71d71039') { throw "$Name did not save the exact reviewed plugin bytes" }
+            }
+            $facts.completed_smokes += [ordered]@{name=$Name; mode=$Mode; exit_code=$process.ExitCode; ok=$result.ok; process_complete=$result.process_complete; report_bytes=(Get-Item -LiteralPath $report).Length}
+            Save-Facts
+          }
+          Save-Facts
+          try {
+            $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+            $env:LOCALAPPDATA = Join-Path $scratch '本地 数据'
+            $env:APPDATA = Join-Path $scratch '漫游 数据'
+            $env:TEMP = Join-Path $scratch '临时 文件'
+            $env:TMP = $env:TEMP
+            New-Item -ItemType Directory -Path $env:LOCALAPPDATA, $env:APPDATA, $env:TEMP | Out-Null
+            $env:PYTHONHOME = 'C:\invalid-lovehouse-python-home'
+            $env:PYTHONPATH = 'C:\invalid-lovehouse-python-path'
+            $env:PYTHONNET_RUNTIME = 'invalid-lovehouse-runtime'
+            $env:PYTHONNET_PYDLL = 'C:\invalid-lovehouse-python.dll'
+            $env:WEBVIEW2_BROWSER_EXECUTABLE_FOLDER = 'C:\invalid-lovehouse-webview'
+            $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--invalid-lovehouse-argument'
+            $installer = Start-Process -FilePath (Join-Path $download $setupName) -ArgumentList @('/CURRENTUSER','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/NOICONS',"/DIR=`"$installedRoot`"") -WindowStyle Hidden -PassThru
+            if (-not $installer.WaitForExit(300000)) { $installer.Kill($true); throw 'Public installer timed out' }
+            if ($installer.ExitCode -ne 0) { throw "Public installer failed: $($installer.ExitCode)" }
+            foreach ($relative in @('LoveHouse.exe', 'bridge\LoveHouseBridge.exe', 'hook\LoveHouseHook.exe')) {
+              if (-not (Test-Path -LiteralPath (Join-Path $installedRoot $relative) -PathType Leaf)) { throw "Public install is incomplete: $relative" }
+            }
+            foreach ($app in @(@{name='portable';exe=$portableExe}, @{name='installed';exe=$installedExe})) {
+              foreach ($test in @(@{mode='--backend-smoke';name='backend'}, @{mode='--smoke-test';name='native'}, @{mode='--consumer-smoke';name='consumer'})) {
+                Invoke-PublicSmoke $app.exe $test.mode ('public-' + $app.name + '-' + $test.name)
+              }
+              $facts[$app.name] = $true
+              Save-Facts
+            }
+          } finally {
+            foreach ($name in $variables) { [Environment]::SetEnvironmentVariable($name, $saved[$name], 'Process') }
+            Save-Facts
+          }
+          if ($facts.completed_smokes.Count -ne 6 -or -not $facts.portable -or -not $facts.installed) { throw 'Both public applications must complete all six native checks' }
+          'Anonymous public Windows EXE and ZIP: exact SHA256 matches; portable and current-user installation each passed backend, native WebView2 and consumer smoke.' >> $env:GITHUB_STEP_SUMMARY
+          'Runner has preinstalled system components; this evidence does not claim clean Windows 10/11 physical-device coverage.' >> $env:GITHUB_STEP_SUMMARY
+      - name: Select bounded JSON evidence only
+        if: always()
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = Join-Path $env:RUNNER_TEMP 'love-house-public-091-reports'
+          $destination = Join-Path $env:RUNNER_TEMP 'love-house-public-091-bounded'
+          New-Item -ItemType Directory -Path $destination | Out-Null
+          $names = @('public-checksums.json','public-runner.json','public-portable-backend.json','public-portable-native.json','public-portable-consumer.json','public-installed-backend.json','public-installed-native.json','public-installed-consumer.json')
+          foreach ($name in $names) {
+            $file = Join-Path $source $name
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { continue }
+            $item = Get-Item -LiteralPath $file
+            if ($item.Length -gt 2MB) {
+              @{report_omitted=$true; reason='oversized'; bytes=$item.Length; name=$name} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $destination $name) -Encoding utf8
+            } else {
+              Copy-Item -LiteralPath $file -Destination (Join-Path $destination $name)
+            }
+          }
+      - name: Preserve bounded public checksum and native execution reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-public-download-091-evidence
+          path: ${{ runner.temp }}/love-house-public-091-bounded/*.json
+          if-no-files-found: ignore
+          retention-days: 30

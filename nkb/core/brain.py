@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import uuid
 import math
+import re
 from bisect import bisect_left, bisect_right
 from copy import deepcopy
 from pathlib import Path
@@ -28,6 +29,10 @@ from ..storage.jsonfile import JsonFileStorage
 from ..utils import DAY, fmt_age, now as _now  # noqa: F401
 
 SCHEMA_VERSION = 1
+_AUTOLINK_BOOKKEEPING_TAGS=frozenset(('导入','笔记导入','历史对话导入','原始对话','用户确认',
+    'harness记录','承诺','工具观察','助手输出'))
+_AUTOLINK_TEMPLATE_LABEL=re.compile(r'^(?:段落\s*\d+|概述|正文|未命名)$')
+_AUTOLINK_LABEL_PREFIX=re.compile(r'^(?:导入对话|对话|用户审阅|工具观察|助手输出|fact|preference|experience|commitment|persona)\s*[·•]\s*',re.I)
 
 
 class Brain:
@@ -63,6 +68,11 @@ class Brain:
                              if k == "half_life" else v)
             base = Config.from_dict(merged)
         self.config = base.with_env()
+        # Personal adaptive libraries have no semantic node-count budget. A
+        # legacy saved limit or environment override must not restore eviction
+        # when a read snapshot is reconstructed or a batch import is staged.
+        if self._adaptive_retention_enabled():
+            self.config.max_nodes = None
         self.half_life = self.config.half_life   # 兼容旧属性名；环境变量优先级最高
         self._migrate()
 
@@ -198,8 +208,12 @@ class Brain:
         n = self._must(nid)
         candidate = deepcopy(n)
         ts = _now()
+        adaptive = self._adaptive_retention_enabled()
         # 先按旧规则结算到编辑时刻，不能用新 impact/kind 追溯重算整段历史。
-        if ts >= n.get("decay_at", n["reinforced"]):
+        # Adaptive strength is a read projection from the original base and
+        # genuine use traces. Editing prose must not turn that projection into
+        # a second decaying base or fabricate another practice event.
+        if not adaptive and ts >= n.get("decay_at", n["reinforced"]):
             candidate["salience"] = self._effective_salience(n, ts)
             candidate["decay_at"] = ts
         for k in ("label", "text", "kind"):
@@ -234,6 +248,14 @@ class Brain:
             candidate["meta"].update(deepcopy(metadata))
             if "important" in metadata:
                 candidate["important"] = metadata["important"]
+        if adaptive and "salience" in fields:
+            # Apply an explicit new base after the UI's metadata merge, which
+            # may include the old complete metadata object. Real practice and
+            # counters remain intact; only its now-stale base cache is cleared.
+            usage = candidate["meta"].get("memory_usage")
+            if isinstance(usage, dict):
+                usage.pop("base_salience", None)
+                usage.pop("base_at", None)
         for key in ("event_at", "session_id"):
             supplied = key in fields or key in metadata
             value = fields.get(key, metadata.get(key, candidate.get(key)))
@@ -316,20 +338,20 @@ class Brain:
         return self.edges.pop(self._key(a, b), None) is not None
 
     def auto_link(self, nid: str, top: int | None = None, floor: float = 0.0):
-        """按字面重合把新节点接到最近的既有节点。孤岛节点永远不会被扩散带到。"""
+        """Use content overlap only; bookkeeping and zero-score neighbors prove no relation."""
         node = self._must(nid)
         top = self.config.auto_link_top if top is None else top
-        v = self._vec[nid]
+        v = self._auto_link_vec_for(node)
         ts = _now()
         if not self._node_state(node, ts)["recoverable"]:
             return []
-        scored = [(dice(v, self._vec[o["id"]]), o["id"])
+        scored = [(dice(v, self._auto_link_vec_for(o)), o["id"])
                   for o in self.nodes.values() if o["id"] != nid
                   and self._node_state(o, ts)["recoverable"]]
         scored.sort(reverse=True)
         out = []
         for d, oid in scored[:top]:
-            if d <= floor:
+            if d <= 0 or d <= floor:
                 continue
             w = self.link(nid, oid, min(0.6, 0.22 + d))
             out.append((oid, w))
@@ -386,7 +408,6 @@ class Brain:
                        tags=kw.pop("tags", ["承诺"]), salience=0.85,
                        impact=kw.pop("impact", 0.4),
                        meta={"due": due, "status": "open", **kw.pop("meta", {})})
-        self.auto_link(nid, top=2)   # 承诺要挂在已有知识上，孤岛永远不会被想起
         return nid
 
     def due(self, within: float | None = None, now: float | None = None) -> list[dict]:
@@ -428,6 +449,11 @@ class Brain:
         eligible = {i: self._node_state(self.nodes[i], ts) for i in requested if i in self.nodes}
         ids = [i for i, state in eligible.items() if state["recoverable"]]
         ids = [i for i in ids if ts >= self.nodes[i].get("decay_at", self.nodes[i]["reinforced"])]
+        adaptive = self._adaptive_retention_enabled()
+        if adaptive:
+            from ..companion.retention import record_memory_use
+            used = record_memory_use(self, ids[:128], kind="recall", now=ts)
+            ids = used["updated_ids"]
         pairs = 0
         for i, a in enumerate(ids):
             for b in ids[i + 1:]:
@@ -436,9 +462,7 @@ class Brain:
                 key = self._key(a, b)
                 e = self.edges.get(key)
                 if e is None:
-                    self.edges[key] = {"w": round(min(cfg.edge_max, lr), 4),
-                                       "n": 1, "last": ts, "decay_at": ts,
-                                       "valid_from": ts, "valid_to": None}
+                    continue  # Co-retrieval is not evidence of a new relationship.
                 elif e.get("valid_to") is not None and e["valid_to"] <= ts:
                     continue  # 联合回忆不等于重新声明一条失效的事实关系
                 else:
@@ -446,9 +470,9 @@ class Brain:
                                        self._edge_weight(e, ts) + lr * (1.0 - self._edge_weight(e, ts))), 4)
                     e["n"] += 1
                     e["last"] = e["decay_at"] = ts
-                    e.pop("automatic_anchor", None)
+                    # Usage does not take ownership of a typed context relation.
                 pairs += 1
-        for i in ids:
+        for i in ([] if adaptive else ids):
             n = self.nodes[i]
             n["salience"] = min(1.0, self._effective_salience(n, ts) * (1 - bump) + bump)
             n["reinforced"] = n["decay_at"] = ts
@@ -459,6 +483,7 @@ class Brain:
     def forget(self, now: float | None = None) -> dict:
         """提交与 preview 相同的分段衰减；相同时间重复执行完全幂等。"""
         ref = _now() if now is None else self._number(now, "now")
+        adaptive = self._adaptive_retention_enabled()
         self._sync_anchors(create_edges=False)  # 删除前固化有限真实摘录
         dropped = []
         for nid, n in list(self.nodes.items()):
@@ -466,17 +491,17 @@ class Brain:
             # 被取代的事实是可查的历史记录，不因默认检索失效而删除。
             if state["forgotten_by_age"] and n.get("valid_to") is None and not n.get("superseded_by"):
                 dropped.append(nid)
-            elif ref >= n.get("decay_at", n["reinforced"]):
+            elif not adaptive and ref >= n.get("decay_at", n["reinforced"]):
                 n["salience"] = self._effective_salience(n, ref)
                 n["decay_at"] = ref
         for nid in dropped:
             self.remove(nid, _sync=False)
         thinned = 0
         for key, e in list(self.edges.items()):
-            if ref >= e.get("decay_at", e.get("last", ref)):
+            if not adaptive and ref >= e.get("decay_at", e.get("last", ref)):
                 e["w"] = self._edge_weight(e, ref)
                 e["decay_at"] = ref
-            if e["w"] < 0.02:
+            if e["w"] < 0.02 and not adaptive:
                 del self.edges[key]
                 thinned += 1
         return {"dropped": len(dropped), "dropped_ids": dropped, "thinned": thinned, "at": ref}
@@ -530,7 +555,15 @@ class Brain:
                kinds: list[str] | None = None,
                min_score: float | None = None,
                include_expired: bool = False,
-               as_of: float | None = None) -> dict:
+               as_of: float | None = None,
+               candidate_ids: set[str] | None = None) -> dict:
+        # Internal selection can reserve a retrieval lane for organized records
+        # without deleting their raw evidence from this Brain. Lifecycle checks
+        # still apply; a supplied ID never authorizes an inactive node.
+        if candidate_ids is not None:
+            if not isinstance(candidate_ids, (set, frozenset, list, tuple)) or any(not isinstance(i, str) for i in candidate_ids):
+                raise ValidationError("candidate_ids必须是本图节点ID集合")
+            candidate_ids = set(candidate_ids)
         cfg = self.config
         steps = cfg.steps if steps is None else steps
         k = cfg.k if k is None else k
@@ -542,6 +575,7 @@ class Brain:
         states = {nid: self._node_state(n, ref) for nid, n in self.nodes.items()}
         allowed = {nid for nid, n in self.nodes.items()
                    if (not kinds or n["kind"] in kinds)
+                   and (candidate_ids is None or nid in candidate_ids)
                    and states[nid]["history_available"]
                    and n.get("valid_from", n["created"]) <= ref
                    and (not n.get("event_recorded") or n.get("event_at", 0) <= ref)
@@ -671,8 +705,10 @@ class Brain:
                  "mean_w": round(sum(active_weights) / len(active_weights), 4) if active_weights else 0.0,
                  "salience_sum": round(sum(s["effective_salience"] for s in states.values()), 3),
                  "effective_salience_sum": round(sum(s["effective_salience"] for s in states.values()), 3),
-                 "capacity": self.config.max_nodes,
-                 "capacity_remaining": max(0, self.config.max_nodes - len(nodes))}
+                 "retention_mode": "adaptive" if self._adaptive_retention_enabled() else "legacy",
+                 "capacity": None if self._adaptive_retention_enabled() else self.config.max_nodes,
+                 "capacity_remaining": (None if self._adaptive_retention_enabled() or self.config.max_nodes is None else
+                                        max(0, self.config.max_nodes - len(nodes)))}
         return {"name": self.name, "nodes": nodes, "edges": edges,
                 "stats": stats, "half_life": deepcopy(self.half_life),
                 "config": self.config.to_dict(), "as_of": ref,
@@ -698,8 +734,22 @@ class Brain:
             return "persistent_kind"
         return None
 
+    def _adaptive_retention_enabled(self) -> bool:
+        value = self.meta.get("memory_retention")
+        return bool(isinstance(value, dict) and value.get("schema") == "love-house-retention/v1"
+                    and value.get("mode") == "adaptive")
+
     def _effective_salience(self, n: dict, ref: float) -> float:
         value = float(n["salience"])
+        if self._adaptive_retention_enabled():
+            from ..companion.retention import adaptive_strength
+            value = adaptive_strength(self, n, ref)
+            reason = self._protection_reason(n)
+            if reason in ("emotional_anchor", "important", "open_commitment"):
+                value = max(0.65, value)
+            elif reason == "persistent_kind":
+                value = max(float(n["salience"]), value)
+            return min(1.0, max(0.0, value))
         hl = self.half_life.get(n["kind"])
         if hl is not None:
             hl *= 1.0 + 1.5 * abs(n.get("impact", 0.0))
@@ -721,7 +771,9 @@ class Brain:
         future = (n.get("created", 0) > ref or n.get("valid_from", n.get("created", 0)) > ref
                   or (n.get("event_recorded") and n.get("event_at", 0) > ref))
         reason = self._protection_reason(n)
-        forgotten_by_age = reason is None and age > self.config.recovery_days and not self.meta.get("long_term_archive")
+        adaptive = self._adaptive_retention_enabled()
+        forgotten_by_age = (reason is None and age > self.config.recovery_days
+                            and not self.meta.get("long_term_archive") and not adaptive)
         forgotten = expired or forgotten_by_age
         recoverable = not forgotten and not future
         if forgotten:
@@ -751,7 +803,7 @@ class Brain:
                     continue
                 snippet["source_present"] = source is not None
                 source_valid = source is not None and (source.get("valid_to") is None or source["valid_to"] > ref) and source.get("valid_from", source["created"]) <= ref
-                source_recent = source is not None and (self._protection_reason(source) is not None or
+                source_recent = source is not None and (self._adaptive_retention_enabled() or self._protection_reason(source) is not None or
                                 (ref - source["reinforced"]) / DAY <= self.config.recovery_days)
                 snippet["source_available"] = bool(source_valid and source_recent)
                 snippet["is_excerpt"] = True
@@ -778,9 +830,12 @@ class Brain:
             anchor_info["context_snippets"] = [s for s in projected_snippets
                                                 if s["relation"] != "bridge" or s["id"] in known_bridge_ids]
         result = {"state": state, "effective_salience": round(effective, 8),
+                "retention_mode": "adaptive" if adaptive else "legacy",
+                "strength_model": "practice_power_law_approximation/v1" if adaptive else "exponential_half_life",
                 "recoverable": recoverable, "expired": expired,
                 "superseded": superseded, "forgotten_by_age": forgotten_by_age,
-                "recovery_days_left": (None if reason else round(max(0.0, self.config.recovery_days - age), 3)),
+                "recovery_days_left": (None if reason or adaptive or self.meta.get("long_term_archive") else
+                                       round(max(0.0, self.config.recovery_days - age), 3)),
                 "protected": bool(reason) and not expired,
                 "protection_reason": reason if not expired else None,
                 "important": bool(n.get("important")),
@@ -832,7 +887,9 @@ class Brain:
         return e["w"] * 0.5 ** (days / self.config.edge_half_life)
 
     def _make_room(self, ref: float) -> None:
-        """优先回收最弱的可遗忘节点；保护项也受总容量约束，不静默丢弃。"""
+        """旧实验库可按数量回收；个人自适应记忆绝不以消息数量驱逐。"""
+        if self.config.max_nodes is None or self._adaptive_retention_enabled():
+            return
         needed = len(self.nodes) - self.config.max_nodes + 1
         if needed <= 0:
             return
@@ -990,6 +1047,25 @@ class Brain:
     def _vec_for(self, n: dict) -> set:
         raw = f'{n["label"]} {n.get("text", "")} {" ".join(n.get("tags") or [])}'
         return set(self.encoder(raw))
+
+    def _auto_link_vec_for(self, n: dict) -> set:
+        """Keep retrieval unchanged; only explicit content can propose a new edge.
+
+        Generated tags/titles describe how a record entered the store, not what
+        two memories have in common. User-provided semantic tags remain useful.
+        File/directory tags from legacy imports are bookkeeping too.
+        """
+        meta=n.get('meta',{})
+        generated=set()
+        filename=meta.get('file')
+        if isinstance(filename,str) and filename:
+            path=Path(filename.replace('\\','/')).with_suffix('')
+            generated.update(path.parts)
+        label=_AUTOLINK_LABEL_PREFIX.sub('',n.get('label','').strip())
+        if _AUTOLINK_TEMPLATE_LABEL.fullmatch(label) or label in generated:label=''
+        tags=[tag for tag in n.get('tags',[]) if tag.strip().casefold() not in _AUTOLINK_BOOKKEEPING_TAGS
+              and tag not in generated]
+        return set(self.encoder(' '.join([label,n.get('text',''),*tags])))
 
     @staticmethod
     def _key(a: str, b: str) -> str:

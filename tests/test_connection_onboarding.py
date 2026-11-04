@@ -24,7 +24,7 @@ from nkb.service.host import MemoryHost, make_controller
 class ConnectionOnboardingTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="love-house-onboarding-")
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.profile = self.root / "isolated-profile"
         self.profile.mkdir()
         (self.profile / "cordis.yml").write_text("[]\n")
@@ -49,11 +49,13 @@ class ConnectionOnboardingTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def req(self, path, body=None, *, library=None, token=None):
-        headers = {"Content-Type": "application/json"}
+        headers = {"Content-Type": "application/json", "X-LoveHouse-Management": self.host.management_token}
         if library:
             headers["X-NKB-Library"] = library
         if token:
             headers["Authorization"] = "Bearer " + token
+        else:
+            headers["X-LoveHouse-Management"] = self.host.management_token
         request = Request(f"http://127.0.0.1:{self.server.server_port}" + path,
                           data=None if body is None else json.dumps(body, ensure_ascii=False).encode(), headers=headers)
         try:
@@ -118,7 +120,8 @@ class ConnectionOnboardingTests(unittest.TestCase):
         # window can be the first human-message session after loading the plugin.
         self.assertEqual(self.event(cid, token)[0], 200)
         bound = self.host.connections.get(cid)
-        self.assertEqual(bound["session_scope"], "existing-window-123")
+        self.assertEqual(bound["session_scope"], "next_session")
+        self.assertEqual(bound["bound_session_id"], "existing-window-123")
         self.assertEqual(bound["archive_status"], "automatic_connected")
         self.assertEqual(self.event(cid, token, sid="unrelated-window", event="two")[0], 400)
         self.assertEqual(len(self.req("/api/graph")[1]["nodes"]), 1)
@@ -152,6 +155,47 @@ class ConnectionOnboardingTests(unittest.TestCase):
             "messages": [{"role": "user", "content": "此请求不得被转给任何上游。"}]}, token=token)
         self.assertEqual(code, 403, result)
         self.assertEqual(self.host.connections.activity()["events"], [])
+
+    def test_explicit_detection_is_read_only_and_custom_paths_stay_with_the_applied_connection(self):
+        alternate=self.root/'another profile';alternate.mkdir()
+        (alternate/'cordis.yml').write_text('[]\n')
+        before=dict(self.host.adapter_options)
+        code,detected=self.req('/api/adapters/harness/detect',{'app_path':str(self.app),'profile_dir':str(alternate)})
+        self.assertEqual(code,200,detected)
+        self.assertTrue(detected['supported'])
+        self.assertEqual(detected['profile_dir'],str(alternate))
+        self.assertEqual(self.host.adapter_options,before)
+        self.assertFalse((alternate/'.neural-knowledge').exists())
+        cid,_=self.connection()
+        route=f'/api/connections/{cid}/configure'
+        code,plan=self.req(route,{'apply':False,'app_path':str(self.app),'profile_dir':str(alternate)})
+        self.assertEqual(code,200,plan)
+        self.assertEqual(self.host.connections.host_options(cid),{})
+        code,installed=self.req(route,{'apply':True,'app_path':str(self.app),'profile_dir':str(alternate)})
+        self.assertEqual(code,200,installed)
+        self.assertTrue(installed['applied'])
+        options=self.host.connections.host_options(cid)
+        self.assertEqual(options,{'app_path':str(self.app),'profile_dir':str(alternate)})
+        from nkb.service.connections import ConnectionStore
+        self.assertEqual(ConnectionStore(self.host.root).host_options(cid),options)
+        reopened=self.host.connection_config(cid)
+        self.assertEqual(reopened['host_options'],options)
+        self.assertTrue(reopened['setup']['supported'])
+        self.assertEqual(reopened['setup']['detected']['profile_dir'],str(alternate))
+        other,_=self.connection()
+        self.assertEqual(self.host.connection_config(other)['host_options']['profile_dir'],str(self.profile))
+        code,paused=self.req(f'/api/connections/{cid}/enabled',{'enabled':False})
+        self.assertEqual(code,200,paused)
+        self.assertTrue(paused['host_change']['applied'])
+        self.assertFalse(json.loads(Path(installed['connection_file']).read_text())['enabled'])
+        self.assertEqual((self.profile/'cordis.patch.yml').read_text(),self.original_patch)
+
+    def test_detect_rejects_invalid_paths_without_mutation(self):
+        for value in (42,{},'\x00bad'):
+            with self.subTest(value=value):
+                code,result=self.req('/api/adapters/harness/detect',{'app_path':value,'profile_dir':str(self.profile)})
+                self.assertEqual(code,400,result)
+        self.assertEqual((self.profile/'cordis.patch.yml').read_text(),self.original_patch)
 
     def test_api_capture_remains_in_its_original_library_when_another_library_is_viewed(self):
         requests = []

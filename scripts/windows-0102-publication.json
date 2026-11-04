@@ -1,0 +1,57 @@
+{
+  "schema": "love-house-windows-0102-publication/v1",
+  "ready": true,
+  "source_commit": "b1af91dba0b8f6145cf18e364cc24f0ee633b911",
+  "source_runs": {
+    "windows": 41337307386,
+    "regression": 41337307434,
+    "connection": 41337307343
+  },
+  "windows_artifact": {
+    "id": 13096795196,
+    "name": "love-house-windows-x64",
+    "bytes": 520406816,
+    "sha256": "0f9ae76b5e02db18f89c66d62a20045e5ba7c9538cdd453298d712700be73997"
+  },
+  "windows_evidence_artifact": {
+    "id": 13095734762,
+    "name": "windows-test-evidence",
+    "bytes": 7511,
+    "sha256": "e8edc7b7794cd94670e46d21613c4f12deb702eb58552be0904aa81ef806a4aa"
+  },
+  "windows_files": {
+    "LoveHouse-0.10.2rc1-Windows-x64.zip": {
+      "bytes": 265537346,
+      "sha256": "b935b795eb499e6414335c551393f2c767150e749f08726a277885e2d0c9c271"
+    },
+    "LoveHouse-Setup-0.10.2rc1-Windows-x64.exe": {
+      "bytes": 255464197,
+      "sha256": "9c69fb782ecddab43ef35c1df075780175e013b7533c039d53ddcb81cebb8d64"
+    },
+    "Windows-SHA256SUMS.txt": {
+      "bytes": 212,
+      "sha256": "d8dbf82c3d8892bd16d9e55f5215bf54ae82ec92dbf353f7f2bed4a23118942c"
+    }
+  },
+  "astrbot_package": {
+    "bytes": 30801,
+    "sha256": "38206c69e26f9d4d2182ab28fc9eb8f13d6ac48eb3e1d454c0356f1c5d81476d"
+  },
+  "notes_path": "docs/ReleaseNotes-0.10.2rc1-Windows.md",
+  "release_notes": {
+    "bytes": 3333,
+    "sha256": "b9afd4871e25c525e98d68b6b115e40f1ffefecfdf04b0f866d519d255287142"
+  },
+  "doc_assets": {
+    "WINDOWS-0102-UPDATE.md": {
+      "path": "docs/WINDOWS-0102-UPDATE.md",
+      "bytes": 4442,
+      "sha256": "2c284da6e13bb11dda2752b08e2edfaf3ed06740c99baad308aff6360d38e4d3"
+    },
+    "MACOS-0102-HANDOFF.md": {
+      "path": "docs/MACOS-0102-HANDOFF.md",
+      "bytes": 6204,
+      "sha256": "9f053bd53e1cddeeab43cb371e5f15e91dc09fa6f9c72375bf308b2c284db4d8"
+    }
+  }
+}

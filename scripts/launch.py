@@ -8,7 +8,7 @@ sys.path.insert(0,str(ROOT))
 
 def main():
  if sys.version_info<(3,11):sys.exit('需要Python3.11或更新版本')
- from http.server import ThreadingHTTPServer
+ from nkb.service.httpd import LoopbackHTTPServer as ThreadingHTTPServer
  from nkb.service.host import MemoryHost,make_controller
  p=argparse.ArgumentParser(description='爱之屋记忆存储服务')
  p.add_argument('--data-dir',type=Path,default=ROOT/'data')

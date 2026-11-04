@@ -703,8 +703,8 @@
     },
     {
       "path": "docs/MACOS-0103-UPDATE.md",
-      "bytes": 1482,
-      "sha256": "ff5bad05fb47f51e7796989f4031b286d2c658a77d1957e3cd49d4fea2211c8c"
+      "bytes": 2561,
+      "sha256": "902d1b6bea296ba65792e32f9cb5ad920d29887e78a214dc2832e27b742e5004"
     },
     {
       "path": "docs/MACOS-060-HANDOFF.md",
@@ -768,13 +768,13 @@
     },
     {
       "path": "docs/ReleaseNotes-0.10.3rc1-macOS.md",
-      "bytes": 2432,
-      "sha256": "5cb07e292c522781651bdb6ef364b4f054aa97b2deff30d1ad21f6c832e26e42"
+      "bytes": 4001,
+      "sha256": "046fddeb89800c3863c6e9db17926342f47134e2d1715051e5c3630879d660e1"
     },
     {
       "path": "docs/ReleaseNotes-0.10.3rc1-Windows.md",
-      "bytes": 6198,
-      "sha256": "337e5c1601b39956cca02e8c1eb46943fccb993c41e907b24934cbf8cb1456db"
+      "bytes": 6609,
+      "sha256": "ae5d023f4cfbd39383633d92a9240fc26bea2c0e6fa8336320dbb8d34024467d"
     },
     {
       "path": "docs/ReleaseNotes-0.9.0-macOS.md",
@@ -818,8 +818,8 @@
     },
     {
       "path": "docs/WINDOWS-0103-UPDATE.md",
-      "bytes": 4438,
-      "sha256": "e8c415aaf2a476f4f91e90c59cb3c3bdc70d11d4d3038981df96b057d60edefc"
+      "bytes": 4943,
+      "sha256": "364c894a72f369800b62dd7cc4b8f144bf458ef549238ec9a1d3abbc8466486a"
     },
     {
       "path": "docs/WINDOWS-080-HANDOFF.md",

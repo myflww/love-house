@@ -50,13 +50,13 @@
 
 本版 Windows 二进制来自[本轮完整构建与验证](https://github.com/myflww/love-house/actions/runs/41603827322)，受测源码为 `9bff53b47755e2389fe7c4c9b198126e2f1be4e4`。便携版后端、便携版原生窗口、安装版后端、安装版原生窗口、两个去除开发环境依赖的运行检查，以及实际 `0.10.2rc1 → 0.10.3rc1` 覆盖升级共7份报告均已完成并通过，隔离测试资料清理成功。覆盖升级核对了原记忆库、连接、凭据元数据、整理队列与游标、回收站和用户明确关闭的功能。
 
-CI 原始产物下载后已核对归档 SHA256、包内文件和上传到草稿发行版的原始字节；本次构建未访问真实用户资料或真实凭据，模型请求数为0。文件摘要如下：
+CI 原始产物下载后已核对归档 SHA256、包内文件和上传发行版的原始字节；本次构建未访问真实用户资料或真实凭据，模型请求数为0。文件摘要如下：
 
 | 文件 | SHA256 |
 | --- | --- |
 | `LoveHouse-Setup-0.10.3rc1-Windows-x64.exe` | `fe75105db9730022ef263090504ae7a4944541fc280d341e202c33a0f30a2bde` |
 | `LoveHouse-0.10.3rc1-Windows-x64.zip` | `a7464de2c3578e19122f0dc9dd46ec73020599651c06a82c518853644670fff7` |
 
-<!-- RELEASE-VERIFICATION: 发布前补入最终发行源码与Windows构建输入一致性、验证JSON链接及公开下载复核；此处的受测源码保持实际二进制构建SHA。 -->
+最终发行源码相对上述 Windows 构建源码的变更仅涉及 macOS 实现与检查、发布文档和源码清单；Windows 运行代码、页面资源、依赖与构建输入均保持一致。受测源码、最终发行源码及输入一致性记录见随发行版提供的 [Windows-0103-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/Windows-0103-verification.json)。发布后的匿名公开下载与 SHA256 复核结果见 [Public-download-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/Public-download-verification.json)。
 
 Windows 10 真机、缺失或损坏运行时、受限安装策略、真实 QQ 长期运行及厂商账户仍需对应环境核验。macOS 单独构建与验证；手机安装包本轮未重构。

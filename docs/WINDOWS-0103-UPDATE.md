@@ -42,6 +42,8 @@
 
 ## 验证与发布记录
 
-源码检查使用合成数据和模拟模型，包括临时 HTTP 并发服务及真实 OrbitControls 事件逻辑。[本轮 Windows CI](https://github.com/myflww/love-house/actions/runs/41603827322)已通过便携版与安装版的后端、原生窗口及独立运行检查，并完成实际 `0.10.2rc1 → 0.10.3rc1` 安装覆盖升级。受测源码、包摘要、验证范围及公开下载复核见 [发布说明](ReleaseNotes-0.10.3rc1-Windows.md#验证记录)。
+源码检查使用合成数据和模拟模型，包括临时 HTTP 并发服务及真实 OrbitControls 事件逻辑。[本轮 Windows CI](https://github.com/myflww/love-house/actions/runs/41603827322)已通过便携版与安装版的后端、原生窗口及独立运行检查，并完成实际 `0.10.2rc1 → 0.10.3rc1` 安装覆盖升级。Windows 二进制的构建源码为 `9bff53b47755e2389fe7c4c9b198126e2f1be4e4`；最终发行源码仅追加 macOS 实现与检查、文档和源码清单，Windows 运行与构建输入保持一致。
+
+完整范围和包摘要见 [发布说明](ReleaseNotes-0.10.3rc1-Windows.md#验证记录)。随发行版提供 [Windows 验证记录](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/Windows-0103-verification.json)及[发布后公开下载复核](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/Public-download-verification.json)，用于对应受测源码、最终源码与实际下载文件。
 
 保留 Windows 预览验证范围。macOS Apple Silicon 使用同版本的独立原生包及验证记录，见 [Mac 升级说明](MACOS-0103-UPDATE.md)；手机安装包本轮未重构。

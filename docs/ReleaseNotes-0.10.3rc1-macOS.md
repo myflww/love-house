@@ -21,8 +21,12 @@
 
 ## 验证记录
 
-macOS 构建使用独立的 Apple Silicon runner，编译原生窗口与 Keychain helper，验证签名、应用内置运行时、后端、MCP、窗口绑定及 WKWebView。测试仅使用隔离合成资料和模拟模型，不使用真实用户记忆或付费模型。
+Mac 应用来自[本轮 Apple Silicon 完整构建与验证](https://github.com/myflww/love-house/actions/runs/41745570866)，实际受测源码为 `8d097a6a146ecff584906a18047e97b03ea05e32`。原生 AppKit / WKWebView 窗口和 Keychain helper 均已在 arm64 runner 编译；应用完成 ad-hoc 签名及 `codesign --verify --deep --strict` 校验，ZIP 解压后的独立应用再次通过签名及原生运行检查。
 
-<!-- RELEASE-VERIFICATION: 发布前补入受测源码、macOS workflow、原生窗口结果和公开下载哈希复核；Windows检查不作为Mac证据。 -->
+`build.json`、`native.json` 和 `zip-native.json` 均为完成且通过。覆盖随包运行时、合成凭据的保存/读取/删除与连接隔离、后端及原生窗口重启、MCP、真实宿主 Hook 和单窗口绑定、历史角色导入、固定连接库边界、模型设置以及启动更新弹窗。测试仅使用新建合成资料和 FAKE 凭据，没有读取真实用户库或真实 API Key，没有调用付费模型；两次原生运行均停止后端并清理临时资料。
+
+原生窗口先检查 runner 的真实“减少动态效果”偏好，再在隔离自检中只模拟该项媒体查询的两种状态，分别核对悬停继续旋转、实际节点按钮选择后停止、取消选择恢复，以及减少动态效果时保持停止。原生 `matchMedia` 在 `finally` 恢复，产品和系统偏好保持原状；报告明确记录 `actual_host_reduce_motion` 与 `tested_synthetic_motion_states`。
+
+最终发行源码相对上述 Mac 构建源码仅追加发布文档与源码清单，Mac 运行和打包输入保持一致。受测源码、最终发行源码、原始三份报告和文件摘要见随版 [macOS-0103-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/macOS-0103-verification.json) 及 [macOS-SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/macOS-SHA256SUMS.txt)；发布后的匿名公开下载与 SHA256 复核结果见 [Public-download-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/Public-download-verification.json)。
 
 操作系统首次打开限制、真实客户端长期运行和用户已有 Keychain 权限仍以对应机器上的系统行为为准。

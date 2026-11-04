@@ -753,8 +753,8 @@
     },
     {
       "path": "docs/memory-0105-evidence/memory-read-benchmark.json",
-      "bytes": 3000,
-      "sha256": "e26607f36daf2cfe0dcb677454a1096312e4f6842e2e2667a04627386fbabb72"
+      "bytes": 2919,
+      "sha256": "6e69947b45345d143d6a948933091b4d9f2c85422002a65ed66db34be3933228"
     },
     {
       "path": "docs/memory-0105-evidence/source-directory-benchmark.json",

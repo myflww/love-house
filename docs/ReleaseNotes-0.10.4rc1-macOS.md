@@ -1,6 +1,6 @@
-# 爱之屋 0.10.4rc1 · macOS Apple Silicon 完整包候选
+# 爱之屋 0.10.4rc1 · macOS Apple Silicon 完整预发布
 
-本版计划提供 Apple Silicon（M 系列）、macOS 13.0+ 的完整“爱之屋.app”，沿用 AppKit / WKWebView、内置 Python 和原生 Keychain helper。当前是待 CI 的候选，不表示已经发布或完成 Mac 原生验收；本机没有 Mac，不借用旧版或 Windows 的通过结果。
+本版为 Apple Silicon（M 系列）、macOS 13.0+ 提供完整“爱之屋.app”，沿用 AppKit / WKWebView、内置 Python 和原生 Keychain helper。本轮由真实 Apple Silicon CI 独立编译和运行；本版为预发布，仅有 arm64 包，验证范围见文末。
 
 ## 本轮更新
 
@@ -13,14 +13,20 @@
 
 ## 下载与升级
 
-预定文件为 [LoveHouse-0.10.4rc1-macOS-arm64.zip](https://github.com/myflww/love-house/releases/download/v0.10.4rc1/LoveHouse-0.10.4rc1-macOS-arm64.zip)，链接在发布完成前不可下载。完整解压后将“爱之屋.app”放入应用程序目录；升级前备份 `~/Library/Application Support/NeuralKnowledge`。步骤见 [Mac 更新与恢复说明](MACOS-0104-UPDATE.md)。
+下载 [LoveHouse-0.10.4rc1-macOS-arm64.zip](https://github.com/myflww/love-house/releases/download/v0.10.4rc1/LoveHouse-0.10.4rc1-macOS-arm64.zip)，上传与下载状态以发布页为准。完整解压后将“爱之屋.app”放入应用程序目录；升级前备份 `~/Library/Application Support/NeuralKnowledge`。步骤见 [Mac 更新与恢复说明](MACOS-0104-UPDATE.md)。
 
-仅准备 arm64 包，不承诺 Intel Mac 兼容。计划沿用 ad-hoc 签名及完整性校验，未提供 Developer ID 签名或 Apple 公证；最终状态以本轮实际包与报告为准。
+仅提供 arm64 包，不承诺 Intel Mac 兼容。应用完成 ad-hoc 签名及完整性校验，未提供 Developer ID 签名或 Apple 公证。
 
 ## 验证记录与系统范围
 
 共享源码与空闲回顾已使用合成资料、临时库和模拟模型测试；没有真实付费模型调用。当前自检不证明真实厂商服务效果，也不证明用户现有 Keychain、系统首次打开提示或全部系统版本已验证。
 
-本轮需在 Apple Silicon CI 上实际完成 AppKit / WKWebView 与 Keychain helper 编译、随包后端及原生窗口自检、签名校验，以及 ZIP 解压后的再次运行。以上均待本轮 CI 结果；尚无可填写的成功运行链接、最终 SHA256 或受测提交。不复用 0.10.3 的三份报告。
+[本轮 Apple Silicon CI](https://github.com/myflww/love-house/actions/runs/41767666536) 已成功，运行代码受测提交为 [`e4a62aa17a2a7041d0f088fcef3ebe820336726a`](https://github.com/myflww/love-house/commit/e4a62aa17a2a7041d0f088fcef3ebe820336726a)。AppKit / WKWebView 与 Keychain helper 已编译，随包后端及原生窗口完成检查，签名验证通过，ZIP 解压后再次通过原生运行。`build.json`、`native.json` 和 `zip-native.json` 均为完成且通过，包含统一工作区导航、空闲回顾默认关闭及只读预览 probe。
 
-发布前应随包提供本版 `macOS-0104-verification.json` 与 `macOS-SHA256SUMS.txt`，并核对匿名公开下载的实际字节。当前不宣称完成真实用户旧版 Mac 数据的覆盖升级。
+测试使用临时合成资料，无真实用户数据或付费模型调用，临时数据已清理。runner 的真实减少动态效果偏好为 true；自检隔离覆盖 no-preference/reduce 两种媒体查询，不改变系统偏好。空闲回顾 probe 不代表真实模型整理效果或全部提案操作都已在原生窗口执行。
+
+| 文件 | 字节数 | SHA256 |
+| --- | --- | --- |
+| `LoveHouse-0.10.4rc1-macOS-arm64.zip` | `73292676` | `896df5c6c39def5ffd7e00ef0b647cc2f47e124e37101547ff9004247a7768f8` |
+
+本版提供 [macOS-0104-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.4rc1/macOS-0104-verification.json) 与 [macOS-SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.10.4rc1/macOS-SHA256SUMS.txt)，公开下载字节在上传后单独复核。没有安装覆盖用户现有应用，也未执行真实用户旧版 Mac 数据的覆盖升级；最低系统目标不等于所有 Mac 系统版本均已实测。

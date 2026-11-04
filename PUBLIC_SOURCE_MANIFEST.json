@@ -533,8 +533,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 23832,
-      "sha256": "9e9df0c49b4f763a2c18fd5c0fbd8f6f859a70f7c8227a501b9e663fa8b6edcb"
+      "bytes": 23911,
+      "sha256": "f14c4e5902a05728f98d69046dfed5dee832f2203c19bfc2dfd0d59c7ec052c8"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -713,8 +713,8 @@
     },
     {
       "path": "docs/MACOS-0104-UPDATE.md",
-      "bytes": 3085,
-      "sha256": "7b792347f6df11846f579c89414ae72d25b204503edfcb24e4c3733e3648edf5"
+      "bytes": 3534,
+      "sha256": "4cbe3865e27208d9d4ab693014dc8e4c0347e191e8d502869938984c057e8448"
     },
     {
       "path": "docs/MACOS-060-HANDOFF.md",
@@ -803,13 +803,13 @@
     },
     {
       "path": "docs/ReleaseNotes-0.10.4rc1-macOS.md",
-      "bytes": 2953,
-      "sha256": "ab7866f461a42b1370a1e9344d1a47b7eeb665835c7fb1fb14a9a4a474dfa821"
+      "bytes": 3902,
+      "sha256": "8a3c2a91b5e1e04b7ff358ccaf5024eaaea1976bceea18f7195642770bd3021d"
     },
     {
       "path": "docs/ReleaseNotes-0.10.4rc1-Windows.md",
-      "bytes": 5366,
-      "sha256": "e8e920deb5f01fbc710384a7569ef2da4517196cfab5b4e8bd0f26372f09f973"
+      "bytes": 6306,
+      "sha256": "8b1bd85f1c5a9f1dc10154b8df7ebcfc81e24805cb612011c7784ed6950a761b"
     },
     {
       "path": "docs/ReleaseNotes-0.9.0-macOS.md",
@@ -833,8 +833,8 @@
     },
     {
       "path": "docs/research/idle-review-design.md",
-      "bytes": 17354,
-      "sha256": "d4143e92d7da0a2f62ee01ad0fb6f5f66d25d55123fe662abb1479bde5340312"
+      "bytes": 17960,
+      "sha256": "d3e7c990f224d66f294467a76e913d516d8db665f0f6eb5f0b67c6f66eaf5301"
     },
     {
       "path": "docs/WINDOWS-010-HANDOFF.md",
@@ -863,8 +863,8 @@
     },
     {
       "path": "docs/WINDOWS-0104-UPDATE.md",
-      "bytes": 3871,
-      "sha256": "b190f96139385d2f20dd048bc895bbf10aa9a86be38d8d1343a880da058f5122"
+      "bytes": 4075,
+      "sha256": "8888ab41763df223d7caa710abeab7fafee5378739dcb767724e838a82ab2ab9"
     },
     {
       "path": "docs/WINDOWS-080-HANDOFF.md",
@@ -933,8 +933,8 @@
     },
     {
       "path": "docs/下载与系统支持.md",
-      "bytes": 8095,
-      "sha256": "0b82614ce65595d35ae10a714f7ce93511c3534be7f87e1a411beac552b75f5e"
+      "bytes": 7968,
+      "sha256": "09399fde5ecbf69e92299c029a871c4adc27c04458b556aca82dfb088d46ef9b"
     },
     {
       "path": "docs/发布与许可.md",
@@ -2023,8 +2023,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 5469,
-      "sha256": "a9083f27153d39933d432ca148b09ae28165bb477d0e82d6becd92cbffb96232"
+      "bytes": 5375,
+      "sha256": "eb1cf4f4d9f9751eb58db1179ae06fe49c3fdc55e81592432a4f5fbc2f78bc69"
     },
     {
       "path": "ROADMAP.md",

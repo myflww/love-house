@@ -1,6 +1,6 @@
-# 爱之屋 0.10.4rc1 · Windows 完整发行包候选
+# 爱之屋 0.10.4rc1 · Windows 完整预发布
 
-本版整合记忆使用闭环、界面简化与可选空闲回顾，计划提供完整 Windows x64 安装版和便携版。当前处于候选准备阶段，发行包与覆盖升级验证待本轮 CI，不沿用旧版验证结果，也不表示已经发布。同版本 [macOS arm64](ReleaseNotes-0.10.4rc1-macOS.md) 单独构建与验证；Android / iPhone 保持 0.8.0rc2。
+本版整合记忆使用闭环、界面简化与可选空闲回顾，提供完整 Windows x64 安装版和便携版。本轮 CI 已独立验证构建、原生运行及覆盖升级；本版仍为预发布，实际系统范围见文末。同版本 [macOS arm64](ReleaseNotes-0.10.4rc1-macOS.md) 单独构建与验证；Android / iPhone 保持 0.8.0rc2。
 
 ## 七项记忆与使用体验改进
 
@@ -30,7 +30,7 @@
 
 ## 下载与升级
 
-以下为预定最终文件名，发布完成前链接不可下载：
+本版提供以下完整文件，上传与下载状态以发布页为准：
 
 - [完整安装版 EXE](https://github.com/myflww/love-house/releases/download/v0.10.4rc1/LoveHouse-Setup-0.10.4rc1-Windows-x64.exe)
 - [完整便携版 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.4rc1/LoveHouse-0.10.4rc1-Windows-x64.zip)
@@ -42,6 +42,17 @@
 
 源码和主机回归使用临时库、合成窗口、真实本机 HTTP 与模拟模型。空闲回顾专项 32 项通过，另独立核对实际持久化期间的停止与租约超期；这不代替发行包、真实厂商账户或用户长期运行验收。[操作盘点](qa/experience-0104-control-inventory.md) 区分源码/DOM 证据与真实操作范围。
 
-本轮 Windows 安装包、便携包、原生窗口、独立运行、覆盖升级及公开下载复核仍待 CI 和实际产物。尚无本版最终 SHA256、受测提交或成功 CI 链接可记录；不得引用 0.10.3 的报告作为本版通过证据。
+[本轮 Windows CI](https://github.com/myflww/love-house/actions/runs/41767666486) 已成功，运行代码受测提交为 [`e4a62aa17a2a7041d0f088fcef3ebe820336726a`](https://github.com/myflww/love-house/commit/e4a62aa17a2a7041d0f088fcef3ebe820336726a)。便携版与安装版各自的后端、原生窗口、去除开发 PATH 并注入无效开发环境变量后的消费者 GUI，以及实际 `0.10.3rc1 → 0.10.4rc1` 安装覆盖升级，共 7 份原始报告均完成且通过。使用隔离合成库与临时凭据，不访问真实用户记忆或付费模型。
+
+本机源码 Python 回归运行 1287 项，其中 10 项跳过；JS 325 项通过。它们与原生发行包检查分别记录，不扩展为所有系统或真实 API 效果已验证。
+
+本轮原始构建产物的 SHA256 如下，下载时仍须与本版 `Windows-SHA256SUMS.txt` 逐项比对：
+
+| 文件 | SHA256 |
+| --- | --- |
+| `LoveHouse-Setup-0.10.4rc1-Windows-x64.exe` | `788b9278a59f4cef49fec36898c0c7c6dfd1cd4e890bf480b4188d1de2e0c7e1` |
+| `LoveHouse-0.10.4rc1-Windows-x64.zip` | `bd3c03bfde26ee5509cfcef7e99459e68c50ae74acb3f67d4875b429ffa5735a` |
+
+原始报告随发布资料提供；公开下载字节仍需在上传后单独复核。
 
 支持目标为 Windows 10 2004（19041）及以上和 Windows 11 x64。Windows 10 真机、不同系统版本、缺失/损坏运行时和受限安装环境并未因此全部实测；微软 WebView2 与 .NET 仍按诊断流程处理。当前无 Windows ARM64 或 32 位包。

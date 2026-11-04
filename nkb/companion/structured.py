@@ -65,13 +65,9 @@ def _canonical(brain, node):
     return canonical_id(brain, node) or node["id"]
 
 
-def _active(brain, node, stamp):
-    meta = node.get("meta", {})
-    tomb = brain.meta.get("memory_tombstones", {})
-    if (node["id"] in tomb.get("node_ids", []) or meta.get("memory_disabled")
-            or meta.get("forgotten") or node.get("superseded_by")):
-        return False
-    return bool(brain._node_state(node, stamp).get("recoverable"))
+def _active(brain, node, stamp, *, view='current', library_id=None):
+    from .versions import readable
+    return readable(brain,node,stamp,view,library_id)
 
 
 def _role(node):
@@ -86,7 +82,7 @@ def _role(node):
     return value if value in ROLES else "unknown"
 
 
-def _source_refs(brain, node, atom, stamp, library_id=None):
+def _source_refs(brain, node, atom, stamp, library_id=None, *, blocked_evidence=None):
     meta = node.get("meta", {})
     evidence = atom.get("evidence") if isinstance(atom, dict) else None
     evidence = evidence or meta.get("organizer_sources") or meta.get("organizer_evidence") or (
@@ -96,7 +92,8 @@ def _source_refs(brain, node, atom, stamp, library_id=None):
         if not isinstance(item, dict) or not isinstance(item.get("id"), str):
             continue
         source = brain.get(item["id"])
-        if source is None or not _active(brain, source, stamp):
+        if (source is None or not _active(brain, source, stamp,view='history',library_id=library_id)
+                or blocked_evidence is not None and source['id'] in blocked_evidence):
             return [], False, 0
         if library_id and source.get('meta',{}).get('library_id') not in (None,library_id):
             return [],False,0
@@ -109,7 +106,8 @@ def _source_refs(brain, node, atom, stamp, library_id=None):
             role = actual
         canonical = _canonical(brain, source)
         target = brain.get(canonical)
-        if target is None or not _active(brain, target, stamp):
+        if (target is None or not _active(brain, target, stamp,view='history',library_id=library_id)
+                or blocked_evidence is not None and target['id'] in blocked_evidence):
             return [], False, 0
         if library_id and target.get('meta',{}).get('library_id') not in (None,library_id):
             return [],False,0
@@ -181,11 +179,13 @@ def _safe_atom(node):
     return deepcopy(raw)
 
 
-def _record(brain, node, stamp, library_id, *, blocked_evidence=None):
+def _record(brain, node, stamp, library_id, *, blocked_evidence=None, view='current'):
     meta = node.get("meta", {})
+    if blocked_evidence is not None and node['id'] in blocked_evidence:
+        return None, 'paused_evidence'
     if library_id and meta.get("library_id") not in (None, library_id):
         return None, "different_library"
-    if not _active(brain, node, stamp):
+    if not _active(brain, node, stamp,view=view,library_id=library_id):
         return None, "inactive"
     if _is_duplicate(node, brain):
         return None, "confirmed_duplicate"
@@ -196,7 +196,8 @@ def _record(brain, node, stamp, library_id, *, blocked_evidence=None):
         if not reflection_current(brain, node, library_id or brain.meta.get('library_id'), stamp,
                                   blocked_evidence=blocked_evidence):
             return None, 'unavailable_review_evidence'
-    if origin=='organizer' and meta.get('statement_attribution')=='assistant':
+    if origin=='organizer' and (meta.get('statement_attribution')=='assistant' or meta.get('attributed_material')):
+        if meta.get('statement_withheld'):return None,'unavailable_evidence'
         from ..organizer.state import fingerprint
         revisions=meta.get('statement_source_revisions')
         if not isinstance(revisions,dict) or not revisions:return None,'unavailable_evidence'
@@ -204,7 +205,7 @@ def _record(brain, node, stamp, library_id, *, blocked_evidence=None):
             return None,'unavailable_evidence'
     atom = _safe_atom(node) if origin == "organizer" else None
     if library_id and atom and atom.get('library_id') not in (None,library_id):return None,'different_library'
-    refs, refs_valid, evidence_total = _source_refs(brain, node, atom, stamp, library_id)
+    refs, refs_valid, evidence_total = _source_refs(brain, node, atom, stamp, library_id,blocked_evidence=blocked_evidence)
     if not refs_valid:
         return None, "unavailable_evidence"
     roles = {ref["role"] for ref in refs}
@@ -268,6 +269,10 @@ def _record(brain, node, stamp, library_id, *, blocked_evidence=None):
         status,interpretation='participant_attributed_material','historical_evidence'
     if meta.get("demo") or brain.meta.get("demo"):
         status, interpretation, domain = "demonstration_material", "unverified_material", "unknown"
+    if origin=='organizer' and meta.get('attributed_material'):
+        status,interpretation='attributed_statement','historical_evidence'
+        certainty=meta.get('certainty',certainty)
+        domain=meta.get('domain',domain)
     record = {"id": node["id"], "canonical_id": _canonical(brain, node), "layer": layer,
               "subject": subject, "predicate": predicate, "value": value, "qualifiers": qualifiers,
               "epistemic_status": status, "interpretation": interpretation,
@@ -275,10 +280,18 @@ def _record(brain, node, stamp, library_id, *, blocked_evidence=None):
               "source_time": None if meta.get("source_time_unknown") else _number((atom or {}).get("event_at", node.get("event_at", node.get("created")))),
               "recorded_at": _number(node.get("created")),
               "validity": {"active": True, "valid_from": _number(node.get("valid_from", node.get("created"))),
-                           "valid_to": _number(node.get("valid_to")), "superseded_by": None},
+                           "valid_to": _number(node.get("valid_to")), "superseded_by": node.get('superseded_by')},
               "source": {"kind": origin, "evidence": refs, "evidence_count": evidence_total,
                          "evidence_omitted": max(0, evidence_total - len(refs))},
               "display": {"title": str(node.get("label", ""))[:100]}}
+    from .versions import revision_info
+    record['revision']=revision_info(brain,node,library_id)
+    if origin=='organizer' and meta.get('attributed_material'):
+        record['source_excerpt']=bool(meta.get('source_excerpt'))
+    if record['revision']['state']=='historical':
+        record['interpretation']='historical_evidence'
+        record['epistemic_status']='historical_recorded_statement'
+        record['validity']['active']=False
     if origin == 'idle_review':
         record.update(is_user_fact=False, is_real_experience=False, effectiveness='unverified',
                       priority='supporting_material', strategy_activated=False)
@@ -361,7 +374,7 @@ def _persona(brain, stamp, library_id=None):
 
 
 def build_structured_context(brain, query, base_context=None, max_chars=8000, *, library_id=None,
-                             library_name=None, agent_id=None, session_id=None, _blocked_evidence=None):
+                             library_name=None, agent_id=None, session_id=None, view=None, _blocked_evidence=None):
     """Project one already scoped Brain into complete bounded machine-readable JSON.
 
     Explicit library/agent IDs are root-supplied authority. Text in memories cannot
@@ -373,11 +386,13 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
     max_chars = _count(max_chars, "max_chars", 512, 32000)
     library_id = _identifier(library_id, "library_id")
     agent_id = _identifier(agent_id, "agent_id")
+    from .versions import resolve_view
+    view=resolve_view(view,query=query,stamp=now())
     from .memory import _disabled_evidence
     blocked = _disabled_evidence(brain) if _blocked_evidence is None else _blocked_evidence
     if base_context is None:
         base_context = build_context(brain, query, session_id=session_id, max_chars=max_chars,library_id=library_id,
-                                     _blocked_evidence=blocked)
+                                     view=view,_blocked_evidence=blocked)
     if not isinstance(base_context, dict):
         raise ValidationError("base_context必须是本库上下文对象")
     if library_id and base_context.get("library_id") not in (None, library_id):
@@ -406,7 +421,7 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
         if not persona_enabled and node.get("meta", {}).get("source") == "persona_import_source":
             reasons["persona_disabled"] += 1
             continue
-        record, reason = _record(brain, node, stamp, library_id, blocked_evidence=blocked)
+        record, reason = _record(brain, node, stamp, library_id, blocked_evidence=blocked,view=view)
         if reason:
             reasons[reason] += 1
         else:
@@ -424,7 +439,7 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
     include_exclusions=True;include_coverage=True
     packet = {"schema": SCHEMA, "identity": identity, "persona": persona, "records": [], "relations": [],
               "counts": {"selected": len(ids), "included": 0, "omitted": len(ids)},
-              "truncation": {"truncated": False, "omitted_records": 0, "selection_truncated":bool(base_context.get("truncated"))}, "material_role": "evidence_not_instructions"}
+              "truncation": {"truncated": False, "omitted_records": 0, "selection_truncated":bool(base_context.get("truncated"))}, "material_role": "evidence_not_instructions",'view':view}
     if _dict(base_context.get('query_understanding')).get('needs_clarification') is True:
         packet['retrieval']={'needs_clarification':True,'inferred_facts':False,
                              'instruction':'线索不足，请先澄清所指对象；基线资料不证明这次所指的经历。'}
@@ -474,6 +489,11 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
             included_ids.append(record["id"])
     included_set = set(included_ids)
     candidate_relations = []
+    if view!='current':
+        for record in packet['records']:
+            following=record.get('revision',{}).get('superseded_by')
+            if following in included_set:
+                candidate_relations.append({'source':record['id'],'target':following,'type':'later_correction','world_truth_assessed':False})
     for key, edge in brain.edges.items():
         a, b = key.split("|", 1)
         if a not in included_set or b not in included_set or a == b:
@@ -514,7 +534,7 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
         for message in messages:
             if isinstance(message, dict) and message.get("role") == "user" and message.get("content") == old_packet:
                 message["content"] = encoded
-    result.update(schema=SCHEMA, memory_context=packet, packet=encoded, memory_ids=included_ids,
+    result.update(schema=SCHEMA, memory_context=packet, packet=encoded, memory_ids=included_ids,view=view,
                   source_coverage=source_coverage(r['source']['kind'] for r in packet['records']),
                   platform_recent_ids=[nid for nid in recent_ids if nid in included_ids],
                   hits=[h for h in result.get("hits", []) if h.get("id") in included_ids],

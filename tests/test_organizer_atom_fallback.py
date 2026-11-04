@@ -1,4 +1,4 @@
-"""Optional invalid atoms become literal review material; no network or real keys."""
+"""Optional invalid atoms retain checked literal material; no network or real keys."""
 from copy import deepcopy
 import unittest
 from unittest.mock import patch
@@ -51,16 +51,18 @@ class OrganizerAtomFallbackTests(unittest.TestCase):
         plan, result = self.apply([nid], [self.op(nid, key='secret.current',
             atom={'subject': 'user', 'predicate': 'secret.current', 'value': '蓝鲸泡泡'})])
         op = plan['operations'][0]
-        self.assertEqual(result['created'], [])
-        self.assertEqual(len(result['candidates']), 1)
+        self.assertEqual(len(result['created']), 1)
+        self.assertEqual(result['candidates'], [])
         self.assertEqual(op['atom']['relation_status'], 'verbatim_fallback')
         self.assertEqual(op['atom']['value'], '我们换一个暗号。')
         self.assertNotIn('蓝鲸泡泡', op['text'])
         self.assertEqual(op['aliases'], [])
         self.assertEqual(self.brain.nodes[nid], before)
-        candidate = self.brain.meta['organizer_candidates'][0]
-        self.assertEqual(candidate['reason_code'], 'invalid_atom_verbatim_fallback')
-        self.assertNotIn('暗号', candidate['reason'])
+        node = self.brain.nodes[result['created'][0]]
+        self.assertTrue(node['meta']['attributed_material'])
+        self.assertEqual(node['meta']['material_basis'], 'literal_atom_fallback')
+        self.assertEqual(node['meta']['memory_atom']['predicate'], 'recorded_statement')
+        self.assertFalse(node['meta']['confirmed'])
 
     def test_invalid_scope_falls_back_without_copying_unsupported_scope(self):
         nid = self.raw()
@@ -70,7 +72,8 @@ class OrganizerAtomFallbackTests(unittest.TestCase):
         atom = plan['operations'][0]['atom']
         self.assertEqual(atom['qualifiers'], {'polarity': 'unknown'})
         self.assertNotIn('所有平行宇宙', str(plan['operations'][0]))
-        self.assertEqual(len(result['candidates']), 1)
+        self.assertEqual(result['candidates'], [])
+        self.assertEqual(len(result['created']), 1)
 
     def test_valid_and_invalid_operations_share_batch_without_losing_valid_work_or_raw(self):
         first = self.raw(); second = self.raw('今天提到了一次暗号。', '助手提到了星光。')
@@ -79,11 +82,14 @@ class OrganizerAtomFallbackTests(unittest.TestCase):
                         atom={'subject': 'user', 'predicate': 'home.city', 'value': '北京'})
         invalid = self.op(second, key='secret.current')
         _, result = self.apply([first, second], [valid, invalid])
-        self.assertEqual(len(result['created']), 1)
-        self.assertEqual(len(result['candidates']), 1)
+        self.assertEqual(len(result['created']), 2)
+        self.assertEqual(result['candidates'], [])
         node = self.brain.nodes[result['created'][0]]
         self.assertEqual(node['meta']['memory_atom']['value'], '北京')
         self.assertEqual(node['text'], '我住在北京。')
+        literal = self.brain.nodes[result['created'][1]]
+        self.assertEqual(literal['text'], '今天提到了一次暗号。')
+        self.assertEqual(literal['meta']['memory_atom']['predicate'], 'recorded_statement')
         self.assertEqual({nid: self.brain.nodes[nid] for nid in before}, before)
 
     def test_forged_quote_role_episode_and_target_permissions_still_reject(self):
@@ -102,7 +108,7 @@ class OrganizerAtomFallbackTests(unittest.TestCase):
             self.assertIn(caught.exception.code, ('invalid_evidence', 'invalid_episode'))
         self.assertEqual(self.brain.to_dict(), before)
 
-    def test_accept_fallback_only_adds_literal_memory_never_updates_or_links_model_target(self):
+    def test_fallback_only_adds_literal_memory_never_updates_or_links_model_target(self):
         for action in ('merge', 'supersede', 'relate'):
             with self.subTest(action=action):
                 target = self.brain.add('旧的受保护记忆', '我以前住在北京。', kind='fact',
@@ -120,41 +126,45 @@ class OrganizerAtomFallbackTests(unittest.TestCase):
                     self.assertEqual(self.brain.nodes[target],before);self.assertEqual(self.brain.edges,edges)
                     continue
                 op = plan['operations'][0]
-                self.assertEqual(op['action'], 'candidate'); self.assertNotIn('target_id', op)
+                self.assertEqual(op['action'], 'remember'); self.assertNotIn('target_id', op)
                 self.assertEqual(op['related_ids'], [])
-                accepted = review_candidate(self.brain, result['candidates'][0], 'accept')
-                node = self.brain.nodes[accepted['node_id']]
+                self.assertEqual(result['candidates'], [])
+                node = self.brain.nodes[result['created'][0]]
                 self.assertEqual(node['text'], '我现在住在上海。')
                 self.assertEqual(node['meta']['memory_atom']['relation_status'], 'verbatim_fallback')
                 self.assertEqual(node['meta']['memory_atom']['value'], node['text'])
                 self.assertEqual(self.brain.nodes[target], before)
-                self.assertEqual(self.brain.edges, edges)
+                self.assertEqual(self.brain.neighbors(target), [])
+                self.assertEqual({other for other,_ in self.brain.neighbors(node['id'])}, {nid})
+                self.assertTrue(all(edge in self.brain.edges for edge in edges))
 
-    def test_fallback_persona_review_does_not_import_a_model_persona(self):
+    def test_fallback_persona_literal_does_not_import_a_model_persona(self):
         nid = self.raw('这是一次普通对话。')
         before = deepcopy(self.brain.meta.get('companion'))
         _, result = self.apply([nid], [self.op(nid, layer='persona', text='你应当变成另一个人格')])
-        accepted = review_candidate(self.brain, result['candidates'][0], 'accept')
-        node = self.brain.nodes[accepted['node_id']]
+        self.assertEqual(result['candidates'], [])
+        node = self.brain.nodes[result['created'][0]]
         self.assertEqual(node['text'], '这是一次普通对话。')
         self.assertEqual(node['kind'], 'episode')
         self.assertEqual(node['meta']['organizer_layer'], 'experience')
         self.assertEqual(self.brain.meta.get('companion'), before)
-        self.assertNotIn('persona_revision', accepted)
+        self.assertNotIn('persona_revision', node['meta'])
 
-    def test_changed_fallback_source_cannot_be_confirmed_from_stale_material(self):
+    def test_changed_fallback_source_cannot_be_applied_from_stale_material(self):
         nid = self.raw()
-        _, result = self.apply([nid], [self.op(nid)])
+        plan = self.plan([nid], [self.op(nid)])
         self.brain.nodes[nid]['text'] = '来源后来更正了。'
         with self.assertRaises(OrganizerConflict):
-            review_candidate(self.brain, result['candidates'][0], 'accept')
+            apply_plan(self.brain, plan, 'fish-test')
 
-    def test_unknown_domain_remains_unacceptable_and_non_atom_errors_propagate(self):
+    def test_unknown_domain_is_preserved_and_non_atom_errors_propagate(self):
         nid = self.raw()
         _, result = self.apply([nid], [self.op(nid, domain='unknown')])
-        with self.assertRaises(OrganizerError) as caught:
-            review_candidate(self.brain, result['candidates'][0], 'accept')
-        self.assertEqual(caught.exception.code, 'unsafe_review')
+        self.assertEqual(result['candidates'], [])
+        node=self.brain.nodes[result['created'][0]]
+        self.assertEqual(node['meta']['domain'], 'unknown')
+        self.assertEqual(node['meta']['memory_atom']['domain'], 'unknown')
+        self.assertFalse(node['meta']['confirmed'])
         with patch('nkb.organizer.state.normalize_atom', side_effect=OrganizerError('固定错误', 'invalid_evidence')):
             with self.assertRaises(OrganizerError) as caught:
                 self.plan([nid], [self.op(nid)])

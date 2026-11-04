@@ -67,30 +67,39 @@ try{
  check(shown(reviewSummary),'workspace_idle_review');reviewSummary.scrollIntoView({block:'nearest'});
  const summaryRect=reviewSummary.getBoundingClientRect();check(summaryRect.top<innerHeight&&summaryRect.bottom>0,'workspace_idle_review');
  if(!reviewSection.open)reviewSummary.click();
- await wait(()=>shown(by('previewIdleReview'))&&!by('previewIdleReview').disabled&&by('idleReviewCounts').textContent.includes('合格来源'));
+ await wait(()=>shown(by('previewIdleReview'))&&!by('previewIdleReview').disabled&&by('idleReviewCounts').textContent.includes('获准原文'));
  const review=await api('idle-review');
  check(review.schema==='love-house-idle-review/v1'&&review.library_id===originalLibrary&&review.profile.enabled===false&&!by('idleReviewEnabled').checked,'workspace_idle_review');
  await click('previewIdleReview');
  await wait(()=>reviewPreviews===1&&!by('previewIdleReview').disabled&&by('idleReviewStatus').textContent.includes('未调用模型'));
  check(by('idleReviewStatus').dataset.error!=='true'&&!by('idleReviewEnabled').checked,'workspace_idle_review');
  await click('closeOrganizer');await wait(()=>!shown(by('organizerPanel')));
+ check(S.nodes.length>0,'workspace_history');select(S.nodes[0].id);
+ await wait(()=>shown(by('viewMemoryVersions')));await click('viewMemoryVersions');
+ await wait(()=>by('memoryHistoryDialog').open&&by('memoryHistoryStatus').textContent.includes('已读取'));
+ check(by('memoryHistoryStatus').dataset.error!=='true'&&by('memoryHistoryList').children.length>0,'workspace_history');
+ await click('closeMemoryHistory');await wait(()=>!by('memoryHistoryDialog').open);
+ check(document.activeElement===by('viewMemoryVersions'),'workspace_focus');
+ const directory=await api('memory/directory?limit=10');
+ check(directory.schema==='love-house-source-directory/v1'&&directory.library_id===originalLibrary&&directory.complete_library===false&&directory.fallback_tool==='memory_list','workspace_directory');
  const after=canonical(await api('graph'));
  check(before===after&&paid===0&&writes===0&&reviewPreviews===1&&S.libraryId===originalLibrary,'workspace_read_only');
  return {navigation:true,no_overflow:true,add_and_import_menu:true,escape_focus_restored:true,
          add_cancel_read_only:true,display_menu:true,experience_scope:true,commitment_scope:true,
          connection_scope:true,model_adoption_not_claimed:true,idle_review_opt_in:true,
-         idle_review_preview_read_only:true,read_only:true,model_calls:paid,
+         idle_review_preview_read_only:true,statement_history_read_only:true,source_directory_read_only:true,read_only:true,model_calls:paid,
          connections_checked:status.connections.length,experience_entries:experiences.entries.length};
 }finally{
  api=originalApi;if(by('experienceTimelineDialog')?.open)window.LoveHouseExperiences.close();
  if(by('addDialog')?.open)by('addDialog').close();window.LoveHouseWorkspace.closeMenus(false);
+ if(by('memoryHistoryDialog')?.open)window.LoveHouseMemoryHistory.close();
  for(const id of Object.keys(PANELS))setPanelOpen(id,false,{restore:false});
 }
 """
 
 CHECKS = ('navigation','no_overflow','add_and_import_menu','escape_focus_restored','add_cancel_read_only',
           'display_menu','experience_scope','commitment_scope','connection_scope','model_adoption_not_claimed',
-          'idle_review_opt_in','idle_review_preview_read_only','read_only')
+          'idle_review_opt_in','idle_review_preview_read_only','statement_history_read_only','source_directory_read_only','read_only')
 CODES = ('workspace_control','workspace_navigation','workspace_overflow','workspace_add','workspace_focus',
          'workspace_connections','workspace_commitments','workspace_experiences','workspace_idle_review',
-         'workspace_read_only','workspace_paid','workspace_wait')
+         'workspace_history','workspace_directory','workspace_read_only','workspace_paid','workspace_wait')

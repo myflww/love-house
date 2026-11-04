@@ -192,7 +192,7 @@ class AgentMemoryClientTests(unittest.TestCase):
   self.assertIn('automatic full-turn capture requires a real host turn-end hook',responses[0]['result']['instructions'])
   self.assertEqual({t['name'] for t in responses[1]['result']['tools']},
     {'memory_context','memory_remember','memory_record_turn','memory_event','memory_status',
-     'memory_persona','memory_persona_import','memory_bootstrap','memory_list','memory_read'})
+     'memory_persona','memory_persona_import','memory_bootstrap','memory_list','memory_read','memory_directory'})
   self.assertFalse(responses[2]['result']['structuredContent']['connected']);self.assertNotIn(TOKEN,result.stdout+result.stderr)
 
 

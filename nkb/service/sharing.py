@@ -398,11 +398,13 @@ class ShareStore:
         def apply(target):
             loaded = Brain(brain)
             from ..organizer.experiences import rebind_experiences_after_import
-            rebind_experiences_after_import(loaded,library_id)
+            statement_import=rebind_experiences_after_import(loaded,library_id)
             from ..companion.persona import rebind_formed_persona_after_import
             persona_import=rebind_formed_persona_after_import(loaded,library_id)
             for field in ("nodes", "edges", "meta", "_vec", "name", "config", "half_life"): setattr(target, field, deepcopy(getattr(loaded, field)))
-            return {"node_count": len(target.nodes),'persona_import':persona_import}
+            from .controls import rebuild_source_controls
+            rebuild_source_controls(target)
+            return {"node_count": len(target.nodes),'persona_import':persona_import,'statement_import':statement_import}
         try:
             with self.host._apply_lock:
                 with self.host.connections.db() as db:
@@ -422,7 +424,9 @@ class ShareStore:
         self.host.manager.select(library_id)
         result={"imported": True, "library": self.host.library(library_id), "selected_id": library_id,
                 "connections_rebound": False, "organizer_enabled": False, "counts": value["counts"],
-                'persona_import':applied['persona_import']}
+                'persona_import':applied['persona_import'],'statement_import':applied['statement_import']}
         if result['persona_import']['unavailable']:
             result['warning']='部分人格资料的依据无法在新存档中核验，已暂不启用；原始记忆保留，可重新整理。'
+        if result['statement_import'].get('statements_withheld'):
+            result['warning']=result.get('warning','')+'部分整理索引的逐字依据未通过核验，暂不参与读取；现有原文与停用设置保留，有可用原文的条目可重新整理。'
         return result

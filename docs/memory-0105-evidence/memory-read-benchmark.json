@@ -1,0 +1,82 @@
+{
+  "method": "Synthetic graphs only. Same memory_read helper and target output; old path = deepcopy graph snapshot -> Brain re-encoding -> target helper; new path = real MemoryHost.memory_access -> scoped_memory_read -> existing live handler locked read. No server startup or network timing.",
+  "warmups_per_path": 1,
+  "timed_runs_per_path": 5,
+  "summary": "median wall time; tracemalloc independent extra run, peak Python allocation (not RSS). Neither path scans/projects the full catalog; target helper still performs one O(N) disabled-evidence scan. No claim about semantic index search speed.",
+  "python": "3.13.14",
+  "platform": "Windows-10-10.0.19045-SP0",
+  "cases": [
+    {
+      "nodes": 10000,
+      "edges": 0,
+      "original_text_chars": 1138890,
+      "target_text_chars": 27,
+      "returned_chars": 27,
+      "content_equal": true,
+      "new_snapshot_calls": 0,
+      "runtime_authority_removed_after_success_and_failure": true,
+      "old_snapshot_brain_then_target_read": {
+        "timings_ms": [
+          662.5793999992311,
+          682.9539999998815,
+          672.2115999982634,
+          654.3808000024001,
+          676.9342999978107
+        ],
+        "median_ms": 672.2115999982634,
+        "peak_traced_alloc_bytes": 44020885,
+        "traced_run_ms": 2465.0476000024355
+      },
+      "new_live_locked_target_read": {
+        "timings_ms": [
+          1.6603999974904582,
+          1.6462999992654659,
+          1.837899999372894,
+          3.0082000012043864,
+          1.8830999979400076
+        ],
+        "median_ms": 1.837899999372894,
+        "peak_traced_alloc_bytes": 17240,
+        "traced_run_ms": 5.434300001070369
+      },
+      "latency_ratio_old_over_new": 365.74982329159764,
+      "peak_allocation_ratio_old_over_new": 2553.4156032482597
+    },
+    {
+      "nodes": 50000,
+      "edges": 0,
+      "original_text_chars": 5738890,
+      "target_text_chars": 27,
+      "returned_chars": 27,
+      "content_equal": true,
+      "new_snapshot_calls": 0,
+      "runtime_authority_removed_after_success_and_failure": true,
+      "old_snapshot_brain_then_target_read": {
+        "timings_ms": [
+          3491.254399999889,
+          4070.4911000029824,
+          3567.4183999981324,
+          3586.9939000003797,
+          3582.8543000025093
+        ],
+        "median_ms": 3582.8543000025093,
+        "peak_traced_alloc_bytes": 225460557,
+        "traced_run_ms": 12728.181600003154
+      },
+      "new_live_locked_target_read": {
+        "timings_ms": [
+          10.635399998136563,
+          7.9818999984127,
+          8.229400002164766,
+          8.316999999806285,
+          7.613199999468634
+        ],
+        "median_ms": 8.229400002164766,
+        "peak_traced_alloc_bytes": 17240,
+        "traced_run_ms": 21.279900000081398
+      },
+      "latency_ratio_old_over_new": 435.3724814761744,
+      "peak_allocation_ratio_old_over_new": 13077.758526682135
+    }
+  ]
+}

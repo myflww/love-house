@@ -1,4 +1,4 @@
-"""Desktop-owned, opt-in review scheduling and current connection authority."""
+"""Desktop-owned, opt-in local source organization and current authority."""
 from __future__ import annotations
 
 import hashlib
@@ -22,7 +22,8 @@ class IdleReviewService:
         self._activity = {}
         self._boot = time.time()
         self.engine = IdleReviewer(host.root, snapshot=self.snapshot, apply=self.apply,
-            finalize=self.finalize, credential=host.organizer_credential, transport=transport)
+            finalize=self.finalize, credential=host.organizer_credential, transport=transport,
+            idle_check=self._idle_now)
         self.worker = threading.Thread(target=self._watch, name='love-house-idle-review', daemon=True)
         self.worker.start()
 
@@ -75,9 +76,13 @@ class IdleReviewService:
         with self._lock:
             self._activity[library_id] = time.time()
 
+    def _idle_now(self, library_id, seconds):
+        with self._lock:
+            return time.time()-self._activity.get(library_id,self._boot)>=seconds
+
     def settings(self, library_id, data):
         if not isinstance(data, dict) or set(data) - {'enabled', 'idle_seconds', 'batch_size'}:
-            raise ValidationError('空闲回顾只接受开启状态、空闲时间和每批来源数')
+            raise ValidationError('空闲整理只接受开启状态、空闲时间和每批来源数')
         profile = self.host.transact(library_id, lambda b: save_review_profile(b, **data))
         with self._lock:
             if profile['enabled']:
@@ -91,7 +96,7 @@ class IdleReviewService:
 
     def run(self, library_id):
         if self.host.library(library_id)['is_demo']:
-            raise ValidationError('示例库不能调用回顾模型')
+            raise ValidationError('示例库不能启动后台目录整理')
         return self._launch(library_id, manual=True)
 
     def _launch(self, library_id, *, manual=False, idle_for=0):
@@ -106,9 +111,9 @@ class IdleReviewService:
                 else:
                     with self._lock:
                         current_idle=time.time()-self._activity.get(library_id,self._boot)
-                    self.engine.run_once(library_id, manual=False, idle_for=current_idle)
+                    self.engine.run_pending(library_id, manual=False, idle_for=current_idle)
             except Exception:
-                pass  # Engine records provider failures; missing/closed libraries are skipped.
+                pass  # Engine records local failures; missing/closed libraries are skipped.
             finally:
                 with self._lock:
                     self._active.discard(library_id)
@@ -116,7 +121,7 @@ class IdleReviewService:
         return {'queued': True, 'status': 'queued', 'library_id': library_id}
 
     def _watch(self):
-        # Discover persisted opt-ins once. A new installation never calls a model.
+        # Preserve explicit opt-ins. Local directory work never calls a model.
         for item in self.host.manager.list_libraries():
             if self._stop.is_set():
                 return

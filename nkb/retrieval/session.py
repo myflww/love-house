@@ -13,8 +13,9 @@ from .scoring import OverlapScorer
 
 
 class PreparedRecall:
-    def __init__(self, brain):
+    def __init__(self, brain, *, view=None):
         self.brain = brain
+        self.view_mode=view
         encoder = brain.encoder
         self.encoder = encoder
         cache = getattr(brain, "_semantic_vectors", None)
@@ -29,16 +30,19 @@ class PreparedRecall:
     def view(self, candidate_ids=None, *, plan=None):
         from ..companion.dedup import is_duplicate
         if self.brain.encoder is not self.encoder:
-            self.__init__(self.brain)
+            self.__init__(self.brain,view=self.view_mode)
         if candidate_ids is not None:
             if not isinstance(candidate_ids, (set, frozenset, list, tuple)) or any(not isinstance(i, str) for i in candidate_ids):
                 raise ValidationError("candidate_ids必须是本图节点ID集合")
             candidate_ids = set(candidate_ids)
         brain = self.brain
+        from ..companion.versions import resolve_view,historical_projection,is_historical
+        mode=resolve_view(self.view_mode) if self.view_mode is not None else ('history' if plan and plan.intent=='historical' else 'comparison' if plan and plan.intent=='comparison' else 'current')
         tombstones = set(brain.meta.get("memory_tombstones", {}).get("node_ids", []))
         library = brain.meta.get("library_id")
         selected = set()
         vectors = {} if type(brain.scorer) is OverlapScorer else dict(brain._vec)
+        projected_nodes=None
         # This pass is deliberately linear and live: arbitrary metadata edits,
         # removals and revoked evidence cannot be hidden by a stale result cache.
         for nid, node in brain.nodes.items():
@@ -49,6 +53,10 @@ class PreparedRecall:
                     or library and meta.get("library_id") not in (None, library)
                     or is_duplicate(node, brain) or plan is not None and not plan.accepts(node)):
                 continue
+            if mode=='current' and is_historical(node):continue
+            if mode!='current' and is_historical(node):
+                if projected_nodes is None:projected_nodes=dict(brain.nodes)
+                projected_nodes[nid]=historical_projection(node)
             material = f'{node.get("label", "")} {node.get("text", "")} {" ".join(node.get("tags") or [])}'
             anchor = self.correction_anchor(node, tombstones, library)
             if anchor:
@@ -67,6 +75,7 @@ class PreparedRecall:
         # Full live nodes remain available to lifecycle/anchor evidence checks.
         # candidate_ids restricts both seed and result lanes in Brain.recall.
         view._vec = vectors
+        if projected_nodes is not None:view.nodes=projected_nodes
         return view, selected
 
     def correction_anchor(self, node, tombstones, library):
@@ -91,5 +100,5 @@ class PreparedRecall:
         return ' '.join([str(old.get('label', ''))[:200], *safe_topic_tags(old)])
 
 
-def prepare_recall(brain):
-    return PreparedRecall(brain)
+def prepare_recall(brain, *, view=None):
+    return PreparedRecall(brain,view=view)

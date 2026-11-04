@@ -40,8 +40,125 @@ def set_enabled(brain,nid,enabled):
     if type(enabled) is not bool:raise ValidationError('enabled必须是布尔值')
     if nid not in brain.nodes:raise ValidationError('记忆不存在')
     ids=related(brain,[nid])
-    for i in ids:brain.nodes[i]['meta']['memory_disabled']=not enabled
+    for i in ids:
+        brain.nodes[i]['meta'].update(memory_disabled=not enabled,
+            memory_disabled_origin='explicit_user_action',memory_enabled_changed_at=time.time())
+    rebuild_source_controls(brain,changed=True)
     return {'id':nid,'enabled':enabled,'affected_ids':sorted(ids)}
+
+
+def rebuild_source_controls(brain,*,changed=False):
+    """Rebuild after opaque edits/imports under the graph write transaction.
+
+    The map is only an index of user controls, never a source of permission.
+    Readers still check each indexed blocker against its live disabled state.
+    Explicit control/opaque edits invalidate cursors even for a raw source with
+    no derived blockers; an unchanged startup rebuild stays idempotent.
+    """
+    mapping={}
+    for nid,node in brain.nodes.items():
+        meta=node.get('meta',{})
+        if not meta.get('memory_disabled'):continue
+        atom=meta.get('memory_atom') if isinstance(meta.get('memory_atom'),dict) else {}
+        for collection in (meta.get('organizer_evidence'),meta.get('organizer_sources'),atom.get('evidence')):
+            if isinstance(collection,list):
+                for item in collection:
+                    if isinstance(item,dict) and isinstance(item.get('id'),str):
+                        mapping.setdefault(item['id'],set()).add(nid)
+    previous=brain.meta.get('memory_source_controls',{})
+    generation=previous.get('generation',0) if isinstance(previous,dict) else 0
+    blocked_by={nid:sorted(ids) for nid,ids in mapping.items()}
+    unchanged=(isinstance(previous,dict) and previous.get('schema')=='love-house-source-controls/v1'
+               and previous.get('blocked_by')==blocked_by and type(generation) is int and generation>=1)
+    value={'schema':'love-house-source-controls/v1','generation':generation+1 if type(generation) is int else 1,
+           'blocked_by':blocked_by}
+    if unchanged and not changed:value['generation']=generation
+    brain.meta['memory_source_controls']=value
+    return {'schema':value['schema'],'generation':value['generation'],'blocked_sources':len(mapping)}
+
+
+def _refresh_unchanged_source_guards(brain,previous):
+    """Advance exact guards across our metadata-only history attribution.
+
+    A literal record whose guard already failed (edited text/provenance) stays
+    unavailable. This never grants permission or adopts a model interpretation.
+    """
+    from ..organizer.state import fingerprint
+    current={nid:fingerprint(brain.nodes[nid]) for nid in previous if nid in brain.nodes}
+    for node in brain.nodes.values():
+        meta=node.get('meta',{});guards=meta.get('statement_source_revisions')
+        if meta.get('source')!='organizer' or not isinstance(guards,dict):continue
+        for nid,guarded_revision in tuple(guards.items()):
+            if nid in previous and guarded_revision==previous[nid] and nid in current:guards[nid]=current[nid]
+
+
+def history_restore_preview(brain,nid):
+    """Legacy flags have no provenance: show exact scope before a user restores."""
+    if nid not in brain.nodes:raise ValidationError('记忆不存在')
+    from ..companion.versions import RevisionIndex
+    from ..organizer.state import fingerprint,RAW_SOURCES
+    chain=RevisionIndex(brain).related([nid])
+    proof=[]
+    for old_id in chain:
+        old=brain.nodes[old_id];new=brain.get(old.get('superseded_by'))
+        if (new and new.get('meta',{}).get('corrects')==old_id
+                and new.get('meta',{}).get('source')=='user_confirmed'
+                and new.get('meta',{}).get('corrected_at')==old.get('valid_to')):
+            proof.append(old_id)
+    relevant=related(brain,proof) if proof else set()
+    # Only earlier dependents could have been affected by the legacy action.
+    latest=max((brain.nodes[i].get('valid_to') or 0 for i in proof),default=0)
+    relevant={i for i in relevant if brain.nodes[i].get('created',0)<=latest}
+    for target in list(relevant):
+        relevant.update(ref for ref in refs(brain.nodes[target]) if ref in brain.nodes
+                        and brain.nodes[ref].get('meta',{}).get('source') in RAW_SOURCES)
+    tomb=set(brain.meta.get('memory_tombstones',{}).get('node_ids',[]))
+    library=brain.meta.get('library_id')
+    selected=[]
+    for target in sorted(relevant):
+        node=brain.nodes[target];meta=node.get('meta',{})
+        if (target in tomb or meta.get('forgotten') or meta.get('library_id') not in (None,library)
+                or meta.get('memory_disabled_origin')=='explicit_user_action'):
+            continue
+        if meta.get('memory_disabled') and not meta.get('memory_disabled_origin'):
+            selected.append(target)
+    # Sources not paused by the user need historical attribution as well, but
+    # are never implicitly enabled by restoring a downstream legacy entry.
+    sources=sorted(i for i in relevant if brain.nodes[i].get('meta',{}).get('source') in RAW_SOURCES
+                   and not brain.nodes[i].get('meta',{}).get('memory_disabled')
+                   and i not in tomb and not brain.nodes[i].get('meta',{}).get('forgotten')
+                   and brain.nodes[i].get('meta',{}).get('library_id') in (None,library)) if selected else []
+    revisions={i:fingerprint(brain.nodes[i]) for i in sorted(set(selected)|set(sources)|set(proof))}
+    digest=sha256(json.dumps({'library':library,'target':nid,'revisions':revisions},sort_keys=True).encode()).hexdigest()
+    return {'id':nid,'library_id':library,'read_only':True,'requires_confirmation':True,
+            'expected_revision':digest,'node_ids':selected,'source_ids':sources,
+            'entries':[{'id':i,'label':brain.nodes[i].get('label',''),'legacy_state':'unknown_pause_origin'} for i in selected],
+            'node_count':len(selected),'source_count':len(sources),'current_memory_restored':False,
+            'note':'旧版标记无法区分自动更正和手动停用；确认后仅恢复下列条目的历史读取，不恢复为当前说法。'}
+
+
+def restore_history(brain,nid,*,confirm=False,expected_revision=None):
+    if confirm is not True:raise ValidationError('请先查看并确认旧版历史恢复范围')
+    plan=history_restore_preview(brain,nid)
+    if expected_revision!=plan['expected_revision']:raise ValidationError('历史恢复范围已变化，请重新预览')
+    from ..companion.versions import REVISION_SCHEMA
+    from ..organizer.state import fingerprint,RAW_SOURCES
+    changed=set(plan['node_ids'])|set(plan['source_ids'])
+    original_sources={i:fingerprint(brain.nodes[i]) for i in changed
+                      if brain.nodes[i].get('meta',{}).get('source') in RAW_SOURCES}
+    stamp=time.time()
+    for target in plan['node_ids']:
+        meta=brain.nodes[target]['meta'];meta['memory_disabled']=False
+        meta['memory_disabled_origin']='legacy_history_restore'
+    for target in changed:
+        brain.nodes[target]['meta']['memory_revision']={'schema':REVISION_SCHEMA,'status':'historical',
+            'reason':'legacy_history_restore','at':stamp}
+    _refresh_unchanged_source_guards(brain,original_sources)
+    rebuild_source_controls(brain,changed=True)
+    return {'id':nid,'library_id':brain.meta.get('library_id'),'restored':True,
+            'historical_ids':sorted(set(plan['node_ids'])|set(plan['source_ids'])),
+            'node_count':plan['node_count'],'source_count':plan['source_count'],
+            'current_memory_restored':False,'world_truth_assessed':False}
 
 def correct(brain,nid,text,label=None,source_id=None,source_confirmed_as_self=False):
     if nid not in brain.nodes:raise ValidationError('记忆不存在')
@@ -67,7 +184,16 @@ def correct(brain,nid,text,label=None,source_id=None,source_confirmed_as_self=Fa
     old=brain.nodes[nid]
     if old.get('superseded_by') or old.get('meta',{}).get('forgotten'):
         raise ValidationError('这条记忆已有更正或已被忘记，请打开当前有效条目再更正')
-    disabled=set_enabled(brain,nid,False)['affected_ids']
+    historical=related(brain,[nid])
+    # Preserve the complete original utterance as dated evidence. Related
+    # excerpts are no longer current assertions, but are not privacy-disabled.
+    from ..organizer.state import RAW_SOURCES
+    for target in list(historical):
+        historical.update(ref for ref in refs(brain.nodes[target])
+                          if ref in brain.nodes and brain.nodes[ref].get('meta',{}).get('source') in RAW_SOURCES)
+    from ..organizer.state import fingerprint
+    original_sources={i:fingerprint(brain.nodes[i]) for i in historical
+                      if brain.nodes[i].get('meta',{}).get('source') in RAW_SOURCES}
     stamp=time.time()
     # Nominal topic tags aid the same question after a correction; sentences or
     # outdated preference assertions must never become the replacement's title.
@@ -85,11 +211,17 @@ def correct(brain,nid,text,label=None,source_id=None,source_confirmed_as_self=Fa
                         **({field:old.get('meta',{})[field] for field in ('status','status_origin','status_at','status_note','done_at','cancelled_at')
                             if field in old.get('meta',{})} if old['kind']=='commitment' else {})})
     brain.supersede(nid,new,at=stamp)
+    from ..companion.versions import REVISION_SCHEMA
+    for target in historical:
+        brain.nodes[target]['meta']['memory_revision']={'schema':REVISION_SCHEMA,'status':'historical',
+            'reason':'later_correction','corrected_by':new,'at':stamp}
+    _refresh_unchanged_source_guards(brain,original_sources)
     verification=verify_correction(brain,nid,new)
-    return {'id':new,'previous_id':nid,'disabled_ids':disabled,'saved':True,
+    return {'id':new,'previous_id':nid,'disabled_ids':[],'historical_ids':sorted(historical),'saved':True,
             'change_scope':{'library_id':brain.meta.get('library_id'),'previous_id':nid,
-                            'replacement_id':new,'disabled_count':len(disabled),
-                            'disabled_ids':disabled,'original_preserved':True},
+                            'replacement_id':new,'disabled_count':0,'historical_count':len(historical),
+                            'disabled_ids':[],'historical_ids':sorted(historical),'original_preserved':True,
+                            'history_available':True,'world_truth_assessed':False},
             'verification':verification}
 
 def verify_correction(brain,previous_id,replacement_id,query=None):
@@ -104,7 +236,9 @@ def verify_correction(brain,previous_id,replacement_id,query=None):
     from ..companion.lifecycle import commitment_status
     probe=query or old['label'][:4000]
     if query is None and commitment_status(new) in ('done','cancelled'):probe='历史约定状态：'+probe
-    result=build_context(brain,probe,library_id=brain.meta.get('library_id'))
+    # A previous label may itself say “以前”; this probe verifies the current
+    # selection contract, rather than allowing wording to switch to history.
+    result=build_context(brain,probe,library_id=brain.meta.get('library_id'),view='current')
     ids=result['memory_ids']
     affected=related(brain,[previous_id])-{replacement_id}
     leaks=sorted(set(ids)&affected)
@@ -157,5 +291,6 @@ def forget(brain,plan):
             if 'excerpt' in snippet:snippet['excerpt']=redacted(snippet['excerpt'])
         brain._vec[node['id']]=brain._vec_for(node)
     for key in list(profile):profile[key]=redacted(profile[key])
+    rebuild_source_controls(brain,changed=True)
     return {'forgotten':True,'removed_nodes':len(ids),'raw_ids':sorted(raw_ids),
             'persona_history_cleared':persona is not None}

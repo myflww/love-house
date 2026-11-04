@@ -168,7 +168,7 @@ class PersonaOrganizerTests(unittest.TestCase):
         payload,guards=build_input(self.brain,'a',[{'raw_id':nid,'progress':'{}'} for nid in self.ids],get_profile(self.brain))
         plan=validate_plan({'version':1,'operations':[]},payload,guards,'legacy-job',get_profile(self.brain))
         for key in ('persona_traits','persona_revision','persona_rules_version'):plan.pop(key,None)
-        self.assertEqual(plan['rules_version'],'love-house-organizer-rules/2026-10-30.4')
+        self.assertEqual(plan['rules_version'],RULES_VERSION)
         result=apply_plan(self.brain,plan,'a')
         self.assertEqual(result['created'],[])
         self.assertEqual(self.organizer.status('a')['usage_24h']['count'],0)

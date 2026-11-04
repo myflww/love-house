@@ -92,20 +92,26 @@ class BackupStore:
         def apply(target):
             loaded=Brain(brain)
             from ..organizer.experiences import rebind_experiences_after_import
-            rebind_experiences_after_import(loaded,new_id)
+            statement_import=rebind_experiences_after_import(loaded,new_id)
             for field in ('nodes','edges','meta','_vec','name','config','half_life'):setattr(target,field,deepcopy(getattr(loaded,field)))
-            return {'node_count':len(target.nodes)}
+            from .controls import rebuild_source_controls
+            rebuild_source_controls(target)
+            return {'node_count':len(target.nodes),'statement_import':statement_import}
         try:
             with self.host.connections.db() as db:
                 for r in value['archives']:
                     db.execute('INSERT INTO receipts(id,connection_id,library_id,session_id,kind,status,payload,payload_hash,received,attempts,error,applied,node_ids) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
                        (mapping[r['id']],'restored:'+r['connection_id'],new_id,r['session_id'],r['kind'],
                         'saved' if r.get('node_ids') and r['node_ids']!='[]' else 'archived',r['payload'],r['payload_hash'],r['received'],0,None,r.get('applied'),r.get('node_ids','[]')))
-            self.host.transact(new_id,apply)
+            applied=self.host.transact(new_id,apply)
         except Exception:
             # Never overwrite the source. Leave a clearly empty new library if the
             # target file could not be persisted; remove only its copied archives.
             with self.host.connections.db() as db:db.execute('DELETE FROM receipts WHERE library_id=?',(new_id,))
             raise ValidationError('恢复未完成，原库与备份均保留；新建的恢复库暂为空') from None
         self.host.manager.select(new_id)
-        return {'restored':True,'library':self.host.library(new_id),'selected_id':new_id,'connections_rebound':False}
+        result={'restored':True,'library':self.host.library(new_id),'selected_id':new_id,'connections_rebound':False,
+                'statement_import':applied['statement_import']}
+        if result['statement_import'].get('statements_withheld'):
+            result['warning']='部分整理索引的逐字依据未通过核验，暂不参与读取；现有原文与停用设置保留，有可用原文的条目可重新整理。'
+        return result

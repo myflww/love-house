@@ -111,16 +111,25 @@ class OrganizerTests(unittest.TestCase):
         self.assertEqual(brain.meta["companion_profile"]["persona"],"明确重要人格")
         self.assertEqual(len(brain.meta["organizer_candidates"]),1)
 
-    def test_assistant_self_claim_roleplay_and_uncertainty_are_review_candidates(self):
+    def test_assistant_claim_and_roleplay_are_searchable_attributed_material(self):
         self.reply=lambda p:{"version":1,"operations":[self.op(p,evidence=[{"id":p['raw'][0]['id'],"role":"assistant","quote":"你有一个女儿"}])]}
         nid=self.raw("只是一个普通问题","你有一个女儿")
         self.organizer.enqueue("a",[nid]);self.assertEqual(self.organizer.run_once("a")["status"],"done")
-        self.assertEqual(self.generated(),[])
+        statement=self.generated()[0]
+        self.assertEqual(statement['kind'],'episode')
+        self.assertTrue(statement['meta']['attributed_material'])
+        self.assertEqual(statement['meta']['statement_attribution'],'assistant')
+        self.assertEqual(statement['meta']['memory_atom']['subject'],'agent')
+        self.assertEqual(statement['text'],'你有一个女儿')
+        self.assertFalse(statement['meta']['confirmed'])
         self.reply=self.default_reply
         self.run_raw("角色扮演：我住在火星")
-        self.assertEqual(self.generated(),[])
-        candidate=self.brains['a'].meta['organizer_candidates'][-1]
-        with self.assertRaises(OrganizerError):review_candidate(self.brains['a'],candidate['id'],'accept')
+        self.assertEqual(len(self.generated()),2)
+        imagined=self.generated()[-1]
+        self.assertTrue(imagined['meta']['attributed_material'])
+        self.assertEqual(imagined['text'],'角色扮演：我住在火星')
+        self.assertFalse(imagined['meta']['confirmed'])
+        self.assertEqual(self.brains['a'].meta['organizer_candidates'],[])
 
     def test_failed_tool_result_is_an_observed_episode_never_a_confirmed_user_fact(self):
         nid=self.brains['a'].add('网页工具失败','HTTP 404，任务未完成',kind='episode',
@@ -255,11 +264,14 @@ class OrganizerTests(unittest.TestCase):
         self.assertEqual(restored.status('a')['counts'].get('done'),1)
         self.assertEqual(len(self.calls),1)
 
-    def test_wrong_key_merge_or_user_edited_fact_is_reviewed_not_automatically_changed(self):
+    def test_wrong_key_merge_stays_separate_and_user_edited_fact_is_not_automatically_changed(self):
         self.run_raw();old=self.generated()[0]['id']
         self.reply=lambda p:{'version':1,'operations':[self.op(p,action='merge',target_id=old,key='unrelated.preference')]}
         self.run_raw('我住在北京')
-        self.assertEqual(len(self.brains['a'].meta['organizer_candidates']),1)
+        self.assertEqual(self.brains['a'].meta['organizer_candidates'],[])
+        separate=next(n for n in self.generated() if n['meta'].get('attributed_material'))
+        self.assertEqual(separate['meta']['material_basis'],'incompatible_source_statements')
+        self.assertEqual(self.brains['a'].nodes[old]['text'],'我住在北京')
         self.brains['a'].update(old,text='用户已经明确编辑的正文')
         self.reply=lambda p:{'version':1,'operations':[self.op(p,action='supersede',target_id=old)]}
         # Include enough literal overlap to make this related old record visible to the model.

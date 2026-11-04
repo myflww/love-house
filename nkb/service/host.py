@@ -147,6 +147,86 @@ class MemoryHost:
         try:
             for offset in range(0,len(ids),1000):self.usage.enqueue(library_id,ids[offset:offset+1000],kind)
         except Exception:pass  # Optional use metadata must not interrupt raw capture.
+    def memory_experience(self,library_id):
+        from .experience import experience_view
+        return experience_view(self,library_id)
+    def memory_timeline(self,library_id,*,cursor=None,limit=20,view='all',query=''):
+        from ..core.brain import Brain
+        from ..companion.lifecycle import timeline,correction_candidates
+        self.library(library_id)
+        brain=Brain(self.snapshot(library_id))
+        return {**timeline(brain,library_id=library_id,cursor=cursor,limit=limit,view=view,query=query),
+                'correction_candidates':correction_candidates(brain,library_id=library_id)}
+    def commitment_status(self,library_id,nid,data):
+        from ..companion.lifecycle import set_commitment_status
+        if not isinstance(data,dict) or set(data)-{'status','note'}:
+            raise ValidationError('约定更新仅接受状态和说明')
+        return self.transact(library_id,lambda brain:set_commitment_status(brain,nid,data.get('status'),data.get('note','')))
+    def verify_memory_correction(self,library_id,nid,data):
+        from ..core.brain import Brain
+        from .controls import verify_correction
+        if not isinstance(data,dict) or set(data)-{'previous_id','query'}:
+            raise ValidationError('更正核验仅接受原条目标识和核验问题')
+        if not isinstance(data.get('previous_id'),str) or not 1<=len(data['previous_id'])<=200:
+            raise ValidationError('请选择同一库内的原记忆条目')
+        return verify_correction(Brain(self.snapshot(library_id)),data.get('previous_id'),nid,data.get('query'))
+    def memory_feedback(self,cid,token,data,*,management=False,library_id=None):
+        """Host-verified references or an explicit local-user action, never self-attestation."""
+        from ..core.brain import Brain
+        from ..companion.lifecycle import verify_citations
+        from ..companion.structured import _record
+        allowed={'delivery_id','session_id','ids','kind','response_node_id','references',
+                 'source_id','runtime_agent_id','agent_id','library_id'}
+        if not isinstance(data,dict) or set(data)-allowed:
+            raise ValidationError('记忆反馈含未声明参数')
+        if self.usage is None:raise ValidationError('记忆反馈暂不可用')
+        with self.connections.binding_lock:
+            c=self.connections.get(cid) if management else self.connections.authenticate(cid,token)
+            if c['revoked'] or not c['enabled']:raise ValidationError('此连接已暂停或断开')
+            if library_id not in (None,c['library_id']) or data.get('library_id') not in (None,c['library_id']):
+                raise ValidationError('记忆反馈不属于当前记忆库')
+            sid=data.get('session_id')
+            if not isinstance(sid,str) or not sid.strip() or len(sid)>200:
+                raise ValidationError('记忆反馈需要原先已获准的窗口标识')
+            if c['session_scope']!='any' and c.get('bound_session_id')!=sid:
+                raise ValidationError('记忆反馈不能创建或改变窗口绑定')
+            if not management:
+                identity={key:data[key] for key in ('source_id','runtime_agent_id','agent_id','library_id') if key in data}
+                self.sources.check_context(c,{**identity,'query':'memory-feedback','session_id':sid})
+            lib=c['library_id'];brain=Brain(self.snapshot(lib))
+            if not self._usage_enabled.get(lib,False):raise ValidationError('已关闭记忆使用强化，未记录新的强化反馈')
+            ticket=self.usage.delivery(data.get('delivery_id'),lib,cid,sid,binding_revision=c.get('binding_revision',0))
+            ids=data.get('ids')
+            if not isinstance(ids,list) or not 1<=len(ids)<=1000 or any(not isinstance(nid,str) for nid in ids):
+                raise ValidationError('请选择这次已提供且仍有效的记忆')
+            tombstones=brain.meta.get('memory_tombstones',{}).get('node_ids',[])
+            for nid in ids:
+                node=brain.get(nid)
+                if (node is None or node.get('superseded_by') or node.get('meta',{}).get('memory_disabled')
+                        or node.get('meta',{}).get('forgotten') or nid in tombstones
+                        or not brain._node_state(node,time.time()).get('recoverable')
+                        or _record(brain,node,time.time(),lib)[1]):
+                    raise ValidationError('这条记忆已停用、更正或忘记，不能继续强化')
+            verified=[]
+            if data.get('kind')=='cited':
+                response_id=data.get('response_node_id')
+                if not isinstance(response_id,str) or not 1<=len(response_id)<=200:
+                    raise ValidationError('请选择实际归档回复的有效条目标识')
+                node=brain.get(response_id)
+                evidence=node.get('meta',{}).get('evidence',{}) if node else {}
+                rid=evidence.get('archive_receipt_id')
+                archive=self.read_archive(lib,rid) if isinstance(rid,str) else None
+                if (not archive or archive['connection_id']!=cid or archive['session_id']!=sid
+                        or archive.get('binding_revision',0)!=c.get('binding_revision',0)
+                        or archive['status']!='saved' or node['id'] not in json.loads(archive.get('node_ids') or '[]')):
+                    raise ValidationError('引用缺少本连接和窗口的实际归档回执')
+                outer=archive['record'];normal=outer.get('normalized') or (outer.get('record') or {}).get('normalized') or outer
+                reply=normal.get('assistant') if isinstance(normal,dict) else None
+                if not isinstance(reply,str):raise ValidationError('实际归档回复暂不可核对')
+                verified=verify_citations(brain,ticket,node['id'],data.get('references'),archived_reply=reply)
+            return {**self.usage.feedback(ticket['id'],lib,cid,sid,ids,data.get('kind'),
+                        verified_cited_ids=verified,management=management,binding_revision=c.get('binding_revision',0)),
+                    'library_id':lib,'connection_id':cid,'queued_for_next_save':True}
     def agent_sources_view(self,library_id):
         meta=self.library(library_id)
         registered=self.sources.list(library_id)
@@ -848,8 +928,15 @@ class MemoryHost:
         # itself remains read-only; use effects join the next actual graph save.
         if c['session_scope']=='any' or c.get('bound_session_id'):
             self.queue_memory_use(c['library_id'],[r['id'] for r in result.get('memory_context',{}).get('records',[])])
+        delivery=None
+        if self.usage is not None:
+            try:delivery=self.usage.issue_delivery(c['library_id'],cid,sid,
+                [r['id'] for r in result.get('memory_context',{}).get('records',[])],
+                binding_revision=c.get('binding_revision',0))
+            except Exception:pass  # Optional transparency never blocks scoped recall.
         backlog=self.connections.pending_count(c['library_id'])
-        return {**result,'library_id':c['library_id'],'connection_id':cid,'archive_pending':backlog}
+        return {**result,'library_id':c['library_id'],'connection_id':cid,'archive_pending':backlog,
+                'memory_delivery':delivery,'model_adoption_verified':False}
     def process_pending(self,*,library_id=None,receipt_id=None,limit=50):
         if not self._apply_lock.acquire(False):return
         try:
@@ -950,9 +1037,10 @@ def make_controller(host):
                 raise RequestError('请先在本机打开爱之屋界面；此管理接口需要界面会话',401)
         @staticmethod
         def _management_path(path):
-            return (path in ('/api/connections','/api/memory/status','/api/agent/sources','/api/activity')
+            return (path in ('/api/connections','/api/memory/status','/api/agent/sources','/api/activity',
+                            '/api/memory/experience','/api/memory/timeline','/api/memory/feedback')
                     or path in ('/api/persona/organize-preview','/api/persona/organize')
-                    or path.startswith(('/api/connections/','/api/agent/sources/','/api/activity/','/api/persona/traits/')))
+                    or path.startswith(('/api/connections/','/api/agent/sources/','/api/activity/','/api/persona/traits/','/api/commitments/')))
         def _guard_connection_surface(self,path):
             # A memory bearer is a per-connection capability, not a desktop
             # management credential. Local desktop requests without a bearer
@@ -1031,6 +1119,15 @@ def make_controller(host):
                     host.updates.start()
                     return self._json(host.updates.status())
                 if path=='/api/retention':return self._json(host.retention_view(self._chosen()))
+                if path=='/api/memory/experience':return self._json(host.memory_experience(self._chosen()))
+                if path=='/api/memory/timeline':
+                    from urllib.parse import parse_qs
+                    query=parse_qs(parsed.query)
+                    try:limit=int(query.get('limit',['20'])[0])
+                    except (ValueError,TypeError):raise ValidationError('每页经历数量须为有效整数') from None
+                    return self._json(host.memory_timeline(self._chosen(),limit=limit,
+                        cursor=query.get('cursor',[None])[0],view=query.get('view',['all'])[0],
+                        query=query.get('query',[''])[0]))
                 if path=='/api/agent/sources':return self._json(host.agent_sources_view(self._chosen()))
                 if path=='/api/experiences':
                     from urllib.parse import parse_qs
@@ -1105,19 +1202,27 @@ def make_controller(host):
                 if len(parts)>=3 and parts[0]=='connections' and parts[2]=='v1':
                     from .proxy import forward_chat
                     return forward_chat(self,host,parts[1])
-                if len(parts)==4 and parts[:2]==['api','connections'] and parts[3] in ('events','context','heartbeat','tool'):
+                if len(parts)==4 and parts[:2]==['api','connections'] and parts[3] in ('events','context','heartbeat','tool','memory-feedback'):
                     cid=parts[2];token=self._token();bound=host.connections.authenticate(cid,token)
                     if self.headers.get('X-NKB-Library') not in (None,bound['library_id']):
                         raise RequestError('请求的记忆库与固定连接不一致',403)
                     data=self._body(limit=32*1024*1024 if parts[3]=='events' else 1024*1024)
                     result=(host.accept(cid,token,data) if parts[3]=='events' else
                             host.connections.heartbeat(cid,data) if parts[3]=='heartbeat' else
-                            host.agent_tool(cid,token,data) if parts[3]=='tool' else host.context(cid,token,data))
+                            host.agent_tool(cid,token,data) if parts[3]=='tool' else
+                            host.memory_feedback(cid,token,data) if parts[3]=='memory-feedback' else host.context(cid,token,data))
                     return self._json(result)
                 if self.headers.get('Authorization') or self.headers.get('X-NKB-Connection-Key'):
                     raise RequestError('记忆连接只接受绑定工具和事件请求',403)
                 if self._management_path(path):self._require_management()
                 data=self._body(limit=130*1024*1024 if path in ('/api/sharing/import-preview','/api/sharing/import') else 25*1024*1024 if path in ('/api/dialogue-import/preview','/api/dialogue-import/apply') else 1024*1024)
+                if path=='/api/memory/feedback':
+                    cid=data.get('connection_id')
+                    if not isinstance(cid,str) or not 1<=len(cid)<=200:raise ValidationError('请选择本库内的连接')
+                    return self._json(host.memory_feedback(cid,None,{key:value for key,value in data.items() if key!='connection_id'},
+                        management=True,library_id=self._chosen()))
+                if len(parts)==4 and parts[:2]==['api','commitments'] and parts[3]=='status':
+                    return self._json(host.commitment_status(self._chosen(),parts[2],data))
                 if len(parts)==5 and parts[:2]==['api','connections'] and parts[3:]==['workbuddy','configure']:
                     cid=parts[2];connection=host.connections.get(cid,secret=True)
                     if connection['host']!='agent' or connection['revoked'] or host.sources.for_connection(cid):raise ValidationError('此连接不支持WorkBuddy配置')
@@ -1206,9 +1311,15 @@ def make_controller(host):
                     return self._json(getattr(host.organizer,parts[4])(parts[3]))
                 if len(parts)==4 and parts[:2]==['api','memories']:
                     lib=self._chosen();nid=parts[2];action=parts[3]
+                    if action=='verify':
+                        self._require_management()
+                        return self._json(host.verify_memory_correction(lib,nid,data))
                     from .controls import set_enabled,correct
                     if action=='enabled':return self._json(host.transact(lib,lambda b:set_enabled(b,nid,data.get('enabled'))))
-                    if action=='correct':return self._json(host.transact(lib,lambda b:correct(b,nid,data.get('text'),data.get('label'))))
+                    if action=='correct':
+                        if data.get('source_id') is not None or 'source_confirmed_as_self' in data:self._require_management()
+                        return self._json(host.transact(lib,lambda b:correct(b,nid,data.get('text'),data.get('label'),
+                            source_id=data.get('source_id'),source_confirmed_as_self=data.get('source_confirmed_as_self',False))))
                     if action=='forget-preview':
                         plan=host.forget_preview(lib,nid)
                         return self._json({'read_only':True,'node_count':len(plan['node_ids']),'archive_count':len(plan['raw_ids']),'copied_archive_count':len(host.connections.forgetting(lib,plan['raw_ids'],plan['texts'])['redacted_receipt_ids']),

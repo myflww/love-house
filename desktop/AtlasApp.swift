@@ -59,7 +59,9 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         if smokeMode {
             // Only public update fixtures are intercepted. Memory/model API
             // requests still use the real isolated local Controller.
-            configuration.userContentController.addUserScript(WKUserScript(source: Self.smokeUpdateFixture,
+            let productVersion = Bundle.main.object(forInfoDictionaryKey: "LoveHouseProductVersion") as? String ?? "0.0.0"
+            let fixture = Self.smokeUpdateFixture.replacingOccurrences(of: "__NATIVE_PRODUCT_VERSION__", with: productVersion)
+            configuration.userContentController.addUserScript(WKUserScript(source: fixture,
                 injectionTime: .atDocumentStart, forMainFrameOnly: true))
         }
         configuration.userContentController.add(self, name: "saveMemoryFile")
@@ -473,7 +475,7 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
           const release={version:'99.0.0',tag:'v99.0.0',notes:'Synthetic native startup update notice.',prerelease:false,
             url:'https://github.com/myflww/love-house/releases/tag/v99.0.0',
             asset_url:'https://github.com/myflww/love-house/releases/download/v99.0.0/LoveHouse-macOS-arm64.zip'};
-          return new Response(JSON.stringify({current_version:'0.10.3rc1',platform:'macos',architecture:'arm64',
+          return new Response(JSON.stringify({current_version:'__NATIVE_PRODUCT_VERSION__',platform:'macos',architecture:'arm64',
             settings:{auto_check:true,channel:'stable'},status:state.checked?'available':'not_checked',checking:false,
             available:state.checked,checked_at:state.checked?1700000000:null,release:state.checked?release:null,retry_after:0}),
             {status:200,headers:{'Content-Type':'application/json'}});
@@ -636,11 +638,43 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         }
     }
 
+    private static let smokeControlHelper = #"""
+    const nativeVisible=e=>!!e&&!e.hidden&&!e.closest('[hidden]')&&getComputedStyle(e).display!=='none'&&getComputedStyle(e).visibility!=='hidden'&&e.getClientRects().length>0;
+    const nativeClick=async id=>{
+     const e=document.getElementById(id);if(!e)throw Error('workspace_control');
+     if(!nativeVisible(e)){
+      const menu=e.closest('#workspaceDisplayMenu,#workspaceAddMenu');
+      if(menu){const trigger=document.getElementById(menu.id==='workspaceDisplayMenu'?'workspaceDisplayButton':'workspaceAddButton');if(!nativeVisible(trigger))throw Error('workspace_control');trigger.click();}
+      else if(e.closest('#sidebar')){const trigger=document.getElementById('menuBtn');if(!nativeVisible(trigger))throw Error('workspace_control');trigger.click();}
+     }
+     e.scrollIntoView({block:'nearest'});
+     const r=e.getBoundingClientRect();if(!nativeVisible(e)||e.disabled||r.right<=0||r.left>=innerWidth||r.bottom<=0||r.top>=innerHeight)throw Error('workspace_control');
+     e.click();await new Promise(resolve=>setTimeout(resolve,0));
+    };
+    """#
+
+    private func verifyGuidedWorkspace() async throws {
+        guard let resource = Bundle.main.url(forResource: "NativeWorkspaceSmoke", withExtension: "js") else {
+            throw NSError(domain: "NeuralAtlasSmoke", code: 4, userInfo: [NSLocalizedDescriptionKey: "Shared native workspace probe is missing"])
+        }
+        let script = try String(contentsOf: resource, encoding: .utf8)
+        let result = try await webView.callAsyncJavaScript(script, arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+        let checks = ["navigation", "no_overflow", "add_and_import_menu", "escape_focus_restored", "add_cancel_read_only",
+                      "display_menu", "experience_scope", "commitment_scope", "connection_scope", "model_adoption_not_claimed", "read_only"]
+        for key in checks {
+            try requireSmoke(result?[key] as? Bool == true, "Native workspace check failed: \(key)")
+        }
+        try requireSmoke(result?["model_calls"] as? Int == 0, "Native workspace probe attempted a model call")
+        smokeSteps.append("guided_workspace_visible_navigation_menus_focus_and_scoped_views")
+        print("Native workspace: labelled navigation, visible menus, Escape focus, read-only experiences and connection status verified")
+    }
+
     private func verifyViewportAndRestart() {
         Task {
             do {
+                try await verifyGuidedWorkspace()
                 smokeSteps.append("viewport_probe_started")
-                let result = try await webView.callAsyncJavaScript("""
+                let result = try await webView.callAsyncJavaScript(Self.smokeControlHelper + """
                     try {
                     const c=document.getElementById('cv');
                     const wait=async(predicate)=>{const end=performance.now()+6000;while(!predicate()){if(performance.now()>end)throw new Error('Native viewport did not settle '+JSON.stringify({mode:S.view.mode,sim:S.sim,visible:S.visible.length,hidden:document.hidden,target:!!S.view.target,k:S.cam.k,targetK:S.view.target?.k}));await new Promise(r=>setTimeout(r,30));}};
@@ -676,7 +710,7 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                 try requireSmoke(result?["restored"] as? String == "auto", "Fit button did not restore automatic viewport")
                 smokeSteps.append("viewport_zoom_reload_labels_fit_verified")
                 print("Native viewport controls: automatic view, manual zoom/reload, labels and fit verified")
-                let rotation = try await webView.callAsyncJavaScript("""
+                let rotation = try await webView.callAsyncJavaScript(Self.smokeControlHelper + """
                     const c=document.getElementById('cv'),art=document.getElementById('artCanvas');
                     const originalMatchMedia=globalThis.matchMedia,motionQuery='(prefers-reduced-motion: reduce)';
                     const actualHostReducedMotion=!!originalMatchMedia.call(globalThis,motionQuery).matches;
@@ -701,7 +735,7 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                     c.dispatchEvent(new PointerEvent('pointerenter',{pointerId:919,pointerType:'mouse',clientX:c.getBoundingClientRect().left+10,clientY:c.getBoundingClientRect().top+10}));schedule();
                     await wait(()=>art.dataset.autoRotateReason==='rotating');const before=Number(art.dataset.autoRotateYaw);await pause();
                     const hoverRotates=Number(art.dataset.autoRotateYaw)>before&&art.dataset.autoRotateHovered==='true';
-                    const row=document.querySelector('#nodeList .node-row');if(!row)throw new Error('Native node row missing');
+                    const row=document.querySelector('#nodeList .node-row');if(!row)throw new Error('Native node row missing');if(!nativeVisible(row))await nativeClick('menuBtn');row.scrollIntoView({block:'nearest'});if(!nativeVisible(row))throw new Error('Native node row is hidden');
                     row.click();await wait(()=>!!S.selected&&art.dataset.autoRotateReason==='selected');const held=Number(art.dataset.autoRotateYaw);await pause();
                     const selectionStops=Math.abs(Number(art.dataset.autoRotateYaw)-held)<.000001;
                     select(null);await wait(()=>art.dataset.autoRotateReason==='rotating');const resume=Number(art.dataset.autoRotateYaw);await pause();

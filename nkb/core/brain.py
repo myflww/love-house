@@ -15,6 +15,7 @@ from __future__ import annotations
 import uuid
 import math
 import re
+from hashlib import sha256
 from bisect import bisect_left, bisect_right
 from copy import deepcopy
 from pathlib import Path
@@ -300,6 +301,9 @@ class Brain:
                     archived[nid] = invalid_at
         del self.nodes[nid]
         self._vec.pop(nid, None)
+        cache = getattr(self, "_semantic_vectors", None)
+        if isinstance(cache, dict):
+            cache.get("entries", {}).pop(nid, None)
         for key in [k for k in self.edges if nid in k.split("|", 1)]:
             del self.edges[key]
         if _sync:
@@ -572,15 +576,24 @@ class Brain:
         min_score = cfg.min_score if min_score is None else min_score
 
         ref = _now() if as_of is None else self._number(as_of, "as_of")
-        states = {nid: self._node_state(n, ref) for nid, n in self.nodes.items()}
-        allowed = {nid for nid, n in self.nodes.items()
-                   if (not kinds or n["kind"] in kinds)
-                   and (candidate_ids is None or nid in candidate_ids)
-                   and states[nid]["history_available"]
+        # A reserved lane may contain only a handful of records in a large
+        # library. Evaluate those records once while keeping the full Brain
+        # available to lifecycle/anchor evidence checks.
+        nodes = {nid: n for nid, n in self.nodes.items()
+                 if (candidate_ids is None or nid in candidate_ids) and (not kinds or n["kind"] in kinds)}
+        states = {nid: self._node_state(n, ref) for nid, n in nodes.items()}
+        allowed = {nid for nid, n in nodes.items()
+                   if states[nid]["history_available"]
                    and n.get("valid_from", n["created"]) <= ref
                    and (not n.get("event_recorded") or n.get("event_at", 0) <= ref)
                    and (include_expired or states[nid]["recoverable"])}
-        seeds = {i: v for i, v in self.seed_scores(query, as_of=ref).items() if i in allowed}
+        if type(self.scorer) is OverlapScorer:
+            projected = {nid: {**nodes[nid], "salience": states[nid]["effective_salience"]}
+                         for nid in nodes if nid in allowed and self._version_known(nodes[nid], ref)}
+            seeds = self.scorer(projected, self._vec, query, cfg.seed_floor, self.encoder)
+        else:
+            # Third-party scorers may depend on corpus-wide statistics.
+            seeds = {i: v for i, v in self.seed_scores(query, as_of=ref).items() if i in allowed}
         if not seeds:
             return {"query": query, "hits": [], "steps": steps, "seeds": [],
                     "trail": [], "visited": 0,
@@ -1046,7 +1059,16 @@ class Brain:
 
     def _vec_for(self, n: dict) -> set:
         raw = f'{n["label"]} {n.get("text", "")} {" ".join(n.get("tags") or [])}'
-        return set(self.encoder(raw))
+        vector = set(self.encoder(raw))
+        # Keep a digest of the exact encoding input alongside the existing
+        # vector. Semantic reads can verify reuse without retaining body text
+        # or constructing a second full set of corpus vectors.
+        cache = getattr(self, "_semantic_vectors", None)
+        if not isinstance(cache, dict) or cache.get('encoder') is not self.encoder:
+            cache = {'encoder': self.encoder, 'entries': {}}
+            self._semantic_vectors = cache
+        cache['entries'][n['id']] = (sha256(raw.encode('utf-8')).digest(), vector)
+        return vector
 
     def _auto_link_vec_for(self, n: dict) -> set:
         """Keep retrieval unchanged; only explicit content can propose a new edge.

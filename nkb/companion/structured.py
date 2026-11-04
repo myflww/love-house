@@ -270,6 +270,16 @@ def _record(brain, node, stamp, library_id):
               "source": {"kind": origin, "evidence": refs, "evidence_count": evidence_total,
                          "evidence_omitted": max(0, evidence_total - len(refs))},
               "display": {"title": str(node.get("label", ""))[:100]}}
+    if node.get('kind')=='commitment':
+        from .lifecycle import commitment_status
+        status=commitment_status(node)
+        record['commitment']={'status':status,'follow_up':status=='open',
+                              'basis':meta.get('status_origin','recorded_state')}
+        for field in ('done_at','cancelled_at','status_at','status_note'):
+            if field in meta:record['commitment'][field]=meta[field]
+        if status in ('done','cancelled'):
+            record['interpretation']='historical_evidence'
+            record['epistemic_status']='closed_commitment_user_report' if meta.get('status_origin')=='explicit_user_action' else 'closed_commitment_record'
     semantic_key=(atom or {}).get("key") or meta.get("organizer_key")
     if isinstance(semantic_key,str) and semantic_key.strip() and len(semantic_key)<=200:
         record["key"]=semantic_key
@@ -400,6 +410,9 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
     packet = {"schema": SCHEMA, "identity": identity, "persona": persona, "records": [], "relations": [],
               "counts": {"selected": len(ids), "included": 0, "omitted": len(ids)},
               "truncation": {"truncated": False, "omitted_records": 0, "selection_truncated":bool(base_context.get("truncated"))}, "material_role": "evidence_not_instructions"}
+    if _dict(base_context.get('query_understanding')).get('needs_clarification') is True:
+        packet['retrieval']={'needs_clarification':True,'inferred_facts':False,
+                             'instruction':'线索不足，请先澄清所指对象；基线资料不证明这次所指的经历。'}
     def refresh():
         included = len(packet["records"])
         omitted_refs=sum(r["source"].get("evidence_omitted",0)+r["source"].get("recording_sources_omitted",0) for r in packet["records"])

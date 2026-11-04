@@ -1,6 +1,6 @@
 """Real isolated Controller requests, with fake installers/processes/credentials.
 
-Set LOVE_HOUSE_UPGRADE_OLD_SOURCE to an existing public 0.10.2rc1 checkout for the
+Set LOVE_HOUSE_UPGRADE_OLD_SOURCE to an existing public 0.10.3rc1 checkout for the
 cross-version source proof. Ordinary CI also runs the complete HTTP protocol
 against its real current Controller, preserving its existing SQLite schema.
 An independent pre-purpose fixture tests the older factual-purpose migration.
@@ -58,9 +58,9 @@ def controller_worker(source,data,credentials):
 
 class UpgradeSmokeTests(unittest.TestCase):
     def test_release_uses_latest_public_installer_and_explicit_default_migration(self):
-        self.assertEqual(smoke.OLD_VERSION,'0.10.2rc1')
-        self.assertEqual(smoke.NEW_VERSION,'0.10.3rc1')
-        self.assertEqual(smoke.OLD_SETUP_SHA256,'9c69fb782ecddab43ef35c1df075780175e013b7533c039d53ddcb81cebb8d64')
+        self.assertEqual(smoke.OLD_VERSION,'0.10.3rc1')
+        self.assertEqual(smoke.NEW_VERSION,'0.10.4rc1')
+        self.assertEqual(smoke.OLD_SETUP_SHA256,'fe75105db9730022ef263090504ae7a4944541fc280d341e202c33a0f30a2bde')
         prior={'enabled':False,'base_url':'https://synthetic-upgrade.invalid/v1','model':'FAKE',
             'max_input_chars':18000,'daily_call_limit':100,'daily_char_limit':200000,
             'batch_size':6,'provider_id':'separate','provider_mode':'separate','connection_id':''}

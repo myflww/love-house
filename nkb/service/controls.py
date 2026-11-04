@@ -43,17 +43,76 @@ def set_enabled(brain,nid,enabled):
     for i in ids:brain.nodes[i]['meta']['memory_disabled']=not enabled
     return {'id':nid,'enabled':enabled,'affected_ids':sorted(ids)}
 
-def correct(brain,nid,text,label=None):
+def correct(brain,nid,text,label=None,source_id=None,source_confirmed_as_self=False):
     if nid not in brain.nodes:raise ValidationError('记忆不存在')
     if not isinstance(text,str) or not text.strip() or len(text)>40000:raise ValidationError('更正内容须为1~40000字')
     if label is not None and (not isinstance(label,str) or not label.strip() or len(label)>100):raise ValidationError('标题须为1~100字')
+    if type(source_confirmed_as_self) is not bool or source_confirmed_as_self and source_id is None:
+        raise ValidationError('更正来源身份确认须对应明确选择的原始发言')
+    source_ownership=None
+    if source_id is not None:
+        from ..companion.lifecycle import correction_source,correction_candidates
+        source=correction_source(brain,source_id,allow_external=source_confirmed_as_self) if isinstance(source_id,str) else None
+        if source is None:
+            raise ValidationError('纠正来源须为当前库内可核对的本人直接发言')
+        if source['actor_scope']=='external_participant':
+            if brain.get(nid).get('kind') not in ('fact','preference','commitment'):
+                raise ValidationError('请手动选择这次本人更正对应的事实、偏好或约定')
+            source_ownership='explicit_user_confirmation'
+        else:
+            proposals=correction_candidates(brain,library_id=brain.meta.get('library_id'),source_id=source_id)
+            if not proposals or nid not in {item['id'] for item in proposals[0]['candidates']}:
+                raise ValidationError('这项记忆不属于该纠正发言的可核对候选，请重新选择或手动更正')
+            source_ownership='direct_first_party_capture'
     old=brain.nodes[nid]
+    if old.get('superseded_by') or old.get('meta',{}).get('forgotten'):
+        raise ValidationError('这条记忆已有更正或已被忘记，请打开当前有效条目再更正')
     disabled=set_enabled(brain,nid,False)['affected_ids']
+    stamp=time.time()
+    # Nominal topic tags aid the same question after a correction; sentences or
+    # outdated preference assertions must never become the replacement's title.
+    from ..companion.lifecycle import safe_topic_tags,nominal_topic
+    tags=safe_topic_tags(old)
+    subject=old.get('meta',{}).get('organizer_subject')
     new=brain.add(label or text.strip().splitlines()[0][:80],text.strip(),kind=old['kind'] if old['kind'] in ('fact','preference','episode','commitment') else 'fact',
-       salience=.8,meta={'source':'user_confirmed','confirmed':True,'important':bool(old.get('important')),
-                        'speaker':'user','corrects':nid,'corrected_at':time.time()})
-    brain.link(nid,new,.35)
-    return {'id':new,'previous_id':nid,'disabled_ids':disabled,'saved':True}
+       salience=.8,tags=tags,session_id=old.get('session_id'),meta={'source':'user_confirmed','confirmed':True,
+                        'important':bool(old.get('important') or old.get('meta',{}).get('important')),
+                        'speaker':'user','corrects':nid,'corrected_at':stamp,
+                        **({'correction_source_id':source_id,'source_ids':[source_id],
+                            'correction_source_ownership':source_ownership} if source_id is not None else {}),
+                        **({'retrieval_subject':subject} if nominal_topic(subject) else {}),
+                        **({'library_id':brain.meta['library_id']} if brain.meta.get('library_id') else {}),
+                        **({field:old.get('meta',{})[field] for field in ('status','status_origin','status_at','status_note','done_at','cancelled_at')
+                            if field in old.get('meta',{})} if old['kind']=='commitment' else {})})
+    brain.supersede(nid,new,at=stamp)
+    verification=verify_correction(brain,nid,new)
+    return {'id':new,'previous_id':nid,'disabled_ids':disabled,'saved':True,
+            'change_scope':{'library_id':brain.meta.get('library_id'),'previous_id':nid,
+                            'replacement_id':new,'disabled_count':len(disabled),
+                            'disabled_ids':disabled,'original_preserved':True},
+            'verification':verification}
+
+def verify_correction(brain,previous_id,replacement_id,query=None):
+    """Re-run selection against this committed/scoped snapshot, never a model ACK."""
+    old,new=brain.get(previous_id),brain.get(replacement_id)
+    if (old is None or new is None or new.get('meta',{}).get('corrects')!=previous_id
+            or old.get('superseded_by')!=replacement_id):
+        raise ValidationError('找不到同一库内的有效更正关系')
+    from ..companion.memory import build_context
+    if query is not None and (not isinstance(query,str) or not query.strip() or len(query)>40000):
+        raise ValidationError('核验问题须为1~40000字')
+    from ..companion.lifecycle import commitment_status
+    probe=query or old['label'][:4000]
+    if query is None and commitment_status(new) in ('done','cancelled'):probe='历史约定状态：'+probe
+    result=build_context(brain,probe,library_id=brain.meta.get('library_id'))
+    ids=result['memory_ids']
+    affected=related(brain,[previous_id])-{replacement_id}
+    leaks=sorted(set(ids)&affected)
+    return {'checked_at':time.time(),'query':probe,
+            'previous_excluded':previous_id not in ids,'replacement_included':replacement_id in ids,
+            'disabled_material_excluded':not leaks,'leaked_ids':leaks,'provided_ids':ids,
+            'selection_verified':replacement_id in ids and not leaks,
+            'model_adoption_verified':False,'will_call_model':False,'read_only':True}
 
 def forget_plan(brain,nid,extra_ids=()):
     if nid not in brain.nodes:raise ValidationError('记忆不存在')

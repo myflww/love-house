@@ -58,6 +58,16 @@ def project_version():
     raise RuntimeError("Missing literal __version__ in nkb/_version.py")
 
 
+def native_workspace_script():
+    """Share the actual Windows/Mac DOM acceptance without evaluating Python."""
+    tree = ast.parse((ROOT / 'desktop/workspace_smoke.py').read_text('utf-8'))
+    for statement in tree.body:
+        if (isinstance(statement, ast.Assign)
+                and any(isinstance(target, ast.Name) and target.id == 'SCRIPT' for target in statement.targets)):
+            return ast.literal_eval(statement.value)
+    raise RuntimeError('Missing shared native workspace acceptance')
+
+
 def run(args, **kwargs):
     subprocess.run([str(a) for a in args], check=True, **kwargs)
 
@@ -464,6 +474,7 @@ def main():
     executable = contents / "MacOS/NeuralAtlas"
     executable.parent.mkdir(parents=True)
     resources.mkdir()
+    (resources / 'NativeWorkspaceSmoke.js').write_text(native_workspace_script(), encoding='utf-8')
     print(f"Bundling runtime: {runtime}")
     ignore = shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo", ".DS_Store", ".pytest_cache", "node_modules", ".git")
     shutil.copytree(runtime, resources / "python", symlinks=True, ignore=ignore)
@@ -543,7 +554,7 @@ def main():
         "CFBundleIdentifier": BUNDLE_ID, "CFBundleExecutable": "NeuralAtlas",
         "CFBundlePackageType": "APPL", "CFBundleShortVersionString": re.match(r"\d+\.\d+\.\d+", project_version()).group(),
         "LoveHouseProductVersion": project_version(),
-        "CFBundleVersion": "17", "CFBundleIconFile": "LoveHouse",
+        "CFBundleVersion": "18", "CFBundleIconFile": "LoveHouse",
         "LSMinimumSystemVersion": "13.0", "NSHighResolutionCapable": True,
         "NSSupportsAutomaticGraphicsSwitching": True,
         "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},

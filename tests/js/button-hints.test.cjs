@@ -104,3 +104,21 @@ test('modal help mounts in its dialog and is removed from accessibility descript
   button.isConnected=false;e.observers[0]([{type:'childList',target:dialog,addedNodes:[]}]);
   assert.equal(e.tip.hidden,true);assert.equal(button.getAttribute('aria-describedby'),null);
 });
+
+test('ordinary named actions do not show pointer help, while symbol and disabled controls retain it',()=>{
+  const e=environment(),named=e.button('completePromise','已完成');e.doc.hitTarget=named;e.fire('pointerover',{target:named,pointerType:'mouse',clientX:110,clientY:60});e.flush();assert.equal(e.tip.hidden,true);
+  const icon=e.button('displaySymbol','?');icon.className='icon-btn';e.doc.hitTarget=icon;e.fire('pointerover',{target:icon,pointerType:'mouse',clientX:110,clientY:60});e.flush();assert.equal(e.tip.hidden,false);
+  named.disabled=true;e.doc.hitTarget=named;e.fire('pointermove',{target:named,pointerType:'mouse',clientX:120,clientY:70});e.flush();assert.equal(e.tip.hidden,false);
+});
+
+test('a click and a replaced control under the stationary pointer never reopen stale help',()=>{
+  const e=environment();e.doc.hitTarget=e.add;e.fire('pointerover',{target:e.add,pointerType:'mouse',clientX:110,clientY:60});e.flush();assert.equal(e.tip.hidden,false);
+  e.fire('pointerdown',{target:e.add,clientX:110,clientY:60});e.fire('click',{target:e.add});
+  const replacement=e.button('replacement','?');replacement.className='icon-btn';e.doc.hitTarget=replacement;e.fire('pointerover',{target:replacement,pointerType:'mouse',clientX:110,clientY:60});e.fire('pointermove',{target:replacement,pointerType:'mouse',clientX:111,clientY:61});e.flush();assert.equal(e.tip.hidden,true);
+  e.fire('pointermove',{target:replacement,pointerType:'mouse',clientX:130,clientY:80});e.flush();assert.equal(e.tip.hidden,false,'genuine new hover restores help');
+});
+
+test('Escape inside a modal hides its help without preventing the native one-key cancel',()=>{
+  const e=environment(),dialog=e.doc.createElement('dialog');dialog.setAttribute('open','');e.doc.body.append(dialog);const button=e.button('modalAction','保存');dialog.append(button);
+  e.fire('focusin',{target:button});e.flush();assert.equal(e.tip.hidden,false);const event=e.fire('keydown',{key:'Escape'});assert.equal(e.tip.hidden,true);assert.equal(event.prevented,undefined);assert.equal(event.stopped,undefined);
+});

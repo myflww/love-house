@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import tempfile
 import threading
+from workspace_smoke import SCRIPT as WORKSPACE_SCRIPT, CONTROL_HELPER, CHECKS as WORKSPACE_CHECKS, CODES as WORKSPACE_CODES
 
 PERSONA_CHECKS=('defaultPersonaOn','defaultTogglesOn','manualEmpty','manualFolded','formedLayerPrimary',
     'apiRecommendation','noKeyPreviewOpen','noKeyCannotStart','noKeyCanConfigure','noKeyPreviewHonest',
@@ -25,7 +26,8 @@ SAFE_ERROR_NAMES=frozenset(('Error','TypeError','ReferenceError','RangeError','S
 SAFE_CODES=frozenset((*GRAPH_CHECKS,*(('graph_wait_'+stage) for stage in GRAPH_WAITS),
     *(('persona_'+check) for check in PERSONA_CHECKS),'persona_paid_requests','persona_library',
     'persona_evaluation','graph_evaluation','persona_response','graph_response',
-    'persona_script_error','graph_script_error','graph_result'))
+    'persona_script_error','graph_script_error','graph_result',*WORKSPACE_CODES,
+    'workspace_evaluation','workspace_response','workspace_script_error','workspace_result'))
 
 
 class NativeFeatureFailure(AssertionError):
@@ -148,16 +150,16 @@ try{
   const uiAppearance=()=>JSON.stringify({tokens:['--bg','--paper','--panel','--soft','--line','--ink','--muted','--accent','--accent-soft','--gold','--danger','--shadow'].map(k=>getComputedStyle(document.documentElement).getPropertyValue(k)),elements:['header','#settings','#addBtn','#themeBtn','#tooltip','#aiPanel','#q','#personaText','#personaEnabled','#newLibraryDialog'].map(selector=>{const e=document.querySelector(selector);check(!!e,'graph_appearance_target');return ['', '::before','::after',...(selector==='#newLibraryDialog'?['::backdrop']:[])].map(pseudo=>{const s=getComputedStyle(e,pseudo||null);return [s.backgroundColor,s.color,s.borderColor,s.backgroundImage,s.filter,s.fontFamily,s.boxShadow,s.accentColor,s.colorScheme];});})});
   const appearance=uiAppearance(),theme=document.documentElement.dataset.theme;
   setStage('theme');
-  document.getElementById('themeBtn').click();await paint();
+  await nativeClick('themeBtn');await paint();
   check(document.documentElement.dataset.theme!==theme&&uiAppearance()===appearance,'graph_theme_ui');
   setStage('theme-restore');
-  document.getElementById('themeBtn').click();await paint();
+  await nativeClick('themeBtn');await paint();
   check(document.documentElement.dataset.theme===theme&&uiAppearance()===appearance,'graph_theme_reverse');
-  document.getElementById('viewBtn').click();
+  await nativeClick('viewBtn');
   setStage('flat');
   await wait(()=>S.graphMode==='flat'&&!artRenderer.isTransitioning());await paint();
   check(c.dataset.graphMode==='flat'&&Number(c.dataset.viewCount)===3,'graph_flat');
-  document.getElementById('viewBtn').click();
+  await nativeClick('viewBtn');
   setStage('nebula');
   await wait(()=>S.graphMode==='nebula'&&!artRenderer.isTransitioning()&&!!S.view.target&&Math.abs(Math.log(S.cam.k/S.view.target.k))<.01);await paint();
   check(c.dataset.graphMode==='nebula'&&Number(c.dataset.viewCount)===3,'graph_nebula');
@@ -188,9 +190,9 @@ try{
   check(document.getElementById('miniPanel').hidden,'graph_minimap_off');
   setStage('pause');
   const paused=S.paused;
-  document.getElementById('pauseBtn').click();await paint();
+  await nativeClick('pauseBtn');await paint();
   check(S.paused!==paused&&document.getElementById('pauseBtn').getAttribute('aria-pressed')===String(S.paused),'graph_pause_on');
-  document.getElementById('pauseBtn').click();await paint();check(S.paused===paused,'graph_pause_off');
+  await nativeClick('pauseBtn');await paint();check(S.paused===paused,'graph_pause_off');
   setStage('canvas');
   check(Number.isFinite(S.dpr)&&S.dpr>0&&c.width>0&&c.height>0,'graph_canvas');
   const graphBefore=await api('graph');
@@ -235,13 +237,17 @@ def verify_latest_ui(window,runtime):
     if persona['paidRequests']!=0:raise NativeFeatureFailure('persona_paid_requests')
     library=persona['optoutLibraryId']
     if not isinstance(library,str) or library=='default':raise NativeFeatureFailure('persona_library')
-    graph=evaluate(window,GRAPH_SCRIPT.replace('TEST_LIBRARY',json.dumps(library)))
+    workspace=evaluate(window,WORKSPACE_SCRIPT,name='workspace',timeout=45)
+    if any(workspace.get(key) is not True for key in WORKSPACE_CHECKS) or workspace.get('model_calls')!=0:
+        raise NativeFeatureFailure('workspace_result')
+    graph=evaluate(window,CONTROL_HELPER+GRAPH_SCRIPT.replace('TEST_LIBRARY',json.dumps(library)))
     if not (graph['counts']==[0,1,2,3] and graph['painter']=='approved-canvas' and graph['topics']==3):raise NativeFeatureFailure('graph_result')
     snapshot=runtime.host.snapshot(library)
     result={'status':'passed','persona_controls':'passed','read_only_model_calls':0,'independent_topics':3,
         'default_edges':0,'joint_recall_edges':0,'approved_painter':'approved-canvas','graph_modes':['nebula','flat'],
         'graph_only_theme':'passed','canonical_coordinates_and_recalls':'passed','viewport_and_labels':'passed',
-        'details_minimap_pause':'passed','native_canvas_dpr':graph['canvasDpr']}
+        'details_minimap_pause':'passed','native_canvas_dpr':graph['canvasDpr'],
+        'guided_workspace':{key:workspace[key] for key in WORKSPACE_CHECKS}}
     return result,{'library':library,'snapshot':snapshot,'selected':runtime.host.manager.selected_id}
 
 

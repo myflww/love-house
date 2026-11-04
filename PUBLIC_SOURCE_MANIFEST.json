@@ -553,8 +553,8 @@
     },
     {
       "path": "desktop/AtlasApp.swift",
-      "bytes": 56344,
-      "sha256": "6d27445bc838302da971eacd34e1c88530bde2a6dea665aaab5e9759116a96ae"
+      "bytes": 58109,
+      "sha256": "73c5e30ea2ae7950f8deb1d9631f67132d877f3ea39e1310cecb6cf05fd8b2c7"
     },
     {
       "path": "desktop/deepseek-harness-overlay.example.yaml",

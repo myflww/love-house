@@ -30,6 +30,7 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
     private var smokeControllerPort: Int?
     private var smokeVersion = ""
     private var smokeSteps: [String] = []
+    private var smokeFailure = ""
     private let smokeSession = URLSession(configuration: .ephemeral)
     private var smokeReportURL: URL? {
         guard let index = CommandLine.arguments.firstIndex(of: "--smoke-report"), index + 1 < CommandLine.arguments.count else { return nil }
@@ -448,7 +449,7 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         guard let destination = smokeReportURL else { return }
         let cleaned = !files.fileExists(atPath: smokeDirectory.path)
         let report: [String: Any] = ["ok": smokeExitCode == 0 && cleaned, "version": smokeVersion,
-            "process_complete": process == nil, "stage": smokeStage, "steps": smokeSteps,
+            "process_complete": process == nil, "stage": smokeStage, "steps": smokeSteps, "failure": smokeFailure,
             "isolation": ["temporary_data": true, "data_removed": cleaned, "uses_user_data": false,
                           "real_provider_calls": false, "release_network": false],
             "startup_update_source": "synthetic_public_release_fixture"]
@@ -484,6 +485,16 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
 
     private func failSmoke(_ error: Error) {
         print("Native desktop self-test failed: \(error.localizedDescription)")
+        let details = error as NSError
+        // WKError otherwise replaces our fixed acceptance failures with the
+        // generic "A JavaScript exception occurred". Only isolated synthetic
+        // smoke probes use this path; no provider text or cookie is reported.
+        if let message = details.userInfo["WKJavaScriptExceptionMessage"] as? String {
+            smokeFailure = String(message.prefix(500))
+            print("Native JavaScript failure: \(smokeFailure)")
+        } else {
+            smokeFailure = String(error.localizedDescription.prefix(500))
+        }
         NSApp.terminate(nil)
     }
 
@@ -624,9 +635,11 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
     private func verifyViewportAndRestart() {
         Task {
             do {
+                smokeSteps.append("viewport_probe_started")
                 let result = try await webView.callAsyncJavaScript("""
+                    try {
                     const c=document.getElementById('cv');
-                    const wait=async(predicate)=>{const end=performance.now()+6000;while(!predicate()){if(performance.now()>end)throw new Error('Native viewport did not settle');await new Promise(r=>setTimeout(r,30));}};
+                    const wait=async(predicate)=>{const end=performance.now()+6000;while(!predicate()){if(performance.now()>end)throw new Error('Native viewport did not settle '+JSON.stringify({mode:S.view.mode,sim:S.sim,visible:S.visible.length,hidden:document.hidden,target:!!S.view.target,k:S.cam.k,targetK:S.view.target?.k}));await new Promise(r=>setTimeout(r,30));}};
                     const paint=async()=>{schedule();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));};
                     await wait(()=>S.view.mode==='auto'&&S.sim===0&&S.view.target&&Math.abs(Math.log(S.cam.k/S.view.target.k))<.01);
                     await paint();
@@ -642,7 +655,9 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                     document.getElementById('fitBtn').click();await paint();
                     await wait(()=>S.view.mode==='auto'&&c.dataset.viewMode==='auto'&&!!S.view.target);
                     return {initial,manualMode:manual.mode,preserved,restored:c.dataset.viewMode,labelsOn,labelsOff};
+                    } catch(error) { return {nativeProbeFailure:String(error?.message||error),probe:'viewport'}; }
                     """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                try requireSmoke(result?["nativeProbeFailure"] == nil, "Native viewport JavaScript: \(result?["nativeProbeFailure"] as? String ?? "unknown")")
                 let initial = result?["initial"] as? [String: Any]
                 try requireSmoke(initial?["mode"] as? String == "auto" && initial?["count"] as? Int == 4,
                                  "Four-node graph did not start in automatic viewport")
@@ -655,10 +670,13 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                 try requireSmoke(result?["manualMode"] as? String == "manual" && result?["preserved"] as? Bool == true,
                                  "Zoom button failed to lock the manual viewport across graph refresh")
                 try requireSmoke(result?["restored"] as? String == "auto", "Fit button did not restore automatic viewport")
+                smokeSteps.append("viewport_zoom_reload_labels_fit_verified")
+                print("Native viewport controls: automatic view, manual zoom/reload, labels and fit verified")
                 let rotation = try await webView.callAsyncJavaScript("""
+                    try {
                     if(!S.art||!artRenderer?.painter)throw new Error('Approved native atlas is unavailable');
                     const c=document.getElementById('cv'),art=document.getElementById('artCanvas'),oldPaused=S.paused;
-                    const wait=async(predicate)=>{const end=performance.now()+5000;while(!predicate()){if(performance.now()>end)throw new Error('Native atlas rotation did not settle');await new Promise(r=>setTimeout(r,30));}};
+                    const wait=async(predicate)=>{const end=performance.now()+5000;while(!predicate()){if(performance.now()>end)throw new Error('Native atlas rotation did not settle '+JSON.stringify({reason:art.dataset.autoRotateReason,art:S.art,mode:S.graphMode,paused:S.paused,hidden:document.hidden}));await new Promise(r=>setTimeout(r,30));}};
                     const pause=()=>new Promise(r=>setTimeout(r,350));S.paused=false;select(null);S.hover=S.nodes[0].id;
                     c.dispatchEvent(new PointerEvent('pointerenter',{pointerId:919,pointerType:'mouse',clientX:c.getBoundingClientRect().left+10,clientY:c.getBoundingClientRect().top+10}));schedule();
                     await wait(()=>art.dataset.autoRotateReason==='rotating');const before=Number(art.dataset.autoRotateYaw);await pause();
@@ -669,7 +687,9 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
                     const resumes=Number(art.dataset.autoRotateYaw)>resume;
                     S.hover=null;S.paused=oldPaused;c.dispatchEvent(new PointerEvent('pointerleave',{pointerId:919,pointerType:'mouse'}));schedule();
                     return {painter:art.dataset.painter,hoverRotates,selectionStops,resumes};
+                    } catch(error) { return {nativeProbeFailure:String(error?.message||error),probe:'rotation'}; }
                     """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+                try requireSmoke(rotation?["nativeProbeFailure"] == nil, "Native rotation JavaScript: \(rotation?["nativeProbeFailure"] as? String ?? "unknown")")
                 try requireSmoke(rotation?["painter"] as? String == "approved-canvas" && rotation?["hoverRotates"] as? Bool == true && rotation?["selectionStops"] as? Bool == true && rotation?["resumes"] as? Bool == true, "Native atlas did not rotate on hover, suspend on selection and resume after deselection")
                 print("Native viewport: sparse four-node close view; manual zoom survives real graph reload; fit restores auto; node labels toggle without writes")
                 smokeSteps.append("approved_atlas_rotation_selection_hover_and_viewport")

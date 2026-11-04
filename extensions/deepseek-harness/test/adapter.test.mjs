@@ -13,7 +13,7 @@ import { createUserMessage, createAssistantMessage } from '@deepseek-ai/dsh-llm'
 const hostVersion = process.env.LOVE_HOUSE_HARNESS_TEST_VERSION || '0.2.1-rc.3';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function eventually(check) { for (let i=0;i<80;i++) { if(check())return; await sleep(25); } assert.ok(check(), 'condition not reached'); }
-async function mockController({reject=false,eventDelay=0}={}) {
+async function mockController({reject=false,eventDelay=0,beforeEventAck}={}) {
   const events=[]; const contexts=[]; const server=http.createServer(async(req,res)=>{
     let raw='';for await(const part of req)raw+=part;
     const body=raw?JSON.parse(raw):null;
@@ -22,7 +22,7 @@ async function mockController({reject=false,eventDelay=0}={}) {
     if(!req.headers.authorization?.startsWith('Bearer fixture-')){res.statusCode=401;return res.end('{}');}
     if(req.url.endsWith('/heartbeat'))return res.end('{"host_online":true}');
     if(req.url.endsWith('/context')){contexts.push({url:req.url,body});return res.end(JSON.stringify({packet:'已选库的真实人格和记忆材料',memory_ids:['memory-1']}));}
-    events.push({url:req.url,body});if(eventDelay)await sleep(eventDelay);res.end(JSON.stringify({accepted:!reject,status:'pending'}));
+    events.push({url:req.url,body});if(beforeEventAck)await beforeEventAck(body);if(eventDelay)await sleep(eventDelay);res.end(JSON.stringify({accepted:!reject,status:'pending'}));
   });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   return {events,contexts,server,base:`http://127.0.0.1:${server.address().port}`,close:()=>new Promise(resolve=>server.close(resolve))};
@@ -101,7 +101,9 @@ test('official hook names are registered by apply without model tool calls and d
 });
 
 test('multiple next-session instances ignore boot/synthetic input and bind distinct human windows',async()=>{
-  const mock=await mockController();const a=fixture(mock.base,{session_scope:'next_session'});const b=fixture(mock.base,{session_scope:'next_session',connection_id:'connection-b',library_id:'library-b'});
+  let releaseFirstAck;
+  const firstAck=new Promise(resolve=>{releaseFirstAck=resolve;});
+  const mock=await mockController({beforeEventAck:body=>body.session_id==='isolated-window-A'&&body.event_type==='turn/start'?firstAck:undefined});const a=fixture(mock.base,{session_scope:'next_session'});const b=fixture(mock.base,{session_scope:'next_session',connection_id:'connection-b',library_id:'library-b'});
   const first=new HostAdapter(a.options);const second=new HostAdapter(b.options);
   const s1={id:'isolated-window-A',header:{}};const s2={id:'isolated-window-B',header:{}};
   const pre=(session,source={kind:'user'})=>({agent:{session},messages:[message('actual-'+session.id,'user','窗口真实发言',source)],turn:1,step:1,signal:new AbortController().signal});
@@ -111,15 +113,25 @@ test('multiple next-session instances ignore boot/synthetic input and bind disti
     assert.equal(mock.contexts.length,0);
     for(const adapter of [first,second])adapter.capture(s1,{type:'turn/start',data:{turn:1},seq:0,time:1});
     const one=pre(s1);await first.beforeStep(one,async()=>({kind:'enter',messages:one.messages}));await second.beforeStep(one,async()=>({kind:'enter',messages:one.messages}));
+    await eventually(()=>mock.events.some(e=>e.body.session_id===s1.id&&e.body.event_type==='turn/start'));
     for(const adapter of [first,second])adapter.capture(s1,{type:'user/message',data:one.messages[0],seq:1,time:2});
     for(const adapter of [first,second])adapter.capture(s2,{type:'turn/start',data:{turn:1},seq:0,time:1});
     const two=pre(s2);await second.beforeStep(two,async()=>({kind:'enter',messages:two.messages}));
     for(const adapter of [first,second])adapter.capture(s2,{type:'user/message',data:two.messages[0],seq:1,time:2});
-    await first.flush();await second.flush();
+    // A turn may enqueue its human message while the earlier start is in flight.
+    // Await durable delivery of both windows, rather than only that first batch.
+    const inFlight=first.flush();releaseFirstAck();await inFlight;
+    const deadline=Date.now()+5000;
+    while([first,second].some(adapter=>readdirSync(adapter.stateDir).some(p=>p.endsWith('.event.json')))){
+      assert.ok(Date.now()<deadline,'both authorized windows must finish durable delivery');
+      await first.flush();await second.flush();
+    }
     assert.ok(mock.events.filter(e=>e.url.includes('connection-a')).every(e=>e.body.session_id==='isolated-window-A'));
     assert.ok(mock.events.filter(e=>e.url.includes('connection-b')).every(e=>e.body.session_id==='isolated-window-B'));
     assert.equal(mock.events.filter(e=>e.url.includes('connection-a')).length,2);assert.equal(mock.events.filter(e=>e.url.includes('connection-b')).length,2);
-  }finally{await first.dispose();await second.dispose();await mock.close();a.clean();b.clean();}
+    assert.deepEqual(mock.contexts.map(e=>[e.url,e.body.session_id]),[['/api/connections/connection-a/context',s1.id],['/api/connections/connection-b/context',s2.id]]);
+    for(const adapter of [first,second])assert.equal(readdirSync(adapter.stateDir).filter(p=>p.endsWith('.event.json')).length,0);
+  }finally{releaseFirstAck();await first.dispose();await second.dispose();await mock.close();a.clean();b.clean();}
 });
 
 test('wire-only proxy really forwards provider traffic and archives it without claiming a host turn',async()=>{

@@ -57,6 +57,6 @@ CI 原始产物下载后已核对归档 SHA256、包内文件和上传发行版�
 | `LoveHouse-Setup-0.10.3rc1-Windows-x64.exe` | `fe75105db9730022ef263090504ae7a4944541fc280d341e202c33a0f30a2bde` |
 | `LoveHouse-0.10.3rc1-Windows-x64.zip` | `a7464de2c3578e19122f0dc9dd46ec73020599651c06a82c518853644670fff7` |
 
-最终发行源码相对上述 Windows 构建源码的变更仅涉及 macOS 实现与检查、发布文档和源码清单；Windows 运行代码、页面资源、依赖与构建输入均保持一致。受测源码、最终发行源码及输入一致性记录见随发行版提供的 [Windows-0103-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/Windows-0103-verification.json)。发布后的匿名公开下载与 SHA256 复核结果见 [Public-download-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/Public-download-verification.json)。
+最终发行源码相对上述 Windows 构建源码的变更仅涉及 macOS 实现、验证测试、发布文档和源码清单；Windows 运行代码、页面资源、依赖与构建输入均保持一致。受测源码、最终发行源码及输入一致性记录见随发行版提供的 [Windows-0103-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/Windows-0103-verification.json)。发布后的匿名公开下载与 SHA256 复核结果见 [Public-download-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/Public-download-verification.json)。
 
 Windows 10 真机、缺失或损坏运行时、受限安装策略、真实 QQ 长期运行及厂商账户仍需对应环境核验。macOS 单独构建与验证；手机安装包本轮未重构。

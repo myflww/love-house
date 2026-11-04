@@ -768,13 +768,13 @@
     },
     {
       "path": "docs/ReleaseNotes-0.10.3rc1-macOS.md",
-      "bytes": 4001,
-      "sha256": "046fddeb89800c3863c6e9db17926342f47134e2d1715051e5c3630879d660e1"
+      "bytes": 4016,
+      "sha256": "cddd2b1d242c9ac096e3a8be188426081d72ba6471a61da774775c142be83ce7"
     },
     {
       "path": "docs/ReleaseNotes-0.10.3rc1-Windows.md",
-      "bytes": 6609,
-      "sha256": "ae5d023f4cfbd39383633d92a9240fc26bea2c0e6fa8336320dbb8d34024467d"
+      "bytes": 6615,
+      "sha256": "9f3935e408ddddb8bd570f14544435aa38e91c0366e11412d134c0d938c9bcf1"
     },
     {
       "path": "docs/ReleaseNotes-0.9.0-macOS.md",
@@ -1143,8 +1143,8 @@
     },
     {
       "path": "extensions/deepseek-harness/test/adapter.test.mjs",
-      "bytes": 39453,
-      "sha256": "18a51e94d479d7ceb378f265b165f3a81c7d50907da1fd6b6bb66df03249e777"
+      "bytes": 40615,
+      "sha256": "28569e330193db67e3323c40f4c10259fd5b18b6d3f72ee9c1471052bb77be61"
     },
     {
       "path": "extensions/deepseek-harness/test/compatibility.test.mjs",

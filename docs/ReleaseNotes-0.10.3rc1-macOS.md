@@ -27,6 +27,6 @@ Mac 应用来自[本轮 Apple Silicon 完整构建与验证](https://github.com/
 
 原生窗口先检查 runner 的真实“减少动态效果”偏好，再在隔离自检中只模拟该项媒体查询的两种状态，分别核对悬停继续旋转、实际节点按钮选择后停止、取消选择恢复，以及减少动态效果时保持停止。原生 `matchMedia` 在 `finally` 恢复，产品和系统偏好保持原状；报告明确记录 `actual_host_reduce_motion` 与 `tested_synthetic_motion_states`。
 
-最终发行源码相对上述 Mac 构建源码仅追加发布文档与源码清单，Mac 运行和打包输入保持一致。受测源码、最终发行源码、原始三份报告和文件摘要见随版 [macOS-0103-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/macOS-0103-verification.json) 及 [macOS-SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/macOS-SHA256SUMS.txt)；发布后的匿名公开下载与 SHA256 复核结果见 [Public-download-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/Public-download-verification.json)。
+最终发行源码相对上述 Mac 构建源码仅追加验证测试、发布文档与源码清单，Mac 运行和打包输入保持一致。受测源码、最终发行源码、原始三份报告和文件摘要见随版 [macOS-0103-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/macOS-0103-verification.json) 及 [macOS-SHA256SUMS.txt](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/macOS-SHA256SUMS.txt)；发布后的匿名公开下载与 SHA256 复核结果见 [Public-download-verification.json](https://github.com/myflww/love-house/releases/download/v0.10.3rc1/Public-download-verification.json)。
 
 操作系统首次打开限制、真实客户端长期运行和用户已有 Keychain 权限仍以对应机器上的系统行为为准。

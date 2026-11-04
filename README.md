@@ -21,7 +21,7 @@
 | Android | **0.8.0rc2 · 预览版** | [下载 APK](https://github.com/myflww/love-house/releases/download/v0.8.0rc2/LoveHouse-0.8.0rc2-Android.apk) | Android 8.0+；保持系统 WebView 更新 |
 | iPhone | **0.8.0rc2 · 主屏幕版** | [打开网页版](https://love-house-mobile-myflww.haixiac34.chatgpt.site) | iOS 15.4+；Safari 打开 → 分享 → 添加到主屏幕 |
 
-0.10.5rc1 为本轮完整预发布，安装包、构建与原生验证状态以[发布页](https://github.com/myflww/love-house/releases/tag/v0.10.5rc1)及[本版说明](docs/release-0.10.5rc1.md)为准；上传前下载链接可能尚未就绪。源码回归不代替各系统运行验收，支持目标不代表全部系统已实测。
+0.10.5rc1 为本轮完整预发布，Windows 安装／升级与 macOS 原生运行检查已完成，验证范围见[发布页](https://github.com/myflww/love-house/releases/tag/v0.10.5rc1)及[本版说明](docs/release-0.10.5rc1.md)。支持目标不代表全部系统已实测。
 
 iPhone 使用 PWA 网页应用，无需下载 IPA。目前没有 macOS Intel、Windows ARM64／32 位或 Linux 桌面安装包。
 

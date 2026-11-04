@@ -36,10 +36,14 @@
 
 ## 测试与平台验证状态
 
-发布前记录：源码与真实本机 HTTP 验证使用临时库、合成窗口和模拟模型，覆盖来源归属、历史读取、停用与忘记、多窗口隔离、分页及本地目录。**全量测试数量和最终发行包原生验证结果待本轮完成后填写，以本版发布记录为准；不沿用 0.10.4 的 CI 结果作为本版验收。**
+本轮使用临时库、合成窗口和模拟模型，覆盖来源归属、历史读取、停用与忘记、多窗口隔离、分页、本地目录及分享／备份恢复。本机 Python 全套 1318 项通过（10 项条件跳过），JavaScript 332 项通过，桌面源码检查 24 项通过（12 项按平台条件跳过）；测试没有读取真实用户记忆或调用付费模型。
 
-- **Windows**：完整 x64 安装版和便携版按本轮发布流程构建；支持目标仍为 Windows 10 2004（19041）及以上、Windows 11。当前本机验证环境为 Windows 10 19045，不代表所有系统版本、干净安装、损坏运行时和真实用户旧库均已验证。下载文件及校验值以本版发布资产为准。
-- **macOS**：共享源码同步更新；目标仍为 Apple Silicon、macOS 13.0+，由本轮 macOS 构建与原生检查单独验收。Windows 测试不能代替 AppKit / WKWebView、Keychain、签名或 Mac 升级验证。实际包与验证记录以本版发布资产为准，没有据此承诺 Intel Mac 支持。
+同一运行代码 `c2fb010fa00d2c14b341b4e2fa5b76c1eb842e0b` 的 [Python 3.11／3.12／3.13 与 JavaScript CI](https://github.com/myflww/love-house/actions/runs/41792623584)、[macOS／Linux 真实 Harness CLI](https://github.com/myflww/love-house/actions/runs/41792623619)、[Android 28／36 实际 WebView 接口](https://github.com/myflww/love-house/actions/runs/41792623588)和[iOS 模拟器接口](https://github.com/myflww/love-house/actions/runs/41792623620)均通过。发行记录另核对构建代码与本说明所在提交的运行文件 Git 内容和模式一致。
+
+- **Windows**：[本轮发行 CI](https://github.com/myflww/love-house/actions/runs/41792617698)通过打包、原生界面、临时目录实际安装、安装件／便携件运行、0.10.4rc1 → 0.10.5rc1 实际安装升级及发行环境全量回归。支持目标仍为 Windows 10 2004（19041）及以上、Windows 11；本机为 Windows 10 19045，CI 主机已有 WebView2，不代表所有系统、无运行时机器或真实用户旧库均已实测。完整报告见发布资产 `Windows-0105-verification.json`。
+- **macOS**：[本轮 arm64 发行 CI](https://github.com/myflww/love-house/actions/runs/41792617723)通过 AppKit／WKWebView、模拟 Keychain、隔离后端重启、来源与窗口边界、星云交互，以及应用本体和 ZIP 解压件的两次原生运行检查。适用于 Apple Silicon、macOS 13.0+；采用 ad-hoc 签名，尚未公证，也没有 Intel Mac 包。没有在用户的 Applications 目录执行实际旧 App 覆盖升级；完整报告见 `macOS-0105-verification.json`。
 - **Android / iPhone**：继续使用 0.8.0rc2，本轮桌面记忆流程不等于移动版已经同步更新。
 
-[本版发布页](https://github.com/myflww/love-house/releases/tag/v0.10.5rc1)提供最终下载、校验值及验证范围。正式上传前，链接或资产可能尚未就绪。
+Mac 首轮出现一次控件可用性检查失败；[相同源码的第二次运行](https://github.com/myflww/love-house/actions/runs/41792617723/attempts/2)完成上述两次原生检查，没有放宽可见性条件或功能断言。[首次运行记录](https://github.com/myflww/love-house/actions/runs/41792617723/attempts/1)保留，具体控件未被原探针记录，不能据此声称所有界面时序都已证明稳定。
+
+[本版发布页](https://github.com/myflww/love-house/releases/tag/v0.10.5rc1)提供完整安装包、源码、校验值及验证范围；匿名公开下载的逐文件核验见发布资产 `Public-download-verification.json`。

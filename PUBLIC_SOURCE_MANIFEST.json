@@ -793,8 +793,8 @@
     },
     {
       "path": "docs/release-0.10.5rc1.md",
-      "bytes": 5523,
-      "sha256": "b48b90dba8931d192d1e8972b8c5cece2afa335d336d56f0dcb2c921331be335"
+      "bytes": 6974,
+      "sha256": "fa0b5b7ddfe822e73578e04496b70db82b56dad1b0c7b96c79e7fc83ecc83fcb"
     },
     {
       "path": "docs/RELEASE-080RC2.md",
@@ -2053,8 +2053,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 5624,
-      "sha256": "dd0f678adce5bd7065b4007e90537d5e9d3710eeab2cd857c0413e03f4b482cb"
+      "bytes": 5567,
+      "sha256": "7c4bbf6ccf71e71f77d751ce2450ff19eec955796fc3b9ad9a12a29f41475e71"
     },
     {
       "path": "ROADMAP.md",

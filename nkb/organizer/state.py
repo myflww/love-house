@@ -954,6 +954,8 @@ def semantic_recall(brain, query, k=8, *, prepared=None, **kwargs):
     previous response or treats time words as permission to recover old facts.
     """
     from ..retrieval.query import plan_query, topic_alias_match, source_event_time
+    from ..retrieval.scoring import OverlapScorer
+    from ..retrieval.evidence import topic_terms
     if not isinstance(query, str) or not query.strip():
         raise ValidationError('查询内容不能为空')
     if prepared is not None and (not isinstance(prepared, PreparedRecall) or prepared.brain is not brain):
@@ -973,15 +975,33 @@ def semantic_recall(brain, query, k=8, *, prepared=None, **kwargs):
                 'query_understanding': plan.public(),
                 'note': '请补充要回忆的话题或有效日期，未猜测你指的是哪段经历'}
     view, selected_ids = prepared.view(candidates, plan=plan)
-    options = {**kwargs, 'as_of': stamp, 'candidate_ids': selected_ids}
     search = plan.search
+    query_vector=set(brain.encoder(search))
+    content_vector=topic_terms(search,brain.encoder)
+    lexical=type(brain.scorer) is OverlapScorer
+    if plan.literal:
+        # An explicit phrase lookup is about recorded wording, not generated
+        # aliases or graph neighbors. The view still owns lifecycle checks.
+        phrase=search.casefold()
+        selected_ids={nid for nid in selected_ids if any(phrase in str(value).casefold()
+            for value in (brain.nodes[nid].get('text',''),
+                          brain.nodes[nid].get('meta',{}).get('assistant_reply','')))}
+        if lexical:
+            for nid in selected_ids:view._vec[nid]=view._vec.get(nid,set()) | query_vector
+    options = {**kwargs, 'as_of': stamp, 'candidate_ids': selected_ids}
+    def supports_topic(nid):
+        return not lexical or bool((query_vector if plan.literal else content_vector) & view._vec.get(nid,set()))
     count = max(k, k * 3) if plan.intent in ('recent', 'historical') else k
-    base = view.recall(search, k=count, **options)
+    base_ids={nid for nid in selected_ids if supports_topic(nid)}
+    base = view.recall(search, k=count, **{**options,'candidate_ids':base_ids})
     base['query'] = query
-    hits = {h["id"]: h for h in base["hits"]}
+    # Activation strength is normalized inside the graph. A high relative
+    # score does not establish topical evidence; an adjacent old conversation
+    # must not become a memory match merely by receiving activation.
+    hits = {h["id"]: h for h in base["hits"] if supports_topic(h['id'])}
     matches = []
-    qv = set(brain.encoder(search.casefold()))
-    for nid in selected_ids:
+    qv = topic_terms(search.casefold(),brain.encoder)
+    for nid in (() if plan.literal else selected_ids):
         node = brain.get(nid)
         metadata = node.get("meta", {})
         if metadata.get('source') != 'organizer' or not view._node_state(view.get(nid), stamp)['recoverable']:
@@ -992,9 +1012,11 @@ def semantic_recall(brain, query, k=8, *, prepared=None, **kwargs):
         for term in aliases:
             if not isinstance(term, str) or not term.strip():
                 continue
+            term_vector=topic_terms(term.casefold(),brain.encoder)
+            if not term_vector:continue
             exact = term.casefold() in search.casefold()
             score = 1.0 if exact else max(.8 if topic_alias_match(search, term) else 0,
-                                         dice(qv, set(brain.encoder(term.casefold()))))
+                                         dice(qv, term_vector))
             if exact or score >= .35:
                 terms.append(term)
                 weight = max(weight, score)
@@ -1008,11 +1030,24 @@ def semantic_recall(brain, query, k=8, *, prepared=None, **kwargs):
     if expansions:
         material = ' '.join(brain.get(item['memory_id'])['label'] + ' ' + brain.get(item['memory_id'])['text'][:180]
                             for item in expansions)
-        expanded = view.recall(search + ' ' + material, k=count, **options)
+        evidence_by_match={item['memory_id']:{e['id'] for e in brain.get(item['memory_id']).get('meta',{}).get('organizer_evidence',[])
+            if isinstance(e,dict) and isinstance(e.get('id'),str)} for item in expansions}
+        # Qualify before top-k, so unrelated records cannot crowd real aliases
+        # and their evidence out of the expansion lane before being rejected.
+        expanded_ids=selected_ids
+        if lexical:
+            alias_ids={item['memory_id'] for item in expansions}
+            source_ids=set().union(*evidence_by_match.values())
+            expanded_ids={nid for nid in selected_ids if nid in alias_ids or nid in source_ids or supports_topic(nid)}
+        expanded = view.recall(search + ' ' + material, k=count, **{**options,'candidate_ids':expanded_ids})
         for h in expanded["hits"]:
             if h["id"] not in hits:
-                match = next((item for item in expansions if item['memory_id'] in h.get('path', [])), None)
-                match = match or next((item for item in expansions if item['memory_id'] == h['id']), expansions[0])
+                match = next((item for item in expansions if item['memory_id'] == h['id']
+                    or h['id'] in evidence_by_match[item['memory_id']]),None)
+                if lexical and not match and not supports_topic(h['id']):continue
+                if not match:
+                    hits[h['id']]=h
+                    continue
                 metadata = brain.get(match['memory_id']).get('meta', {})
                 hits[h["id"]] = {**h, 'semantic_match': {**match,
                     'evidence_ids': [e['id'] for e in metadata.get('organizer_evidence', []) if isinstance(e, dict) and isinstance(e.get('id'), str)]}}

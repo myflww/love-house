@@ -16,19 +16,20 @@
 
 | 系统 | 最新版本 | 下载 | 系统要求 |
 |---|---|---|---|
-| Windows x64 | **0.10.5rc1 · 完整预发布** | [安装版 EXE](https://github.com/myflww/love-house/releases/download/v0.10.5rc1/LoveHouse-Setup-0.10.5rc1-Windows-x64.exe) · [便携版 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.5rc1/LoveHouse-0.10.5rc1-Windows-x64.zip) | Intel / AMD 64 位；目标为 Windows 10 2004（19041）及以上或 Windows 11 |
-| macOS | **0.10.5rc1 · 完整预发布** | [下载 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.5rc1/LoveHouse-0.10.5rc1-macOS-arm64.zip) | Apple Silicon（M 系列）；macOS 13.0+ |
+| Windows x64 | **0.10.6rc1 · 完整预发布** | [安装版 EXE](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-Setup-0.10.6rc1-Windows-x64.exe) · [便携版 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-0.10.6rc1-Windows-x64.zip) | Intel / AMD 64 位；目标为 Windows 10 2004（19041）及以上或 Windows 11 |
+| macOS | **0.10.6rc1 · 完整预发布** | [下载 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-0.10.6rc1-macOS-arm64.zip) | Apple Silicon（M 系列）；macOS 13.0+ |
 | Android | **0.8.0rc2 · 预览版** | [下载 APK](https://github.com/myflww/love-house/releases/download/v0.8.0rc2/LoveHouse-0.8.0rc2-Android.apk) | Android 8.0+；保持系统 WebView 更新 |
 | iPhone | **0.8.0rc2 · 主屏幕版** | [打开网页版](https://love-house-mobile-myflww.haixiac34.chatgpt.site) | iOS 15.4+；Safari 打开 → 分享 → 添加到主屏幕 |
 
-0.10.5rc1 为本轮完整预发布，Windows 安装／升级与 macOS 原生运行检查已完成，验证范围见[发布页](https://github.com/myflww/love-house/releases/tag/v0.10.5rc1)及[本版说明](docs/release-0.10.5rc1.md)。支持目标不代表全部系统已实测。
+0.10.6rc1 为本轮完整预发布，本轮修复聚焦对话中的话题召回，安装／升级及原生运行验收状态与范围见[发布页](https://github.com/myflww/love-house/releases/tag/v0.10.6rc1)及[本版说明](docs/release-0.10.6rc1.md)。支持目标不代表全部系统已实测。
 
 iPhone 使用 PWA 网页应用，无需下载 IPA。目前没有 macOS Intel、Windows ARM64／32 位或 Linux 桌面安装包。
 
 ## 各系统最新版
 
-### Windows 0.10.5rc1（完整预发布）
+### Windows 0.10.6rc1（完整预发布）
 
+- **围绕实际话题召回**：澄清与问句套话本身不作为相关依据；无对象时允许空召回，显式查原话仍可找，不用旧窗口猜当前所指。
 - **自由形成、忠于原话**：猜想、误解、矛盾和故事设定可整理成有角色与来源的材料，不必逐条裁决真假；重要设定、人格和关系变化继续受保护。
 - **看清前后变化**：当前、历史、前后比较三种读取；更正保留旧原话，界面可以查看“原话与后续变化”，明确停用与真正忘记始终生效。
 - **实用的空闲整理**：本地维护原文目录和同会话前后文，调用模型 0 次；不再生成反思、策略或模拟提案，旧记录可以查看、拒绝或撤回。
@@ -37,13 +38,13 @@ iPhone 使用 PWA 网页应用，无需下载 IPA。目前没有 macOS Intel、W
 
 保留模型/强度选择、默认最高上下文和输出、星云拖动旋转与 Shift 平移、选中节点才停止自旋，以及启动更新提醒。科学借鉴、合成性能条件与验证范围分别说明，不宣称外部记忆整理等于训练模型或人脑记忆。
 
-[发布页](https://github.com/myflww/love-house/releases/tag/v0.10.5rc1) · [本版说明与验证范围](docs/release-0.10.5rc1.md) · [记忆设计与论文依据](docs/memory-0105-design.md)
+[发布页](https://github.com/myflww/love-house/releases/tag/v0.10.6rc1) · [本版说明与验证范围](docs/release-0.10.6rc1.md) · [记忆设计与论文依据](docs/memory-0105-design.md)
 
-### macOS 0.10.5rc1（完整预发布）
+### macOS 0.10.6rc1（完整预发布）
 
 同步本轮共享记忆服务、历史读取和本地空闲目录，继续使用 AppKit / WKWebView 和内置 Python，保留原数据目录及 Keychain helper。本轮 arm64 包的构建、原生运行与升级验证单独记录，不以 Windows 结果代替 Mac 验收。
 
-[发布说明与验证范围](docs/release-0.10.5rc1.md#测试与平台验证状态) · [上一版 Mac 升级与恢复参考](docs/MACOS-0104-UPDATE.md)
+[发布说明与验证范围](docs/release-0.10.6rc1.md#验证与下载) · [上一版 Mac 升级与恢复参考](docs/MACOS-0104-UPDATE.md)
 
 ### Android / iPhone 0.8.0rc2
 

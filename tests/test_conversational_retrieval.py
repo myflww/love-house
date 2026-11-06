@@ -96,6 +96,29 @@ class ConversationalRetrievalServiceTests(unittest.TestCase):
         self.assertFalse({self.doc,self.next,self.alias_id}&ids,
             [r['value'] for r in result['memory_context']['records']])
 
+    def test_explicit_drink_preference_question_keeps_positive_and_negative_records_without_color_baseline(self):
+        drinks={}
+        for text in ('测试用户喝咖啡','测试用户不喝咖啡'):
+            status,created=self.request('/api/ai/remember',{'text':text,'kind':'preference','important':True})
+            self.assertEqual(status,200,created)
+            drinks[created['id']]=text
+        status,color=self.request('/api/ai/remember',{
+            'text':'测试用户喜欢蓝色','kind':'preference','important':True})
+        self.assertEqual(status,200,color)
+        query='我喜欢什么饮料'
+        status,result=self.context(query)
+        self.assertEqual(status,200,result);self.assertEqual(result['query'],query)
+        rows={row['id']:row for row in result['memory_context']['records']}
+        self.assertTrue(set(drinks)<=rows.keys(),[r['value'] for r in rows.values()])
+        self.assertNotIn(color['id'],set(rows),[row['value'] for row in rows.values()])
+        for nid,text in drinks.items():self.assertEqual(rows[nid]['value'],text)
+        self.assertIn('不喝咖啡',json.dumps(result['memory_context'],ensure_ascii=False))
+        for question in ('你好','我指的是这个'):
+            with self.subTest(query=question):
+                status,packet=self.tool(question)
+                self.assertEqual(status,200,packet)
+                self.assertEqual([r['id'] for r in packet['records']],[])
+
     def test_bare_reference_never_injects_baseline_or_an_unrelated_old_statement(self):
         for query in ('我指的是','我指的是这个'):
             with self.subTest(query=query):

@@ -1438,8 +1438,8 @@
     },
     {
       "path": "nkb/companion/memory.py",
-      "bytes": 28397,
-      "sha256": "19122b0d6bd1f2af7f8fe5b57e84e02644112508f2da62aca89cf9d32859c099"
+      "bytes": 28618,
+      "sha256": "ddc4821183e06d5a1b8052a6c40f6e8e2353af7b3fe764a81d8558acbef3bbec"
     },
     {
       "path": "nkb/companion/persona.py",
@@ -1623,8 +1623,8 @@
     },
     {
       "path": "nkb/retrieval/evidence.py",
-      "bytes": 1361,
-      "sha256": "6b499c2e0fca221d515a0bd013674faeab833fcc6b0780e4454a74a2ad861bf1"
+      "bytes": 2312,
+      "sha256": "64dafc6bf1c09fabe8cdd965826f52062079218e4bde65761f00d3b42bba86fb"
     },
     {
       "path": "nkb/retrieval/query.py",
@@ -2508,8 +2508,8 @@
     },
     {
       "path": "tests/test_conversational_retrieval.py",
-      "bytes": 11198,
-      "sha256": "5007a9e5cd068eb87f8645833fa7cd40b793528a0d22d807c56230626071dd82"
+      "bytes": 12656,
+      "sha256": "df1c52f3a6de56c87157e18aafca5cefa8cdaa7eacc0c239dba0abd428b6fe52"
     },
     {
       "path": "tests/test_core.py",
@@ -2698,8 +2698,8 @@
     },
     {
       "path": "tests/test_multi_window_service.py",
-      "bytes": 8385,
-      "sha256": "ba46b6b5b64936e64930ef8098d826ff3a0ae8ec7627935d6206feca56e032c9"
+      "bytes": 8817,
+      "sha256": "b15cdc72decbab3defb47afa17bfaee2aa51b07a4a4fc7f334d9f5b6296adb1a"
     },
     {
       "path": "tests/test_neural_atlas.py",

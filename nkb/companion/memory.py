@@ -348,8 +348,10 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
             related.append({'id':node['id'],'label':node['label'],'kind':node['kind'],
                             'score':0,'depth':0,'path':[node['id']],'revision_context':True})
     relevant_ids={h['id'] for h in related}
+    from ..retrieval.evidence import explicit_drink_preference
     baseline = [n for n in by_id.values()
-                if n['id'] in relevant_ids
+                if (n['id'] in relevant_ids or not query_plan.literal and not query_plan.needs_clarification
+                    and not query_plan.invalid_date and explicit_drink_preference(query,n))
                 if n.get("meta", {}).get("source") not in RAW_CONTEXT_SOURCES
                 and "演示" not in _origin(brain, n)
                 and not is_historical(n)

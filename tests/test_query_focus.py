@@ -51,7 +51,7 @@ class QueryFocusTests(unittest.TestCase):
 
     def test_quoted_short_phrases_are_literal_objects_not_discourse_or_time_cues(self):
         for phrase in ('我指的是','然后','岚','我','未完成','2026-02-30','昨天','现在'):
-            for wrapped in ('“'+phrase+'”','搜索“'+phrase+'”','请找原话里包含“'+phrase+'”的记录'):
+            for wrapped in ('“'+phrase+'”','‘'+phrase+'’','搜索“'+phrase+'”','请找原话里包含“'+phrase+'”的记录','查找包含‘'+phrase+'’的原话'):
                 with self.subTest(wrapped=wrapped):
                     plan=self.plan(wrapped)
                     self.assertTrue(plan.literal)

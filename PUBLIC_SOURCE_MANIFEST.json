@@ -1628,8 +1628,8 @@
     },
     {
       "path": "nkb/retrieval/query.py",
-      "bytes": 13144,
-      "sha256": "67b8ae4e353adf4b1a96a91f92b4e6d2eef3ed5abbca0af48edc1c31f852fa73"
+      "bytes": 13164,
+      "sha256": "fd3acc723abf9dd2028bd760f83cc98f6a3fdfd187684f2d41e3601282458130"
     },
     {
       "path": "nkb/retrieval/scoring.py",
@@ -2858,8 +2858,8 @@
     },
     {
       "path": "tests/test_query_focus.py",
-      "bytes": 9046,
-      "sha256": "bc233446c1d1d6cd45d923803fe29d60d362c6058d6f43a76a9d19d985d11231"
+      "bytes": 9105,
+      "sha256": "edff52c13316b5fafdd6b0511d24efff470e334e30184df22ededf7ed98f8c08"
     },
     {
       "path": "tests/test_recall_query.py",

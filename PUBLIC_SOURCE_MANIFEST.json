@@ -798,8 +798,8 @@
     },
     {
       "path": "docs/release-0.10.6rc1.md",
-      "bytes": 3112,
-      "sha256": "c242467ae59fb122cfd073c22d285577af413d1a8012a21a3ba806d13d0e68d0"
+      "bytes": 5515,
+      "sha256": "6fc20a11851421f4f07541ff3b3d6943c4ad80a8e7bc36e539ad5cd1a30d2361"
     },
     {
       "path": "docs/RELEASE-080RC2.md",
@@ -860,6 +860,16 @@
       "path": "docs/research/idle-review-design.md",
       "bytes": 17960,
       "sha256": "d3e7c990f224d66f294467a76e913d516d8db665f0f6eb5f0b67c6f66eaf5301"
+    },
+    {
+      "path": "docs/retrieval-0106-evidence/same-data-report.json",
+      "bytes": 36143,
+      "sha256": "2779c26baf1f2a5db23dd8a93b33efa282cb180ec3ff40bbf4e61f1b37c7fe36"
+    },
+    {
+      "path": "docs/retrieval-0106-evidence/synthetic-fixture.json",
+      "bytes": 14903,
+      "sha256": "23c7241c7f9a28d72e362915bff52ce3071c20668a47540be54f6a719c3181ea"
     },
     {
       "path": "docs/WINDOWS-010-HANDOFF.md",

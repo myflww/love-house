@@ -1,0 +1,468 @@
+{
+  "purpose": "Synthetic diagnostic fixture, no real conversations or accounts",
+  "library_id": "synthetic-ab-home",
+  "ids": {
+    "doc": "turn_712a0227429b38ca9406e51f2cee9163",
+    "emotion": "turn_803341f69866c9ab9cc2fcf711b6e124",
+    "choice": "turn_5b27bd4ad441acf75504d3fc3ec80e58",
+    "list": "turn_f87d1dba40928d96ee9d10afb2b29b76",
+    "generic_alias": "synthetic_generic_alias",
+    "warm_water": "synthetic_warm_water",
+    "coffee_yes": "synthetic_coffee_yes",
+    "coffee_no": "synthetic_coffee_no",
+    "color": "synthetic_color"
+  },
+  "expected_queries": [
+    [
+      "list",
+      "我指的是为什么总背清单",
+      [
+        "list"
+      ]
+    ],
+    [
+      "emotion",
+      "我指的是你的情绪体检",
+      [
+        "emotion"
+      ]
+    ],
+    [
+      "reference",
+      "我指的是这个",
+      []
+    ],
+    [
+      "literal",
+      "查找包含‘我指的是’的原话",
+      [
+        "doc",
+        "emotion",
+        "generic_alias"
+      ]
+    ],
+    [
+      "drink",
+      "我喜欢什么饮料",
+      [
+        "warm_water",
+        "coffee_yes",
+        "coffee_no"
+      ]
+    ]
+  ],
+  "brain": {
+    "version": 1,
+    "name": "Offline synthetic A/B only",
+    "half_life": {
+      "concept": null,
+      "source": null,
+      "fact": 365.0,
+      "preference": 365.0,
+      "question": 180.0,
+      "answer": 180.0,
+      "doc": 240.0,
+      "episode": 60.0,
+      "commitment": null,
+      "reflection": null
+    },
+    "config": {
+      "half_life": {
+        "concept": null,
+        "source": null,
+        "fact": 365.0,
+        "preference": 365.0,
+        "question": 180.0,
+        "answer": 180.0,
+        "doc": 240.0,
+        "episode": 60.0,
+        "commitment": null,
+        "reflection": null
+      },
+      "drop_below": 0.05,
+      "edge_max": 0.999,
+      "edge_half_life": 90.0,
+      "seed_floor": 0.06,
+      "steps": 3,
+      "damping": 0.6,
+      "retain": 0.86,
+      "k": 8,
+      "min_score": 0.08,
+      "hebbian_lr": 0.14,
+      "salience_bump": 0.34,
+      "auto_link_top": 2,
+      "recovery_days": 200.0,
+      "anchor_threshold": 0.75,
+      "important_threshold": 0.95,
+      "context_before": 2,
+      "context_after": 2,
+      "context_window_hours": 6.0,
+      "bridge_window_hours": 24.0,
+      "bridge_max_events": 6,
+      "max_nodes": 10000
+    },
+    "meta": {
+      "created": 1793928669.5506997,
+      "library_id": "synthetic-ab-home",
+      "long_term_archive": true
+    },
+    "nodes": {
+      "turn_712a0227429b38ca9406e51f2cee9163": {
+        "id": "turn_712a0227429b38ca9406e51f2cee9163",
+        "kind": "episode",
+        "label": "对话 · 我指的是我发给你的文档里所提供的记忆库。",
+        "text": "我指的是我发给你的文档里所提供的记忆库。",
+        "tags": [
+          "原始对话"
+        ],
+        "salience": 0.55,
+        "created": 1793928669.5598245,
+        "reinforced": 1793928669.5598245,
+        "decay_at": 1793928669.5598245,
+        "recalls": 0,
+        "impact": 0.0,
+        "valid_from": 1793928669.5598245,
+        "valid_to": null,
+        "superseded_by": null,
+        "event_at": 1793928669.5598245,
+        "event_recorded": true,
+        "event_explicit": false,
+        "session_id": "synthetic-old-window-doc",
+        "important": false,
+        "meta": {
+          "source": "conversation_turn",
+          "important": false,
+          "turn_hash": "10def34018a04cbaccc63b7e2070ac6ff62708819339a987ae85dbb314209a44",
+          "speaker": "user",
+          "assistant_reply": "这是当时实际产生的合成回复。",
+          "roles": {
+            "text": "user",
+            "assistant_reply": "assistant"
+          },
+          "recording_origin": "manual_record",
+          "recording_channel": "manual",
+          "recording_sources": [
+            {
+              "node_id": "turn_712a0227429b38ca9406e51f2cee9163",
+              "origin": "manual_record",
+              "channel": "manual",
+              "session_id": "synthetic-old-window-doc",
+              "external_session_id": null,
+              "recorded_at": 1793928669.5598245
+            }
+          ]
+        }
+      },
+      "turn_803341f69866c9ab9cc2fcf711b6e124": {
+        "id": "turn_803341f69866c9ab9cc2fcf711b6e124",
+        "kind": "episode",
+        "label": "对话 · 我指的是你的情绪体检。",
+        "text": "我指的是你的情绪体检。",
+        "tags": [
+          "原始对话"
+        ],
+        "salience": 0.55,
+        "created": 1793928669.560064,
+        "reinforced": 1793928669.560064,
+        "decay_at": 1793928669.560064,
+        "recalls": 0,
+        "impact": 0.0,
+        "valid_from": 1793928669.560064,
+        "valid_to": null,
+        "superseded_by": null,
+        "event_at": 1793928669.560064,
+        "event_recorded": true,
+        "event_explicit": false,
+        "session_id": "synthetic-old-window-emotion",
+        "important": false,
+        "meta": {
+          "source": "conversation_turn",
+          "important": false,
+          "turn_hash": "02e0171b9e1e847db5a0c95b9f41c7e840f4d8c6fd549a0de5fce959e138d549",
+          "speaker": "user",
+          "assistant_reply": "这是当时实际产生的合成回复。",
+          "roles": {
+            "text": "user",
+            "assistant_reply": "assistant"
+          },
+          "recording_origin": "manual_record",
+          "recording_channel": "manual",
+          "recording_sources": [
+            {
+              "node_id": "turn_803341f69866c9ab9cc2fcf711b6e124",
+              "origin": "manual_record",
+              "channel": "manual",
+              "session_id": "synthetic-old-window-emotion",
+              "external_session_id": null,
+              "recorded_at": 1793928669.560064
+            }
+          ]
+        }
+      },
+      "turn_5b27bd4ad441acf75504d3fc3ec80e58": {
+        "id": "turn_5b27bd4ad441acf75504d3fc3ec80e58",
+        "kind": "episode",
+        "label": "对话 · 所以要现在选什么？",
+        "text": "所以要现在选什么？",
+        "tags": [
+          "原始对话"
+        ],
+        "salience": 0.55,
+        "created": 1793928669.5602486,
+        "reinforced": 1793928669.5602486,
+        "decay_at": 1793928669.5602486,
+        "recalls": 0,
+        "impact": 0.0,
+        "valid_from": 1793928669.5602486,
+        "valid_to": null,
+        "superseded_by": null,
+        "event_at": 1793928669.5602486,
+        "event_recorded": true,
+        "event_explicit": false,
+        "session_id": "synthetic-old-window-choice",
+        "important": false,
+        "meta": {
+          "source": "conversation_turn",
+          "important": false,
+          "turn_hash": "af3e8d3b558f8a9765203b646c4c99a946bde4b68f094f459d137d221620f242",
+          "speaker": "user",
+          "assistant_reply": "这是当时实际产生的合成回复。",
+          "roles": {
+            "text": "user",
+            "assistant_reply": "assistant"
+          },
+          "recording_origin": "manual_record",
+          "recording_channel": "manual",
+          "recording_sources": [
+            {
+              "node_id": "turn_5b27bd4ad441acf75504d3fc3ec80e58",
+              "origin": "manual_record",
+              "channel": "manual",
+              "session_id": "synthetic-old-window-choice",
+              "external_session_id": null,
+              "recorded_at": 1793928669.5602486
+            }
+          ]
+        }
+      },
+      "turn_f87d1dba40928d96ee9d10afb2b29b76": {
+        "id": "turn_f87d1dba40928d96ee9d10afb2b29b76",
+        "kind": "episode",
+        "label": "对话 · 反复背清单让对话生硬，我希望自然聊天。",
+        "text": "反复背清单让对话生硬，我希望自然聊天。",
+        "tags": [
+          "原始对话"
+        ],
+        "salience": 0.55,
+        "created": 1793928669.560526,
+        "reinforced": 1793928669.560526,
+        "decay_at": 1793928669.560526,
+        "recalls": 0,
+        "impact": 0.0,
+        "valid_from": 1793928669.560526,
+        "valid_to": null,
+        "superseded_by": null,
+        "event_at": 1793928669.560526,
+        "event_recorded": true,
+        "event_explicit": false,
+        "session_id": "synthetic-old-window-list",
+        "important": false,
+        "meta": {
+          "source": "conversation_turn",
+          "important": false,
+          "turn_hash": "b143744d34a79545c3f870aa017e44ad4c15f5936e05d264e5dbf59ac1a7d910",
+          "speaker": "user",
+          "assistant_reply": "这是当时实际产生的合成回复。",
+          "roles": {
+            "text": "user",
+            "assistant_reply": "assistant"
+          },
+          "recording_origin": "manual_record",
+          "recording_channel": "manual",
+          "recording_sources": [
+            {
+              "node_id": "turn_f87d1dba40928d96ee9d10afb2b29b76",
+              "origin": "manual_record",
+              "channel": "manual",
+              "session_id": "synthetic-old-window-list",
+              "external_session_id": null,
+              "recorded_at": 1793928669.560526
+            }
+          ]
+        }
+      },
+      "synthetic_generic_alias": {
+        "id": "synthetic_generic_alias",
+        "kind": "fact",
+        "label": "文档记忆库原话索引",
+        "text": "我指的是我发给你的文档里所提供的记忆库。",
+        "tags": [],
+        "salience": 0.6,
+        "created": 1793928669.5607216,
+        "reinforced": 1793928669.5607216,
+        "decay_at": 1793928669.5607216,
+        "recalls": 0,
+        "impact": 0.0,
+        "valid_from": 1793928669.5607216,
+        "valid_to": null,
+        "superseded_by": null,
+        "event_at": 1793928669.5607216,
+        "event_recorded": false,
+        "event_explicit": false,
+        "session_id": null,
+        "important": false,
+        "meta": {
+          "source": "organizer",
+          "domain": "real",
+          "organizer_layer": "fact",
+          "organizer_key": "documents.memory_library",
+          "organizer_aliases": [
+            "我指的是",
+            "所以"
+          ],
+          "organizer_evidence": [
+            {
+              "id": "turn_712a0227429b38ca9406e51f2cee9163",
+              "role": "user",
+              "quote": "我指的是我发给你的文档里所提供的记忆库。"
+            }
+          ]
+        }
+      },
+      "synthetic_warm_water": {
+        "id": "synthetic_warm_water",
+        "kind": "preference",
+        "label": "饮品偏好",
+        "text": "我喜欢喝温水。",
+        "tags": [],
+        "salience": 0.8,
+        "created": 1793928669.560789,
+        "reinforced": 1793928669.560789,
+        "decay_at": 1793928669.560789,
+        "recalls": 0,
+        "impact": 0.0,
+        "valid_from": 1793928669.560789,
+        "valid_to": null,
+        "superseded_by": null,
+        "event_at": 1793928669.560789,
+        "event_recorded": false,
+        "event_explicit": false,
+        "session_id": null,
+        "important": true,
+        "meta": {
+          "source": "user_confirmed",
+          "confirmed": true,
+          "important": true,
+          "speaker": "user"
+        }
+      },
+      "synthetic_coffee_yes": {
+        "id": "synthetic_coffee_yes",
+        "kind": "preference",
+        "label": "喜欢的饮料",
+        "text": "我喜欢喝咖啡。",
+        "tags": [],
+        "salience": 0.8,
+        "created": 1793928669.5608416,
+        "reinforced": 1793928669.5608416,
+        "decay_at": 1793928669.5608416,
+        "recalls": 0,
+        "impact": 0.0,
+        "valid_from": 1793928669.5608416,
+        "valid_to": null,
+        "superseded_by": null,
+        "event_at": 1793928669.5608416,
+        "event_recorded": false,
+        "event_explicit": false,
+        "session_id": null,
+        "important": true,
+        "meta": {
+          "source": "user_confirmed",
+          "confirmed": true,
+          "important": true,
+          "speaker": "user"
+        }
+      },
+      "synthetic_coffee_no": {
+        "id": "synthetic_coffee_no",
+        "kind": "preference",
+        "label": "不喜欢的饮料",
+        "text": "我不喜欢喝咖啡。",
+        "tags": [],
+        "salience": 0.8,
+        "created": 1793928669.5608914,
+        "reinforced": 1793928669.5608914,
+        "decay_at": 1793928669.5608914,
+        "recalls": 0,
+        "impact": 0.0,
+        "valid_from": 1793928669.5608914,
+        "valid_to": null,
+        "superseded_by": null,
+        "event_at": 1793928669.5608914,
+        "event_recorded": false,
+        "event_explicit": false,
+        "session_id": null,
+        "important": true,
+        "meta": {
+          "source": "user_confirmed",
+          "confirmed": true,
+          "important": true,
+          "speaker": "user"
+        }
+      },
+      "synthetic_color": {
+        "id": "synthetic_color",
+        "kind": "preference",
+        "label": "颜色偏好",
+        "text": "我喜欢蓝色。",
+        "tags": [],
+        "salience": 0.8,
+        "created": 1793928669.5609426,
+        "reinforced": 1793928669.5609426,
+        "decay_at": 1793928669.5609426,
+        "recalls": 0,
+        "impact": 0.0,
+        "valid_from": 1793928669.5609426,
+        "valid_to": null,
+        "superseded_by": null,
+        "event_at": 1793928669.5609426,
+        "event_recorded": false,
+        "event_explicit": false,
+        "session_id": null,
+        "important": true,
+        "meta": {
+          "source": "user_confirmed",
+          "confirmed": true,
+          "important": true,
+          "speaker": "user"
+        }
+      }
+    },
+    "edges": {
+      "turn_5b27bd4ad441acf75504d3fc3ec80e58|turn_712a0227429b38ca9406e51f2cee9163": {
+        "w": 0.95,
+        "n": 1,
+        "last": 1793928669.5609934,
+        "decay_at": 1793928669.5609934,
+        "valid_from": 1793928669.5609934,
+        "valid_to": null
+      },
+      "turn_5b27bd4ad441acf75504d3fc3ec80e58|turn_803341f69866c9ab9cc2fcf711b6e124": {
+        "w": 0.95,
+        "n": 1,
+        "last": 1793928669.5610087,
+        "decay_at": 1793928669.5610087,
+        "valid_from": 1793928669.5610087,
+        "valid_to": null
+      },
+      "turn_712a0227429b38ca9406e51f2cee9163|turn_f87d1dba40928d96ee9d10afb2b29b76": {
+        "w": 0.8,
+        "n": 1,
+        "last": 1793928669.5610158,
+        "decay_at": 1793928669.5610158,
+        "valid_from": 1793928669.5610158,
+        "valid_to": null
+      }
+    }
+  }
+}

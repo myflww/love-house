@@ -31,6 +31,29 @@ export interface Envelope {
 export const expandHome = (path: string) => path.startsWith('~/') ? join(homedir(), path.slice(2)) : resolve(path);
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const object = (value: any): value is JsonObject => !!value && typeof value === 'object' && !Array.isArray(value);
+const identifier = (value: any): value is string => typeof value === 'string' && !!value.trim();
+const ordinal = (value: any): value is number => Number.isSafeInteger(value) && value >= 0;
+const sessionShape = (value: any): boolean => object(value) && identifier(value.id) && object(value.header)
+  && (value.header.origin === undefined || value.header.origin === 'subagent');
+const messageShape = (value: any, role?: string): boolean => object(value) && identifier(value.id)
+  && identifier(value.role) && (!role || value.role === role) && object(value.source) && identifier(value.source.kind)
+  && Array.isArray(value.content) && value.content.every((block: any) => object(block) && identifier(block.type)
+    && (block.type !== 'text' || typeof block.text === 'string'));
+const eventKinds = ['turn/start', 'turn/end', 'step/start', 'step/end', 'user/message', 'assistant/message', 'assistant/attempt', 'tool/call', 'tool/result', 'system/message', 'developer/message'];
+function eventShape(input: any): boolean {
+  if (!object(input) || !ordinal(input.seq) || typeof input.time !== 'number' || !Number.isFinite(input.time) || input.time < 0 || !object(input.data)) return false;
+  const data = input.data;
+  if (input.type === 'user/message') return messageShape(data, 'user');
+  if (!ordinal(data.turn)) return false;
+  if (input.type === 'turn/end') return object(data.reason) && identifier(data.reason.kind);
+  if (input.type === 'turn/start') return true;
+  if (!ordinal(data.step)) return false;
+  if (input.type === 'assistant/message') return messageShape(data.message, 'assistant') && (data.interrupted === undefined || typeof data.interrupted === 'boolean');
+  if (input.type === 'tool/call') return identifier(data.callId) && identifier(data.name) && typeof data.arguments === 'string';
+  if (input.type === 'tool/result') return messageShape(data.message, 'tool');
+  if (input.type === 'system/message' || input.type === 'developer/message') return messageShape(data.message, input.type.split('/')[0]);
+  return true;
+}
 const credential = (key: string) => /^(authorization|apikey|password|cookie|setcookie|accesstoken|refreshtoken|clientsecret|connectiontoken|deepseekapikey)$/i.test(key.replace(/[_\- ]/g, ''));
 
 /** Remove explicit credential fields without rewriting a user's actual text. */
@@ -152,6 +175,7 @@ export class HostAdapter {
   private disposed = false; private closing = false; private closePromise?: Promise<void>; private failures = 0; private lastError?: string;
   private boundSession?: string; private waitingStarts = new Map<string, { session: Pick<Session, 'id' | 'header'>; event: SessionEvent }>();
   private heartbeatTimer?: NodeJS.Timeout;
+  private contractWarning = false;
   constructor(readonly config: AdapterConfig, readonly warn: (message: string) => void = () => {}, options?: { apiProxy: true }) {
     const actualVersion = config.host_contract ? verifiedHostVersion(config.host_contract, config.host_version) : null;
     const compatible = config.host_contract ? !!actualVersion : SUPPORTED_HOSTS.includes(config.host_version);
@@ -187,6 +211,15 @@ export class HostAdapter {
     } catch { this.turns.clear(); this.waitingStarts.clear(); return false; }
   }
   get enabled() { return this.isEnabled(); }
+  private rejectContractPayload(session?: unknown) {
+    if (object(session) && identifier(session.id)) {
+      this.turns.delete(session.id); this.waitingStarts.delete(session.id);
+    }
+    if (!this.contractWarning) {
+      this.contractWarning = true;
+      this.warn('Harness memory event contract changed; incompatible data was not captured or injected');
+    }
+  }
   private accepts(session: Pick<Session, 'id' | 'header'>, allowClaim = false) {
     const sid = String(session.id); const scope = this.connection.session_scope ?? 'connection';
     if (scope === 'connection') return true;
@@ -265,6 +298,8 @@ export class HostAdapter {
   }
   capture(session: Pick<Session, 'id' | 'header'>, event: SessionEvent) {
     if (this.disposed || this.closing || !this.isEnabled()) return;
+    if (!object(event) || !eventKinds.includes(event.type)) return; // Additive unrelated host events are not memory capabilities.
+    if (!sessionShape(session) || !eventShape(event)) { this.rejectContractPayload(session); return; }
     if (session.header?.origin === 'subagent') return;
     const input = event as unknown as JsonObject; const data = input.data ?? {};
     const message = input.type === 'user/message' ? data : data.message;
@@ -280,8 +315,6 @@ export class HostAdapter {
       }
       return;
     }
-    const kinds = ['turn/start', 'turn/end', 'step/start', 'step/end', 'user/message', 'assistant/message', 'assistant/attempt', 'tool/call', 'tool/result', 'system/message', 'developer/message'];
-    if (!kinds.includes(input.type)) return; // Never collect credential/config/request-header snapshots.
     const sid = String(session.id); const turnNumber = Number.isInteger(data.turn) ? data.turn : (this.turns.get(sid)?.number ?? -1);
     if (input.type === 'turn/start') {
       this.turns.set(sid, { number: turnNumber, started: true, interrupted: false, messages: [], calls: new Map(), ...(deferred ? { rawEvents: [] } : {}) });
@@ -351,6 +384,13 @@ export class HostAdapter {
   }
   async beforeStep(payload: { agent: Agent; messages: UserMessage[]; turn: number; step: number; signal: AbortSignal }, next: () => Promise<PreStepDecision>): Promise<PreStepDecision> {
     const decision = await next();
+    if (!object(payload) || !object(payload.agent) || !sessionShape(payload.agent.session)
+        || !ordinal(payload.turn) || !ordinal(payload.step) || typeof payload.signal?.aborted !== 'boolean'
+        || !Array.isArray(payload.messages) || !payload.messages.every(message => messageShape(message, 'user'))
+        || !object(decision) || !['enter', 'reject'].includes(decision.kind)
+        || (decision.kind === 'enter' && (!Array.isArray(decision.messages) || !decision.messages.every(message => messageShape(message, 'user'))))) {
+      this.rejectContractPayload(payload?.agent?.session); return decision;
+    }
     if (decision.kind !== 'enter' || this.disposed || this.closing || !this.isEnabled() || payload.signal.aborted || this.injected.get(String(payload.agent.session.id)) === payload.turn) return decision;
     if (payload.agent.session.header?.origin === 'subagent') return decision;
     const human = decision.messages.filter(message => message.source.kind === 'user');

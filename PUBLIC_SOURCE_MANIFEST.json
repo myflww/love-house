@@ -42,6 +42,11 @@
       "sha256": "7ea8db1a561e92f8eae634d69e74237b7ea09edd6c037b67afc9889ec8fd6bda"
     },
     {
+      "path": ".github/workflows/harness-compatibility.yml",
+      "bytes": 11397,
+      "sha256": "a7cf36a1d4415b9e336c7868f18729b2085df2dcd69849ca2e3fa5663fbd021c"
+    },
+    {
       "path": ".github/workflows/ios-portal.yml",
       "bytes": 2143,
       "sha256": "e4c9c62da73c685343440480a8be4854a8a797d8fd74db1cb0a29df3a000d862"
@@ -687,6 +692,11 @@
       "sha256": "43b22087da77377b42731c5e3aa19150b5a6dadfa5da0bf6616cdb414ad48cd9"
     },
     {
+      "path": "docs/HARNESS-COMPATIBILITY.md",
+      "bytes": 3274,
+      "sha256": "9230a885247bd2bc002cbb1314402cda52cbb5ba2dcbeaf4f1e0cec3bf9d362e"
+    },
+    {
       "path": "docs/KIMI-REVIEW-20261030.md",
       "bytes": 6847,
       "sha256": "b58113d12ecc67b608307583cf2a8a4b9adfa1d5a9c3a49ff813122fd6677d8b"
@@ -1048,13 +1058,13 @@
     },
     {
       "path": "examples/harness-cli-qa/package-lock.json",
-      "bytes": 409192,
-      "sha256": "51336481ab8e1c095fd4c1c17aefc25517e65ec79855a4447c4c1faabc0e73b5"
+      "bytes": 433509,
+      "sha256": "c00fd2230356def7a8505c247d31e01ba9cd20c6d6cebf0edb85337a64105ffc"
     },
     {
       "path": "examples/harness-cli-qa/package.json",
       "bytes": 161,
-      "sha256": "b6b79ad569bf279032b3b9ad6d7a8106b78fea13884f365de362b32d202c09a4"
+      "sha256": "d49fb138841567ed9b102047b968507d0b892571bf471406e6983e837cf7beec"
     },
     {
       "path": "examples/harness-cli-qa/README.md",
@@ -1128,8 +1138,8 @@
     },
     {
       "path": "extensions/deepseek-harness/configure.py",
-      "bytes": 28032,
-      "sha256": "45d8b15e63300a4d2a74132f12e9459b5757c6ad47a58b519585c7acede493d0"
+      "bytes": 34579,
+      "sha256": "b2988a40122aa5a5bd3071eeee0449379db600b96059c260f9a17660fa17dd0d"
     },
     {
       "path": "extensions/deepseek-harness/dist/configure.js",
@@ -1138,18 +1148,23 @@
     },
     {
       "path": "extensions/deepseek-harness/dist/index.js",
-      "bytes": 35137,
-      "sha256": "fb3a41f42fbf6f599ee9fbfc4d4d2696128dc2c9326d8b2c39220909eb918282"
+      "bytes": 44157,
+      "sha256": "f01a74b4ed6a7e2640dd9349798d61c890796a23bc0a268c37550a287e619c73"
     },
     {
       "path": "extensions/deepseek-harness/dist/proxy.js",
-      "bytes": 41813,
-      "sha256": "10b54aec1cdbdd6a2e8f3c6e3ef9643ae82dbfd0095663636bf33ba84c928c91"
+      "bytes": 50519,
+      "sha256": "1e38eef5302007193f955c8df17cfc0288457901986a2a8cbfe036cfe018032a"
     },
     {
       "path": "extensions/deepseek-harness/dist/THIRD_PARTY_LICENSES.txt",
       "bytes": 783,
       "sha256": "558b20a2c348693345e3b97acb9b56e46896f96689d50ee66ac225b8199eaf30"
+    },
+    {
+      "path": "extensions/deepseek-harness/host-capabilities.json",
+      "bytes": 2508,
+      "sha256": "24cb79efc04a4116d14b702c20a84749b45e715d8c002645c96d63780ee028e0"
     },
     {
       "path": "extensions/deepseek-harness/host-contract-fingerprints.json",
@@ -1158,8 +1173,8 @@
     },
     {
       "path": "extensions/deepseek-harness/host-contract.json",
-      "bytes": 7871,
-      "sha256": "dfe5c1f740f6eea88782e452a799bc585a2a8b68288b5f4f0d5526d138f0e37c"
+      "bytes": 8451,
+      "sha256": "b67daa97c1b2d377cbcd8231a1ca87c57da16e31a6f48d3f6428c1bb57dc88c1"
     },
     {
       "path": "extensions/deepseek-harness/LICENSE",
@@ -1178,18 +1193,18 @@
     },
     {
       "path": "extensions/deepseek-harness/package-lock.json",
-      "bytes": 25274,
-      "sha256": "9d7252a9ae83eec70994cdfcee816b9bf991587099279f320f02bde36b8b1831"
+      "bytes": 25377,
+      "sha256": "8bd998886b24f93d0285ceb7a0c6ee19d15b83ace444aae6ff9a34c7d8ca9508"
     },
     {
       "path": "extensions/deepseek-harness/package.json",
-      "bytes": 1020,
-      "sha256": "9d99314b6d530a2db36ce33ea2ced69ac4802366109b9a029713758425535f94"
+      "bytes": 1050,
+      "sha256": "e15437ee92b0e50a678183db8aae8244d3c7897b0faf4bd53b48096944e35997"
     },
     {
       "path": "extensions/deepseek-harness/README.md",
-      "bytes": 13862,
-      "sha256": "d4985447d8bf9224bf4322e6e1f15a98950649f2a81d4c09e768417d0f8b1878"
+      "bytes": 14036,
+      "sha256": "f242def66fac58f2ed39f39c71aece1a129066a1b1252489601c4bbc6471740d"
     },
     {
       "path": "extensions/deepseek-harness/samples/host.overlay.yml",
@@ -1203,13 +1218,13 @@
     },
     {
       "path": "extensions/deepseek-harness/src/host-contract.ts",
-      "bytes": 5400,
-      "sha256": "93e0f241336fe2b8899b13cac683a2e03d48cecb9faac820cda334b8c14dd895"
+      "bytes": 9452,
+      "sha256": "8608f306427c7acaca504a78d80fc681e6c858a8a7e65dad287f0a6876be7d31"
     },
     {
       "path": "extensions/deepseek-harness/src/index.ts",
-      "bytes": 796,
-      "sha256": "10d8af177a0be7d16e1ef2eb7df1d8ede68c2e508d89f12372c82ae6b12cb1c5"
+      "bytes": 1276,
+      "sha256": "e538f78f49b7e6d1e639f4dea9fa7f961e8e86de2380c197545f5c9dd49f9803"
     },
     {
       "path": "extensions/deepseek-harness/src/proxy.ts",
@@ -1218,18 +1233,18 @@
     },
     {
       "path": "extensions/deepseek-harness/src/runtime.ts",
-      "bytes": 27945,
-      "sha256": "cd3e5879011875f1d993cddb1507bb709188b803f14200d6fa90d029c766e725"
+      "bytes": 30939,
+      "sha256": "d43946c96aa5f4cc37f7ecc9062fa7025ce00e20818ebb47655ddcb95d0df1fd"
     },
     {
       "path": "extensions/deepseek-harness/test/adapter.test.mjs",
-      "bytes": 40615,
-      "sha256": "28569e330193db67e3323c40f4c10259fd5b18b6d3f72ee9c1471052bb77be61"
+      "bytes": 45717,
+      "sha256": "0a8d98dbb604ae0ceddb52314e65eeb15bfb12a4e20eb98a89eef2bc5a228bb4"
     },
     {
       "path": "extensions/deepseek-harness/test/compatibility.test.mjs",
-      "bytes": 6120,
-      "sha256": "e0e038ef0176106b956e3d21621e56ad698794ab841bdb6007b8ce67a9409842"
+      "bytes": 9209,
+      "sha256": "0f910d698cf51983e3f69b104f3f61b8f500c4986dc4fc0a71a619c2c7eb24a4"
     },
     {
       "path": "extensions/deepseek-harness/test/configure.test.mjs",
@@ -1708,8 +1723,8 @@
     },
     {
       "path": "nkb/service/harness/configure.py",
-      "bytes": 28032,
-      "sha256": "45d8b15e63300a4d2a74132f12e9459b5757c6ad47a58b519585c7acede493d0"
+      "bytes": 34579,
+      "sha256": "b2988a40122aa5a5bd3071eeee0449379db600b96059c260f9a17660fa17dd0d"
     },
     {
       "path": "nkb/service/harness/dist/configure.js",
@@ -1718,18 +1733,23 @@
     },
     {
       "path": "nkb/service/harness/dist/index.js",
-      "bytes": 35137,
-      "sha256": "fb3a41f42fbf6f599ee9fbfc4d4d2696128dc2c9326d8b2c39220909eb918282"
+      "bytes": 44157,
+      "sha256": "f01a74b4ed6a7e2640dd9349798d61c890796a23bc0a268c37550a287e619c73"
     },
     {
       "path": "nkb/service/harness/dist/proxy.js",
-      "bytes": 41813,
-      "sha256": "10b54aec1cdbdd6a2e8f3c6e3ef9643ae82dbfd0095663636bf33ba84c928c91"
+      "bytes": 50519,
+      "sha256": "1e38eef5302007193f955c8df17cfc0288457901986a2a8cbfe036cfe018032a"
     },
     {
       "path": "nkb/service/harness/dist/THIRD_PARTY_LICENSES.txt",
       "bytes": 783,
       "sha256": "558b20a2c348693345e3b97acb9b56e46896f96689d50ee66ac225b8199eaf30"
+    },
+    {
+      "path": "nkb/service/harness/host-capabilities.json",
+      "bytes": 2508,
+      "sha256": "24cb79efc04a4116d14b702c20a84749b45e715d8c002645c96d63780ee028e0"
     },
     {
       "path": "nkb/service/harness/host-contract-fingerprints.json",
@@ -1738,8 +1758,8 @@
     },
     {
       "path": "nkb/service/harness/host-contract.json",
-      "bytes": 7871,
-      "sha256": "dfe5c1f740f6eea88782e452a799bc585a2a8b68288b5f4f0d5526d138f0e37c"
+      "bytes": 8451,
+      "sha256": "b67daa97c1b2d377cbcd8231a1ca87c57da16e31a6f48d3f6428c1bb57dc88c1"
     },
     {
       "path": "nkb/service/harness/LICENSE",
@@ -1753,8 +1773,8 @@
     },
     {
       "path": "nkb/service/harness/README.md",
-      "bytes": 13862,
-      "sha256": "d4985447d8bf9224bf4322e6e1f15a98950649f2a81d4c09e768417d0f8b1878"
+      "bytes": 14036,
+      "sha256": "f242def66fac58f2ed39f39c71aece1a129066a1b1252489601c4bbc6471740d"
     },
     {
       "path": "nkb/service/host.py",
@@ -1953,8 +1973,8 @@
     },
     {
       "path": "nkb/viz/web/connection-ux.js",
-      "bytes": 62193,
-      "sha256": "62e4e029774496fd7fdf2f48f1d069da4fe848c2877eba73a7aa28641d87870d"
+      "bytes": 62228,
+      "sha256": "fc5a6a9340ef92b772e7863c7634ae62f00de7c2382b5148a85962894a76399a"
     },
     {
       "path": "nkb/viz/web/dialogue-import-ui.js",
@@ -2137,6 +2157,11 @@
       "sha256": "42d5acc03c27980f9a7dbb1adfc8bf9b8f3aaa6d83f3ce2e5d779c2ce9ec05f4"
     },
     {
+      "path": "scripts/package_harness_hotfix.py",
+      "bytes": 4101,
+      "sha256": "0379d3dabb3ab8ac10061143d5e28197df5dc43713b80a01768e00e7d1a5f894"
+    },
+    {
       "path": "scripts/prepare_android_remote_fixture.py",
       "bytes": 2153,
       "sha256": "aa4503a2ec140b3c3eda731ea4121f3b00564c415101e3c1b65c0cdd9c5c0141"
@@ -2213,8 +2238,8 @@
     },
     {
       "path": "scripts/sync_harness_assets.py",
-      "bytes": 837,
-      "sha256": "bb0b0df7172040a0613e4e5c725674083d7c7e0ef2bcedea76109725e3c6c016"
+      "bytes": 862,
+      "sha256": "04ce87c6643055dc0e830c74284473030d0496b5647a698beffcdd4c3447369b"
     },
     {
       "path": "scripts/verify_android_release.py",
@@ -2418,8 +2443,8 @@
     },
     {
       "path": "tests/test_agent_harness_capture.py",
-      "bytes": 8606,
-      "sha256": "96c46aade2d09d5111922db9656c5be1becf7d0c36f5475d8e1c8a004c025300"
+      "bytes": 8613,
+      "sha256": "b652daa4c141e47e662c99c8549f286857841dcda9b801479ed185a4d7505627"
     },
     {
       "path": "tests/test_agent_memory_client.py",
@@ -2585,6 +2610,11 @@
       "path": "tests/test_fish_life_workflow.py",
       "bytes": 8875,
       "sha256": "0733e3f59b892b9da157960edad717521970ee92523ac3910f71ce98d2ed943b"
+    },
+    {
+      "path": "tests/test_harness_capabilities.py",
+      "bytes": 5082,
+      "sha256": "3106884de8b60886997893b5304fcb1b80c14827d01cab1e3d7c2c306bcb8d31"
     },
     {
       "path": "tests/test_harness_legacy_detection.py",

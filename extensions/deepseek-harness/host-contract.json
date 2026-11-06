@@ -2,7 +2,8 @@
   "adapter_version": "0.4.1",
   "runtime_support": [
     "0.2.1-rc.3",
-    "0.2.1-rc.5"
+    "0.2.1-rc.5",
+    "0.2.2-rc.1"
   ],
   "source_reviewed_master": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
   "primary_packages": [
@@ -102,20 +103,31 @@
     "real_model_called": false
   },
   "future_version_policy": {
-    "strategy": "Static exact-runtime contract fingerprints, not a version-only allowlist",
-    "fingerprints_file": "host-contract-fingerprints.json",
-    "runtime_files_checked": 37,
-    "metadata": "module entrypoints, dependency contracts, package types and engines; only same-release exact SDK versions normalized",
-    "trusted_baseline": [
-      "0.2.1-rc.3",
-      "0.2.1-rc.5"
-    ],
+    "strategy": "Required public API declarations and shipped runtime capabilities, plus live service/payload checks and isolated host behavior regression",
+    "capabilities_file": "host-capabilities.json",
+    "legacy_fingerprints_file": "host-contract-fingerprints.json",
     "runtime_recheck": true,
-    "upgrades_with_identical_code": "Reconnect automatically and report installed SDK version",
-    "changed_contract": "Reject automatic configuration/loading and report differing SDK files or metadata",
     "installed_code_executed_for_detection": false,
-    "real_official_electron_smoke": "Passed against installed official rc.3 ASAR with isolated disabled connection; no model or credentials accessed"
+    "additive_updates": "Accept compatible API shapes without exact version or whole-file equality; read actual SDK version at each plugin load",
+    "packaged_types": "Electron production archives may omit d.ts; require consumed runtime surfaces and live service validation",
+    "changed_contract": "Reject missing or changed required interfaces with detected version and actionable diagnostics; no claim of automatic archival before a real receipt",
+    "continuous_validation": "Daily official CLI latest candidate and pinned old/new SDK matrix with isolated synthetic model; no real user profile or model keys"
   },
   "independent_output": "Only a completed matching turn in an already fixed root session, with no human input and a final committed text-only model assistant message. Never claims next_session or normalizes intermediate assistant/message events as output.",
-  "before_no_human_work": "Only an already fixed root session with observed, matching, uninterrupted turn/start may query context using its public Session.deriveMessages() latest real human text, or a fixed baseline when that valid public projection has no task text. No new claim, other session, private reasoning, raw event snapshots, or synthetic user archival."
+  "before_no_human_work": "Only an already fixed root session with observed, matching, uninterrupted turn/start may query context using its public Session.deriveMessages() latest real human text, or a fixed baseline when that valid public projection has no task text. No new claim, other session, private reasoning, raw event snapshots, or synthetic user archival.",
+  "rc022_desktop_validation": {
+    "host_version": "0.2.2-rc.1",
+    "cordis_version": "4.1.0",
+    "real_official_desktop_cli": true,
+    "real_official_npm_cli": true,
+    "synthetic_model_only": true,
+    "real_credentials_accessed": false,
+    "connection_modes": [
+      "harness",
+      "agent"
+    ],
+    "original_user_and_assistant_saved": true,
+    "foreign_window_excluded": true,
+    "complete": true
+  }
 }

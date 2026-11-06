@@ -3,7 +3,7 @@
 此扩展监听真正的宿主事件，不依赖模型决定是否调用记忆 MCP 工具。爱之屋服务接收和保存记录，
 宿主继续负责对话、模型调用与网页操作。每个连接由服务端固定绑定独立记忆库，切换爱之屋界面不会改变归档目标。
 
-支持 **DeepSeek Harness 0.2.1-rc.3、0.2.1-rc.5 / Cordis 4.0.5 / Node ≥24.9**。契约来自官方 npm 精确版本的公开类型：
+支持 **DeepSeek Harness 0.2.1-rc.3、0.2.1-rc.5（Cordis 4.0.5）及 0.2.2-rc.1（Cordis 4.1.0）/ Node ≥24.9**。按实际使用的公共接口判断兼容性；保留真实版本信息，不因版本号或无关实现变化直接拒绝。新旧 SDK 的隔离行为验证与每日最新版检查见 [兼容检查](../../docs/HARNESS-COMPATIBILITY.md)。契约来自官方 npm 精确版本的公开类型：
 
 - `@deepseek-ai/dsh-session@0.2.1-rc.3`：`session/event(session,event)`，在提交后发布原始日志事件。
 - `@deepseek-ai/dsh-agent@0.2.1-rc.3`：`agent/pre-step(payload,next)`，用真实上下文替换本步消息。
@@ -39,11 +39,10 @@ set_enabled(connection_config, enabled=False, remove=False, app_path=None)
 （含 `dsh.profile.bundles` 字符串数组）；后者尚未启动时可以没有由宿主生成的 `cordis.yml`。
 配置器保留 manifest，仅写自己的 patch 和插件文件，不替宿主创建 root config，也不把普通 npm 项目当成 profile。
 发现程序与版本不代表已经自动存档；插件收到真实完整轮次回执后才算接通。
-未来版本不只靠版本白名单：Python 会只读比对已安装 `dsh-agent/session/llm/scope` 的 37 个运行 JS
-文件及模块入口、依赖等元数据，仅把同版 SDK 精确版本归一化；Cordis 核心仍须符合已验证版本。
-与 `host-contract-fingerprints.json` 的已验证指纹完全一致时，生成绑定资源目录的契约 descriptor 后自动兼容。
-插件每次启动会再次检查实际文件；宿主后续升级但指纹不变时自动重连并报告实际版本，接口代码或依赖变化则拒绝自动配置/加载，
-检测结果会列出不匹配的包或文件。只读取固定的官方 SDK 元数据和代码字节，检测过程不导入或执行安装目录里的 JS。
+未来版本按 `host-capabilities.json` 中实际使用的接口判断：检查同版 SDK 组合、真实模块入口、公共声明及所需运行接口。
+生产版 ASAR 没有开发用 `.d.ts` 时检查随包的运行接口；不会要求所有实现文件逐字节相同。
+插件每次加载重新核对实际安装版本，并检查现场服务与事件参数。保留旧 descriptor 的升级路径，兼容接口下的新增功能或版本号变化无需重新发版。
+检测保持只读，不执行安装目录里的 JS；实际完整轮次、记忆注入与窗口隔离由隔离行为测试验收。缺少必要接口时报告真实版本与具体原因。
 独立 Node `dist/configure.js` CLI 的自动探测目前仍限 macOS；Windows 请使用桌面向导/Python 配置器。
 
 每个连接有独立 hash 条目、标记块、Overlay、私有连接文件和 outbox。安装 A、安装 B、重新配置 A 不会删除 B。
@@ -131,7 +130,7 @@ npm test
 
 ## Linux/macOS 的官方 npm CLI 验收
 
-可显式指定官方 `@deepseek-ai/dsh` 的包目录和隔离 profile，已验证精确版本继续使用相同宿主插件。npm CLI 的未知版本目前保守拒绝，不套用 Electron 安装包的资源布局判断。仓库 `scripts/verify_harness_connection.py` 用真实 CLI、临时 `DSH_HOME`、本机合成模型和临时记忆服务，分别验证 Harness/原 MCP 连接自动保存及第二会话隔离；任何一项失败都会返回非零退出码。它不读取已有聊天配置或真实模型密钥。
+可显式指定官方 `@deepseek-ai/dsh` 的包目录和隔离 profile。npm CLI 使用独立的 `node_modules` 布局读取同一能力清单，不假设 Electron 的 ASAR 路径。仓库 `scripts/verify_harness_connection.py` 用真实 CLI、临时 `DSH_HOME`、本机合成模型和临时记忆服务，分别验证 Harness/原 MCP 连接自动保存及第二会话隔离；任何一项失败都会返回非零退出码。它不读取已有聊天配置或真实模型密钥。
 
 独立输出额外覆盖固定窗口、human 绑定后输出、未绑定不能自抢窗口、中间/失败步骤排除、turn 编号一致、子代理隔离、离线稳定 ID 重放，以及官方精确 rc.3 的真实 Cordis/SessionStore 合成事件。没有真实模型调用，也没有修改用户 Harness 配置。
 

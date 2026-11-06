@@ -93,7 +93,7 @@ const session={id:'node-host-window',header:{}};let seq=0;
 const emit=(type,data)=>adapter.capture(session,{type,data,seq:seq++,time:Date.now()});
 emit('turn/start',{turn:1});
 emit('user/message',{id:'actual-user',role:'user',source:{kind:'user'},content:[{type:'text',text:'宿主自动提供的真实原话'}]});
-emit('assistant/message',{turn:1,message:{id:'actual-assistant',role:'assistant',source:{kind:'model'},content:[{type:'text',text:'宿主自动提供的真实回复'}]}});
+emit('assistant/message',{turn:1,step:1,message:{id:'actual-assistant',role:'assistant',source:{kind:'model'},content:[{type:'text',text:'宿主自动提供的真实回复'}]}});
 emit('turn/end',{turn:1,reason:{kind:'completed'}});
 await adapter.flush();await adapter.dispose();
 """.replace('__PLUGIN__',(ROOT/'extensions/deepseek-harness/dist/index.js').as_uri())

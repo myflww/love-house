@@ -96,6 +96,61 @@ var host_contract_fingerprints_default = {
   contract_id: "sha256:3ac4fe40018cc65182d062453f64f7b2b8b61a150fe7f1429e19cb9903203e66"
 };
 
+// host-capabilities.json
+var host_capabilities_default = {
+  schema: "love-house-harness-capabilities/v1",
+  contract_id: "harness-memory-events-v1",
+  cordis_major: 4,
+  packages: {
+    "@deepseek-ai/dsh-agent": {
+      files: {
+        "lib/types/runtime-types.d.ts": [
+          "'agent/pre-step'(this: Scoped<Agent>, payload: {",
+          "agent: Agent;",
+          "messages: UserMessage[];",
+          "turn: number;",
+          "step: number;",
+          "signal: AbortSignal;",
+          "}, next: () => Promise<PreStepDecision>): Promise<PreStepDecision>;",
+          "export type PreStepDecision = { kind: 'reject'; } | { kind: 'enter'; messages: UserMessage[];",
+          "readonly session: Session;"
+        ]
+      },
+      runtime_files: { "lib/index.js": ["agent/pre-step", "next()"] }
+    },
+    "@deepseek-ai/dsh-session": {
+      files: {
+        "lib/types/index.d.ts": [
+          "'session/event'(this: Scoped<Session>, session: Session, event: SessionEvent): void;",
+          "deriveMessages(): Message[];",
+          "get(id: SessionId): Session | undefined;"
+        ],
+        "lib/types/types.d.ts": [
+          "'turn/start': { turn: number; };",
+          "'turn/end': { turn: number; reason: TurnEndReason; };",
+          "'step/start': { turn: number; step: number; };",
+          "'step/end': { turn: number; step: number; };",
+          "'user/message': UserMessage;",
+          "'assistant/message': { turn: number; step: number; message: AssistantMessage; stream: AssistantStreamRecord[];"
+        ]
+      },
+      runtime_files: { "lib/index.js": ["session/event", "deriveMessages()", "turn/start", "turn/end", "user/message", "assistant/message", "tool/result"] }
+    },
+    "@deepseek-ai/dsh-llm": {
+      files: {
+        "lib/types/message.d.ts": [
+          "interface MessageBase { readonly id: MessageId; readonly content: readonly ContentBlock[]; readonly source: MessageSource; }",
+          "export interface UserMessage extends MessageBase { readonly role: 'user'; }",
+          "export interface AssistantMessage extends MessageBase { readonly role: 'assistant'; readonly source: ModelMessageSource; }",
+          "readonly toolCallId: ToolCallId;"
+        ]
+      },
+      runtime_files: { "lib/index.js": ["function createUserMessage(", "function createAssistantMessage(", "function MessageId(", "toolCallId"] }
+    },
+    "@deepseek-ai/dsh-scope": { files: {}, runtime_files: { "lib/index.js": ["ScopedLayers", "export"] } }
+  }
+};
+
 // src/host-contract.ts
 var sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 function canonical(value) {
@@ -107,7 +162,13 @@ function normalizedMetadata(metadata) {
   const normalize = (value) => typeof value === "string" ? value === metadata.version ? "$HOST_VERSION" : value : Array.isArray(value) ? value.map(normalize) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, normalize(item)])) : value;
   return normalize(Object.fromEntries(host_contract_fingerprints_default.metadata_keys.filter((key) => key in metadata).map((key) => [key, metadata[key]])));
 }
-function resourceRead(resources, name2) {
+function resourceRead(resources, name2, layout) {
+  if (layout === "node_modules") {
+    if (!name2.startsWith("dsh/node_modules/")) throw new Error("Invalid SDK resource");
+    const root = realpathSync(resources), path = realpathSync(join(root, name2.slice("dsh/node_modules/".length))), child = relative(root, path);
+    if (child === ".." || child.startsWith(".." + sep) || isAbsolute(child) || statSync(path).size > 4 * 1024 * 1024) throw new Error("Resource escapes installation or exceeds limit");
+    return readFileSync(path);
+  }
   const loose = join(resources, "app", name2);
   if (existsSync(loose)) {
     const root = realpathSync(resources), path = realpathSync(loose), child = relative(root, path);
@@ -140,25 +201,76 @@ function resourceRead(resources, name2) {
     closeSync(fd);
   }
 }
-function verifiedHostVersion(descriptor, version) {
+var declarationShape = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\r\n]*/g, "").replace(/\s+/g, "");
+function capabilityVersion(resources, layout) {
+  const read = (path) => resourceRead(resources, path, layout);
+  let actualVersion;
+  for (const [name2, expected] of Object.entries(host_capabilities_default.packages)) {
+    const prefix = "dsh/node_modules/" + name2 + "/";
+    const metadata = JSON.parse(read(prefix + "package.json").toString("utf8"));
+    if (metadata.name !== name2 || metadata.type !== "module" || typeof metadata.version !== "string" || !metadata.version.trim()) return null;
+    actualVersion ??= metadata.version;
+    if (metadata.version !== actualVersion) return null;
+    const main = metadata.main;
+    if (typeof main !== "string" || !main.endsWith(".js") || /^[\\/]/.test(main) || main.replace(/\\/g, "/").split("/").includes("..")) return null;
+    const runtimeFiles = expected.runtime_files;
+    const normalizedMain = main.replace(/^\.\//, "");
+    const entry = metadata.exports?.["."];
+    const exported = typeof entry === "string" ? entry : entry?.import ?? entry?.default;
+    if (!runtimeFiles || !(normalizedMain in runtimeFiles) || typeof exported !== "string" || exported.replace(/^\.\//, "") !== normalizedMain) return null;
+    read(prefix + normalizedMain);
+    let missingDeclarations = false;
+    for (const [file, fragments] of Object.entries(expected.files)) {
+      let declaration;
+      try {
+        declaration = read(prefix + file);
+      } catch {
+        missingDeclarations = true;
+        continue;
+      }
+      const source = declarationShape(declaration.toString("utf8"));
+      if (!fragments.every((fragment) => source.includes(declarationShape(fragment)))) return null;
+    }
+    if (missingDeclarations && !runtimeFiles) return null;
+    for (const [file, fragments] of Object.entries(runtimeFiles ?? {})) {
+      const source = declarationShape(read(prefix + file).toString("utf8"));
+      if (!fragments.every((fragment) => source.includes(declarationShape(fragment)))) return null;
+    }
+  }
+  const cordis = JSON.parse(read("dsh/node_modules/@deepseek-ai/cordis/package.json").toString("utf8"));
+  return cordis.name === "@deepseek-ai/cordis" && typeof cordis.version === "string" && new RegExp("^" + host_capabilities_default.cordis_major + "\\.\\d+\\.\\d+(?:[-+].*)?$").test(cordis.version) ? actualVersion ?? null : null;
+}
+function legacyVersion(resources, layout) {
+  const read = (path) => resourceRead(resources, path, layout);
+  let actualVersion;
+  for (const [name2, expected] of Object.entries(host_contract_fingerprints_default.packages)) {
+    const prefix = "dsh/node_modules/" + name2 + "/";
+    const metadata = JSON.parse(read(prefix + "package.json").toString("utf8"));
+    if (metadata.name !== name2 || typeof metadata.version !== "string" || !metadata.version || sha256(canonical(normalizedMetadata(metadata))) !== expected.metadata_sha256) return null;
+    actualVersion ??= metadata.version;
+    if (metadata.version !== actualVersion) return null;
+    for (const [file, hash2] of Object.entries(expected.files)) if (sha256(read(prefix + file)) !== hash2) return null;
+  }
+  const cordis = JSON.parse(read("dsh/node_modules/@deepseek-ai/cordis/package.json").toString("utf8"));
+  return cordis.name === "@deepseek-ai/cordis" && cordis.version === host_contract_fingerprints_default.cordis_version ? actualVersion ?? null : null;
+}
+function verifiedHostVersion(descriptor, _version) {
   if (!descriptor || typeof descriptor !== "object" || Array.isArray(descriptor)) return null;
   const value = descriptor;
-  if (value.schema !== "love-house-harness-contract/v1" || value.host_version !== version || value.contract_id !== host_contract_fingerprints_default.contract_id || typeof value.resources_path !== "string" || !isAbsolute(value.resources_path)) return null;
+  if (value.schema !== "love-house-harness-contract/v1" || typeof value.host_version !== "string" || !value.host_version.trim() || ![host_contract_fingerprints_default.contract_id, host_capabilities_default.contract_id].includes(value.contract_id) || value.layout !== void 0 && value.layout !== "node_modules" || typeof value.resources_path !== "string" || !isAbsolute(value.resources_path)) return null;
   try {
-    let actualVersion;
-    for (const [name2, expected] of Object.entries(host_contract_fingerprints_default.packages)) {
-      const prefix = "dsh/node_modules/" + name2 + "/";
-      const metadata = JSON.parse(resourceRead(value.resources_path, prefix + "package.json").toString("utf8"));
-      if (metadata.name !== name2 || typeof metadata.version !== "string" || !metadata.version || sha256(canonical(normalizedMetadata(metadata))) !== expected.metadata_sha256) return null;
-      actualVersion ??= metadata.version;
-      if (metadata.version !== actualVersion) return null;
-      for (const [file, hash2] of Object.entries(expected.files)) if (sha256(resourceRead(value.resources_path, prefix + file)) !== hash2) return null;
-    }
-    const cordis = JSON.parse(resourceRead(value.resources_path, "dsh/node_modules/@deepseek-ai/cordis/package.json").toString("utf8"));
-    return cordis.name === "@deepseek-ai/cordis" && cordis.version === host_contract_fingerprints_default.cordis_version ? actualVersion ?? null : null;
+    const compatible = capabilityVersion(value.resources_path, value.layout);
+    if (compatible) return compatible;
   } catch {
-    return null;
   }
+  if (value.contract_id === host_contract_fingerprints_default.contract_id) {
+    try {
+      return legacyVersion(value.resources_path, value.layout);
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 // src/runtime.ts
@@ -167,6 +279,25 @@ var SUPPORTED_HOSTS = ["0.2.1-rc.3", "0.2.1-rc.5"];
 var expandHome = (path) => path.startsWith("~/") ? join2(homedir(), path.slice(2)) : resolve(path);
 var hash = (value) => createHash2("sha256").update(value).digest("hex");
 var object = (value) => !!value && typeof value === "object" && !Array.isArray(value);
+var identifier = (value) => typeof value === "string" && !!value.trim();
+var ordinal = (value) => Number.isSafeInteger(value) && value >= 0;
+var sessionShape = (value) => object(value) && identifier(value.id) && object(value.header) && (value.header.origin === void 0 || value.header.origin === "subagent");
+var messageShape = (value, role) => object(value) && identifier(value.id) && identifier(value.role) && (!role || value.role === role) && object(value.source) && identifier(value.source.kind) && Array.isArray(value.content) && value.content.every((block) => object(block) && identifier(block.type) && (block.type !== "text" || typeof block.text === "string"));
+var eventKinds = ["turn/start", "turn/end", "step/start", "step/end", "user/message", "assistant/message", "assistant/attempt", "tool/call", "tool/result", "system/message", "developer/message"];
+function eventShape(input) {
+  if (!object(input) || !ordinal(input.seq) || typeof input.time !== "number" || !Number.isFinite(input.time) || input.time < 0 || !object(input.data)) return false;
+  const data = input.data;
+  if (input.type === "user/message") return messageShape(data, "user");
+  if (!ordinal(data.turn)) return false;
+  if (input.type === "turn/end") return object(data.reason) && identifier(data.reason.kind);
+  if (input.type === "turn/start") return true;
+  if (!ordinal(data.step)) return false;
+  if (input.type === "assistant/message") return messageShape(data.message, "assistant") && (data.interrupted === void 0 || typeof data.interrupted === "boolean");
+  if (input.type === "tool/call") return identifier(data.callId) && identifier(data.name) && typeof data.arguments === "string";
+  if (input.type === "tool/result") return messageShape(data.message, "tool");
+  if (input.type === "system/message" || input.type === "developer/message") return messageShape(data.message, input.type.split("/")[0]);
+  return true;
+}
 var credential = (key) => /^(authorization|apikey|password|cookie|setcookie|accesstoken|refreshtoken|clientsecret|connectiontoken|deepseekapikey)$/i.test(key.replace(/[_\- ]/g, ""));
 function sanitize(value, paths = [], path = "$") {
   if (Array.isArray(value)) return value.map((item, i) => sanitize(item, paths, `${path}[${i}]`));
@@ -371,6 +502,7 @@ var HostAdapter = class {
   boundSession;
   waitingStarts = /* @__PURE__ */ new Map();
   heartbeatTimer;
+  contractWarning = false;
   async heartbeat() {
     if (!this.isEnabled()) return;
     try {
@@ -395,6 +527,16 @@ var HostAdapter = class {
   }
   get enabled() {
     return this.isEnabled();
+  }
+  rejectContractPayload(session) {
+    if (object(session) && identifier(session.id)) {
+      this.turns.delete(session.id);
+      this.waitingStarts.delete(session.id);
+    }
+    if (!this.contractWarning) {
+      this.contractWarning = true;
+      this.warn("Harness memory event contract changed; incompatible data was not captured or injected");
+    }
   }
   accepts(session, allowClaim = false) {
     const sid = String(session.id);
@@ -493,6 +635,11 @@ var HostAdapter = class {
   }
   capture(session, event) {
     if (this.disposed || this.closing || !this.isEnabled()) return;
+    if (!object(event) || !eventKinds.includes(event.type)) return;
+    if (!sessionShape(session) || !eventShape(event)) {
+      this.rejectContractPayload(session);
+      return;
+    }
     if (session.header?.origin === "subagent") return;
     const input = event;
     const data = input.data ?? {};
@@ -509,8 +656,6 @@ var HostAdapter = class {
       }
       return;
     }
-    const kinds = ["turn/start", "turn/end", "step/start", "step/end", "user/message", "assistant/message", "assistant/attempt", "tool/call", "tool/result", "system/message", "developer/message"];
-    if (!kinds.includes(input.type)) return;
     const sid = String(session.id);
     const turnNumber = Number.isInteger(data.turn) ? data.turn : this.turns.get(sid)?.number ?? -1;
     if (input.type === "turn/start") {
@@ -602,6 +747,10 @@ var HostAdapter = class {
   }
   async beforeStep(payload, next) {
     const decision = await next();
+    if (!object(payload) || !object(payload.agent) || !sessionShape(payload.agent.session) || !ordinal(payload.turn) || !ordinal(payload.step) || typeof payload.signal?.aborted !== "boolean" || !Array.isArray(payload.messages) || !payload.messages.every((message) => messageShape(message, "user")) || !object(decision) || !["enter", "reject"].includes(decision.kind) || decision.kind === "enter" && (!Array.isArray(decision.messages) || !decision.messages.every((message) => messageShape(message, "user")))) {
+      this.rejectContractPayload(payload?.agent?.session);
+      return decision;
+    }
     if (decision.kind !== "enter" || this.disposed || this.closing || !this.isEnabled() || payload.signal.aborted || this.injected.get(String(payload.agent.session.id)) === payload.turn) return decision;
     if (payload.agent.session.header?.origin === "subagent") return decision;
     const human = decision.messages.filter((message) => message.source.kind === "user");
@@ -674,6 +823,9 @@ var name = "neural-knowledge-host";
 var reusable = true;
 var inject = ["sessions", "agents"];
 function apply(ctx, config) {
+  if (!ctx || typeof ctx.on !== "function" || typeof ctx.effect !== "function" || typeof ctx.logger?.warn !== "function" || typeof ctx.sessions?.get !== "function" || typeof ctx.agents?.get !== "function") {
+    throw new Error("Harness runtime services do not provide the required memory event capabilities");
+  }
   const adapter = new HostAdapter(config, (message) => ctx.logger.warn(message));
   ctx.on("session/event", (session, event) => adapter.capture(session, event));
   ctx.on("agent/pre-step", (payload, next) => adapter.beforeStep(payload, next));

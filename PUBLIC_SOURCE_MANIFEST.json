@@ -48,8 +48,8 @@
     },
     {
       "path": ".github/workflows/macos-release.yml",
-      "bytes": 6127,
-      "sha256": "bf3cabe6b7aef2732a21ec1c3c677958abbffa8d861ca6344865e9447f29046e"
+      "bytes": 6155,
+      "sha256": "fbcfcb711e299ced128d1b8b423924064d546cdac050167f26addbc9ef68eefe"
     },
     {
       "path": ".github/workflows/publish-windows-0101.yml",
@@ -78,8 +78,8 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "bytes": 31733,
-      "sha256": "9943a00a6c4d62f0402ef1b0fccb20e1edcdbe8d215c3a748618cd82bf5508cb"
+      "bytes": 31875,
+      "sha256": "358953816cfaec84e2ce3360cdac1b8696d546b4446d4a31b497813d302d0a24"
     },
     {
       "path": ".github/workflows/verify-public-windows-mobile-preview.yml",
@@ -533,8 +533,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 25514,
-      "sha256": "d5f474ae344d7629f51e4cabddbd8d2db79ea91409953529e49c34205690bc05"
+      "bytes": 26170,
+      "sha256": "c39ab3f489964da43a1cad73cc155d6521f57b187ad225cc83dd1942267de272"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -797,6 +797,11 @@
       "sha256": "fa0b5b7ddfe822e73578e04496b70db82b56dad1b0c7b96c79e7fc83ecc83fcb"
     },
     {
+      "path": "docs/release-0.10.6rc1.md",
+      "bytes": 5515,
+      "sha256": "6fc20a11851421f4f07541ff3b3d6943c4ad80a8e7bc36e539ad5cd1a30d2361"
+    },
+    {
       "path": "docs/RELEASE-080RC2.md",
       "bytes": 3908,
       "sha256": "f4220e86d09b404bfbafcf2b9e8374a881d21171572c3580e97d28459d06963b"
@@ -855,6 +860,16 @@
       "path": "docs/research/idle-review-design.md",
       "bytes": 17960,
       "sha256": "d3e7c990f224d66f294467a76e913d516d8db665f0f6eb5f0b67c6f66eaf5301"
+    },
+    {
+      "path": "docs/retrieval-0106-evidence/same-data-report.json",
+      "bytes": 36143,
+      "sha256": "2779c26baf1f2a5db23dd8a93b33efa282cb180ec3ff40bbf4e61f1b37c7fe36"
+    },
+    {
+      "path": "docs/retrieval-0106-evidence/synthetic-fixture.json",
+      "bytes": 14903,
+      "sha256": "23c7241c7f9a28d72e362915bff52ce3071c20668a47540be54f6a719c3181ea"
     },
     {
       "path": "docs/WINDOWS-010-HANDOFF.md",
@@ -1359,7 +1374,7 @@
     {
       "path": "nkb/_version.py",
       "bytes": 26,
-      "sha256": "9d0c2cb931505ef5d1657e25c10c7e63ebd4a4f6e4412327ebaf0ef207d49cc7"
+      "sha256": "7f6e6a96dd874c29f4e28d102169150267742da59e4a258905c961ba4ed60bc7"
     },
     {
       "path": "nkb/adapters/__init__.py",
@@ -1433,8 +1448,8 @@
     },
     {
       "path": "nkb/companion/memory.py",
-      "bytes": 28121,
-      "sha256": "ce9cb24136121282ed371f41c76f95d210b4d08cc8c881f59c3aaa6e5731ddf6"
+      "bytes": 28618,
+      "sha256": "ddc4821183e06d5a1b8052a6c40f6e8e2353af7b3fe764a81d8558acbef3bbec"
     },
     {
       "path": "nkb/companion/persona.py",
@@ -1458,8 +1473,8 @@
     },
     {
       "path": "nkb/companion/structured.py",
-      "bytes": 31242,
-      "sha256": "eb568c32149fba7c29e0b9e83ba490eecbae5809785b83e6ecd34f3b76b03b2f"
+      "bytes": 31266,
+      "sha256": "d9e4145a81c570d87a0e70b0a908d9b7e5a73a5d109ca26c47dde031332b8dae"
     },
     {
       "path": "nkb/companion/versions.py",
@@ -1588,8 +1603,8 @@
     },
     {
       "path": "nkb/organizer/state.py",
-      "bytes": 70734,
-      "sha256": "d4dca208647238eafab8728c3bdfa52a098c0bc3031cbf5269d373d2e6b5d9c7"
+      "bytes": 72973,
+      "sha256": "fcb668e8c4956584f557a2708241c0266b8f54a4403d18aac4ec3a9dc7ffb602"
     },
     {
       "path": "nkb/py.typed",
@@ -1617,9 +1632,14 @@
       "sha256": "c8172adaf59a09cf976c21eab3f6e8c37bd1342f41c0e490bba5cb475c9c279f"
     },
     {
+      "path": "nkb/retrieval/evidence.py",
+      "bytes": 2312,
+      "sha256": "64dafc6bf1c09fabe8cdd965826f52062079218e4bde65761f00d3b42bba86fb"
+    },
+    {
       "path": "nkb/retrieval/query.py",
-      "bytes": 6835,
-      "sha256": "2f6c64d783de948b56bcca83618293c96c6a467e08137f02c50a6fb37416183d"
+      "bytes": 13164,
+      "sha256": "fd3acc723abf9dd2028bd760f83cc98f6a3fdfd187684f2d41e3601282458130"
     },
     {
       "path": "nkb/retrieval/scoring.py",
@@ -2053,8 +2073,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 5567,
-      "sha256": "7c4bbf6ccf71e71f77d751ce2450ff19eec955796fc3b9ad9a12a29f41475e71"
+      "bytes": 5751,
+      "sha256": "1c376576ba8e224890fb7fc679c54f1530681308cbc1b27f8aed539f41989a5d"
     },
     {
       "path": "ROADMAP.md",
@@ -2229,7 +2249,7 @@
     {
       "path": "scripts/windows_upgrade_smoke.py",
       "bytes": 30725,
-      "sha256": "0c39908e01daf47baa65cdfa0a9e78083930af02393eaf44a5b334f687c4de67"
+      "sha256": "22a3b3568fdf3e7e76313a437b8658c5a944686b544be3e6517924a208ae3b39"
     },
     {
       "path": "scripts/workbuddy-080rc2-publication.json",
@@ -2497,6 +2517,11 @@
       "sha256": "20b779c07ac80a1e18513e732c4ac417df57895fe3e723c35c68ddb9b5940f41"
     },
     {
+      "path": "tests/test_conversational_retrieval.py",
+      "bytes": 12656,
+      "sha256": "df1c52f3a6de56c87157e18aafca5cefa8cdaa7eacc0c239dba0abd428b6fe52"
+    },
+    {
       "path": "tests/test_core.py",
       "bytes": 10181,
       "sha256": "5801cdf860f2462d0438e34754d55afb551b66e0bbcc433093d08b008eff5d6f"
@@ -2683,8 +2708,8 @@
     },
     {
       "path": "tests/test_multi_window_service.py",
-      "bytes": 8385,
-      "sha256": "ba46b6b5b64936e64930ef8098d826ff3a0ae8ec7627935d6206feca56e032c9"
+      "bytes": 8817,
+      "sha256": "b15cdc72decbab3defb47afa17bfaee2aa51b07a4a4fc7f334d9f5b6296adb1a"
     },
     {
       "path": "tests/test_neural_atlas.py",
@@ -2842,9 +2867,19 @@
       "sha256": "0548796015cd4fa136e69211f8bf37871ec15f039e8cc73edd217ce6edb58e49"
     },
     {
+      "path": "tests/test_query_focus.py",
+      "bytes": 9105,
+      "sha256": "edff52c13316b5fafdd6b0511d24efff470e334e30184df22ededf7ed98f8c08"
+    },
+    {
       "path": "tests/test_recall_query.py",
       "bytes": 11780,
       "sha256": "ca810924ae57d298fa1776f333e457ad8c4aef8906221e6df95abddb33c78d6a"
+    },
+    {
+      "path": "tests/test_recall_topic_gate.py",
+      "bytes": 7638,
+      "sha256": "1d896ef2a07e86d1f6c05b068563242c91f1b00959932fed6a9a1ed2a519b8a8"
     },
     {
       "path": "tests/test_recording_dedup.py",
@@ -2948,8 +2983,8 @@
     },
     {
       "path": "tests/test_windows_upgrade_smoke.py",
-      "bytes": 17758,
-      "sha256": "ce712485eb1519b4f9893afec06915acd51315e76ee16b4aebd0ea24434c570a"
+      "bytes": 17785,
+      "sha256": "0452052703b86dd4235fada32832ee0c032eb591f8901bd6b57f3ed081c3c745"
     },
     {
       "path": "tests/test_workbuddy_connection_state.py",

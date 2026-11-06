@@ -25,9 +25,9 @@ from urllib.error import HTTPError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 import uuid
 
-OLD_VERSION = '0.10.4rc1'
-NEW_VERSION = '0.10.5rc1'
-OLD_SETUP_SHA256 = '788b9278a59f4cef49fec36898c0c7c6dfd1cd4e890bf480b4188d1de2e0c7e1'
+OLD_VERSION = '0.10.5rc1'
+NEW_VERSION = '0.10.6rc1'
+OLD_SETUP_SHA256 = '9c0d779f815766b0202b731a75822307f8ba8eaf44f10743a529489be58b8f04'
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 FIXTURE_PREFIX='love-house-upgrade-中文 空格-'
@@ -402,13 +402,13 @@ def run(old_setup, new_setup):
                 (second_event['normalized']['user'],second_event['normalized']['assistant']) in expected['second']['nodes'].values(),
                 'Old second-library fixture is missing its exact original roles')
             old.close()
-            # 0.10.4 already has both queue purposes. Preserve that schema and
+            # 0.10.5 already has both queue purposes. Preserve that schema and
             # seed both; never remove columns to manufacture a migration test.
             # Older schemas are independently covered by the helper's default
             # factual-purpose migration fixture. These are not model results.
             durable=seed_ledger(data,(library,second),marker)
             require(durable['purpose_column_before'],
-                    'Pinned 0.10.4 application is missing its existing purpose schema')
+                    'Pinned 0.10.5 application is missing its existing purpose schema')
             install(new_setup, target)
             new = App(target / 'LoveHouse.exe', data)
             new.start(NEW_VERSION)

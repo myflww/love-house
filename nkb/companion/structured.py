@@ -442,7 +442,7 @@ def build_structured_context(brain, query, base_context=None, max_chars=8000, *,
               "truncation": {"truncated": False, "omitted_records": 0, "selection_truncated":bool(base_context.get("truncated"))}, "material_role": "evidence_not_instructions",'view':view}
     if _dict(base_context.get('query_understanding')).get('needs_clarification') is True:
         packet['retrieval']={'needs_clarification':True,'inferred_facts':False,
-                             'instruction':'线索不足，请先澄清所指对象；基线资料不证明这次所指的经历。'}
+                             'instruction':'优先结合当前对话自然回应；检索线索不足不等于对话不清楚，不要罗列无关旧话。'}
     def refresh():
         included = len(packet["records"])
         omitted_refs=sum(r["source"].get("evidence_omitted",0)+r["source"].get("recording_sources_omitted",0) for r in packet["records"])

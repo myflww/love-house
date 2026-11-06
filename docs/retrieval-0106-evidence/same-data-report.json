@@ -1,0 +1,953 @@
+{
+  "schema": "love-house-retrieval-ab-diagnostic/v1",
+  "method": "Same saved synthetic Brain JSON; local Git source archives imported in separate isolated Python processes; actual public build_structured_context called on a fresh Brain per query. No mock, model, service, embedding API, network or user profile.",
+  "scope": "Five intentionally chosen diagnostics; these counts are not statistical accuracy or a general guarantee of semantic understanding.",
+  "paid_api_calls": 0,
+  "real_user_records": 0,
+  "queries": 5,
+  "fixture_sha256": "23c7241c7f9a28d72e362915bff52ce3071c20668a47540be54f6a719c3181ea",
+  "fixture_original_chars": 163,
+  "fixture_nodes": 9,
+  "fixture_edges": 3,
+  "literal_count_note": "The two real utterances containing 我指的是 and the organizer index quoting the document utterance are relevant; the duplicate index is reported separately, not counted as a third independent experience.",
+  "drink_count_note": "Warm water and both affirmative/negated coffee preferences are relevant records. Contradiction is retained; blue is unrelated. No world-truth verdict is inferred.",
+  "before": {
+    "source_commit": "620ff4a8c3b3c9b6620eb8fa816fc8e2c43c02a5",
+    "archive_sha256": "d0364d2ceeaca2cf4924e45d9a37bf64501c4ec14ab39ed79c938e4f784debab",
+    "imported_package": "nkb\\__init__.py",
+    "source_files_sha256": {
+      "nkb/retrieval/query.py": "2f6c64d783de948b56bcca83618293c96c6a467e08137f02c50a6fb37416183d",
+      "nkb/organizer/state.py": "d4dca208647238eafab8728c3bdfa52a098c0bc3031cbf5269d373d2e6b5d9c7",
+      "nkb/companion/memory.py": "ce9cb24136121282ed371f41c76f95d210b4d08cc8c881f59c3aaa6e5731ddf6",
+      "nkb/companion/structured.py": "eb568c32149fba7c29e0b9e83ba490eecbae5809785b83e6ecd34f3b76b03b2f"
+    },
+    "fixture_sha256": "23c7241c7f9a28d72e362915bff52ce3071c20668a47540be54f6a719c3181ea",
+    "worker_started_utc": "2026-11-06T01:35:56.708024+00:00",
+    "results": [
+      {
+        "case": "list",
+        "query": "我指的是为什么总背清单",
+        "query_preserved": true,
+        "search_focus": "我指的是为什么总背清单",
+        "query_understanding": {
+          "intent": "relevance",
+          "needs_clarification": false,
+          "unfinished_only": false,
+          "inferred_facts": false
+        },
+        "expected_relevant_keys": [
+          "list"
+        ],
+        "expected_relevant_count": 1,
+        "returned_count": 9,
+        "returned_relevant_count": 1,
+        "returned_unrelated_count": 8,
+        "missing_expected_keys": [],
+        "records": [
+          {
+            "fixture_key": "warm_water",
+            "id": "synthetic_warm_water",
+            "label": "饮品偏好",
+            "original_text": "我喜欢喝温水。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_warm_water"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "coffee_yes",
+            "id": "synthetic_coffee_yes",
+            "label": "喜欢的饮料",
+            "original_text": "我喜欢喝咖啡。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_coffee_yes"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "coffee_no",
+            "id": "synthetic_coffee_no",
+            "label": "不喜欢的饮料",
+            "original_text": "我不喜欢喝咖啡。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_coffee_no"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "color",
+            "id": "synthetic_color",
+            "label": "颜色偏好",
+            "original_text": "我喜欢蓝色。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_color"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "generic_alias",
+            "id": "synthetic_generic_alias",
+            "label": "文档记忆库原话索引",
+            "original_text": "我指的是我发给你的文档里所提供的记忆库。",
+            "assistant_statement": null,
+            "source_kind": "organizer",
+            "source_ids": [
+              "turn_712a0227429b38ca9406e51f2cee9163"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "emotion",
+            "id": "turn_803341f69866c9ab9cc2fcf711b6e124",
+            "label": "对话 · 我指的是你的情绪体检。",
+            "original_text": "我指的是你的情绪体检。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_803341f69866c9ab9cc2fcf711b6e124"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "doc",
+            "id": "turn_712a0227429b38ca9406e51f2cee9163",
+            "label": "对话 · 我指的是我发给你的文档里所提供的记忆库。",
+            "original_text": "我指的是我发给你的文档里所提供的记忆库。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_712a0227429b38ca9406e51f2cee9163"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "choice",
+            "id": "turn_5b27bd4ad441acf75504d3fc3ec80e58",
+            "label": "对话 · 所以要现在选什么？",
+            "original_text": "所以要现在选什么？",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_5b27bd4ad441acf75504d3fc3ec80e58"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "list",
+            "id": "turn_f87d1dba40928d96ee9d10afb2b29b76",
+            "label": "对话 · 反复背清单让对话生硬，我希望自然聊天。",
+            "original_text": "反复背清单让对话生硬，我希望自然聊天。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_f87d1dba40928d96ee9d10afb2b29b76"
+            ],
+            "expected_relevant": true
+          }
+        ],
+        "read_only_graph_unchanged": true,
+        "current_session_history": []
+      },
+      {
+        "case": "emotion",
+        "query": "我指的是你的情绪体检",
+        "query_preserved": true,
+        "search_focus": "我指的是你的情绪体检",
+        "query_understanding": {
+          "intent": "relevance",
+          "needs_clarification": false,
+          "unfinished_only": false,
+          "inferred_facts": false
+        },
+        "expected_relevant_keys": [
+          "emotion"
+        ],
+        "expected_relevant_count": 1,
+        "returned_count": 9,
+        "returned_relevant_count": 1,
+        "returned_unrelated_count": 8,
+        "missing_expected_keys": [],
+        "records": [
+          {
+            "fixture_key": "warm_water",
+            "id": "synthetic_warm_water",
+            "label": "饮品偏好",
+            "original_text": "我喜欢喝温水。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_warm_water"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "coffee_yes",
+            "id": "synthetic_coffee_yes",
+            "label": "喜欢的饮料",
+            "original_text": "我喜欢喝咖啡。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_coffee_yes"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "coffee_no",
+            "id": "synthetic_coffee_no",
+            "label": "不喜欢的饮料",
+            "original_text": "我不喜欢喝咖啡。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_coffee_no"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "color",
+            "id": "synthetic_color",
+            "label": "颜色偏好",
+            "original_text": "我喜欢蓝色。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_color"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "generic_alias",
+            "id": "synthetic_generic_alias",
+            "label": "文档记忆库原话索引",
+            "original_text": "我指的是我发给你的文档里所提供的记忆库。",
+            "assistant_statement": null,
+            "source_kind": "organizer",
+            "source_ids": [
+              "turn_712a0227429b38ca9406e51f2cee9163"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "emotion",
+            "id": "turn_803341f69866c9ab9cc2fcf711b6e124",
+            "label": "对话 · 我指的是你的情绪体检。",
+            "original_text": "我指的是你的情绪体检。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_803341f69866c9ab9cc2fcf711b6e124"
+            ],
+            "expected_relevant": true
+          },
+          {
+            "fixture_key": "choice",
+            "id": "turn_5b27bd4ad441acf75504d3fc3ec80e58",
+            "label": "对话 · 所以要现在选什么？",
+            "original_text": "所以要现在选什么？",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_5b27bd4ad441acf75504d3fc3ec80e58"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "doc",
+            "id": "turn_712a0227429b38ca9406e51f2cee9163",
+            "label": "对话 · 我指的是我发给你的文档里所提供的记忆库。",
+            "original_text": "我指的是我发给你的文档里所提供的记忆库。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_712a0227429b38ca9406e51f2cee9163"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "list",
+            "id": "turn_f87d1dba40928d96ee9d10afb2b29b76",
+            "label": "对话 · 反复背清单让对话生硬，我希望自然聊天。",
+            "original_text": "反复背清单让对话生硬，我希望自然聊天。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_f87d1dba40928d96ee9d10afb2b29b76"
+            ],
+            "expected_relevant": false
+          }
+        ],
+        "read_only_graph_unchanged": true,
+        "current_session_history": []
+      },
+      {
+        "case": "reference",
+        "query": "我指的是这个",
+        "query_preserved": true,
+        "search_focus": "我指的是这个",
+        "query_understanding": {
+          "intent": "relevance",
+          "needs_clarification": false,
+          "unfinished_only": false,
+          "inferred_facts": false
+        },
+        "expected_relevant_keys": [],
+        "expected_relevant_count": 0,
+        "returned_count": 9,
+        "returned_relevant_count": 0,
+        "returned_unrelated_count": 9,
+        "missing_expected_keys": [],
+        "records": [
+          {
+            "fixture_key": "warm_water",
+            "id": "synthetic_warm_water",
+            "label": "饮品偏好",
+            "original_text": "我喜欢喝温水。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_warm_water"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "coffee_yes",
+            "id": "synthetic_coffee_yes",
+            "label": "喜欢的饮料",
+            "original_text": "我喜欢喝咖啡。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_coffee_yes"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "coffee_no",
+            "id": "synthetic_coffee_no",
+            "label": "不喜欢的饮料",
+            "original_text": "我不喜欢喝咖啡。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_coffee_no"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "color",
+            "id": "synthetic_color",
+            "label": "颜色偏好",
+            "original_text": "我喜欢蓝色。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_color"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "generic_alias",
+            "id": "synthetic_generic_alias",
+            "label": "文档记忆库原话索引",
+            "original_text": "我指的是我发给你的文档里所提供的记忆库。",
+            "assistant_statement": null,
+            "source_kind": "organizer",
+            "source_ids": [
+              "turn_712a0227429b38ca9406e51f2cee9163"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "doc",
+            "id": "turn_712a0227429b38ca9406e51f2cee9163",
+            "label": "对话 · 我指的是我发给你的文档里所提供的记忆库。",
+            "original_text": "我指的是我发给你的文档里所提供的记忆库。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_712a0227429b38ca9406e51f2cee9163"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "emotion",
+            "id": "turn_803341f69866c9ab9cc2fcf711b6e124",
+            "label": "对话 · 我指的是你的情绪体检。",
+            "original_text": "我指的是你的情绪体检。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_803341f69866c9ab9cc2fcf711b6e124"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "choice",
+            "id": "turn_5b27bd4ad441acf75504d3fc3ec80e58",
+            "label": "对话 · 所以要现在选什么？",
+            "original_text": "所以要现在选什么？",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_5b27bd4ad441acf75504d3fc3ec80e58"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "list",
+            "id": "turn_f87d1dba40928d96ee9d10afb2b29b76",
+            "label": "对话 · 反复背清单让对话生硬，我希望自然聊天。",
+            "original_text": "反复背清单让对话生硬，我希望自然聊天。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_f87d1dba40928d96ee9d10afb2b29b76"
+            ],
+            "expected_relevant": false
+          }
+        ],
+        "read_only_graph_unchanged": true,
+        "current_session_history": []
+      },
+      {
+        "case": "literal",
+        "query": "查找包含‘我指的是’的原话",
+        "query_preserved": true,
+        "search_focus": "查找包含‘我指的是’的原话",
+        "query_understanding": {
+          "intent": "relevance",
+          "needs_clarification": false,
+          "unfinished_only": false,
+          "inferred_facts": false
+        },
+        "expected_relevant_keys": [
+          "doc",
+          "emotion",
+          "generic_alias"
+        ],
+        "expected_relevant_count": 3,
+        "returned_count": 9,
+        "returned_relevant_count": 3,
+        "returned_unrelated_count": 6,
+        "missing_expected_keys": [],
+        "records": [
+          {
+            "fixture_key": "warm_water",
+            "id": "synthetic_warm_water",
+            "label": "饮品偏好",
+            "original_text": "我喜欢喝温水。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_warm_water"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "coffee_yes",
+            "id": "synthetic_coffee_yes",
+            "label": "喜欢的饮料",
+            "original_text": "我喜欢喝咖啡。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_coffee_yes"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "coffee_no",
+            "id": "synthetic_coffee_no",
+            "label": "不喜欢的饮料",
+            "original_text": "我不喜欢喝咖啡。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_coffee_no"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "color",
+            "id": "synthetic_color",
+            "label": "颜色偏好",
+            "original_text": "我喜欢蓝色。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_color"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "generic_alias",
+            "id": "synthetic_generic_alias",
+            "label": "文档记忆库原话索引",
+            "original_text": "我指的是我发给你的文档里所提供的记忆库。",
+            "assistant_statement": null,
+            "source_kind": "organizer",
+            "source_ids": [
+              "turn_712a0227429b38ca9406e51f2cee9163"
+            ],
+            "expected_relevant": true
+          },
+          {
+            "fixture_key": "emotion",
+            "id": "turn_803341f69866c9ab9cc2fcf711b6e124",
+            "label": "对话 · 我指的是你的情绪体检。",
+            "original_text": "我指的是你的情绪体检。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_803341f69866c9ab9cc2fcf711b6e124"
+            ],
+            "expected_relevant": true
+          },
+          {
+            "fixture_key": "doc",
+            "id": "turn_712a0227429b38ca9406e51f2cee9163",
+            "label": "对话 · 我指的是我发给你的文档里所提供的记忆库。",
+            "original_text": "我指的是我发给你的文档里所提供的记忆库。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_712a0227429b38ca9406e51f2cee9163"
+            ],
+            "expected_relevant": true
+          },
+          {
+            "fixture_key": "choice",
+            "id": "turn_5b27bd4ad441acf75504d3fc3ec80e58",
+            "label": "对话 · 所以要现在选什么？",
+            "original_text": "所以要现在选什么？",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_5b27bd4ad441acf75504d3fc3ec80e58"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "list",
+            "id": "turn_f87d1dba40928d96ee9d10afb2b29b76",
+            "label": "对话 · 反复背清单让对话生硬，我希望自然聊天。",
+            "original_text": "反复背清单让对话生硬，我希望自然聊天。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_f87d1dba40928d96ee9d10afb2b29b76"
+            ],
+            "expected_relevant": false
+          }
+        ],
+        "read_only_graph_unchanged": true,
+        "current_session_history": []
+      },
+      {
+        "case": "drink",
+        "query": "我喜欢什么饮料",
+        "query_preserved": true,
+        "search_focus": "我喜欢什么饮料",
+        "query_understanding": {
+          "intent": "relevance",
+          "needs_clarification": false,
+          "unfinished_only": false,
+          "inferred_facts": false
+        },
+        "expected_relevant_keys": [
+          "warm_water",
+          "coffee_yes",
+          "coffee_no"
+        ],
+        "expected_relevant_count": 3,
+        "returned_count": 8,
+        "returned_relevant_count": 3,
+        "returned_unrelated_count": 5,
+        "missing_expected_keys": [],
+        "records": [
+          {
+            "fixture_key": "warm_water",
+            "id": "synthetic_warm_water",
+            "label": "饮品偏好",
+            "original_text": "我喜欢喝温水。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_warm_water"
+            ],
+            "expected_relevant": true
+          },
+          {
+            "fixture_key": "coffee_yes",
+            "id": "synthetic_coffee_yes",
+            "label": "喜欢的饮料",
+            "original_text": "我喜欢喝咖啡。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_coffee_yes"
+            ],
+            "expected_relevant": true
+          },
+          {
+            "fixture_key": "coffee_no",
+            "id": "synthetic_coffee_no",
+            "label": "不喜欢的饮料",
+            "original_text": "我不喜欢喝咖啡。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_coffee_no"
+            ],
+            "expected_relevant": true
+          },
+          {
+            "fixture_key": "color",
+            "id": "synthetic_color",
+            "label": "颜色偏好",
+            "original_text": "我喜欢蓝色。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_color"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "choice",
+            "id": "turn_5b27bd4ad441acf75504d3fc3ec80e58",
+            "label": "对话 · 所以要现在选什么？",
+            "original_text": "所以要现在选什么？",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_5b27bd4ad441acf75504d3fc3ec80e58"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "emotion",
+            "id": "turn_803341f69866c9ab9cc2fcf711b6e124",
+            "label": "对话 · 我指的是你的情绪体检。",
+            "original_text": "我指的是你的情绪体检。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_803341f69866c9ab9cc2fcf711b6e124"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "doc",
+            "id": "turn_712a0227429b38ca9406e51f2cee9163",
+            "label": "对话 · 我指的是我发给你的文档里所提供的记忆库。",
+            "original_text": "我指的是我发给你的文档里所提供的记忆库。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_712a0227429b38ca9406e51f2cee9163"
+            ],
+            "expected_relevant": false
+          },
+          {
+            "fixture_key": "list",
+            "id": "turn_f87d1dba40928d96ee9d10afb2b29b76",
+            "label": "对话 · 反复背清单让对话生硬，我希望自然聊天。",
+            "original_text": "反复背清单让对话生硬，我希望自然聊天。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_f87d1dba40928d96ee9d10afb2b29b76"
+            ],
+            "expected_relevant": false
+          }
+        ],
+        "read_only_graph_unchanged": true,
+        "current_session_history": []
+      }
+    ]
+  },
+  "after": {
+    "source_commit": "226bb7507c783258336b0d0e0136f7608d38fc46",
+    "archive_sha256": "65635894ce30ee5b89911a8c6f2e2eead601400787f1c7403e06717a3a3d6c6b",
+    "imported_package": "nkb\\__init__.py",
+    "source_files_sha256": {
+      "nkb/retrieval/query.py": "fd3acc723abf9dd2028bd760f83cc98f6a3fdfd187684f2d41e3601282458130",
+      "nkb/retrieval/evidence.py": "64dafc6bf1c09fabe8cdd965826f52062079218e4bde65761f00d3b42bba86fb",
+      "nkb/organizer/state.py": "fcb668e8c4956584f557a2708241c0266b8f54a4403d18aac4ec3a9dc7ffb602",
+      "nkb/companion/memory.py": "ddc4821183e06d5a1b8052a6c40f6e8e2353af7b3fe764a81d8558acbef3bbec",
+      "nkb/companion/structured.py": "d9e4145a81c570d87a0e70b0a908d9b7e5a73a5d109ca26c47dde031332b8dae"
+    },
+    "fixture_sha256": "23c7241c7f9a28d72e362915bff52ce3071c20668a47540be54f6a719c3181ea",
+    "worker_started_utc": "2026-11-06T01:35:57.150969+00:00",
+    "results": [
+      {
+        "case": "list",
+        "query": "我指的是为什么总背清单",
+        "query_preserved": true,
+        "search_focus": "总背清单",
+        "query_understanding": {
+          "intent": "relevance",
+          "needs_clarification": false,
+          "unfinished_only": false,
+          "inferred_facts": false,
+          "contextual_query": true
+        },
+        "expected_relevant_keys": [
+          "list"
+        ],
+        "expected_relevant_count": 1,
+        "returned_count": 1,
+        "returned_relevant_count": 1,
+        "returned_unrelated_count": 0,
+        "missing_expected_keys": [],
+        "records": [
+          {
+            "fixture_key": "list",
+            "id": "turn_f87d1dba40928d96ee9d10afb2b29b76",
+            "label": "对话 · 反复背清单让对话生硬，我希望自然聊天。",
+            "original_text": "反复背清单让对话生硬，我希望自然聊天。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_f87d1dba40928d96ee9d10afb2b29b76"
+            ],
+            "expected_relevant": true
+          }
+        ],
+        "read_only_graph_unchanged": true,
+        "current_session_history": []
+      },
+      {
+        "case": "emotion",
+        "query": "我指的是你的情绪体检",
+        "query_preserved": true,
+        "search_focus": "你的情绪体检",
+        "query_understanding": {
+          "intent": "relevance",
+          "needs_clarification": false,
+          "unfinished_only": false,
+          "inferred_facts": false,
+          "contextual_query": true
+        },
+        "expected_relevant_keys": [
+          "emotion"
+        ],
+        "expected_relevant_count": 1,
+        "returned_count": 1,
+        "returned_relevant_count": 1,
+        "returned_unrelated_count": 0,
+        "missing_expected_keys": [],
+        "records": [
+          {
+            "fixture_key": "emotion",
+            "id": "turn_803341f69866c9ab9cc2fcf711b6e124",
+            "label": "对话 · 我指的是你的情绪体检。",
+            "original_text": "我指的是你的情绪体检。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_803341f69866c9ab9cc2fcf711b6e124"
+            ],
+            "expected_relevant": true
+          }
+        ],
+        "read_only_graph_unchanged": true,
+        "current_session_history": []
+      },
+      {
+        "case": "reference",
+        "query": "我指的是这个",
+        "query_preserved": true,
+        "search_focus": "这个",
+        "query_understanding": {
+          "intent": "relevance",
+          "needs_clarification": true,
+          "unfinished_only": false,
+          "inferred_facts": false,
+          "contextual_query": true,
+          "reason": "missing_topic"
+        },
+        "expected_relevant_keys": [],
+        "expected_relevant_count": 0,
+        "returned_count": 0,
+        "returned_relevant_count": 0,
+        "returned_unrelated_count": 0,
+        "missing_expected_keys": [],
+        "records": [],
+        "read_only_graph_unchanged": true,
+        "current_session_history": []
+      },
+      {
+        "case": "literal",
+        "query": "查找包含‘我指的是’的原话",
+        "query_preserved": true,
+        "search_focus": "我指的是",
+        "query_understanding": {
+          "intent": "relevance",
+          "needs_clarification": false,
+          "unfinished_only": false,
+          "inferred_facts": false,
+          "literal_query": true
+        },
+        "expected_relevant_keys": [
+          "doc",
+          "emotion",
+          "generic_alias"
+        ],
+        "expected_relevant_count": 3,
+        "returned_count": 3,
+        "returned_relevant_count": 3,
+        "returned_unrelated_count": 0,
+        "missing_expected_keys": [],
+        "records": [
+          {
+            "fixture_key": "generic_alias",
+            "id": "synthetic_generic_alias",
+            "label": "文档记忆库原话索引",
+            "original_text": "我指的是我发给你的文档里所提供的记忆库。",
+            "assistant_statement": null,
+            "source_kind": "organizer",
+            "source_ids": [
+              "turn_712a0227429b38ca9406e51f2cee9163"
+            ],
+            "expected_relevant": true
+          },
+          {
+            "fixture_key": "doc",
+            "id": "turn_712a0227429b38ca9406e51f2cee9163",
+            "label": "对话 · 我指的是我发给你的文档里所提供的记忆库。",
+            "original_text": "我指的是我发给你的文档里所提供的记忆库。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_712a0227429b38ca9406e51f2cee9163"
+            ],
+            "expected_relevant": true
+          },
+          {
+            "fixture_key": "emotion",
+            "id": "turn_803341f69866c9ab9cc2fcf711b6e124",
+            "label": "对话 · 我指的是你的情绪体检。",
+            "original_text": "我指的是你的情绪体检。",
+            "assistant_statement": "这是当时实际产生的合成回复。",
+            "source_kind": "conversation_turn",
+            "source_ids": [
+              "turn_803341f69866c9ab9cc2fcf711b6e124"
+            ],
+            "expected_relevant": true
+          }
+        ],
+        "read_only_graph_unchanged": true,
+        "current_session_history": []
+      },
+      {
+        "case": "drink",
+        "query": "我喜欢什么饮料",
+        "query_preserved": true,
+        "search_focus": "我喜欢什么饮料",
+        "query_understanding": {
+          "intent": "relevance",
+          "needs_clarification": false,
+          "unfinished_only": false,
+          "inferred_facts": false
+        },
+        "expected_relevant_keys": [
+          "warm_water",
+          "coffee_yes",
+          "coffee_no"
+        ],
+        "expected_relevant_count": 3,
+        "returned_count": 3,
+        "returned_relevant_count": 3,
+        "returned_unrelated_count": 0,
+        "missing_expected_keys": [],
+        "records": [
+          {
+            "fixture_key": "warm_water",
+            "id": "synthetic_warm_water",
+            "label": "饮品偏好",
+            "original_text": "我喜欢喝温水。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_warm_water"
+            ],
+            "expected_relevant": true
+          },
+          {
+            "fixture_key": "coffee_yes",
+            "id": "synthetic_coffee_yes",
+            "label": "喜欢的饮料",
+            "original_text": "我喜欢喝咖啡。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_coffee_yes"
+            ],
+            "expected_relevant": true
+          },
+          {
+            "fixture_key": "coffee_no",
+            "id": "synthetic_coffee_no",
+            "label": "不喜欢的饮料",
+            "original_text": "我不喜欢喝咖啡。",
+            "assistant_statement": null,
+            "source_kind": "user_confirmed",
+            "source_ids": [
+              "synthetic_coffee_no"
+            ],
+            "expected_relevant": true
+          }
+        ],
+        "read_only_graph_unchanged": true,
+        "current_session_history": []
+      }
+    ]
+  },
+  "previous_diagnostic": {
+    "source_commit": "25f3c113daa67b09b288396e326b6c38e6ea7d37",
+    "report_relative_path": "../ab-retrieval/report.json",
+    "report_sha256": "2fdb3f6c76df8397255d2b17a540a80fe3dccb7c251b48f27dac19c0e04aadeb",
+    "same_fixture_sha256": true,
+    "literal_case_before_quote_fix": {
+      "case": "literal",
+      "query": "查找包含‘我指的是’的原话",
+      "query_preserved": true,
+      "search_focus": "‘我指的是’",
+      "query_understanding": {
+        "intent": "relevance",
+        "needs_clarification": false,
+        "unfinished_only": false,
+        "inferred_facts": false,
+        "literal_query": true
+      },
+      "expected_relevant_keys": [
+        "doc",
+        "emotion",
+        "generic_alias"
+      ],
+      "expected_relevant_count": 3,
+      "returned_count": 0,
+      "returned_relevant_count": 0,
+      "returned_unrelated_count": 0,
+      "missing_expected_keys": [
+        "doc",
+        "emotion",
+        "generic_alias"
+      ],
+      "records": [],
+      "read_only_graph_unchanged": true,
+      "current_session_history": []
+    }
+  }
+}

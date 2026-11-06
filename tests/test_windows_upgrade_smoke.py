@@ -1,6 +1,6 @@
 """Real isolated Controller requests, with fake installers/processes/credentials.
 
-Set LOVE_HOUSE_UPGRADE_OLD_SOURCE to an existing public 0.10.4rc1 checkout for the
+Set LOVE_HOUSE_UPGRADE_OLD_SOURCE to an existing public 0.10.5rc1 checkout for the
 cross-version source proof. Ordinary CI also runs the complete HTTP protocol
 against its real current Controller, preserving its existing SQLite schema.
 An independent pre-purpose fixture tests the older factual-purpose migration.
@@ -58,13 +58,13 @@ def controller_worker(source,data,credentials):
 
 class UpgradeSmokeTests(unittest.TestCase):
     def test_release_uses_latest_public_installer_and_explicit_default_migration(self):
-        self.assertEqual(smoke.OLD_VERSION,'0.10.4rc1')
-        self.assertEqual(smoke.NEW_VERSION,'0.10.5rc1')
-        self.assertEqual(smoke.OLD_SETUP_SHA256,'788b9278a59f4cef49fec36898c0c7c6dfd1cd4e890bf480b4188d1de2e0c7e1')
+        self.assertEqual(smoke.OLD_VERSION,'0.10.5rc1')
+        self.assertEqual(smoke.NEW_VERSION,'0.10.6rc1')
+        self.assertEqual(smoke.OLD_SETUP_SHA256,'9c0d779f815766b0202b731a75822307f8ba8eaf44f10743a529489be58b8f04')
         windows=(ROOT/'.github/workflows/release.yml').read_text('utf-8')
         macos=(ROOT/'.github/workflows/macos-release.yml').read_text('utf-8')
-        self.assertIn('codex/memory-0105',windows);self.assertIn('codex/memory-0105',macos)
-        self.assertIn('refs/heads/codex/memory-0105',windows)
+        self.assertIn('codex/retrieval-topic-gate',windows);self.assertIn('codex/retrieval-topic-gate',macos)
+        self.assertIn('refs/heads/codex/retrieval-topic-gate',windows)
         self.assertIn("default: 'v"+smoke.NEW_VERSION+"'",windows)
         self.assertIn('/download/v'+smoke.OLD_VERSION+'/',windows)
         self.assertIn(smoke.OLD_SETUP_SHA256,windows)

@@ -118,7 +118,16 @@ class MultiWindowServiceTests(unittest.TestCase):
         self.assertTrue(all(code == 400 for code, _ in denied_reads), denied_reads)
         for library in ('default', other):
             self.assertEqual(self.host.snapshot(library), before[library])
-        contents = b'\n'.join(p.read_bytes() for p in Path(self.temp.name).rglob('*') if p.is_file())
+        files=[]
+        for path in Path(self.temp.name).rglob('*'):
+            if not path.is_file():continue
+            try:files.append(path.read_bytes())
+            except FileNotFoundError:
+                # SQLite may unlink its shared-memory lock/index file as the
+                # last reader closes. It contains no dialogue body; persistent
+                # databases and WAL payloads must still be read successfully.
+                if not path.name.endswith('.sqlite3-shm'):raise
+        contents = b'\n'.join(files)
         self.assertNotIn(b'UNCONNECTED-WINDOW-MUST-NOT-REACH-DISK', contents)
 
     def test_same_event_replayed_concurrently_is_one_durable_record(self):

@@ -327,7 +327,8 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
             source=node.get('meta',{}).get('source')
             if source=='user_confirmed' or source=='organizer' and any(ref['id']!=node['id'] for ref in record['source']['evidence']):
                 priority_ids.add(node['id'])
-    platform_recent = [] if query_plan.unfinished else _platform_recent_turns(brain, query, candidates=by_id.values(),stamp=stamp,library_id=namespace,blocked_evidence=blocked)
+    platform_recent = [] if (query_plan.unfinished or query_plan.needs_clarification or query_plan.invalid_date
+        or getattr(query_plan,'contextual',False) or query_plan.literal) else _platform_recent_turns(brain, query, candidates=by_id.values(),stamp=stamp,library_id=namespace,blocked_evidence=blocked)
     platform_recent_ids = {n["id"] for n in platform_recent}
     from ..organizer import semantic_recall
     from ..organizer.state import prepare_recall
@@ -346,7 +347,11 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
         for node in companions[:24]:
             related.append({'id':node['id'],'label':node['label'],'kind':node['kind'],
                             'score':0,'depth':0,'path':[node['id']],'revision_context':True})
+    relevant_ids={h['id'] for h in related}
+    from ..retrieval.evidence import explicit_drink_preference
     baseline = [n for n in by_id.values()
+                if (n['id'] in relevant_ids or not query_plan.literal and not query_plan.needs_clarification
+                    and not query_plan.invalid_date and explicit_drink_preference(query,n))
                 if n.get("meta", {}).get("source") not in RAW_CONTEXT_SOURCES
                 and "演示" not in _origin(brain, n)
                 and not is_historical(n)
@@ -363,7 +368,7 @@ def build_context(brain: Brain, query: str, session_id: str | None = None,
     if view!='current':prefix+='本次读取包含历史版本及后续更正，请保留变化顺序，不把过去说法当成当前结论。\n'
     understanding=deepcopy(result.get('query_understanding',{}))
     if understanding.get('needs_clarification') is True:
-        prefix+='召回提示：本轮指代缺少可定位的对象，请简短澄清，不把长期基线当成那件事的证据。\n'
+        prefix+='召回提示：本轮没有足够的记忆检索线索，请优先结合当前对话自然回应；只有对话也无法确定所指时才澄清，不罗列无关旧话。\n'
     suffix = "\n</memory_material>"
     pieces = [prefix]
     used = len(prefix) + len(suffix)

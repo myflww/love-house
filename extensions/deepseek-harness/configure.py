@@ -18,6 +18,7 @@ BEGIN = "# BEGIN NEURAL-KNOWLEDGE-HOST MANAGED\n"
 END = "# END NEURAL-KNOWLEDGE-HOST MANAGED\n"
 ROOT = Path(__file__).resolve().parent
 FINGERPRINT_FILE = ROOT / "host-contract-fingerprints.json"
+CAPABILITY_FILE = ROOT / "host-capabilities.json"
 
 
 def _legacy_entries(profile):
@@ -163,12 +164,20 @@ def _asar_json(archive, name):
     return json.loads(raw) if raw else None
 
 
-def _resource_read(resources, name, headers=None):
-    loose = resources / "app" / name
+def _resource_read(resources, name, headers=None, layout=None):
+    if layout == "node_modules":
+        prefix = "dsh/node_modules/"
+        if not name.startswith(prefix):
+            return None
+        loose = resources / name[len(prefix):]
+    else:
+        loose = resources / "app" / name
     if loose.is_file():
         if not loose.resolve().is_relative_to(resources.resolve()) or loose.stat().st_size > 4 * 1024 * 1024:
             raise ValueError("资源路径越界或文件过大")
         return loose.read_bytes()
+    if layout == "node_modules":
+        return None
     archive = resources / "app.asar"
     return _asar_read(archive, name, headers) if archive.is_file() else None
 
@@ -190,7 +199,7 @@ def _normalized_metadata(metadata, keys):
     return normalize({key: metadata[key] for key in keys if key in metadata})
 
 
-def _contract_probe(app, version):
+def _exact_contract_probe(app, version):
     """Unknown releases qualify only when their installed code matches our reviewed contract."""
     if not FINGERPRINT_FILE.is_file():
         return {"status": "unverified", "message": "缺少已验证契约指纹，未自动配置新版宿主"}
@@ -233,6 +242,101 @@ def _contract_probe(app, version):
         diagnostics.extend(failures)
     return {"status": "contract_changed", "message": "新版宿主契约无法匹配，未自动配置；请验证变化后的接口",
             "diagnostics": diagnostics[:12] or ["未找到官方SDK静态资源"]}
+
+
+def _declaration_contract(text):
+    """Compare required public declarations, ignoring comments and formatting."""
+    return re.sub(r"\s+", "", re.sub(r"/\*[\s\S]*?\*/|//[^\r\n]*", "", text))
+
+
+def _capability_probe(app, version):
+    """Check only APIs consumed by the adapter; SDK version strings are informational.
+
+    This is a compatibility preflight, not a proof of package authenticity or of
+    future behavior. The plugin checks live services and payloads as well; CI
+    exercises actual host turns against a local synthetic provider.
+    """
+    try:
+        expected = json.loads(CAPABILITY_FILE.read_text("utf-8"))
+        if expected.get("schema") != "love-house-harness-capabilities/v1":
+            raise ValueError("capability schema")
+    except (OSError, ValueError, TypeError):
+        return {"status": "unverified", "message": "缺少宿主接口能力清单"}
+    roots = [(app / "resources", None), (app / "Contents/Resources", None)]
+    if (app / "package.json").is_file():
+        roots.append((app.parent.parent, "node_modules"))
+    diagnostics = []
+    for resources, layout in roots:
+        if not resources.is_dir():
+            continue
+        headers, failures = {}, []
+        for name, package in expected["packages"].items():
+            prefix = "dsh/node_modules/" + name + "/"
+            try:
+                raw = _resource_read(resources, prefix + "package.json", headers, layout)
+                metadata = json.loads(raw) if raw else {}
+                if metadata.get("name") != name or metadata.get("version") != version or metadata.get("type") != "module":
+                    failures.append(name + ": SDK身份、版本组合或模块格式不匹配")
+                    continue
+                main = metadata.get("main")
+                if (not isinstance(main, str) or not main.endswith(".js") or main.startswith(("/", "\\"))
+                        or ".." in main.replace("\\", "/").split("/")
+                        or not _resource_read(resources, prefix + main.removeprefix("./"), headers, layout)):
+                    failures.append(name + ": 缺少实际模块入口")
+                exports = metadata.get("exports", {})
+                exported = exports.get(".") if isinstance(exports, dict) else exports
+                if isinstance(exported, dict):
+                    exported = exported.get("import", exported.get("default"))
+                if (not isinstance(exported, str) or not isinstance(main, str)
+                        or exported.removeprefix("./") != main.removeprefix("./")
+                        or main.removeprefix("./") not in package.get("runtime_files", {})):
+                    failures.append(name + ": 公共模块入口未被接口检查覆盖")
+                missing_declarations = False
+                for filename, fragments in package["files"].items():
+                    declaration = _resource_read(resources, prefix + filename, headers, layout)
+                    if not declaration:
+                        missing_declarations = True
+                        continue
+                    contract = _declaration_contract(declaration.decode("utf-8"))
+                    if not all(_declaration_contract(fragment) in contract for fragment in fragments):
+                        failures.append(name + "/" + filename + ": 所需公共接口已变化或缺失")
+                # Electron production archives intentionally omit type declarations.
+                # Check the small consumed runtime surface, not every implementation byte.
+                for filename, fragments in package.get("runtime_files", {}).items():
+                    raw = _resource_read(resources, prefix + filename, headers, layout)
+                    contract = _declaration_contract(raw.decode("utf-8")) if raw else ""
+                    if not all(_declaration_contract(fragment) in contract for fragment in fragments):
+                        failures.append(name + "/" + filename + ": 缺少所需运行接口")
+                if missing_declarations and not package.get("runtime_files"):
+                    failures.append(name + ": 缺少声明及运行接口检查规则")
+            except (OSError, ValueError, TypeError, AttributeError, UnicodeError, RecursionError):
+                failures.append(name + ": 无法读取接口声明")
+        try:
+            raw = _resource_read(resources, "dsh/node_modules/@deepseek-ai/cordis/package.json", headers, layout)
+            cordis = json.loads(raw) if raw else {}
+            if cordis.get("name") != "@deepseek-ai/cordis" or not re.fullmatch(str(expected["cordis_major"]) + r"\.\d+\.\d+(?:[-+].*)?", str(cordis.get("version", ""))):
+                failures.append("Cordis: 不属于已验证的公共接口主版本")
+        except (OSError, ValueError, TypeError):
+            failures.append("Cordis: 无法读取模块元数据")
+        if not failures:
+            descriptor = {"schema": "love-house-harness-contract/v1", "host_version": version,
+                          "contract_id": expected["contract_id"], "resources_path": str(resources.resolve())}
+            if layout:
+                descriptor["layout"] = layout
+            return {"status": "capability_match", "message": "已检测到宿主，所需公共接口兼容；自动存档以实际对话回执为准",
+                    "descriptor": descriptor}
+        diagnostics.extend(failures)
+    return {"status": "contract_changed", "message": "已检测到宿主，但所需接口不兼容或缺少声明；未修改连接配置",
+            "diagnostics": diagnostics[:12] or ["未找到宿主SDK资源"]}
+
+
+def _contract_probe(app, version):
+    capability = _capability_probe(app, version)
+    if capability["status"] == "capability_match":
+        return capability
+    # Retain old byte-identical contracts for installed legacy adapters/fixtures.
+    exact = _exact_contract_probe(app, version)
+    return exact if exact["status"] == "fingerprint_match" else capability
 
 
 def _app_version(app):
@@ -303,10 +407,11 @@ def detect(app_path=None, profile_dir=None):
         # are checked against actual code when the plugin next loads.
         compatibility = {**compatibility, "status": "verified_version", "message": "已验证的精确宿主版本"}
     return {"detected": app is not None, "app_path": str(app) if app else None,
+            "message": (f"已找到 Harness {version or '（版本未知）'}：" + compatibility["message"]) if app else "未找到 Harness 安装，请核对安装位置",
             "version": version, "shell_version": shell_version, "version_source": version_source,
-            "supported": version in SUPPORTED or compatibility["status"] == "fingerprint_match",
+            "supported": version in SUPPORTED or compatibility["status"] in ("fingerprint_match", "capability_match"),
             "compatibility": compatibility,
-            "supported_versions": list(SUPPORTED), "profile_dir": str(profile),
+            "supported_versions": list(SUPPORTED) + ["0.2.2-rc.1"], "profile_dir": str(profile),
             "profile_source": "explicit" if profile_dir else "DSH_HOME" if os.environ.get("DSH_HOME") else "desktop-default",
             "profile_exists": profile_exists, "profile_format": profile_format,
             "legacy_manual_entries": _legacy_entries(profile),

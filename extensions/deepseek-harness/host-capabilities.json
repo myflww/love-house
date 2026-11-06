@@ -1,0 +1,54 @@
+{
+  "schema": "love-house-harness-capabilities/v1",
+  "contract_id": "harness-memory-events-v1",
+  "cordis_major": 4,
+  "tested_versions": ["0.2.1-rc.3", "0.2.1-rc.5", "0.2.2-rc.1"],
+  "packages": {
+    "@deepseek-ai/dsh-agent": {
+      "files": {
+        "lib/types/runtime-types.d.ts": [
+          "'agent/pre-step'(this: Scoped<Agent>, payload: {",
+          "agent: Agent;",
+          "messages: UserMessage[];",
+          "turn: number;",
+          "step: number;",
+          "signal: AbortSignal;",
+          "}, next: () => Promise<PreStepDecision>): Promise<PreStepDecision>;",
+          "export type PreStepDecision = { kind: 'reject'; } | { kind: 'enter'; messages: UserMessage[];",
+          "readonly session: Session;"
+        ]
+      },
+      "runtime_files": {"lib/index.js": ["agent/pre-step", "next()"]}
+    },
+    "@deepseek-ai/dsh-session": {
+      "files": {
+        "lib/types/index.d.ts": [
+          "'session/event'(this: Scoped<Session>, session: Session, event: SessionEvent): void;",
+          "deriveMessages(): Message[];",
+          "get(id: SessionId): Session | undefined;"
+        ],
+        "lib/types/types.d.ts": [
+          "'turn/start': { turn: number; };",
+          "'turn/end': { turn: number; reason: TurnEndReason; };",
+          "'step/start': { turn: number; step: number; };",
+          "'step/end': { turn: number; step: number; };",
+          "'user/message': UserMessage;",
+          "'assistant/message': { turn: number; step: number; message: AssistantMessage; stream: AssistantStreamRecord[];"
+        ]
+      },
+      "runtime_files": {"lib/index.js": ["session/event", "deriveMessages()", "turn/start", "turn/end", "user/message", "assistant/message", "tool/result"]}
+    },
+    "@deepseek-ai/dsh-llm": {
+      "files": {
+        "lib/types/message.d.ts": [
+          "interface MessageBase { readonly id: MessageId; readonly content: readonly ContentBlock[]; readonly source: MessageSource; }",
+          "export interface UserMessage extends MessageBase { readonly role: 'user'; }",
+          "export interface AssistantMessage extends MessageBase { readonly role: 'assistant'; readonly source: ModelMessageSource; }",
+          "readonly toolCallId: ToolCallId;"
+        ]
+      },
+      "runtime_files": {"lib/index.js": ["function createUserMessage(", "function createAssistantMessage(", "function MessageId(", "toolCallId"]}
+    },
+    "@deepseek-ai/dsh-scope": { "files": {}, "runtime_files": {"lib/index.js": ["ScopedLayers", "export"]} }
+  }
+}

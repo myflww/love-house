@@ -3,16 +3,25 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { HostAdapter, SOURCE_KIND, sanitize, apply } from '../dist/index.js';
 import { createProxy } from '../dist/proxy.js';
 import { Context } from '@deepseek-ai/cordis';
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session';
+import AgentRegistry from '@deepseek-ai/dsh-agent';
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection';
 import { createUserMessage, createAssistantMessage } from '@deepseek-ai/dsh-llm';
 
 const hostVersion = process.env.LOVE_HOUSE_HARNESS_TEST_VERSION || '0.2.1-rc.3';
+const hostContract = { schema: 'love-house-harness-contract/v1', host_version: hostVersion,
+  contract_id: 'harness-memory-events-v1', resources_path: resolve('node_modules'), layout: 'node_modules' };
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function eventually(check) { for (let i=0;i<80;i++) { if(check())return; await sleep(25); } assert.ok(check(), 'condition not reached'); }
+function sessionHost(ctx) {
+  const sessions = ctx.plugin(SessionStore), projections = ctx.plugin(SessionProjectionRegistry), agents = ctx.plugin(AgentRegistry);
+  return { await: async () => { await sessions.await(); await projections.await(); await agents.await(); },
+    dispose: async () => { await agents.dispose(); await projections.dispose(); await sessions.dispose(); } };
+}
 async function mockController({reject=false,eventDelay=0,beforeEventAck}={}) {
   const events=[]; const contexts=[]; const server=http.createServer(async(req,res)=>{
     let raw='';for await(const part of req)raw+=part;
@@ -30,7 +39,7 @@ async function mockController({reject=false,eventDelay=0,beforeEventAck}={}) {
 function fixture(base, extra={}) {
   const dir=mkdtempSync(join(tmpdir(),'neural-host-test-'));const config=join(dir,'connection.json');
   writeFileSync(config,JSON.stringify({connection_id:'connection-a',connection_token:'fixture-secret-not-a-real-token',library_id:'library-a',base_url:base,...extra}));
-  const options={connection_file:config,host_version:hostVersion,state_dir:join(dir,'outbox'),retry_ms:20,timeout_ms:300};
+  const options={connection_file:config,host_version:hostVersion,host_contract:hostContract,state_dir:join(dir,'outbox'),retry_ms:20,timeout_ms:300};
   return {dir,config,options,clean:()=>rmSync(dir,{recursive:true,force:true})};
 }
 const session={id:'actual-session-id',header:{id:'actual-session-id',origin:undefined}};
@@ -93,11 +102,64 @@ test('durable outbox survives unload/restart and only accepted:true removes it',
 
 test('official hook names are registered by apply without model tool calls and disposed through Cordis effect',async()=>{
   const mock=await mockController();const f=fixture(mock.base);const listeners=new Map();const cleanup=[];
-  const ctx={logger:{warn(){}},on(name,handler){listeners.set(name,handler);},effect(factory){cleanup.push(factory());}};
+  const ctx={logger:{warn(){}},sessions:{get(){}},agents:{get(){}},on(name,handler){listeners.set(name,handler);},effect(factory){cleanup.push(factory());}};
   try{apply(ctx,f.options);assert.ok(listeners.has('session/event'));assert.ok(listeners.has('agent/pre-step'));
     listeners.get('session/event')(session,{type:'turn/start',data:{turn:1},seq:0,time:10});
     await eventually(()=>mock.events.length===1);
   }finally{for(const stop of cleanup)await stop();await mock.close();f.clean();}
+});
+
+test('missing live host services fail before registration or outbox creation',()=>{
+  const f=fixture('http://127.0.0.1:1',{enabled:false});let registrations=0;
+  const base={logger:{warn(){}},sessions:{get(){}},agents:{get(){}},on(){registrations++;},effect(){registrations++;}};
+  try{
+    for(const missing of ['sessions','agents','on','effect','logger']){
+      assert.throws(()=>apply({...base,[missing]:undefined},f.options),/required memory event capabilities/);
+    }
+    assert.equal(registrations,0);assert.deepEqual(readdirSync(f.dir),['connection.json']);
+  }finally{f.clean();}
+});
+
+test('malformed event and pre-step payloads cannot claim a window, persist raw input or leak diagnostics',async()=>{
+  const mock=await mockController();const f=fixture(mock.base,{session_scope:'next_session'});const warnings=[];
+  const adapter=new HostAdapter(f.options,warning=>warnings.push(warning));
+  const privateText='PRIVATE_MALFORMED_CONTENT_MUST_NOT_LEAK';
+  try{
+    const malformed=message('bad-user','user',privateText);delete malformed.source;
+    adapter.capture(session,{type:'user/message',data:malformed,seq:0,time:1});
+    adapter.capture({id:session.id,header:{origin:'unknown-child-kind'}},{type:'user/message',data:message('other','user',privateText),seq:1,time:2});
+    const payload={agent:{session},messages:[malformed],turn:1,step:1,signal:new AbortController().signal};
+    const downstream={kind:'enter',messages:[malformed]};let calls=0;
+    assert.equal(await adapter.beforeStep(payload,async()=>{calls++;return downstream;}),downstream);
+    assert.equal(await adapter.beforeStep(null,async()=>{calls++;return downstream;}),downstream);
+    const valid={...payload,messages:[message('valid-user','user','valid')]};
+    assert.equal(await adapter.beforeStep(valid,async()=>{calls++;return {kind:'enter',messages:null};}).then(result=>result.messages),null);
+    await adapter.flush();
+    assert.equal(calls,3);assert.equal(mock.events.length,0);assert.equal(mock.contexts.length,0);
+    assert.equal(JSON.parse(readFileSync(join(adapter.stateDir,'identity.json'))).bound_session,undefined);
+    assert.equal(readdirSync(adapter.stateDir).filter(name=>name.endsWith('.event.json')).length,0);
+    assert.equal(warnings.length,1);assert.equal(JSON.stringify(warnings).includes(privateText),false);
+  }finally{await adapter.dispose();await mock.close();f.clean();}
+});
+
+test('changed consumed event shapes invalidate the open turn while unrelated new events remain additive',async()=>{
+  const mock=await mockController();const f=fixture(mock.base,{session_scope:session.id});const adapter=new HostAdapter(f.options);
+  try{
+    adapter.capture(session,{type:'turn/start',data:{turn:1},seq:0,time:1});
+    adapter.capture(session,{type:'assistant/message',data:{turn:1,step:1,message:message('prior-final','assistant','不能把格式改变前的文字误报成最终输出')},seq:1,time:2});
+    adapter.capture(session,{type:'assistant/message',data:{turn:1,step:1,message:message('changed-final','assistant','不兼容载荷')},seq:'2',time:3});
+    adapter.capture(session,{type:'turn/end',data:{turn:1,reason:{kind:'completed'}},seq:3,time:4});
+    await adapter.flush();assert.equal(mock.events.filter(e=>e.body.record.normalized?.type==='output').length,0);
+    assert.equal(mock.events.at(-1).body.record.normalized.status,'partial');
+    adapter.capture(session,{type:'turn/start',data:{turn:2},seq:4,time:5});
+    adapter.capture(session,{type:'assistant/message',data:{turn:2,step:1,message:message('valid-final','assistant','公共接口保持兼容')},seq:5,time:6});
+    adapter.capture(session,{type:'future/optional-event',data:{unused:true},seq:6,time:7});
+    adapter.capture(session,{type:'turn/end',data:{turn:2,reason:{kind:'completed'}},seq:7,time:8});
+    await adapter.flush();
+    const outputs=mock.events.filter(e=>e.body.record.normalized?.type==='output');
+    assert.equal(outputs.length,1);assert.equal(outputs[0].body.record.normalized.text,'公共接口保持兼容');
+    assert.equal(mock.events.some(e=>e.body.event_type==='future/optional-event'),false);
+  }finally{await adapter.dispose();await mock.close();f.clean();}
 });
 
 test('multiple next-session instances ignore boot/synthetic input and bind distinct human windows',async()=>{
@@ -160,8 +222,8 @@ test('live private enabled=false stops new capture, context and retry but retain
 
 test('real supported Cordis and SessionStore publish canonical committed events into the plugin without a model call',async()=>{
   const mock=await mockController();const f=fixture(mock.base);const ctx=new Context();
-  const store=ctx.plugin(SessionStore);await store.await();
-  const owner=ctx.plugin({name:'isolated-host-contract-fixture',apply(inner){apply(inner,f.options);}});await owner.await();
+  const store=sessionHost(ctx);await store.await();
+  const owner=ctx.plugin({name:'isolated-host-contract-fixture',inject:['sessions','agents'],apply(inner){apply(inner,f.options);}});await owner.await();
   try{
     const actual=ctx.sessions.create(SessionId('rc3-real-session-offline'));
     actual.append('turn/start',{turn:1});actual.append('step/start',{turn:1,step:1});
@@ -204,8 +266,8 @@ test('MCP connection installs Harness capture without claiming or persisting inc
 
 test('Agent Harness mode uses real supported committed events and its first complete turn survives reconnect',async()=>{
   const mock=await mockController({reject:true});const f=fixture(mock.base,{connection_id:'agent-rc3-binding',connection_host:'agent',session_scope:'next_session'});
-  const ctx=new Context();const store=ctx.plugin(SessionStore);await store.await();
-  const owner=ctx.plugin({name:'isolated-agent-host-fixture',apply(inner){apply(inner,f.options);}});await owner.await();
+  const ctx=new Context();const store=sessionHost(ctx);await store.await();
+  const owner=ctx.plugin({name:'isolated-agent-host-fixture',inject:['sessions','agents'],apply(inner){apply(inner,f.options);}});await owner.await();
   try{
     const actual=ctx.sessions.create(SessionId('agent-rc3-real-session'));
     actual.append('turn/start',{turn:1});
@@ -232,7 +294,7 @@ test('shutdown drains events queued after the in-flight snapshot before aborting
     adapter.capture(session,{type:'turn/start',data:{turn:1},seq:0,time:1});
     await eventually(()=>mock.events.length===1);
     adapter.capture(session,{type:'user/message',data:message('shutdown-user','user','退出前必须自动保存原话'),seq:1,time:2});
-    adapter.capture(session,{type:'assistant/message',data:{turn:1,message:message('shutdown-assistant','assistant','退出前的完整回复')},seq:2,time:3});
+    adapter.capture(session,{type:'assistant/message',data:{turn:1,step:1,message:message('shutdown-assistant','assistant','退出前的完整回复')},seq:2,time:3});
     adapter.capture(session,{type:'turn/end',data:{turn:1,reason:{kind:'completed'}},seq:3,time:4});
     await Promise.all([adapter.dispose(),adapter.dispose()]);
     assert.equal(mock.events.length,4);assert.equal(mock.events.at(-1).body.record.normalized.status,'complete');
@@ -366,8 +428,8 @@ test('independent root output survives durable retry without changing identity o
 
 test('official rc3 SessionStore commits a no-user final output only at completed turn/end',async()=>{
   const mock=await mockController();const sid='rc3-independent-root-offline';const f=fixture(mock.base,{session_scope:sid});const ctx=new Context();
-  const store=ctx.plugin(SessionStore);await store.await();
-  const owner=ctx.plugin({name:'isolated-output-contract-fixture',apply(inner){apply(inner,f.options);}});await owner.await();
+  const store=sessionHost(ctx);await store.await();
+  const owner=ctx.plugin({name:'isolated-output-contract-fixture',inject:['sessions','agents'],apply(inner){apply(inner,f.options);}});await owner.await();
   try{
     const actual=ctx.sessions.create(SessionId(sid));actual.append('turn/start',{turn:1});actual.append('step/start',{turn:1,step:1});
     const text='由真实SessionStore提交的最终独立助手文字，没有模型调用。';
@@ -384,9 +446,9 @@ test('official rc3 SessionStore commits a no-user final output only at completed
 for(const scope of ['fixed','next_session'])test(`real rc3 SessionStore supplies its latest public human task before no-human work (${scope})`,async()=>{
   const mock=await mockController();const sid='rc3-no-human-recall-'+scope;
   const f=fixture(mock.base,{session_scope:scope==='fixed'?sid:'next_session'});const ctx=new Context();
-  const store=ctx.plugin(SessionStore);await store.await();let preStep;
-  const owner=ctx.plugin({name:'isolated-before-work-'+scope,apply(inner){
-    apply({logger:inner.logger,on(name,handler){if(name==='agent/pre-step')preStep=handler;return inner.on(name,handler);},effect:inner.effect.bind(inner)},f.options);
+  const store=sessionHost(ctx);await store.await();let preStep;
+  const owner=ctx.plugin({name:'isolated-before-work-'+scope,inject:['sessions','agents'],apply(inner){
+    apply({logger:inner.logger,sessions:inner.sessions,agents:inner.agents,on(name,handler){if(name==='agent/pre-step')preStep=handler;return inner.on(name,handler);},effect:inner.effect.bind(inner)},f.options);
   }});await owner.await();
   try{
     const actual=ctx.sessions.create(SessionId(sid));
@@ -423,7 +485,7 @@ for(const scope of ['fixed','next_session'])test(`real rc3 SessionStore supplies
 
 test('fixed root with a real empty public SessionStore uses only a fixed baseline query',async()=>{
   const mock=await mockController();const sid='rc3-empty-root-baseline';const f=fixture(mock.base,{session_scope:sid});const ctx=new Context();
-  const store=ctx.plugin(SessionStore);await store.await();const actual=ctx.sessions.create(SessionId(sid));const adapter=new HostAdapter(f.options);
+  const store=sessionHost(ctx);await store.await();const actual=ctx.sessions.create(SessionId(sid));const adapter=new HostAdapter(f.options);
   const stop=ctx.on('session/event',(session,event)=>adapter.capture(session,event));
   try{
     actual.append('turn/start',{turn:1});

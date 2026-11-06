@@ -239,7 +239,7 @@ function refreshGuide(){
  by('connectionConfigNote').textContent=isAgent?'查询、写入、窗口绑定和宿主上报分别核对。WorkBuddy 桌面 Hook 支持尚未确认；保存或回读配置文件不会被当作自动存档安装成功。':isAPI?'这是可选的模型请求转发入口；直接连接记忆服务不需要这一项。':'安装后重载 Harness 插件，再完成目标窗口的一轮真实对话。';
  if(c.revoked)guideNotice.textContent='连接已断开，旧配置不再可用；已有记忆保留。';
  else if(c.enabled===false)guideNotice.textContent='连接已暂停，新对话暂不保存。';
- else if(!isAPI&&!isAgent&&cfg.supported===false)guideNotice.textContent='尚未检测到受支持的 Harness。可在下方指定安装位置，再点击安装重试；程序会重新检查版本。';
+ else if(!isAPI&&!isAgent&&cfg.supported===false)guideNotice.textContent=cfg.message||(cfg.setup&&cfg.setup.detected&&cfg.setup.detected.message)||'请重新检测 Harness；程序会分别检查安装位置与宿主接口兼容性。';
  else if(isAgent)guideNotice.textContent=agentConnectionAdvice(c);
  else if(!guideNotice.textContent)guideNotice.textContent=saved?'已收到真实对话。':'请在目标窗口完成一轮对话，再核对记录。';
  const legacy=(cfg.setup&&cfg.setup.detected&&cfg.setup.detected.legacy_manual_entries)||(MEMORY.detect&&MEMORY.detect.legacy_manual_entries)||[];if(!isAPI&&!isAgent&&legacy.some(x=>!MEMORY.libraries.some(l=>l.id===(x.target_library_id||'default'))))guideNotice.textContent+=' 旧全局 MCP 工具仍指向已移除存档，不会自动改绑。';

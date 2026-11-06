@@ -1,0 +1,228 @@
+name: Harness compatibility
+
+on:
+  pull_request:
+    paths:
+      - extensions/deepseek-harness/**
+      - nkb/service/**
+      - tests/test_agent*.py
+      - tests/test_harness*.py
+      - tests/test_connection*.py
+      - examples/harness-cli-qa/**
+      - scripts/verify_harness_connection.py
+      - scripts/sync_harness_assets.py
+      - .github/workflows/harness-compatibility.yml
+      - docs/HARNESS-COMPATIBILITY.md
+  push:
+    paths:
+      - extensions/deepseek-harness/**
+      - nkb/service/**
+      - tests/test_agent*.py
+      - tests/test_harness*.py
+      - tests/test_connection*.py
+      - examples/harness-cli-qa/**
+      - scripts/verify_harness_connection.py
+      - scripts/sync_harness_assets.py
+      - .github/workflows/harness-compatibility.yml
+      - docs/HARNESS-COMPATIBILITY.md
+  workflow_dispatch:
+  schedule:
+    - cron: '35 2 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: harness-compatibility-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.matrix.outputs.include }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+      - id: matrix
+        name: Select supported versions and the scheduled latest candidate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          const include = [
+            { id: 'rc3-linux', os: 'ubuntu-latest', selector: '0.2.1-rc.3', cordis: '4.0.5' },
+            { id: 'rc5-linux', os: 'ubuntu-latest', selector: '0.2.1-rc.5', cordis: '4.0.5' },
+            { id: 'rc1-linux', os: 'ubuntu-latest', selector: '0.2.2-rc.1', cordis: '4.1.0' },
+            { id: 'rc1-windows', os: 'windows-latest', selector: '0.2.2-rc.1', cordis: '4.1.0' },
+          ];
+          if (['schedule', 'workflow_dispatch'].includes(process.env.EVENT_NAME)) {
+            include.push({ id: 'latest-linux', os: 'ubuntu-latest', selector: 'latest', cordis: '' });
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `include=${JSON.stringify(include)}\n`);
+          console.log(JSON.stringify(include, null, 2));
+          NODE
+
+  compatibility:
+    name: Harness ${{ matrix.selector }} (${{ matrix.os }})
+    needs: matrix
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.matrix.outputs.include) }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+      DSH_TELEMETRY_DISABLED: '1'
+      HARNESS_SELECTOR: ${{ matrix.selector }}
+      BASELINE_CORDIS: ${{ matrix.cordis }}
+      REPORT_DIRECTORY: outputs/qa/harness-${{ matrix.id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+          cache: npm
+          cache-dependency-path: extensions/deepseek-harness/package-lock.json
+
+      - name: Resolve the official CLI selector to an exact SDK version
+        run: |
+          mkdir -p "$REPORT_DIRECTORY"
+          npm view "@deepseek-ai/dsh@$HARNESS_SELECTOR" --json > "$REPORT_DIRECTORY/cli-registry.json"
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+          import { resolve } from 'node:path';
+          const directory = resolve(process.env.REPORT_DIRECTORY).replaceAll('\\', '/');
+          const metadata = JSON.parse(readFileSync(`${directory}/cli-registry.json`, 'utf8'));
+          if (metadata.name !== '@deepseek-ai/dsh' || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(metadata.version)) {
+            throw new Error('The official CLI selector did not resolve to one exact release');
+          }
+          const cordisRange = metadata.dependencies?.['@deepseek-ai/cordis'];
+          if (typeof cordisRange !== 'string' || !/^[0-9A-Za-z.~^<>=|*+ -]+$/.test(cordisRange)) {
+            throw new Error('The selected official CLI has no supported Cordis dependency declaration');
+          }
+          writeFileSync(`${directory}/selection.json`, JSON.stringify({
+            selector: process.env.HARNESS_SELECTOR, version: metadata.version,
+            cordisRange, cliTarball: metadata.dist?.tarball, cliIntegrity: metadata.dist?.integrity,
+          }, null, 2) + '\n');
+          appendFileSync(process.env.GITHUB_ENV, `HARNESS_REPORT_DIR=${directory}\nHARNESS_VERSION=${metadata.version}\nLOVE_HOUSE_HARNESS_TEST_VERSION=${metadata.version}\nCORDIS_RANGE=${cordisRange}\n`);
+          NODE
+
+      - name: Resolve Cordis from the selected host dependency
+        run: |
+          npm view "@deepseek-ai/cordis@${BASELINE_CORDIS:-$CORDIS_RANGE}" version --json > "$HARNESS_REPORT_DIR/cordis-versions.json"
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+          const directory = process.env.HARNESS_REPORT_DIR;
+          const versions = JSON.parse(readFileSync(`${directory}/cordis-versions.json`, 'utf8'));
+          const version = Array.isArray(versions) ? versions.at(-1) : versions;
+          if (typeof version !== 'string' || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
+            throw new Error('The official Cordis dependency did not resolve to an exact version');
+          }
+          const selection = JSON.parse(readFileSync(`${directory}/selection.json`, 'utf8'));
+          selection.cordisVersion = version;
+          writeFileSync(`${directory}/selection.json`, JSON.stringify(selection, null, 2) + '\n');
+          appendFileSync(process.env.GITHUB_ENV, `CORDIS_VERSION=${version}\n`);
+          NODE
+
+      - name: Install the official CLI and matching SDK without lifecycle scripts
+        run: |
+          node --input-type=module <<'NODE'
+          import { mkdirSync, writeFileSync } from 'node:fs';
+          const directory = `${process.env.HARNESS_REPORT_DIR}/runtime`;
+          mkdirSync(directory, { recursive: true });
+          writeFileSync(`${directory}/package.json`, JSON.stringify({ name: 'isolated-harness-compatibility', private: true, version: '0.0.0' }) + '\n');
+          NODE
+          npm install --prefix "$HARNESS_REPORT_DIR/runtime" --ignore-scripts --no-audit --no-fund --save-exact \
+            "@deepseek-ai/dsh@$HARNESS_VERSION" "@deepseek-ai/cordis@$CORDIS_VERSION" \
+            "@deepseek-ai/dsh-agent@$HARNESS_VERSION" "@deepseek-ai/dsh-session@$HARNESS_VERSION" \
+            "@deepseek-ai/dsh-llm@$HARNESS_VERSION" "@deepseek-ai/dsh-scope@$HARNESS_VERSION" \
+            2>&1 | tee "$HARNESS_REPORT_DIR/runtime-install.log"
+
+      - name: Install adapter tools and select the same SDK for its tests
+        working-directory: extensions/deepseek-harness
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund 2>&1 | tee "$HARNESS_REPORT_DIR/adapter-tools-install.log"
+          npm install --ignore-scripts --no-save --package-lock=false --no-audit --no-fund \
+            "@deepseek-ai/cordis@$CORDIS_VERSION" "@deepseek-ai/dsh-agent@$HARNESS_VERSION" \
+            "@deepseek-ai/dsh-session@$HARNESS_VERSION" "@deepseek-ai/dsh-llm@$HARNESS_VERSION" \
+            "@deepseek-ai/dsh-scope@$HARNESS_VERSION" 2>&1 | tee "$HARNESS_REPORT_DIR/adapter-sdk-install.log"
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const versions = {};
+          for (const name of ['cordis', 'dsh-agent', 'dsh-session', 'dsh-llm', 'dsh-scope']) {
+            const metadata = JSON.parse(readFileSync(`node_modules/@deepseek-ai/${name}/package.json`, 'utf8'));
+            const expected = name === 'cordis' ? process.env.CORDIS_VERSION : process.env.HARNESS_VERSION;
+            if (metadata.version !== expected) throw new Error(`${name}: expected ${expected}, installed ${metadata.version}`);
+            versions[metadata.name] = metadata.version;
+          }
+          writeFileSync(`${process.env.HARNESS_REPORT_DIR}/adapter-sdk.json`, JSON.stringify(versions, null, 2) + '\n');
+          NODE
+
+      - name: Typecheck, build and test the adapter against the selected SDK
+        working-directory: extensions/deepseek-harness
+        run: |
+          npm run typecheck 2>&1 | tee "$HARNESS_REPORT_DIR/typecheck.log"
+          npm run build 2>&1 | tee "$HARNESS_REPORT_DIR/build.log"
+          npm test 2>&1 | tee "$HARNESS_REPORT_DIR/adapter-tests.log"
+
+      - name: Synchronize the tested adapter and check connection behavior
+        run: |
+          python scripts/sync_harness_assets.py
+          python -m unittest \
+            tests.test_harness_windows_detection tests.test_harness_legacy_detection tests.test_harness_capabilities \
+            tests.test_agent_harness_capture tests.test_agent_source_service \
+            tests.test_agent_sources tests.test_connection_onboarding \
+            2>&1 | tee "$HARNESS_REPORT_DIR/python-tests.log"
+
+      - name: Real CLI turns with an isolated profile and local synthetic model
+        run: |
+          python scripts/verify_harness_connection.py \
+            --node "$(node -p 'process.execPath')" \
+            --cli "$HARNESS_REPORT_DIR/runtime/node_modules/@deepseek-ai/dsh/lib/bin.js" \
+            --report-dir "$HARNESS_REPORT_DIR/real-cli" \
+            2>&1 | tee "$HARNESS_REPORT_DIR/real-cli.log"
+
+      - name: Summarize the selected release and behavior result
+        if: always()
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync, existsSync, readFileSync } from 'node:fs';
+          import { resolve } from 'node:path';
+          const directory = resolve(process.env.REPORT_DIRECTORY);
+          const selectionFile = `${directory}/selection.json`;
+          const resultFile = `${directory}/real-cli/result.json`;
+          const selection = existsSync(selectionFile) ? JSON.parse(readFileSync(selectionFile, 'utf8')) : {};
+          const result = existsSync(resultFile) ? JSON.parse(readFileSync(resultFile, 'utf8')) : undefined;
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `### Harness ${process.env.HARNESS_SELECTOR} on ${process.platform}\n\n` +
+            `Resolved SDK: ${selection.version ?? 'resolution failed'}; Cordis: ${selection.cordisVersion ?? 'not resolved'}.\n\n` +
+            `Real CLI behavior: ${result?.ok === true ? 'passed' : result ? 'failed; see result.json' : 'not completed; see the failing step'}.\n\n` +
+            'Tests use temporary profiles, synthetic text and a loopback model server. No real model key or personal memory is used.\n');
+          NODE
+
+      - name: Preserve version metadata, logs and synthetic reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-compatibility-${{ matrix.id }}
+          path: |
+            ${{ env.REPORT_DIRECTORY }}/*.json
+            ${{ env.REPORT_DIRECTORY }}/*.log
+            ${{ env.REPORT_DIRECTORY }}/runtime/package.json
+            ${{ env.REPORT_DIRECTORY }}/runtime/package-lock.json
+            ${{ env.REPORT_DIRECTORY }}/real-cli/
+          if-no-files-found: warn
+          retention-days: 14

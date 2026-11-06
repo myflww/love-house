@@ -101,6 +101,7 @@ var host_capabilities_default = {
   schema: "love-house-harness-capabilities/v1",
   contract_id: "harness-memory-events-v1",
   cordis_major: 4,
+  tested_versions: ["0.2.1-rc.3", "0.2.1-rc.5", "0.2.2-rc.1"],
   packages: {
     "@deepseek-ai/dsh-agent": {
       files: {

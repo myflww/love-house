@@ -1148,13 +1148,13 @@
     },
     {
       "path": "extensions/deepseek-harness/dist/index.js",
-      "bytes": 44157,
-      "sha256": "f01a74b4ed6a7e2640dd9349798d61c890796a23bc0a268c37550a287e619c73"
+      "bytes": 44220,
+      "sha256": "0556afcc09e1677cbf4e33ec2e2f5f1e305a2888f56b4abed141947485664bc4"
     },
     {
       "path": "extensions/deepseek-harness/dist/proxy.js",
-      "bytes": 50519,
-      "sha256": "1e38eef5302007193f955c8df17cfc0288457901986a2a8cbfe036cfe018032a"
+      "bytes": 50582,
+      "sha256": "ce45722116db25324b911e3e42f2d1acf2e7a30ad4bbf4d92a4eef49f2c3a425"
     },
     {
       "path": "extensions/deepseek-harness/dist/THIRD_PARTY_LICENSES.txt",
@@ -1733,13 +1733,13 @@
     },
     {
       "path": "nkb/service/harness/dist/index.js",
-      "bytes": 44157,
-      "sha256": "f01a74b4ed6a7e2640dd9349798d61c890796a23bc0a268c37550a287e619c73"
+      "bytes": 44220,
+      "sha256": "0556afcc09e1677cbf4e33ec2e2f5f1e305a2888f56b4abed141947485664bc4"
     },
     {
       "path": "nkb/service/harness/dist/proxy.js",
-      "bytes": 50519,
-      "sha256": "1e38eef5302007193f955c8df17cfc0288457901986a2a8cbfe036cfe018032a"
+      "bytes": 50582,
+      "sha256": "ce45722116db25324b911e3e42f2d1acf2e7a30ad4bbf4d92a4eef49f2c3a425"
     },
     {
       "path": "nkb/service/harness/dist/THIRD_PARTY_LICENSES.txt",

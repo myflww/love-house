@@ -90,6 +90,10 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
    JSONObject nodes=exported.getJSONObject("memory").getJSONObject("nodes");require(nodes.length()==1);JSONObject row=nodes.getJSONObject(nodes.keys().next());
    require(TEXTS[n].equals(row.getString("text"))&&REPLIES[n].equals(row.getJSONObject("meta").getString("assistant_reply")));
    require(row.toString().contains("升级验收")&&row.toString().contains("独立库"+n)&&!row.toString().contains(TEXTS[1-n]));
+   require(row.getString("label").equals("UPGRADE_0106_"+n));
+   JSONArray tags=row.getJSONArray("tags");require(tags.length()==2);
+   Set<String> actual=new HashSet<>();for(int t=0;t<tags.length();t++)actual.add(tags.getString(t));
+   require(actual.equals(new HashSet<>(Arrays.asList("升级验收","独立库"+n))));
   }
  }
  void engine(Activity target)throws Exception{
@@ -113,13 +117,13 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
   exec("selectMemoryLibrary("+JSONObject.quote(id)+");");waitJs("S.libraryId==="+JSONObject.quote(id));
   JSONObject preview=request("/api/sharing/preview",new JSONObject(),id);
   JSONObject exported=request("/api/sharing/download",new JSONObject().put("format","json").put("confirm",true).put("expected_revision",preview.getString("content_revision")),id);
-  String content=exported.getString("content");require(content.contains(TEXTS[0])&&content.contains(REPLIES[0])&&!content.contains(TEXTS[1]));nativeSave();
+  String content=exported.getString("content");require(content.contains(TEXTS[0])&&content.contains(REPLIES[0])&&!content.contains(TEXTS[1]));content=nativeSave();
   stage="engine_restore";JSONObject restored=request("/api/sharing/import",new JSONObject().put("confirm",true).put("content",content).put("name","升级验收恢复0106"),null);
   String restoredId=restored.getJSONObject("library").getString("id");require(!id.equals(restoredId));String graph=request("/api/graph",null,restoredId).toString();require(graph.contains(TEXTS[0])&&graph.contains(REPLIES[0])&&!graph.contains(TEXTS[1]));
   require(!request("/api/organizer",null,restoredId).getJSONObject("configuration").getBoolean("configured"));
   getTargetContext().getSharedPreferences("0106-owned-qa",Context.MODE_PRIVATE).edit().putString("migrated",id).putString("restored",restoredId).putInt("library_count",count+1).commit();
  }
- void nativeSave()throws Exception{
+ String nativeSave()throws Exception{
   stage="engine_saf_save";ContentResolver resolver=getTargetContext().getContentResolver();resolver.delete(DOCUMENT,null,null);
   IntentFilter filter=new IntentFilter(Intent.ACTION_CREATE_DOCUMENT);filter.addCategory(Intent.CATEGORY_OPENABLE);filter.addDataType("application/json");
   ActivityMonitor monitor=addMonitor(filter,new ActivityResult(Activity.RESULT_OK,new Intent().setData(DOCUMENT)),true);
@@ -129,11 +133,14 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
    exec("document.getElementById('sharePersonalConsent').checked=true;document.getElementById('sharePersonalConsent').dispatchEvent(new Event('change')); ");
    waitJs("!document.getElementById('downloadMemoryJSON').disabled");exec("document.getElementById('downloadMemoryJSON').click();");
    long end=SystemClock.uptimeMillis()+30000;while(monitor.getHits()!=1&&SystemClock.uptimeMillis()<end)SystemClock.sleep(100);require(monitor.getHits()==1);
+   end=SystemClock.uptimeMillis()+30000;boolean opened=false;
+   do{try(Cursor c=resolver.query(DOCUMENT,null,null,null,null)){require(c!=null&&c.moveToFirst());if(c.getInt(c.getColumnIndexOrThrow("open_count"))==1){opened=true;break;}}SystemClock.sleep(100);}while(SystemClock.uptimeMillis()<end);require(opened);
    ContentValues allow=new ContentValues();allow.put("allow_read",true);resolver.update(DOCUMENT,allow,null,null);String payload=null;end=SystemClock.uptimeMillis()+30000;
    do{try(Cursor c=resolver.query(DOCUMENT,null,null,null,null)){require(c!=null&&c.moveToFirst());if(c.getInt(c.getColumnIndexOrThrow("closed"))==1){require(c.getString(c.getColumnIndexOrThrow("error")).equals(""));payload=c.getString(c.getColumnIndexOrThrow("payload"));break;}}SystemClock.sleep(100);}while(SystemClock.uptimeMillis()<end);
    require(payload!=null&&new JSONObject(payload).getString("format").equals("love-house-memory-share/v1"));require(payload.contains(TEXTS[0])&&payload.contains(REPLIES[0])&&!payload.contains(TEXTS[1]));
    waitJs("window.__qaSaved && window.__qaSaved.saved===true && window.__qaSaved.cancelled===false");
-  }finally{removeMonitor(monitor);}
+   return payload;
+  }finally{removeMonitor(monitor);ContentValues allow=new ContentValues();allow.put("allow_read",true);try{resolver.update(DOCUMENT,allow,null,null);}catch(Exception ignored){}}
  }
  void persisted()throws Exception{
   legacy();checkLegacy();engine(launch("EngineActivity"));stage="engine_after_process_restart";android.content.SharedPreferences p=getTargetContext().getSharedPreferences("0106-owned-qa",Context.MODE_PRIVATE);
@@ -141,7 +148,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
   for(String each:new String[]{id,restored}){String graph=request("/api/graph",null,each).toString();require(graph.contains(TEXTS[0])&&graph.contains(REPLIES[0])&&!graph.contains(TEXTS[1]));}
  }
  void credential(boolean seed)throws Exception{
-  stage=seed?"keystore_seed":"keystore_after_process_restart_delete";Class<?> type=Class.forName("io.github.myflww.lovehouse.AndroidCredentialVault");Constructor<?> constructor=type.getDeclaredConstructor(Context.class);constructor.setAccessible(true);Object vault=constructor.newInstance(getTargetContext());
+  stage=seed?"keystore_seed":"keystore_after_process_restart_delete";Class<?> type=getTargetContext().getClassLoader().loadClass("io.github.myflww.lovehouse.AndroidCredentialVault");Constructor<?> constructor=type.getDeclaredConstructor(Context.class);constructor.setAccessible(true);Object vault=constructor.newInstance(getTargetContext());
   Method method=type.getDeclaredMethod("call",String.class,String.class,String.class);method.setAccessible(true);
   if(seed)require(new JSONObject((String)method.invoke(vault,"set",ACCOUNT,SYNTHETIC)).getBoolean("ok"));
   else{JSONObject value=new JSONObject((String)method.invoke(vault,"get",ACCOUNT,null));require(value.getBoolean("ok")&&value.getString("value").equals(SYNTHETIC));require(new JSONObject((String)method.invoke(vault,"delete",ACCOUNT,null)).getBoolean("ok"));require(new JSONObject((String)method.invoke(vault,"get",ACCOUNT,null)).getString("value").equals(""));}

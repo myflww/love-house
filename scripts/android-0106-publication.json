@@ -1,7 +1,7 @@
 {
   "schema": "love-house-android-0106-publication/v1",
   "ready": true,
-  "publish_enabled": false,
+  "publish_enabled": true,
   "repository": "myflww/love-house",
   "publication_branch": "codex/android-0106-publish",
   "source_commit": "732d7df84815e7b360f3bf1820b261747ae1d047",

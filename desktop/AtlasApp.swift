@@ -408,13 +408,13 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
     }
 
     private func smokeRequest(_ path: String, method: String = "GET", payload: [String: Any]? = nil,
-                              libraryID: String? = nil, token: String? = nil) async throws -> [String: Any] {
+                              libraryID: String? = nil, token: String? = nil, timeout: TimeInterval = 10) async throws -> [String: Any] {
         guard let base = serviceURL, let url = URL(string: path, relativeTo: base) else {
             throw NSError(domain: "NeuralAtlasSmoke", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing Controller URL"])
         }
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.timeoutInterval = 10
+        request.timeoutInterval = timeout
         request.cachePolicy = .reloadIgnoringLocalCacheData
         if let id = libraryID { request.setValue(id, forHTTPHeaderField: "X-NKB-Library") }
         if let token = token { request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization") }
@@ -514,7 +514,8 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         }
     }
 
-    private func captureSmokeTurn(_ id: String, user: String) async throws {
+    @discardableResult
+    private func captureSmokeTurn(_ id: String, user: String) async throws -> [String: Any] {
         let payload: [String: Any] = ["session_id": "native-session", "event_id": id, "event_type": "turn/end",
             "record": ["schema": "deepseek-harness-event/v1",
                        "raw_event": ["type": "turn/end", "attachments": [["id": "native-temporary-attachment"]]],
@@ -523,6 +524,7 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         let result = try await smokeRequest("api/connections/\(smokeConnectionID)/events", method: "POST",
                                             payload: payload, token: smokeConnectionToken)
         try requireSmoke(result["accepted"] as? Bool == true, "Completed host event was not accepted")
+        return result
     }
 
     private func exerciseController() {
@@ -621,8 +623,31 @@ final class AtlasDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate, W
         Task {
             do {
                 let oldPID = process?.processIdentifier
-                try await captureSmokeTurn("after-gui-switch", user: "切换画面后仍归属甲库的原文")
-                let a = try await smokeRequest("api/graph", libraryID: smokeLibraryA)
+                let captured = try await captureSmokeTurn("after-gui-switch", user: "切换画面后仍归属甲库的原文")
+                // accepted acknowledges the durable receipt, not necessarily
+                // graph application: a concurrent retry may hold _apply_lock.
+                // Wait for exactly the original four IDs without weakening the
+                // isolation assertions or accepting an extra node.
+                let receiptStates: Set<String> = ["pending", "retry", "saved", "archived", "forgotten"]
+                let acknowledgement = captured["status"] as? String ?? "unknown"
+                let ackStatus = receiptStates.contains(acknowledgement) ? acknowledgement : "unknown"
+                let deadline = ProcessInfo.processInfo.systemUptime + 10
+                var a = try await smokeRequest("api/graph", libraryID: smokeLibraryA, timeout: max(0.1, deadline - ProcessInfo.processInfo.systemUptime))
+                while true {
+                    let count = Set((a["nodes"] as? [[String: Any]] ?? []).compactMap { $0["id"] as? String }).count
+                    try requireSmoke(count <= 4, "Connection did not stay bound to library A (expected 4 unique IDs, observed \(count); receipt acknowledgement \(ackStatus))")
+                    if count == 4 { break }
+                    if ProcessInfo.processInfo.systemUptime >= deadline {
+                        let activity = try? await smokeRequest("api/activity", libraryID: smokeLibraryA, timeout: 1)
+                        let events = activity?["events"] as? [[String: Any]] ?? []
+                        let receiptID = captured["receipt_id"] as? String ?? ""
+                        let status = events.first { $0["id"] as? String == receiptID }?["status"] as? String ?? "unavailable"
+                        let durableStatus = receiptStates.contains(status) ? status : "unavailable"
+                        try requireSmoke(count == 4, "Connection did not stay bound to library A (expected 4 unique IDs, observed \(count) after 10s; receipt acknowledgement \(ackStatus), durable receipt \(durableStatus))")
+                    }
+                    try await Task.sleep(nanoseconds: 100_000_000)
+                    a = try await smokeRequest("api/graph", libraryID: smokeLibraryA, timeout: max(0.1, deadline - ProcessInfo.processInfo.systemUptime))
+                }
                 let b = try await smokeRequest("api/graph", libraryID: smokeLibraryB)
                 let fallback = try await smokeRequest("api/graph")
                 smokeExpectedIDs = Set((a["nodes"] as? [[String: Any]] ?? []).compactMap { $0["id"] as? String })

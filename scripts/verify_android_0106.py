@@ -238,6 +238,10 @@ def main():
         require(not command(prefix + ['shell', 'pm', 'list', 'packages', APP]).strip(), 'Fresh emulator required; existing app data will not be removed')
         provider = webview_identity(command(prefix + ['shell', 'dumpsys', 'webviewupdate']))
         scope = scope_for(args.api_level, provider)
+        if args.diagnostic_only:
+            # Restart adbd BEFORE any instrumentation shell is active. Doing
+            # adb root from the observer would sever that shell's transport.
+            command(prefix + ['root']);command(prefix + ['wait-for-device'])
         report.update(webview=provider, instrumentation_scope=scope['instrumentation_scope'], partial=scope['partial'], full_engine_verified=False)
         stage = 'public_original_apk'
         old = fetch_old(output / 'public-old-0.8.0rc2.apk');report['old_apk_identity'] = identity(old, sdk, 'old')
@@ -262,7 +266,6 @@ def main():
                 pass
             if stack:
                 try:
-                    command(prefix + ['root'], timeout=20);command(prefix + ['wait-for-device'], timeout=20)
                     pid = command(prefix + ['shell', 'pidof', APP], timeout=15).strip()
                     require(bool(re.fullmatch(r'[0-9]+', pid)), 'Only the exact owned target process may be dumped')
                     command(prefix + ['shell', 'kill', '-3', pid], timeout=15)
@@ -273,7 +276,8 @@ def main():
                     for name in listing[:2]:
                         if re.fullmatch(r'anr_[A-Za-z0-9_.-]{1,100}', name):
                             raw = command(prefix + ['exec-out', 'cat', '/data/anr/' + name], timeout=20, binary=True)
-                            (output / (label + '-' + name + '-diagnostic.txt')).write_bytes(raw[:1048576])
+                            if ('Cmd line: ' + APP + '\n').encode('ascii') in raw[:4096]:
+                                (output / (label + '-' + name + '-diagnostic.txt')).write_bytes(raw[:1048576])
                 except (OSError, ValueError, subprocess.SubprocessError):
                     pass
         def probe(mode, filename):

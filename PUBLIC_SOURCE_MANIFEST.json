@@ -708,8 +708,8 @@
     },
     {
       "path": "desktop/AtlasApp.swift",
-      "bytes": 64653,
-      "sha256": "7985edd7fadc99fb6d440217b7d72f2888c2989a03577c25c6f6dd895046d319"
+      "bytes": 66927,
+      "sha256": "328bb1bd24b34511be9b21de41cf8908a810627f483898006b1d079df777acc4"
     },
     {
       "path": "desktop/Icon.swift",

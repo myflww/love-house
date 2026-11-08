@@ -28,11 +28,12 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
  static final String ACCOUNT="cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
  static final String SYNTHETIC="SYNTHETIC_ONLY_ANDROID_0106_PERSISTENCE";
  static final Uri DOCUMENT=Uri.parse("content://io.github.myflww.lovehouse.preview.test.synthetic-saf/document/export.json");
- String stage="arguments",mode,url,cookie; Activity activity; Bundle args;
+ volatile String stage="arguments";volatile boolean finished;String mode,url,cookie; Activity activity; Bundle args;
  @Override public void onCreate(Bundle value){super.onCreate(value);args=value==null?new Bundle():new Bundle(value);start();}
  @Override public void onStart(){
   Bundle report=new Bundle();mode=args.getString("mode","");report.putString("mode",mode);
   report.putString("protocol","love-house-original-upgrade-0106/v1");
+  Thread progress=new Thread(()->{String previous="";while(!finished){String current=stage;if(!current.equals(previous)){Bundle safe=new Bundle();safe.putString("qa_stage",current);safe.putString("mode",mode);try{sendStatus(2,safe);}catch(Throwable ignored){return;}previous=current;}SystemClock.sleep(100);}},"owned-qa-stage");progress.setDaemon(true);progress.start();
   try{
    checkIdentity(mode.equals("seed"));
    if(mode.equals("seed")){legacy();seed();checkLegacy();}
@@ -46,7 +47,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
    report.putBoolean("original_certificate",true);report.putInt("version_code",mode.equals("seed")?3:4);
    report.putInt("model_calls",0);finish(Activity.RESULT_OK,report);
   }catch(Throwable failure){report.putBoolean("ok",false);report.putString("error_stage",stage);
-   report.putString("exception",failure.getClass().getSimpleName());finish(1,report);}
+   report.putString("exception",failure.getClass().getSimpleName());finish(1,report);}finally{finished=true;}
  }
  void checkIdentity(boolean old)throws Exception{
   stage="disposable_identity";java.lang.Process p=new ProcessBuilder("/system/bin/getprop","ro.kernel.qemu").start();
@@ -59,13 +60,19 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
  }
  Activity launch(String className)throws Exception{
   Intent i=new Intent().setClassName(APP,"io.github.myflww.lovehouse."+className).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("legacy",true);
-  Activity result=startActivitySync(i);require(result!=null);return result;
+  ActivityMonitor monitor=addMonitor("io.github.myflww.lovehouse."+className,null,false);
+  try{onMain(()->getTargetContext().startActivity(i));Activity result=waitForMonitorWithTimeout(monitor,30000);require(result!=null);return result;}finally{removeMonitor(monitor);}
+ }
+ void onMain(Runnable action)throws Exception{
+  CountDownLatch done=new CountDownLatch(1);AtomicReference<Throwable> failure=new AtomicReference<>();
+  new Handler(Looper.getMainLooper()).post(()->{try{action.run();}catch(Throwable e){failure.set(e);}finally{done.countDown();}});
+  require(done.await(30,TimeUnit.SECONDS)&&failure.get()==null);
  }
  void legacy()throws Exception{stage="legacy_ready";activity=launch("MainActivity");waitJs("document.documentElement.dataset.appReady==='true' && window.LoveHouseApp && !document.getElementById('newMemory').disabled");}
  Object call(Activity target,String name)throws Exception{Method m=target.getClass().getDeclaredMethod(name);m.setAccessible(true);return m.invoke(target);}
  Object js(String body)throws Exception{
   CountDownLatch done=new CountDownLatch(1);AtomicReference<String> value=new AtomicReference<>();AtomicReference<Throwable> error=new AtomicReference<>();
-  runOnMainSync(()->{try{WebView web=(WebView)call(activity,"webViewForTest");require(web!=null);web.evaluateJavascript("(function(){"+body+"})()",result->{value.set(result);done.countDown();});}catch(Throwable e){error.set(e);done.countDown();}});
+  onMain(()->{try{WebView web=(WebView)call(activity,"webViewForTest");require(web!=null);web.evaluateJavascript("(function(){"+body+"})()",result->{value.set(result);done.countDown();});}catch(Throwable e){error.set(e);done.countDown();}});
   require(done.await(30,TimeUnit.SECONDS)&&error.get()==null&&value.get()!=null);return new JSONTokener(value.get()).nextValue();
  }
  void exec(String body)throws Exception{js(body+";return true;");}
@@ -101,7 +108,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
  }
  void engine(Activity target)throws Exception{
   stage="engine_bootstrap";activity=target;long end=SystemClock.uptimeMillis()+120000;
-  do{AtomicReference<String> value=new AtomicReference<>();runOnMainSync(()->{try{value.set((String)call(activity,"engineUrlForTest"));cookie=(String)call(activity,"engineManagementCookieForTest");}catch(Exception ignored){}});url=value.get();if(url!=null&&cookie!=null)break;SystemClock.sleep(100);}while(SystemClock.uptimeMillis()<end);
+  do{AtomicReference<String> value=new AtomicReference<>();onMain(()->{try{value.set((String)call(activity,"engineUrlForTest"));cookie=(String)call(activity,"engineManagementCookieForTest");}catch(Exception ignored){}});url=value.get();if(url!=null&&cookie!=null)break;SystemClock.sleep(100);}while(SystemClock.uptimeMillis()<end);
   require(url!=null&&cookie!=null);waitJs("typeof S!=='undefined' && S.mode==='serve' && !!window.LoveHousePortability && !!window.LoveHouseEngineFiles");request("/api/updates/settings",new JSONObject().put("auto_check",false),null);
  }
  void migrateOnce()throws Exception{
@@ -134,8 +141,12 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
   require(count==1&&id!=null);return id;
  }
  void migrate()throws Exception{
-  legacy();checkLegacy();migrateOnce();stage="migration_scoped";String id=migratedLibrary();int count=request("/api/libraries",null,null).getJSONArray("libraries").length();
-  runOnMainSync(activity::finish);legacy();checkLegacy();migrateOnce();stage="migration_duplicate";require(id.equals(migratedLibrary())&&count==request("/api/libraries",null,null).getJSONArray("libraries").length());
+  legacy();Activity originalLegacy=activity;checkLegacy();migrateOnce();stage="migration_scoped";String id=migratedLibrary();int count=request("/api/libraries",null,null).getJSONArray("libraries").length();
+  stage="return_to_original_legacy";onMain(activity::finish);activity=originalLegacy;
+  long resumeDeadline=SystemClock.uptimeMillis()+30000;boolean resumed=false;
+  do{AtomicReference<Boolean> visible=new AtomicReference<>(false);onMain(()->visible.set(!activity.isFinishing()&&!activity.isDestroyed()&&activity.hasWindowFocus()));if(visible.get()){resumed=true;break;}SystemClock.sleep(100);}while(SystemClock.uptimeMillis()<resumeDeadline);require(resumed);
+  waitJs("document.documentElement.dataset.appReady==='true' && !document.getElementById('librarySelect').disabled");
+  checkLegacy();migrateOnce();stage="migration_duplicate";require(id.equals(migratedLibrary())&&count==request("/api/libraries",null,null).getJSONArray("libraries").length());
   stage="engine_backup";request("/api/library/select",new JSONObject().put("library_id",id),null);
   exec("selectMemoryLibrary("+JSONObject.quote(id)+");");waitJs("S.libraryId==="+JSONObject.quote(id)+" && !S.libraryChanging && !MEMORY.busy && !writeBusy");
   JSONObject preview=request("/api/sharing/preview",new JSONObject(),id);

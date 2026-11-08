@@ -596,14 +596,14 @@
     "extra_qa": {
       "name": "supplemental-QA-only.apk",
       "bytes": 25140,
-      "sha256": "c1d1a9314fa32aced1d6d1fec7433bcd96f7ea23bd42a10f06adf9a1e2303374",
-      "blob_sha": "1a10b8fa96ed497d9ba9d05e64012e7bff53a706",
+      "sha256": "381b1f9d37f708f25baa2a025056966931f42919cc587272d13e3b5cfe20658e",
+      "blob_sha": "dd831e4eccc8fcb35847eaa8e990853ed5684667",
       "parts": [
         {
           "path": "release-handoff/0.10.6rc1/extraqa/part-0000.bin",
           "bytes": 25140,
-          "sha256": "c1d1a9314fa32aced1d6d1fec7433bcd96f7ea23bd42a10f06adf9a1e2303374",
-          "blob_sha": "1a10b8fa96ed497d9ba9d05e64012e7bff53a706"
+          "sha256": "381b1f9d37f708f25baa2a025056966931f42919cc587272d13e3b5cfe20658e",
+          "blob_sha": "dd831e4eccc8fcb35847eaa8e990853ed5684667"
         }
       ]
     }
@@ -621,10 +621,10 @@
     "sha256": "e75a3c1b73526c2968ff9e44ad6b8bf6cef36f2c3afdfd8fad7ee5e944c04f6a"
   },
   "extra_qa_build": {
-    "run_id": 42482009658,
-    "commit": "c906ae602d1db15d8cc474d32b6d1c6a5a5176da",
-    "artifact_id": 13617009399,
-    "artifact_sha256": "70f82c93c18d64741fb1714cdc9bda1c1fe304c2f42656173c1774cdafd7feac",
-    "java_source_sha256": "e1997e9606502d1103a8e86e3ba539081ef495cff4b814600fccd37f88471dd7"
+    "run_id": 42483926691,
+    "commit": "29b4444cac67373401371a8e2cd53a5dd25134ee",
+    "artifact_id": 13618732089,
+    "artifact_sha256": "218b2a57e74b02526cafb66c2301fe2cedbec5fbb238a414f3939f78464d9c03",
+    "java_source_sha256": "1e5e46463d3385dd22847a5f01c36a2bd0565d728f0ef6803ebfcafa76b16d6e"
   }
 }

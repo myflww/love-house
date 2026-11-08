@@ -246,7 +246,18 @@ def main():
             text = command(prefix + ['shell', 'am', 'instrument', '-w', '-r', '-e', 'mode', mode, EXTRA + '/' + RUNNER], timeout=600)
             (output / (filename + '-probe.txt')).write_text(text, encoding='utf-8', newline='\n')
             transcripts[filename + '-probe.txt'] = digest(text.encode('utf-8'))
-            result = parse_probe(text, mode, args.api_level);result['transcript'] = filename + '-probe.txt';results.append(result)
+            try:
+                result = parse_probe(text, mode, args.api_level)
+            except ValueError:
+                safe = {'mode': mode}
+                for key in ('error_stage', 'exception'):
+                    found = re.findall(r'^INSTRUMENTATION_RESULT: ' + key + r'=([A-Za-z0-9_]{1,80})\s*$', text, re.M)
+                    if len(found) == 1:
+                        safe[key] = found[0]
+                report['supplemental_failure'] = safe
+                print(json.dumps({'supplemental_failure': safe}))
+                raise
+            result['transcript'] = filename + '-probe.txt';results.append(result)
         def restart():
             command(prefix + ['shell', 'am', 'force-stop', APP])
         probe('seed', 'seed');restart()

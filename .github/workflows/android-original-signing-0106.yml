@@ -74,3 +74,14 @@ jobs:
             build/android0106/*.png
           if-no-files-found: warn
           retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: original-signed-0106-diagnostics-api-${{ matrix.api }}
+          path: |
+            build/android0106/verification.json
+            build/android0106/*-probe.txt
+            build/android0106/instrumentation.txt
+            build/android0106/*.png
+          if-no-files-found: warn
+          retention-days: 14

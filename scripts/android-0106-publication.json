@@ -1,0 +1,169 @@
+{
+  "schema": "love-house-android-0106-publication/v1",
+  "ready": true,
+  "publish_enabled": false,
+  "repository": "myflww/love-house",
+  "publication_branch": "codex/android-0106-publish",
+  "source_commit": "732d7df84815e7b360f3bf1820b261747ae1d047",
+  "build_run": {
+    "id": 42439732197,
+    "head_sha": "732d7df84815e7b360f3bf1820b261747ae1d047",
+    "head_branch": "codex/android-0106-update",
+    "path": ".github/workflows/android.yml",
+    "required_jobs": [
+      "android (28)",
+      "android (36)"
+    ]
+  },
+  "build_artifact": {
+    "id": 13601002157,
+    "name": "android-unsigned-api-36",
+    "bytes": 76345733,
+    "sha256": "b4c7c8bfc01363f5d2a4a5cd60430b0b04af30fe731bdfbaa889b98e070f60fe"
+  },
+  "acceptance_run": {
+    "id": 42487440646,
+    "head_sha": "fba0bcedffb730401d1ec071809d3639a6860bba",
+    "head_branch": "codex/android-0106-original-signing",
+    "path": ".github/workflows/android-original-signing-0106.yml",
+    "required_jobs": [
+      "verify (28)",
+      "verify (36)"
+    ]
+  },
+  "artifacts": {
+    "28": {
+      "id": 13619958752,
+      "name": "original-signed-0106-api-28",
+      "bytes": 28208509,
+      "sha256": "0cd1db44c54a5f9e18a6a2edfa4e1bb72db1a463a7da0f8047716cbd68a8af0f"
+    },
+    "36": {
+      "id": 13620361119,
+      "name": "original-signed-0106-api-36",
+      "bytes": 28460450,
+      "sha256": "0d8a5ed7d58ef102c89a012ad8f1359cb1ba30e608b18ad66e8fe324b72bbc61"
+    }
+  },
+  "extra_qa_apk": {
+    "bytes": 25140,
+    "sha256": "28c431916005c96afe3bdfd8dd6a2c8320f41fdee2b36005b115438630e753f4"
+  },
+  "signing_report": {
+    "bytes": 2508,
+    "sha256": "e75a3c1b73526c2968ff9e44ad6b8bf6cef36f2c3afdfd8fad7ee5e944c04f6a"
+  },
+  "release_snapshot": {
+    "id": 435996115,
+    "tag_name": "v0.10.6rc1",
+    "target_commitish": "2f391eb29e57ee93dbf6418474371410520f996e",
+    "draft": false,
+    "prerelease": true,
+    "body": "修复对话中“我指的是”等澄清用语把无关旧句带进回答的问题。\n\n- 完整保留当前发言，按其中的实际对象与话题检索；人称、指代和问句套话本身不能证明相关。\n- 候选在排序前核对内容依据，图邻居和同文记录不能挤掉真正的主题或别名来源。\n- 只有指代、缺少对象时允许空召回，不补无关偏好或其他会话最近记录，不强制模型打断当前对话追问。\n- 显式查找原话仍可用，支持中文单双引号；生成标题和别名不冒充实际正文。肯定／否定偏好仍按原文提供。\n\n同一9节点3连接合成场景，“我指的是为什么总背清单”从1条相关+8条无关变为1条相关+0条无关；“我指的是这个”从9条无关变为空。五组实际输出、方法和局限见[本版说明](https://github.com/myflww/love-house/blob/v0.10.6rc1/docs/release-0.10.6rc1.md)。这是定向诊断，不是整体语义准确率。本轮没有换成嵌入模型，也没有新增收费API。\n\n兼容现有接入协议；更新爱之屋服务端即可，无需因此重新安装客户端或重整整个记忆库。原文、历史版本、逐渐淡忘及窗口／记忆库权限继续生效。\n\n本轮Python全套1347项（10条件跳过）、JavaScript332项通过；最终运行代码的多版本Python、实际接入接口及两端原生运行通过。Windows已验证完整安装、便携运行和0.10.5rc1→0.10.6rc1实际安装升级；Mac应用本体和ZIP解压件首次原生验收均通过。测试使用合成资料，无真实用户记忆或付费模型调用。\n\nWindows：x64，目标Windows10 2004+／Windows11，未实测所有系统或损坏运行时。Mac：Apple Silicon、macOS13.0+，ad-hoc签名，尚未公证。移动版仍为0.8.0rc2，实验性AstrBot附件仍为0.3.0。\n\n升级前备份完整数据目录。下载完整安装包或便携包，SHA256SUMS.txt及两端验证、匿名公开下载记录随发布资产提供。\n\n构建提交226bb7507c783258336b0d0e0136f7608d38fc46，发布源码提交2f391eb29e57ee93dbf6418474371410520f996e；发布前核对运行文件Git内容及模式完全一致。",
+    "assets": [
+      {
+        "id": 715542565,
+        "name": "LoveHouse-0.10.6rc1-macOS-arm64.zip",
+        "size": 73315676,
+        "digest": "sha256:f1914b4d557ae8ca03bdb3768aa2c615dcbc4346e218fd5bd92b9701fc2da134",
+        "browser_download_url": "https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-0.10.6rc1-macOS-arm64.zip",
+        "state": "uploaded"
+      },
+      {
+        "id": 715543828,
+        "name": "LoveHouse-0.10.6rc1-source.zip",
+        "size": 16434658,
+        "digest": "sha256:32ff08fa82755775f17c077f69ee5902a556ef6063c95c8f4abeb77ed5b7e726",
+        "browser_download_url": "https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-0.10.6rc1-source.zip",
+        "state": "uploaded"
+      },
+      {
+        "id": 715542191,
+        "name": "LoveHouse-0.10.6rc1-Windows-x64.zip",
+        "size": 266074797,
+        "digest": "sha256:32dbf09e0296a1b292bbd96056253114843fbbc5a8af7f2f531f6605cf99c977",
+        "browser_download_url": "https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-0.10.6rc1-Windows-x64.zip",
+        "state": "uploaded"
+      },
+      {
+        "id": 715544143,
+        "name": "LoveHouse-AstrBot-0.3.0-experimental.zip",
+        "size": 30892,
+        "digest": "sha256:17bb85be2d804a28cc20d40e4c3f5aae366bc1fb381d635c7a8282692728bda9",
+        "browser_download_url": "https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-AstrBot-0.3.0-experimental.zip",
+        "state": "uploaded"
+      },
+      {
+        "id": 715542188,
+        "name": "LoveHouse-Setup-0.10.6rc1-Windows-x64.exe",
+        "size": 255817186,
+        "digest": "sha256:058e66ac2720cfa7d45d619cef40aca5d31c8485b079c0078c9744d28df6370f",
+        "browser_download_url": "https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-Setup-0.10.6rc1-Windows-x64.exe",
+        "state": "uploaded"
+      },
+      {
+        "id": 715543651,
+        "name": "macOS-0106-verification.json",
+        "size": 41613,
+        "digest": "sha256:8eb6c3c345e9242a7868bbddf3a5ce943ca4b952c932c904e26e46b3ca546c6a",
+        "browser_download_url": "https://github.com/myflww/love-house/releases/download/v0.10.6rc1/macOS-0106-verification.json",
+        "state": "uploaded"
+      },
+      {
+        "id": 715543482,
+        "name": "macOS-SHA256SUMS.txt",
+        "size": 102,
+        "digest": "sha256:014537dc57368dd728928a6320bf430458ac4273d4b8bce4867c87e8ae08a60e",
+        "browser_download_url": "https://github.com/myflww/love-house/releases/download/v0.10.6rc1/macOS-SHA256SUMS.txt",
+        "state": "uploaded"
+      },
+      {
+        "id": 715559688,
+        "name": "Public-download-verification.json",
+        "size": 3921,
+        "digest": "sha256:eb5a6b6d554a8efe305a939e4abca868850e44c31fa7cf3bc920db619a97675b",
+        "browser_download_url": "https://github.com/myflww/love-house/releases/download/v0.10.6rc1/Public-download-verification.json",
+        "state": "uploaded"
+      },
+      {
+        "id": 715544356,
+        "name": "SHA256SUMS.txt",
+        "size": 884,
+        "digest": "sha256:44745b047fa12cbd8a5686b92182be9353de4dde3b64f1f12e21c9ca911b2524",
+        "browser_download_url": "https://github.com/myflww/love-house/releases/download/v0.10.6rc1/SHA256SUMS.txt",
+        "state": "uploaded"
+      },
+      {
+        "id": 715542332,
+        "name": "Windows-0106-verification.json",
+        "size": 49541,
+        "digest": "sha256:81fba3903cd1783046e79de44355341f0b9ae0703c1c0ccf41f95b8997316d52",
+        "browser_download_url": "https://github.com/myflww/love-house/releases/download/v0.10.6rc1/Windows-0106-verification.json",
+        "state": "uploaded"
+      },
+      {
+        "id": 715542143,
+        "name": "Windows-SHA256SUMS.txt",
+        "size": 212,
+        "digest": "sha256:f60d33946754e625cb2be66714125bb996bea5969177c82b9153e1ac00c97d75",
+        "browser_download_url": "https://github.com/myflww/love-house/releases/download/v0.10.6rc1/Windows-SHA256SUMS.txt",
+        "state": "uploaded"
+      }
+    ]
+  },
+  "extra_qa_build_run": {
+    "id": 42487090859,
+    "head_sha": "e386502219090ddbc9233030fb86bb8b5b37bd56",
+    "head_branch": "codex/android-0106-original-signing",
+    "path": ".github/workflows/android-0106-build-extraqa.yml",
+    "required_jobs": [
+      "build"
+    ]
+  },
+  "extra_qa_build_artifact": {
+    "id": 13620150926,
+    "name": "android-0106-extraqa-unsigned-input",
+    "bytes": 17549,
+    "sha256": "8d49b7441102bb914a373fa8e3a821b7bd0c991c08a69fc0a0ca28c254d1b6e6"
+  }
+}

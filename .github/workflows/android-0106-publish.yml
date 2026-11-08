@@ -1,0 +1,83 @@
+name: Append original-signed Android 0.10.6 after fixed acceptance
+on:
+  push:
+    branches: [codex/android-0106-publish]
+    paths:
+      - scripts/publish_android_0106.py
+      - scripts/android-0106-publication.json
+      - tests/test_publish_android_0106.py
+      - .github/workflows/android-0106-publish.yml
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Append four public Android assets only when reviewed metadata also enables publication
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: android-0106-append-only-publication
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      publish_enabled: ${{ steps.mode.outputs.publish_enabled }}
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reject changed pins, failed gates and asset collisions
+        run: python -m unittest discover -s tests -p test_publish_android_0106.py -v
+      - name: Validate pinned runs and downloaded evidence without publishing
+        run: python scripts/publish_android_0106.py --output build/android0106-validate
+      - name: Read the explicitly reviewed publication switch
+        id: mode
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          value = json.loads(Path('scripts/android-0106-publication.json').read_text('utf-8'))
+          assert type(value['publish_enabled']) is bool
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as stream:
+              stream.write('publish_enabled=' + str(value['publish_enabled']).lower() + '\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-0106-publication-validation
+          path: build/android0106-validate
+          if-no-files-found: error
+          retention-days: 14
+  publish:
+    needs: validate
+    if: needs.validate.outputs.publish_enabled == 'true' && (github.event_name == 'push' || inputs.publish == true)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Recheck fixed acceptance and append only four Android assets
+        run: python scripts/publish_android_0106.py --output build/android0106-published --publish
+      - name: Preserve anonymous download and append verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-0106-publication-result
+          path: build/android0106-published/publication-result.json
+          if-no-files-found: error
+          retention-days: 30

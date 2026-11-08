@@ -114,7 +114,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
   legacy();checkLegacy();migrateOnce();stage="migration_scoped";String id=migratedLibrary();int count=request("/api/libraries",null,null).getJSONArray("libraries").length();
   runOnMainSync(activity::finish);legacy();checkLegacy();migrateOnce();stage="migration_duplicate";require(id.equals(migratedLibrary())&&count==request("/api/libraries",null,null).getJSONArray("libraries").length());
   stage="engine_backup";request("/api/library/select",new JSONObject().put("library_id",id),null);
-  exec("selectMemoryLibrary("+JSONObject.quote(id)+");");waitJs("S.libraryId==="+JSONObject.quote(id));
+  exec("selectMemoryLibrary("+JSONObject.quote(id)+");");waitJs("S.libraryId==="+JSONObject.quote(id)+" && !S.libraryChanging && !MEMORY.busy && !writeBusy");
   JSONObject preview=request("/api/sharing/preview",new JSONObject(),id);
   JSONObject exported=request("/api/sharing/download",new JSONObject().put("format","json").put("confirm",true).put("expected_revision",preview.getString("content_revision")),id);
   String content=exported.getString("content");require(content.contains(TEXTS[0])&&content.contains(REPLIES[0])&&!content.contains(TEXTS[1]));content=nativeSave();

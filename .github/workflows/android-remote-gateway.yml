@@ -109,6 +109,7 @@ jobs:
       - name: Build only the independent instrumentation host and verify production boundaries
         run: |
           set -euo pipefail
+          python -m unittest tests.test_android_remote_package_boundary -v
           if grep -R -n '\.proceed(' android/app/src/androidTest/remote-gateway/src; then exit 1; fi
           sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
           gradle -p android/app/src/androidTest/remote-gateway --no-daemon --stacktrace assembleDebug assembleDebugAndroidTest
@@ -119,7 +120,7 @@ jobs:
           # Full Android engine intentionally has only INTERNET. Keep the
           # exact ABI/library/permission checks and reject test trust anchors.
           python - <<'PYENGINE'
-          import os,pathlib,subprocess,sys,zipfile
+          import hashlib,json,os,pathlib,subprocess,sys,zipfile
           sys.path.insert(0, 'scripts')
           from verify_android_release import validate_package_contents
           apk=pathlib.Path('android/app/build/outputs/apk/release/app-release-unsigned.apk')
@@ -127,6 +128,9 @@ jobs:
           badging=subprocess.check_output([str(aapt),'dump','badging',str(apk)],text=True)
           with zipfile.ZipFile(apk) as archive:
               validate_package_contents(archive,badging,engine=True)
+              proof={'schema':'love-house-production-apk-boundary/v1','package_validated':True,'engine':True,
+                     'sha256':hashlib.sha256(apk.read_bytes()).hexdigest(),'entry_count':len(archive.namelist())}
+          pathlib.Path('build/android-remote/production-package-verification.json').write_text(json.dumps(proof,indent=2)+'\n')
           PYENGINE
           unzip -Z1 "$apk" > build/android-remote/production-apk-entries.txt
           if grep -E 'remote_test_ca|remote_qa_network_security|remoteqa/RemoteGateway' build/android-remote/production-apk-entries.txt; then exit 1; fi

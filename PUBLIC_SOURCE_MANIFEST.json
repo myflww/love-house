@@ -23,8 +23,8 @@
     },
     {
       "path": ".github/workflows/android-remote-gateway.yml",
-      "bytes": 7305,
-      "sha256": "c9cd4eaeee19ae827307e91bec9e70599fe66c734a407470c77cadec470b4a67"
+      "bytes": 7745,
+      "sha256": "d927c854dbbc48bdc212a4cf1087186027276a88a7ecf54863ac7764dff56ca8"
     },
     {
       "path": ".github/workflows/android.yml",
@@ -2273,8 +2273,8 @@
     },
     {
       "path": "scripts/check_android_remote_reports.py",
-      "bytes": 4004,
-      "sha256": "89ee0c3007f16d351897314fd169d8b7a79e6491586e5b44798fba16fdffc574"
+      "bytes": 5353,
+      "sha256": "e690c5a33f058e8d81980fdccffa6358ed37acbebf151579d5aa607222867fcb"
     },
     {
       "path": "scripts/check_android_test_results.py",
@@ -2690,6 +2690,11 @@
       "path": "tests/test_android_release_verification.py",
       "bytes": 8702,
       "sha256": "79d825c308b7e6877746250bb9cd7d10c458bb1ab245dc7c9a793ec10585173f"
+    },
+    {
+      "path": "tests/test_android_remote_package_boundary.py",
+      "bytes": 2210,
+      "sha256": "243aca42e97542ada2a3191009244a66f08603c7ecbfa3246f1c78f34ac763ab"
     },
     {
       "path": "tests/test_android_runtime_licenses.py",

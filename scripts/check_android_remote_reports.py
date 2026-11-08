@@ -3,6 +3,29 @@
 import argparse
 import json
 from pathlib import Path
+import re
+
+from verify_android_release import APP_ID, ENGINE_ABIS, ENGINE_LIBRARIES
+
+
+def check_production_boundary(permissions, apk_entries, proof):
+    package=re.findall(r'^package: (\S+)\s*$',permissions,re.M)
+    declared=re.findall(r"^uses-permission(?:-sdk-\d+)?: name='([^']+)'",permissions,re.M)
+    lines=[line for line in permissions.splitlines() if line.startswith('uses-permission')]
+    if package!=[APP_ID] or declared!=['android.permission.INTERNET'] or len(lines)!=1:
+        raise ValueError('Production APK must request exactly the engine network permission')
+    entries=apk_entries.splitlines()
+    native={name for name in entries if name.startswith('lib/') and not name.endswith('/')}
+    expected={'lib/'+abi+'/'+name for abi in ENGINE_ABIS for name in ENGINE_LIBRARIES}
+    if (not entries or len(entries)!=len(set(entries)) or native!=expected
+            or 'assets/chaquopy/app.imy' not in entries or 'assets/web/index.html' not in entries
+            or any(marker in apk_entries for marker in ('remote_test_ca','remote_qa_network_security','remoteqa/RemoteGateway'))):
+        raise ValueError('Production APK contains unexpected code, test trust, or missing engine assets')
+    if (not isinstance(proof,dict) or proof.get('schema')!='love-house-production-apk-boundary/v1'
+            or proof.get('package_validated') is not True or proof.get('engine') is not True
+            or proof.get('entry_count')!=len(entries)
+            or not re.fullmatch(r'[0-9a-f]{64}',str(proof.get('sha256','')))):
+        raise ValueError('Exact full-engine production package validation evidence is missing')
 
 
 def check(directory, api_level):
@@ -13,6 +36,7 @@ def check(directory, api_level):
     fixture=json.loads((directory/'fixture.json').read_text())
     permissions=(directory/'production-permissions.txt').read_text()
     apk_entries=(directory/'production-apk-entries.txt').read_text()
+    package_proof=json.loads((directory/'production-package-verification.json').read_text())
     def require(condition,message):
         if condition is not True:raise ValueError(message)
     for report in (positive,negative):
@@ -36,8 +60,7 @@ def check(directory, api_level):
                 and c.get('bound_session_id')==result['actual_window'] and c.get('automatic_memory') is False
                 for c in state.get('connections',[])),'Actual service scope and conditional capture state disagree')
     require(fixture.get('public_ca_only') is True and fixture.get('production_app_modified') is False,'Test trust entered the wrong package')
-    require('io.github.myflww.lovehouse.preview' in permissions and 'android.permission.INTERNET' not in permissions,'Production APK gained network permission or its manifest was not checked')
-    require(bool(apk_entries.strip()) and not any(name in apk_entries for name in ('remote_test_ca','remote_qa_network_security','remoteqa/RemoteGateway')),'Production APK contains test-only trust/host resources or its entries were not checked')
+    check_production_boundary(permissions,apk_entries,package_proof)
     print('Actual Android API '+str(api_level)+' WebView: TLS rejection/trust, portal, MCP, hook, exact roles, window and admin boundaries passed.')
 
 

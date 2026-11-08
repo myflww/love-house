@@ -1,0 +1,72 @@
+{
+  "schema": "love-house-android-0106-original-signing/v1",
+  "source_commit": "732d7df84815e7b360f3bf1820b261747ae1d047",
+  "source_commit_check": "matched_explicit_expected_commit_and_developer_handoff",
+  "independent_rebuild_verified": false,
+  "input_manifest_sha256": "6976945a77dd1a9f5bc1de2c56370eb5fa3580923f5af069f3faf76b494360ec",
+  "application_id": "io.github.myflww.lovehouse.preview",
+  "version_name": "0.10.6rc1",
+  "version_code": 4,
+  "certificate_sha256": "ca4b184194816fe3617feaa841e11b47f5a9a9a00493e8cbc015210c04a3a4cc",
+  "apksigner_jar_sha256": "3716d9311e55d2b0918a2fd9d54ba9e406c5f6abeea700b287f11259bc163dec",
+  "source_archive": {
+    "path": "LoveHouse-0.10.6rc1-Android-source.zip",
+    "bytes": 16785970,
+    "sha256": "ab273124f3fa3781f57e1780f74b5aee09b1941219ec9e2622f82e914050531d"
+  },
+  "inputs": {
+    "apk": {
+      "path": "artifacts/LoveHouse-0.10.6rc1-Android-UNSIGNED.apk",
+      "bytes": 48409678,
+      "sha256": "faf64b0886f39a458a5e835ac5385073d525fe2dc471e322a4940864138c838b"
+    },
+    "test_apk": {
+      "path": "artifacts/LoveHouse-0.10.6rc1-Android-QA-INPUT.apk",
+      "bytes": 911171,
+      "sha256": "411ef0c7753bc98201be56c8923b4b21631486e46129ce51971edefd4828982b"
+    }
+  },
+  "signed": {
+    "apk": {
+      "path": "LoveHouse-0.10.6rc1-Android.apk",
+      "bytes": 48430105,
+      "sha256": "4d27f0a732c6edc53fbfcdcaac43f573b91327b703e10396e5d0c8435390f018",
+      "certificate_sha256": "ca4b184194816fe3617feaa841e11b47f5a9a9a00493e8cbc015210c04a3a4cc",
+      "identity": {
+        "package": "io.github.myflww.lovehouse.preview",
+        "version_code": "4",
+        "version_name": "0.10.6rc1",
+        "min_sdk": [
+          "26"
+        ],
+        "target_sdk": [
+          "36"
+        ]
+      },
+      "qa_only": false
+    },
+    "test_apk": {
+      "path": "LoveHouse-0.10.6rc1-Android-QA-ONLY.apk",
+      "bytes": 914423,
+      "sha256": "7fd6efc07b602d6ccb056550a1fd3149e112ca5175fe94df730b5e61240412f2",
+      "certificate_sha256": "ca4b184194816fe3617feaa841e11b47f5a9a9a00493e8cbc015210c04a3a4cc",
+      "identity": {
+        "package": "io.github.myflww.lovehouse.preview.test",
+        "version_code": "",
+        "version_name": "",
+        "min_sdk": [
+          "26"
+        ],
+        "target_sdk": [
+          "36"
+        ]
+      },
+      "qa_only": true
+    }
+  },
+  "same_original_signer": true,
+  "payload_preserved": true,
+  "signature_and_metadata": "passed",
+  "device_upgrade_verified": false,
+  "published": false
+}

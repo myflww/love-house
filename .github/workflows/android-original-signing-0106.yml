@@ -1,0 +1,76 @@
+name: Android 0.10.6 original-signature upgrade acceptance
+on:
+  push:
+    branches: [codex/android-0106-original-signing]
+    paths:
+      - 'release-handoff/0.10.6rc1/candidate.json'
+      - 'scripts/verify_android_0106.py'
+      - 'tests/test_android_0106_original_acceptance.py'
+      - '.github/workflows/android-original-signing-0106.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: original-android-0106-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [28, 36]
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '12266719'
+          packages: 'platform-tools'
+          log-accepted-android-sdk-licenses: 'false'
+      - name: Check verification boundaries and SDK
+        run: |
+          python -m unittest tests.test_android_0106_original_acceptance -v
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Enable KVM on disposable runner
+        run: |
+          test -e /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Preserve actual old memories through signed replacement
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          force-avd-creation: true
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader -noaudio -no-boot-anim -camera-back none
+          script: python scripts/verify_android_0106.py --api-level ${{ matrix.api }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: original-signed-0106-api-${{ matrix.api }}
+          path: |
+            build/android0106/LoveHouse-0.10.6rc1-Android.apk
+            build/android0106/Android-0106-original-signing-verification.json
+            build/android0106/verification.json
+            build/android0106/*-probe.txt
+            build/android0106/instrumentation.txt
+            build/android0106/*.png
+          if-no-files-found: warn
+          retention-days: 14

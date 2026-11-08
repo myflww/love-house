@@ -1,0 +1,117 @@
+{
+  "schema": "love-house-android-0106-independent-source-verification/v1",
+  "ok": true,
+  "verification_date": "2026-11-08",
+  "repository": "myflww/love-house",
+  "source_commit": "732d7df84815e7b360f3bf1820b261747ae1d047",
+  "source_tree": "e979b1b8ac336ed3c53a5602ce236d84bed788b5",
+  "workflow_run": {
+    "id": 42439732197,
+    "path": ".github/workflows/android.yml",
+    "head_sha": "732d7df84815e7b360f3bf1820b261747ae1d047",
+    "head_branch": "codex/android-0106-update",
+    "event": "pull_request",
+    "status": "completed",
+    "conclusion": "success",
+    "repository": "myflww/love-house",
+    "head_repository": "myflww/love-house"
+  },
+  "artifact": {
+    "id": 13601002157,
+    "name": "android-unsigned-api-36",
+    "bytes": 76345733,
+    "sha256": "b4c7c8bfc01363f5d2a4a5cd60430b0b04af30fe731bdfbaa889b98e070f60fe",
+    "expired": false,
+    "workflow_head_sha": "732d7df84815e7b360f3bf1820b261747ae1d047"
+  },
+  "local_artifact": {
+    "bytes": 76345733,
+    "sha256": "b4c7c8bfc01363f5d2a4a5cd60430b0b04af30fe731bdfbaa889b98e070f60fe",
+    "matched_remote_metadata": true,
+    "zip_crc_verified": true
+  },
+  "input_manifest_sha256": "6976945a77dd1a9f5bc1de2c56370eb5fa3580923f5af069f3faf76b494360ec",
+  "inputs": {
+    "apk": {
+      "path": "artifacts/LoveHouse-0.10.6rc1-Android-UNSIGNED.apk",
+      "bytes": 48409678,
+      "sha256": "faf64b0886f39a458a5e835ac5385073d525fe2dc471e322a4940864138c838b"
+    },
+    "test_apk": {
+      "path": "artifacts/LoveHouse-0.10.6rc1-Android-QA-INPUT.apk",
+      "bytes": 911171,
+      "sha256": "411ef0c7753bc98201be56c8923b4b21631486e46129ce51971edefd4828982b"
+    },
+    "source_archive": {
+      "path": "LoveHouse-0.10.6rc1-Android-source.zip",
+      "bytes": 16785970,
+      "sha256": "ab273124f3fa3781f57e1780f74b5aee09b1941219ec9e2622f82e914050531d"
+    }
+  },
+  "source_archive_verification": {
+    "git_blob_algorithm": "sha1(blob <length>\\0<bytes>)",
+    "archive_file_count": 650,
+    "remote_blob_count": 653,
+    "git_blob_matches": 650,
+    "git_blob_mismatches": [],
+    "excluded_repository_files": [
+      {
+        "path": "android/app/src/androidTest/remote-gateway/.gitignore",
+        "sha": "2b2c77895216a172488d5016fa353920d09c149f"
+      },
+      {
+        "path": "release-handoff/0.8.0rc1/FINAL-PROVENANCE.json",
+        "sha": "5d3b9d4816357a96aed66c7f571acff85e8c8e81"
+      },
+      {
+        "path": "release-handoff/0.8.0rc1/LoveHouse-0.8.0rc1-Original-Key-Portable-382c5ee.zip",
+        "sha": "e650b0af9fa01a92479bcc7070c2bb731218b043"
+      }
+    ],
+    "source_payload_matches_frozen_commit": true,
+    "git_mode_exact": false,
+    "git_mode_differences": [
+      {
+        "path": "scripts/sign-android-0106.sh",
+        "archive_mode": "100755",
+        "git_mode": "100644",
+        "explanation": "prepare_android_0106_handoff.py deterministically stores .sh/.command as 100755; payload Git blob is identical"
+      }
+    ],
+    "independent_rebuild_verified": false
+  },
+  "build_evidence_scope": {
+    "api36": {
+      "webview": "com.google.android.webview 133.0.6943.137",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "full_engine_verified": true,
+      "tested_apk": "debug_QA_not_public_release"
+    },
+    "api28": {
+      "webview": "com.android.chrome 69.0.3497.100",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "full_engine_verified": false,
+      "scope": "legacy_and_provider_upgrade_only",
+      "tested_apk": "debug_QA_not_public_release"
+    }
+  },
+  "original_key_signed": false,
+  "device_upgrade_verified": false,
+  "published": false,
+  "native_elf_static_verification": {
+    "library_count": 18,
+    "abis": [
+      "arm64-v8a",
+      "x86_64"
+    ],
+    "all_pt_load_alignment_bytes": 16384,
+    "all_pt_load_offsets_congruent_mod_16384": true,
+    "device_with_16k_pages_tested": false
+  }
+}

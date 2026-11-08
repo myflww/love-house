@@ -1,0 +1,630 @@
+{
+  "schema": "love-house-android-0106-candidate/v1",
+  "source_commit": "732d7df84815e7b360f3bf1820b261747ae1d047",
+  "build_run_id": 42439732197,
+  "application_id": "io.github.myflww.lovehouse.preview",
+  "version_name": "0.10.6rc1",
+  "version_code": 4,
+  "certificate_sha256": "ca4b184194816fe3617feaa841e11b47f5a9a9a00493e8cbc015210c04a3a4cc",
+  "artifacts": {
+    "apk": {
+      "name": "LoveHouse-0.10.6rc1-Android.apk",
+      "bytes": 48430105,
+      "sha256": "4d27f0a732c6edc53fbfcdcaac43f573b91327b703e10396e5d0c8435390f018",
+      "blob_sha": "fb519870294cd068816c90b52c42c734286f8265",
+      "parts": [
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0000.bin",
+          "bytes": 524288,
+          "sha256": "5a302c5b8c7583a3422ea828b4f1990038f84aac7a59785177e0985dc9fa685a",
+          "blob_sha": "89e0e4e096aaba82be87fe5c9106a1d5ea4b0255"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0001.bin",
+          "bytes": 524288,
+          "sha256": "328721a5db1b4c2ceeb1d49924b0c0aadad78f9312a1fd2160957c823351aecc",
+          "blob_sha": "549119d29af73ec359dec749cba19b62947f38a9"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0002.bin",
+          "bytes": 524288,
+          "sha256": "9531bbf6fde9410d59dd1073a4a1a41099f2260c66b757e3fcede473333eee09",
+          "blob_sha": "b6f1860ba3181e177af3b26c464111954ba7ddea"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0003.bin",
+          "bytes": 524288,
+          "sha256": "2cefc82be2d008cc254d73bff3923b08ec2f54e9d3ab219b8ee89247c9ddfaa9",
+          "blob_sha": "24596390bcc51ceb1396d0b35551eaccdde71ecd"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0004.bin",
+          "bytes": 524288,
+          "sha256": "75598a2cc41559f0b10b202cf225cd4218c3796061388f2a47bf5120e8135520",
+          "blob_sha": "3800522674ca3cc2517b155a393eea39ad4990cc"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0005.bin",
+          "bytes": 524288,
+          "sha256": "32221c7237dd7bf477f65f527c8524dcf499974e99ea93b6e46581e8ff438693",
+          "blob_sha": "6939704759da6e86b70ae87e84d1d46d1fa404d3"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0006.bin",
+          "bytes": 524288,
+          "sha256": "f70c53e1a27e812f70fe379c69d88af204e3912747e05bbda67931642c8d3d32",
+          "blob_sha": "7d19ecac914e176b37f0e3999ecfe4ea18128161"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0007.bin",
+          "bytes": 524288,
+          "sha256": "2629bfacf643cc2281bd2d1b1dcb48c9bc6b2de9cd3d453f7a50fbc6b53393da",
+          "blob_sha": "f5138a568b155350740648ece09b46645875b67c"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0008.bin",
+          "bytes": 524288,
+          "sha256": "23f6afc8fed7d34e0cb9ad495f205da40401985b21a661d03f9246bcea25d2f9",
+          "blob_sha": "91ebe59c6f3a79b1f6a5803e847f707e0c10b32e"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0009.bin",
+          "bytes": 524288,
+          "sha256": "2e9d7fb0a255bf955823a022e0433d2609034ffdd41befae7b675cfb25b3abf0",
+          "blob_sha": "c4b9db47103d02dcd82a07393cf10b103c8bde62"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0010.bin",
+          "bytes": 524288,
+          "sha256": "abe56f5ce4df8b1a447bc0adac151d5fb80d54677f8c83cc1488c61a2535e3be",
+          "blob_sha": "24a824c308edf2d18cb7e3e39016228757d1c574"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0011.bin",
+          "bytes": 524288,
+          "sha256": "40eb71de0532fff75a2bc110a0ef280bc940056e86131a99111b03afb561f09b",
+          "blob_sha": "e4a5bdf9be8c53329ddf916eb3e56f0f57cdab2a"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0012.bin",
+          "bytes": 524288,
+          "sha256": "1f5663ef1b17fa0cdfcc9a1e45e19be6085046910c674d42e713b8c3397cf1d3",
+          "blob_sha": "bd2dc768be9f5853c8b17ddfced3158f911545f7"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0013.bin",
+          "bytes": 524288,
+          "sha256": "8dec154a607148480737320e60839d5c7072ebb102caf4fd931e6dd07d97ce80",
+          "blob_sha": "fd6d6c186956c184d6019d56484f78054c426c68"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0014.bin",
+          "bytes": 524288,
+          "sha256": "bdc5e1faa634979a8c53d267d2e39cd8d79c6839511ac355fac7b3d79d09aa42",
+          "blob_sha": "8eac242499fb84582d6bedb16e14d94bdb5dc3fb"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0015.bin",
+          "bytes": 524288,
+          "sha256": "c308937d0cc73a3f3025cc8b0235097f7d1c001b6ba42cb0fd3aae28b90c9b34",
+          "blob_sha": "6b50cb0e1899c2b3bbc03e7d02d8bedf6b5f79a4"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0016.bin",
+          "bytes": 524288,
+          "sha256": "a24b8597c51433bd0f537d75c2fd71893222bc22ef463b8bc5fc6495fede3ff0",
+          "blob_sha": "5728a5ab427b3680b07c1aa0af5bcf7de09f465a"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0017.bin",
+          "bytes": 524288,
+          "sha256": "0f42cfa9a34e8e33d3e6b2b4436296bc1a46efe9c7a12f0fcf42996e48f4975c",
+          "blob_sha": "9c2fe94359604e446a59bdef23b02e92eb239b19"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0018.bin",
+          "bytes": 524288,
+          "sha256": "c0c399bfe4ec1acacde39854b3f1ce1cebc5e9c7d35c43423ccb719d5280e54a",
+          "blob_sha": "a54648c91916e8098917b8996f7f64ec69eac176"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0019.bin",
+          "bytes": 524288,
+          "sha256": "45ee94a3b61a7385b4d814c3ac6dd47efff7673b77fd258f1da7064e664c5c45",
+          "blob_sha": "3f43080eec2336346530ac73b0337ea80955e870"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0020.bin",
+          "bytes": 524288,
+          "sha256": "46ee5b130192a123bc8241744985cbd7e887934c97d4a44cacbeaa35e113b6cd",
+          "blob_sha": "cece999ba88fb79098dbc4c4436e3e811183aa9d"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0021.bin",
+          "bytes": 524288,
+          "sha256": "c3586cda3b919ab4258076eeb51b7c9455394373cc21e10b83f12f231e057eb6",
+          "blob_sha": "5516ce1c0aae30ae7100d717c42e35ee3c94bfc7"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0022.bin",
+          "bytes": 524288,
+          "sha256": "3769dd607c263b27edcefdfa90120e0898fb6a4d7bd0521a86ed7f57cab2bef4",
+          "blob_sha": "5a9761e18077c40622a3388cb4d3730141dfa5d3"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0023.bin",
+          "bytes": 524288,
+          "sha256": "2fe4c37e578985f3d323c87b863459b06522fd72becc664f6bf4696fc4a52ca4",
+          "blob_sha": "85a39a682b72d6db718c1490b87e555a07021477"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0024.bin",
+          "bytes": 524288,
+          "sha256": "ff01a094bb5a60bb3ac6ea701eb6aca8df0b8b371b1f34144e80f1168088b404",
+          "blob_sha": "5f4ebb4d37daa0abd0e796083f0cedd7a1529a6a"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0025.bin",
+          "bytes": 524288,
+          "sha256": "3c4b2155a6a3336f6dc547f6a8e66fb9af008d04ce3bd28f1e2037a27e87a54b",
+          "blob_sha": "66a8c54d981b12cdebd5b362044dccfbbe661420"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0026.bin",
+          "bytes": 524288,
+          "sha256": "cbec13e4f757150597c32278455e424ba4cc026ec2121cca0000c51193806ad7",
+          "blob_sha": "77f86aac6785119eb113bf03392b22bbcd8fdb54"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0027.bin",
+          "bytes": 524288,
+          "sha256": "06a8c99bed275d136c0a4cd91641098995b9c4a2d332d7e834b473250d0ea6eb",
+          "blob_sha": "fc6fe95c25183435ffa0c994fceab3b94d91d8be"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0028.bin",
+          "bytes": 524288,
+          "sha256": "fc30127b78f55ae00a393420289e1e9b165303439d62e077341ee3e6ebc76f19",
+          "blob_sha": "4661cdf58bc36284c46cc2e549cfb497ebf60ee1"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0029.bin",
+          "bytes": 524288,
+          "sha256": "f869c6fac0c03fcab3c560ab1c9bde4da8ff6a42c2e8a1e8fc1277d17321ef85",
+          "blob_sha": "0fc17fb35231534291e505d35bbca7c9b4ce2c84"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0030.bin",
+          "bytes": 524288,
+          "sha256": "57df23420ba648427aca20ed0a2beb97a6aa81c60e92aec9d82723a8348c9faf",
+          "blob_sha": "6c1a502237e63974d0a968a9c48e54fede774e1d"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0031.bin",
+          "bytes": 524288,
+          "sha256": "9ebe6109a24e06a877bf9ae23c3c22cbef8ea8ffaa484a2df048893de51bf197",
+          "blob_sha": "c73cb080d40e2d173a63c87ca9a934b5188abb14"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0032.bin",
+          "bytes": 524288,
+          "sha256": "92791f74cade33a15b13827d1d42c4578d188eb9d5fe324b41122b7c58c5963e",
+          "blob_sha": "42159b92363c33abe7dfcf889c88fb0e234c8373"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0033.bin",
+          "bytes": 524288,
+          "sha256": "efb5caccb60420ab111761a2be332f96234a79c238afb17802558eeffd141c8a",
+          "blob_sha": "2acf14dbb16df66df34fecf3210c8ee3c7b1d4c6"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0034.bin",
+          "bytes": 524288,
+          "sha256": "2c9cea2a85b8def4bf0a2818ba3712ef5c60cfa95ad5fb2525c8549896746124",
+          "blob_sha": "3971964e05b8068d7ff0b2a0c4e05396a21e225b"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0035.bin",
+          "bytes": 524288,
+          "sha256": "428894f41645489063e2c220a0267f7eca4029585c2b8c9d9fcc41e65ed24118",
+          "blob_sha": "36aacd6bba5c1c571eb1d420712cab156b48e143"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0036.bin",
+          "bytes": 524288,
+          "sha256": "9b4041308c2a47f00de00c16cd7ba8a1023aaca5bb76d33dc27a3d48e8665a2a",
+          "blob_sha": "e0eb3edd8041dd36f471fae9ae526c7795a6f2d5"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0037.bin",
+          "bytes": 524288,
+          "sha256": "44da46207a4771835ed3aa6fda68fd9a86e80017dc4cd49a5bec5a018d9a2c89",
+          "blob_sha": "1ff3682c3a1a9544e5d0aa85f9cc6084df86477f"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0038.bin",
+          "bytes": 524288,
+          "sha256": "4fdddcae71ce34fa3bdbe9dfefeda203eca0f6379a83083410a3df76f32f92de",
+          "blob_sha": "f83d287cac8595a6f63b23f8ae5d4094b854a877"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0039.bin",
+          "bytes": 524288,
+          "sha256": "3a6f06356a640f1ad8b89a597f5736f584cd74432f47fa73e4f7a324e2406cb9",
+          "blob_sha": "1ff04496314c91e598c8d27e7f9bbcf50213f5d5"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0040.bin",
+          "bytes": 524288,
+          "sha256": "4bb855a0bf634c590d71c3c26ff9339f95cadd1155dd0244a971e86ffb7006af",
+          "blob_sha": "fd25042a14a17dadb55772cb3bde439683e108c2"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0041.bin",
+          "bytes": 524288,
+          "sha256": "04c6b0c5421ec10c0d367f686115220e5640b1d720d19c34ecb879161de8cd92",
+          "blob_sha": "cf24f9d856c16c367ce2e979418e0e374aa45760"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0042.bin",
+          "bytes": 524288,
+          "sha256": "f4a53a9b695a7b5340ecff8cc8d3904cf1ea1aa71747571609e6383c305d5a18",
+          "blob_sha": "fa0e8e217192af0e56635e18ed61b2e90de84d34"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0043.bin",
+          "bytes": 524288,
+          "sha256": "a1af7dc0d47fac204e910cd247b5f8e122192bcdd326572cde3552791f0757ec",
+          "blob_sha": "08917b6f778fee748d30aa508924dd687703796b"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0044.bin",
+          "bytes": 524288,
+          "sha256": "857deb6bd54896edfaf82c9109eee293508665b1434c3de3298095eeb269955f",
+          "blob_sha": "231440e4950f1a8b1bf8955e7a73b1f658aee0aa"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0045.bin",
+          "bytes": 524288,
+          "sha256": "a9acb74fa6489ef972573f93198d762219193f727dabf94882db6a6dbc748757",
+          "blob_sha": "021e4df6177af21b58939f57d7c581b36659fcc2"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0046.bin",
+          "bytes": 524288,
+          "sha256": "289df74e70661ec8d7e130ee907d9a23bc00ff24e18753e679d4833259d67ae5",
+          "blob_sha": "b5aa6b4a3036c87dc6760b595b972c6d833ddf6f"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0047.bin",
+          "bytes": 524288,
+          "sha256": "166c5c801ad612da739130b65912aff2f4abcf4ce83a7b5cfa2b4d9dbbf53de2",
+          "blob_sha": "af13f500ea0db491dfef2140c551b490d6fe7e59"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0048.bin",
+          "bytes": 524288,
+          "sha256": "7c4a36b8b0a878c7064f6fbdb7f56c2943022abe1815ebbbf600e84020afb625",
+          "blob_sha": "f8d4aa9f91cec6bb12ad07259ef2be76e4e0e0f5"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0049.bin",
+          "bytes": 524288,
+          "sha256": "eae25345a13672b57598e8f5b5339b43f404d7cbd91d611b62b33b989c919a40",
+          "blob_sha": "32db2613fc98bfd3335a0def7c9306d7d7d10f5d"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0050.bin",
+          "bytes": 524288,
+          "sha256": "c2c01a329f13867b1a7e7352b0964ab3068ad69493b33be19d21f97f6e850af4",
+          "blob_sha": "6553893d9c7a4e8080827d4ddfad9947bb5a9aa6"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0051.bin",
+          "bytes": 524288,
+          "sha256": "9269a9eaac7bbf0d697cf19eedff16c49644098dccf3a859268cab6fe1168a9c",
+          "blob_sha": "a409f44e7bdb5f800dba27c9dbab2203b16a3b1f"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0052.bin",
+          "bytes": 524288,
+          "sha256": "2aba8e7ff4412e36542a6ea2d785be9cb39523c36023bff8b83185f1cd130f7f",
+          "blob_sha": "e33c42e080d2cc6f633e3fb53a789d75b2c7f8b8"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0053.bin",
+          "bytes": 524288,
+          "sha256": "3fae7a68fecd40af42126193a226e893180163347e8ae63fcdcd507c8a020116",
+          "blob_sha": "68163b4395222937b0c7532e8e2b24df57503d5b"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0054.bin",
+          "bytes": 524288,
+          "sha256": "3ccb7a018c810cd4097fe0d81f07d08860b90822fe23c75ce1f5b64025e726c0",
+          "blob_sha": "eaa5e5460332063e1515fd744ed08c4127a01912"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0055.bin",
+          "bytes": 524288,
+          "sha256": "7ed66f269ef1e05c0a613bb8d64de1d95fd39a75de93c5eded5d0385befaad80",
+          "blob_sha": "44fa128d2c7ac085bba4ee9ea80757515a0cb159"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0056.bin",
+          "bytes": 524288,
+          "sha256": "beabb16a8b55471fce62b40d842be5b92535216d87d85cad51dee1b4b7a392c4",
+          "blob_sha": "94caa71d4a624ec5907424d2372afcaca3eabc1d"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0057.bin",
+          "bytes": 524288,
+          "sha256": "6597096a28c7a8fa3d1738a5a893978ce1676adfeb5a7bfabf1707a91ce43c01",
+          "blob_sha": "41506cd81ceb2f9028bf595e0dd161a13cf0600d"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0058.bin",
+          "bytes": 524288,
+          "sha256": "afa0775631d7c820ba294259d51814112011c999481fc1b6fd5313c4185e9c7e",
+          "blob_sha": "dbcbca2c03b256f44f66cb654ffeb848719c4220"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0059.bin",
+          "bytes": 524288,
+          "sha256": "506569175f3b00cd357fca5b5b8b3619b0522cd062cec7232355b9ed3c281a56",
+          "blob_sha": "abed2892e6a5d76495aa40a7339d2074585be9ff"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0060.bin",
+          "bytes": 524288,
+          "sha256": "41b048e113cf2735439242697fe8bf565557af3f9277596642eed1bb3c62b5fa",
+          "blob_sha": "58f408c89a99565a79c2f70af3c81dd014737f91"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0061.bin",
+          "bytes": 524288,
+          "sha256": "40b00ebd3e2a863b5d09e9b0d9ae9d22866ee5436a842780ec51a2d703ba9805",
+          "blob_sha": "4d87a8802bea526835012383fd3ccd6e3f210423"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0062.bin",
+          "bytes": 524288,
+          "sha256": "a595adc0d0b86a959ef50994620adcbc390d0b2d902f36caaad6fe02bf87e369",
+          "blob_sha": "00fcc52708765be321d3f6b6d8a8e118f30c81e1"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0063.bin",
+          "bytes": 524288,
+          "sha256": "d407fa8688ed791685e4d41eb0f4473a7b1d387b2f686e295f02fff3269d904a",
+          "blob_sha": "51902c84a4d4d047d673f87463006c8b9ef469ef"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0064.bin",
+          "bytes": 524288,
+          "sha256": "3491a47e08376445e7f939e91db59bc52f8635c11b5855a5928f9f50a3148614",
+          "blob_sha": "c37d52d0ead981637f4471be6e6b98e1d34d6480"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0065.bin",
+          "bytes": 524288,
+          "sha256": "315d38663ecb066d8e83f05faff3642fd9edbd30e4d88a4c17024aea2cae05fa",
+          "blob_sha": "c0c1b3b756b84b278666b60d126f68a5b8b09743"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0066.bin",
+          "bytes": 524288,
+          "sha256": "52170a7580c1b277289ec72fb5f07170adc9f33e1825df97ed09f02a875465f0",
+          "blob_sha": "1de48961dde5768ff42a20d7845f4f4da5810071"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0067.bin",
+          "bytes": 524288,
+          "sha256": "32dea3e5d6ef72a6969b0bc1bdd8e6b425385824ee3ed8b06ae910175e2219e9",
+          "blob_sha": "716250aa3e3d9dc87cddba69e3f580dbd2e70765"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0068.bin",
+          "bytes": 524288,
+          "sha256": "b4cdb543202d512fc4a0b7dd760fa0d80b20a90bb6e906559fc841b346a55d30",
+          "blob_sha": "2ada179f62b28ef4992b023994bedb6a21bf4446"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0069.bin",
+          "bytes": 524288,
+          "sha256": "8f902b4e13de8ef86e9e805a506a9ccf14339c3b3cfc449910815cc5e93775cf",
+          "blob_sha": "b7359306f2cc59e5d072e1965d6c7dd506f0ff58"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0070.bin",
+          "bytes": 524288,
+          "sha256": "853052800cebed9c1ddaa6308506742b6d073e7a3a2c17ad02664b80cea3bdd4",
+          "blob_sha": "1b24a3ff8892f406d5908056fab3e3800bfc34c8"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0071.bin",
+          "bytes": 524288,
+          "sha256": "c147568d57c0a24bd1bbb169a8d34f0c7e47f981c5f9acd21345ef00d49d9399",
+          "blob_sha": "0c4e7b6e4e2be56cb1935a8c044fbe22a7723fef"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0072.bin",
+          "bytes": 524288,
+          "sha256": "79b8eeca07b1f265f652531c0c7da146a542d6e8b6285027d6d1c66bb87c08c8",
+          "blob_sha": "597f2b93e80e95e96eaed5e0b29433f0ff2ea3d6"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0073.bin",
+          "bytes": 524288,
+          "sha256": "e17aef4e13d36e347718518a088190151c4f877de44e72fcea9d384da4395336",
+          "blob_sha": "8bb3e43cd0d0d0c8ae74e87c0c539e667237c4c1"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0074.bin",
+          "bytes": 524288,
+          "sha256": "a1849b8c1a1cd5f70f29c992b944cb3802dc4f9abd02806e52fdf2ebdad38156",
+          "blob_sha": "920725fc3c27925bc7f0775f3ceb013e3ac198cd"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0075.bin",
+          "bytes": 524288,
+          "sha256": "01bbe0ce383892808ea5bcba1f5c1b1aa9f1c8138cd4404ddd266fbc216ba9c4",
+          "blob_sha": "86e22606bb30d03d99548db0f433e348b4c3bc21"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0076.bin",
+          "bytes": 524288,
+          "sha256": "7d78d488271b80158abf2c4148cc8d67159f54a29e6c27d65f8d3b2fc8ae4787",
+          "blob_sha": "63a254e281c90c69158398cc06b852625e6e7904"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0077.bin",
+          "bytes": 524288,
+          "sha256": "466d66b9638688a4e83be175df2c1f7f2303895e4119414c618d20add286b43d",
+          "blob_sha": "fb850e7323d5c7cc69995d56548c282f1dc15bd9"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0078.bin",
+          "bytes": 524288,
+          "sha256": "e72d5d10504a4afe706b4be285004402c057f6a4feb540098cf38f80602d56eb",
+          "blob_sha": "0b09d849a0e8a5d2a15ffa95a8c338e5265424e4"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0079.bin",
+          "bytes": 524288,
+          "sha256": "4b9e49e4227a9ad54b727ea30bddc0fc157da8e42ee9308b36e2870e9b0ac459",
+          "blob_sha": "befff1acf5904fa3aa110555ff8305da7719ff4f"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0080.bin",
+          "bytes": 524288,
+          "sha256": "1dd5f30f819abaa45bd058b483f513cc751ebe765d4993ad426658bc92de023b",
+          "blob_sha": "1e839ebf4ae34a677d510ae367e27e2caf8eb56d"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0081.bin",
+          "bytes": 524288,
+          "sha256": "5cd8fa6b49dcf8166b708d6f9436468f09f1e9eb22fcd5494e4303ff81a5d49e",
+          "blob_sha": "c8786747ac10a47f1fc0f605c0624124189fcf7c"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0082.bin",
+          "bytes": 524288,
+          "sha256": "beb67f0069e107a60bb6b95fc7b3ed5ec0c80a7abe46c7f202aea3d635194c2f",
+          "blob_sha": "a422f19eda998ec34726a03382169e88660c3df4"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0083.bin",
+          "bytes": 524288,
+          "sha256": "e40c0f04877b4a4cb51ee76dc3f424fc3ed699ef047654dc0dad948fde950320",
+          "blob_sha": "5678dff27a2c2d28c57f11f0231bef806d374432"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0084.bin",
+          "bytes": 524288,
+          "sha256": "1b2345208fec3c854f43acb1f5242cac7c47d62f4289f26754b6cb10ba681429",
+          "blob_sha": "d57d75d5e6a054fbe0f38f043d1bb45ee06017d3"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0085.bin",
+          "bytes": 524288,
+          "sha256": "2675861003ce1dbcf32d26e4688a4bab87e84ef5541c0edc00834cec1e4ab263",
+          "blob_sha": "50d5f770d0180fea9398c5879490875cbc210de7"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0086.bin",
+          "bytes": 524288,
+          "sha256": "5e146a953058cf34f867926565f066ff64277b15bb5cff2a942232b88a38329d",
+          "blob_sha": "d3bfa030bd85779fd58145921af26c1bfcff241f"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0087.bin",
+          "bytes": 524288,
+          "sha256": "1ecd93b43461defb63b3fcf78f7300a461bad0963d03f9b75c7de651ff024f5e",
+          "blob_sha": "4d9a7d57bee9f6795f06a3901a246d6584faa0df"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0088.bin",
+          "bytes": 524288,
+          "sha256": "1237601b82119fbd018d1eb7a8e9c5c4e8d90ccab7573257c1dcf93506bd5112",
+          "blob_sha": "afee6e08cce17b868c814a49fce94192b09a37cc"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0089.bin",
+          "bytes": 524288,
+          "sha256": "f25a1e03c95686f535e372d726714c9cbf08847716392bd2176cd56694a61baa",
+          "blob_sha": "69ee5252b090dce0d8dd136e0f2779d35a63b9fb"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0090.bin",
+          "bytes": 524288,
+          "sha256": "6aa3d9543c278d57bd8965a59c976693faf71e8969254fa31fdef8df5944b5b0",
+          "blob_sha": "e3ca5b4813dee8e6b3cebc249ebb918ccdadb4b3"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0091.bin",
+          "bytes": 524288,
+          "sha256": "5e43506b7e4ed8e8f91e665afb945f33cd4c552bdc1d595d99a6ef06a4fdacfa",
+          "blob_sha": "23524d0a1e2e0ebcd4a44199757aca407d0d77a5"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/app/part-0092.bin",
+          "bytes": 195609,
+          "sha256": "5b70ce17189ce78246803abc0f87becb705375658f07c2e8dc5055fb3a80f6b1",
+          "blob_sha": "c1321ddd5566c317f4724f82d65701c2f0dcecbb"
+        }
+      ]
+    },
+    "test_apk": {
+      "name": "LoveHouse-0.10.6rc1-Android-QA-ONLY.apk",
+      "bytes": 914423,
+      "sha256": "7fd6efc07b602d6ccb056550a1fd3149e112ca5175fe94df730b5e61240412f2",
+      "blob_sha": "5fd9a0bfd049352ee02eeb5b4e28adbe09255466",
+      "parts": [
+        {
+          "path": "release-handoff/0.10.6rc1/test/part-0000.bin",
+          "bytes": 524288,
+          "sha256": "0f94605ac26267b52a950b22098b884c4e6bb2f9a3804d9f4293f7cdb25d10ba",
+          "blob_sha": "b0ec53d057e64e5193eabdb1693afba3e8cb5cb9"
+        },
+        {
+          "path": "release-handoff/0.10.6rc1/test/part-0001.bin",
+          "bytes": 390135,
+          "sha256": "ff2c78209200afe4381b413458623a659d94d65fc1bab0c916028b1988122f91",
+          "blob_sha": "0b08ad2bc0746c63ff3c813e84c021d05f60eafa"
+        }
+      ]
+    },
+    "extra_qa": {
+      "name": "supplemental-QA-only.apk",
+      "bytes": 25140,
+      "sha256": "c1d1a9314fa32aced1d6d1fec7433bcd96f7ea23bd42a10f06adf9a1e2303374",
+      "blob_sha": "1a10b8fa96ed497d9ba9d05e64012e7bff53a706",
+      "parts": [
+        {
+          "path": "release-handoff/0.10.6rc1/extraqa/part-0000.bin",
+          "bytes": 25140,
+          "sha256": "c1d1a9314fa32aced1d6d1fec7433bcd96f7ea23bd42a10f06adf9a1e2303374",
+          "blob_sha": "1a10b8fa96ed497d9ba9d05e64012e7bff53a706"
+        }
+      ]
+    }
+  },
+  "old_apk": {
+    "url": "https://github.com/myflww/love-house/releases/download/v0.8.0rc2/LoveHouse-0.8.0rc2-Android.apk",
+    "bytes": 2646434,
+    "sha256": "79a23dfa571cd6d10668e882c3b923e22e24b7658a935b46253d7fbee804915a",
+    "version_name": "0.8.0rc2",
+    "version_code": 3
+  },
+  "signing_receipt": {
+    "path": "release-handoff/0.10.6rc1/original-signing-verification.json",
+    "bytes": 2508,
+    "sha256": "e75a3c1b73526c2968ff9e44ad6b8bf6cef36f2c3afdfd8fad7ee5e944c04f6a"
+  },
+  "extra_qa_build": {
+    "run_id": 42482009658,
+    "commit": "c906ae602d1db15d8cc474d32b6d1c6a5a5176da",
+    "artifact_id": 13617009399,
+    "artifact_sha256": "70f82c93c18d64741fb1714cdc9bda1c1fe304c2f42656173c1774cdafd7feac",
+    "java_source_sha256": "e1997e9606502d1103a8e86e3ba539081ef495cff4b814600fccd37f88471dd7"
+  }
+}

@@ -541,8 +541,8 @@ class GitHub:
             headers["Content-Type"] = "application/json; charset=utf-8"
         if content is not None and payload is None:
             headers["Content-Type"] = "application/octet-stream"
-        if binary_bytes is not None:
-            headers["Accept"] = "application/octet-stream"
+        # Artifact ZIP endpoints require GitHub's JSON API Accept header even
+        # though they redirect to ZIP bytes. The storage redirect has no token.
         origin = "https://uploads.github.com" if write_upload else "https://api.github.com"
         request = urllib.request.Request(origin + path, headers=headers, data=content, method=method)
         try:

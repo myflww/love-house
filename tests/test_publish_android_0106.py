@@ -321,6 +321,22 @@ class PublicationTests(unittest.TestCase):
                              ("POST", pub.BASE + "/releases"), ("GET", "/user")]:
             with self.subTest(method=method, path=path), self.assertRaises(pub.PublicationError): client.api(method, path)
 
+    def test_artifact_zip_uses_api_accept_and_error_diagnostics_exclude_secrets(self):
+        client = pub.GitHub("synthetic-not-a-real-token")
+        route = pub.BASE + "/actions/artifacts/123/zip"
+        with patch.object(client.opener, "open", return_value=io.BytesIO(b"zip")) as transport:
+            self.assertEqual(client.api("GET", route, binary_bytes=3), b"zip")
+            request = transport.call_args.args[0]
+            self.assertEqual(request.get_header("Accept"), "application/vnd.github+json")
+        failure = urllib.error.HTTPError("https://api.github.com/private?secret=url", 403,
+            "synthetic-not-a-real-token", {}, io.BytesIO(b"secret-response-body"))
+        with patch.object(client.opener, "open", side_effect=failure), self.assertRaises(pub.PublicationError) as caught:
+            client.api("GET", route, binary_bytes=3)
+        message = str(caught.exception)
+        self.assertIn("HTTP 403", message)
+        for private in ("synthetic-not-a-real-token", "secret-response-body", "secret=url"):
+            self.assertNotIn(private, message)
+
     def test_binary_redirect_drops_bearer_and_rejects_other_origins(self):
         handler = pub.SafeRedirect()
         request = urllib.request.Request("https://api.github.com/owned-artifact", headers={"Authorization": "Bearer synthetic"})

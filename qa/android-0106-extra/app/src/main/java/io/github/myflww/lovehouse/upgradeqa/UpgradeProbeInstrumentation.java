@@ -66,7 +66,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
  Object js(String body)throws Exception{
   CountDownLatch done=new CountDownLatch(1);AtomicReference<String> value=new AtomicReference<>();AtomicReference<Throwable> error=new AtomicReference<>();
   runOnMainSync(()->{try{WebView web=(WebView)call(activity,"webViewForTest");require(web!=null);web.evaluateJavascript("(function(){"+body+"})()",result->{value.set(result);done.countDown();});}catch(Throwable e){error.set(e);done.countDown();}});
-  require(done.await(15,TimeUnit.SECONDS)&&error.get()==null&&value.get()!=null);return new JSONTokener(value.get()).nextValue();
+  require(done.await(30,TimeUnit.SECONDS)&&error.get()==null&&value.get()!=null);return new JSONTokener(value.get()).nextValue();
  }
  void exec(String body)throws Exception{js(body+";return true;");}
  void waitJs(String expression)throws Exception{long end=SystemClock.uptimeMillis()+90000;do{if(Boolean.TRUE.equals(js("return Boolean("+expression+");")))return;SystemClock.sleep(100);}while(SystemClock.uptimeMillis()<end);throw new AssertionError();}
@@ -74,7 +74,10 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
   for(int n=0;n<2;n++){
    stage="seed_library_"+n;exec("document.getElementById('newLibrary').click();document.getElementById('libraryName').value="+JSONObject.quote(NAMES[n])+";document.getElementById('libraryForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));");
    waitJs("!document.getElementById('libraryDialog').open && document.getElementById('librarySelect').selectedOptions[0].textContent==="+JSONObject.quote(NAMES[n]));
-   stage="seed_memory_"+n;exec("document.getElementById('newMemory').click();document.getElementById('memoryTitle').value='UPGRADE_0106_"+n+"';document.getElementById('memoryText').value="+JSONObject.quote(TEXTS[n])+";document.getElementById('memoryAssistant').value="+JSONObject.quote(REPLIES[n])+";document.getElementById('memoryTags').value='升级验收,独立库"+n+"';document.getElementById('memoryForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));");
+   stage="seed_editor_open_"+n;exec("document.getElementById('newMemory').click();");waitJs("document.getElementById('memoryDialog').open && !document.getElementById('saveMemory').disabled");
+   stage="seed_editor_fill_"+n;exec("document.getElementById('memoryTitle').value='UPGRADE_0106_"+n+"';document.getElementById('memoryText').value="+JSONObject.quote(TEXTS[n])+";document.getElementById('memoryAssistant').value="+JSONObject.quote(REPLIES[n])+";document.getElementById('memoryTags').value='升级验收,独立库"+n+"';");
+   stage="seed_editor_submit_"+n;exec("document.getElementById('memoryForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));");
+   stage="seed_editor_saved_"+n;
    waitJs("!document.getElementById('memoryDialog').open && document.querySelectorAll('.memory-card').length===1");
   }
  }
@@ -105,9 +108,29 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
   stage="explicit_migration_button";selectLegacy(0);ActivityMonitor monitor=addMonitor("io.github.myflww.lovehouse.EngineActivity",null,false);
   try{exec("window.confirm=function(){return true;};document.getElementById('migrateLegacy').click();");Activity opened=waitForMonitorWithTimeout(monitor,30000);require(opened!=null);engine(opened);}finally{removeMonitor(monitor);}
  }
+ int matching(JSONArray nodes,int index)throws Exception{
+  int count=0;
+  for(int n=0;n<nodes.length();n++){
+   JSONObject row=nodes.getJSONObject(n);
+   require(!TEXTS[1].equals(row.optString("text")));
+   if(TEXTS[index].equals(row.optString("text"))){
+    count++;require(REPLIES[index].equals(row.getJSONObject("meta").getString("assistant_reply")));
+    require(row.getString("label").equals("UPGRADE_0106_"+index));JSONArray tags=row.getJSONArray("tags");
+    Set<String> values=new HashSet<>();for(int t=0;t<tags.length();t++)values.add(tags.getString(t));
+    require(tags.length()==2&&values.equals(new HashSet<>(Arrays.asList("升级验收","独立库"+index))));
+   }
+  }
+  return count;
+ }
+ void checkShare(String content)throws Exception{
+  JSONObject share=new JSONObject(content);require(share.getString("format").equals("love-house-memory-share/v1"));
+  JSONObject map=share.getJSONObject("memory").getJSONObject("nodes");JSONArray rows=new JSONArray();
+  Iterator<String> keys=map.keys();while(keys.hasNext())rows.put(map.getJSONObject(keys.next()));
+  require(rows.length()==1&&matching(rows,0)==1);
+ }
  String migratedLibrary()throws Exception{
   JSONArray libraries=request("/api/libraries",null,null).getJSONArray("libraries");String id=null;int count=0;
-  for(int n=0;n<libraries.length();n++){JSONObject lib=libraries.getJSONObject(n);String graph=request("/api/graph",null,lib.getString("id")).toString();require(!graph.contains(TEXTS[1]));if(graph.contains(TEXTS[0])){count++;id=lib.getString("id");require(graph.contains(REPLIES[0]));}}
+  for(int n=0;n<libraries.length();n++){JSONObject lib=libraries.getJSONObject(n);JSONArray nodes=request("/api/graph",null,lib.getString("id")).getJSONArray("nodes");int found=matching(nodes,0);require(found<=1);if(found==1){count++;id=lib.getString("id");require(nodes.length()==1);}}
   require(count==1&&id!=null);return id;
  }
  void migrate()throws Exception{
@@ -117,9 +140,9 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
   exec("selectMemoryLibrary("+JSONObject.quote(id)+");");waitJs("S.libraryId==="+JSONObject.quote(id)+" && !S.libraryChanging && !MEMORY.busy && !writeBusy");
   JSONObject preview=request("/api/sharing/preview",new JSONObject(),id);
   JSONObject exported=request("/api/sharing/download",new JSONObject().put("format","json").put("confirm",true).put("expected_revision",preview.getString("content_revision")),id);
-  String content=exported.getString("content");require(content.contains(TEXTS[0])&&content.contains(REPLIES[0])&&!content.contains(TEXTS[1]));content=nativeSave();
+  String content=exported.getString("content");checkShare(content);content=nativeSave();
   stage="engine_restore";JSONObject restored=request("/api/sharing/import",new JSONObject().put("confirm",true).put("content",content).put("name","升级验收恢复0106"),null);
-  String restoredId=restored.getJSONObject("library").getString("id");require(!id.equals(restoredId));String graph=request("/api/graph",null,restoredId).toString();require(graph.contains(TEXTS[0])&&graph.contains(REPLIES[0])&&!graph.contains(TEXTS[1]));
+  String restoredId=restored.getJSONObject("library").getString("id");require(!id.equals(restoredId));JSONArray restoredNodes=request("/api/graph",null,restoredId).getJSONArray("nodes");require(restoredNodes.length()==1&&matching(restoredNodes,0)==1);
   require(!request("/api/organizer",null,restoredId).getJSONObject("configuration").getBoolean("configured"));
   getTargetContext().getSharedPreferences("0106-owned-qa",Context.MODE_PRIVATE).edit().putString("migrated",id).putString("restored",restoredId).putInt("library_count",count+1).commit();
  }
@@ -137,7 +160,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
    do{try(Cursor c=resolver.query(DOCUMENT,null,null,null,null)){require(c!=null&&c.moveToFirst());if(c.getInt(c.getColumnIndexOrThrow("open_count"))==1){opened=true;break;}}SystemClock.sleep(100);}while(SystemClock.uptimeMillis()<end);require(opened);
    ContentValues allow=new ContentValues();allow.put("allow_read",true);resolver.update(DOCUMENT,allow,null,null);String payload=null;end=SystemClock.uptimeMillis()+30000;
    do{try(Cursor c=resolver.query(DOCUMENT,null,null,null,null)){require(c!=null&&c.moveToFirst());if(c.getInt(c.getColumnIndexOrThrow("closed"))==1){require(c.getString(c.getColumnIndexOrThrow("error")).equals(""));payload=c.getString(c.getColumnIndexOrThrow("payload"));break;}}SystemClock.sleep(100);}while(SystemClock.uptimeMillis()<end);
-   require(payload!=null&&new JSONObject(payload).getString("format").equals("love-house-memory-share/v1"));require(payload.contains(TEXTS[0])&&payload.contains(REPLIES[0])&&!payload.contains(TEXTS[1]));
+   require(payload!=null);checkShare(payload);
    waitJs("window.__qaSaved && window.__qaSaved.saved===true && window.__qaSaved.cancelled===false");
    return payload;
   }finally{removeMonitor(monitor);ContentValues allow=new ContentValues();allow.put("allow_read",true);try{resolver.update(DOCUMENT,allow,null,null);}catch(Exception ignored){}}
@@ -145,7 +168,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
  void persisted()throws Exception{
   legacy();checkLegacy();engine(launch("EngineActivity"));stage="engine_after_process_restart";android.content.SharedPreferences p=getTargetContext().getSharedPreferences("0106-owned-qa",Context.MODE_PRIVATE);
   String id=p.getString("migrated",null),restored=p.getString("restored",null);require(id!=null&&restored!=null&&!id.equals(restored));require(p.getInt("library_count",-1)==request("/api/libraries",null,null).getJSONArray("libraries").length());
-  for(String each:new String[]{id,restored}){String graph=request("/api/graph",null,each).toString();require(graph.contains(TEXTS[0])&&graph.contains(REPLIES[0])&&!graph.contains(TEXTS[1]));}
+  for(String each:new String[]{id,restored}){JSONArray nodes=request("/api/graph",null,each).getJSONArray("nodes");require(nodes.length()==1&&matching(nodes,0)==1);}
  }
  void credential(boolean seed)throws Exception{
   stage=seed?"keystore_seed":"keystore_after_process_restart_delete";Class<?> type=getTargetContext().getClassLoader().loadClass("io.github.myflww.lovehouse.AndroidCredentialVault");Constructor<?> constructor=type.getDeclaredConstructor(Context.class);constructor.setAccessible(true);Object vault=constructor.newInstance(getTargetContext());

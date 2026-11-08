@@ -109,7 +109,14 @@ def main() -> int:
         invocation += [APP_ID + '.test/androidx.test.runner.AndroidJUnitRunner']
         transcript = command(invocation, timeout=900)
         (output / 'instrumentation.txt').write_text(transcript, encoding='utf-8')
-        cases = verified_test_names(transcript, scope['expected_tests'])
+        try:
+            cases = verified_test_names(transcript, scope['expected_tests'])
+        except ValueError:
+            # Synthetic emulator tests only. Preserve the actual runner evidence
+            # both in CI artifacts and logs; never turn a failed scope into pass.
+            print('Actual synthetic Android runner failed; raw evidence follows:')
+            print(transcript[:65536])
+            raise
         reports = ROOT / 'android/app/build/outputs/androidTest-results/connected'
         reports.mkdir(parents=True, exist_ok=True)
         suite = ET.Element('testsuite', {'name': 'ActualAndroidInstrumentation', 'tests': str(len(cases)),

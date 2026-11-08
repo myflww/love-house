@@ -23,13 +23,13 @@
     },
     {
       "path": ".github/workflows/android-remote-gateway.yml",
-      "bytes": 6672,
-      "sha256": "78b3109746826c9c01cdaf435b8127111c10583c57441d880c816bac442bf658"
+      "bytes": 7305,
+      "sha256": "c9cd4eaeee19ae827307e91bec9e70599fe66c734a407470c77cadec470b4a67"
     },
     {
       "path": ".github/workflows/android.yml",
-      "bytes": 9057,
-      "sha256": "77125b79f8e5d6e08ef380e4b5de0d78ce2c7aa5341e17777d6de1e4714ad4b1"
+      "bytes": 9301,
+      "sha256": "11346e5a81a1ca1b83be8d5f6b968c4130ea20be49f30ba3d7d88d3982767029"
     },
     {
       "path": ".github/workflows/ci.yml",
@@ -2368,8 +2368,8 @@
     },
     {
       "path": "scripts/run_android_0106_smoke.py",
-      "bytes": 7903,
-      "sha256": "89e19d6bcda2d8091a911ad68faab4ec70cb5c31339133475ce24e6501878b35"
+      "bytes": 8228,
+      "sha256": "f98f479ef1091812f59ce6b3d1fc3230f89e77e13a21899186b6cdcbe308f3df"
     },
     {
       "path": "scripts/run_android_remote_gateway.sh",

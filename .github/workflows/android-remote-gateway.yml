@@ -116,7 +116,18 @@ jobs:
           gradle -p android --no-daemon --stacktrace :app:assembleRelease
           apk='android/app/build/outputs/apk/release/app-release-unsigned.apk'
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump permissions "$apk" > build/android-remote/production-permissions.txt
-          if grep -F 'android.permission.INTERNET' build/android-remote/production-permissions.txt; then exit 1; fi
+          # Full Android engine intentionally has only INTERNET. Keep the
+          # exact ABI/library/permission checks and reject test trust anchors.
+          python - <<'PYENGINE'
+          import os,pathlib,subprocess,sys,zipfile
+          sys.path.insert(0, 'scripts')
+          from verify_android_release import validate_package_contents
+          apk=pathlib.Path('android/app/build/outputs/apk/release/app-release-unsigned.apk')
+          aapt=pathlib.Path(os.environ['ANDROID_HOME'])/'build-tools/36.0.0/aapt'
+          badging=subprocess.check_output([str(aapt),'dump','badging',str(apk)],text=True)
+          with zipfile.ZipFile(apk) as archive:
+              validate_package_contents(archive,badging,engine=True)
+          PYENGINE
           unzip -Z1 "$apk" > build/android-remote/production-apk-entries.txt
           if grep -E 'remote_test_ca|remote_qa_network_security|remoteqa/RemoteGateway' build/android-remote/production-apk-entries.txt; then exit 1; fi
       - name: Enable KVM on the disposable runner

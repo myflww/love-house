@@ -172,5 +172,8 @@ jobs:
           path: |
             android/app/build/reports/
             android/app/build/outputs/androidTest-results/
+            build/android/instrumentation.txt
+            build/android/instrumentation-verification.json
+            build/android/*.png
           if-no-files-found: ignore
           retention-days: 14

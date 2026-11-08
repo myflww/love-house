@@ -548,8 +548,13 @@ class GitHub:
         try:
             with self.opener.open(request, timeout=180) as response:
                 raw = response.read((binary_bytes + 1) if binary_bytes is not None else 2 * 1024 * 1024 + 1)
-        except (urllib.error.HTTPError, urllib.error.URLError):
-            raise PublicationError("GitHub request failed without exposing credentials or API response") from None
+        except urllib.error.HTTPError as error:
+            # The route contains only reviewed repository identifiers. Emit no
+            # response body, redirect URL, request header or token.
+            route = path.split("?", 1)[0].removeprefix(BASE)
+            raise PublicationError("GitHub " + method + " " + route + " returned HTTP " + str(error.code)) from None
+        except urllib.error.URLError:
+            raise PublicationError("GitHub transport could not complete a reviewed repository request") from None
         if binary_bytes is not None:
             require(len(raw) == binary_bytes, "Artifact download size differs")
             return raw

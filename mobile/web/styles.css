@@ -6,3 +6,6 @@
 @supports not (padding-top:env(safe-area-inset-top)){:root{--safe-bottom:0px}.app-shell{padding:15px 20px 104px}.sheet{max-height:calc(100vh - 20px)}@media(max-width:359px){.app-shell{padding-inline:15px;padding-left:15px;padding-right:15px}}@media(min-width:700px){.app-shell{padding-left:30px;padding-right:30px}.sheet{max-height:90vh}}}
 
 .bottom-nav{grid-template-columns:repeat(5,minmax(0,1fr))}.disabled-link{opacity:.5;pointer-events:none}#memoryServiceAddress{width:100%;min-height:46px;border:1px solid var(--line,#bda786);padding:10px;background:#fffdf7;font:inherit}#homeConnectAgent{margin:0 0 18px}#view-connect .paper-card{margin-bottom:18px}
+/* The full engine entry does not replace or mutate the legacy IndexedDB view. */
+.engine-entry{background:#fff1df;border:2px solid #c8aa86;border-radius:8px;padding:16px;margin:14px 0 20px;color:#694a4c}
+.engine-entry h3{margin:0 0 6px;font-size:16px}.engine-entry p{line-height:1.65;margin:8px 0 12px}.engine-entry small{display:block;margin-top:10px;line-height:1.7}.engine-actions{display:flex;flex-wrap:wrap;gap:8px}.engine-actions .button{flex:1;white-space:nowrap}

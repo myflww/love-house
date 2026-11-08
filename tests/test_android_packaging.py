@@ -150,16 +150,32 @@ class MobileAssetPackagingTests(unittest.TestCase):
                      'android/app/src/main/assets/backup.json', 'mobile/web/backup.json'):
             self.assertFalse(public.is_allowed(Path(name)), name)
 
-    def test_manifest_has_only_offline_app_privileges_and_no_automatic_backup(self):
+    def test_manifest_only_allows_engine_network_and_no_automatic_backup(self):
         manifest = ET.parse(ROOT / 'android/app/src/main/AndroidManifest.xml').getroot()
         ns = '{http://schemas.android.com/apk/res/android}'
-        self.assertEqual(manifest.findall('uses-permission'), [])
+        self.assertEqual([item.get(ns + 'name') for item in manifest.findall('uses-permission')],
+                         ['android.permission.INTERNET'])
         application = manifest.find('application')
         self.assertEqual(application.get(ns + 'allowBackup'), 'false')
         self.assertEqual(application.get(ns + 'usesCleartextTraffic'), 'false')
+        self.assertEqual(application.get(ns + 'networkSecurityConfig'), '@xml/network_security_config')
         activity = application.find('activity')
         self.assertEqual(activity.get(ns + 'name'), 'io.github.myflww.lovehouse.MainActivity')
         self.assertEqual(activity.get(ns + 'exported'), 'true')
+        engine = next(item for item in application.findall('activity')
+                      if item.get(ns + 'name') == 'io.github.myflww.lovehouse.EngineActivity')
+        self.assertEqual(engine.get(ns + 'exported'), 'false')
+        self.assertEqual(engine.findall('intent-filter'), [])
+
+    def test_cleartext_is_restricted_to_numeric_loopback(self):
+        policy = ET.parse(ROOT / 'android/app/src/main/res/xml/network_security_config.xml').getroot()
+        self.assertEqual(policy.find('base-config').get('cleartextTrafficPermitted'), 'false')
+        allowed = policy.findall('domain-config')
+        self.assertEqual(len(allowed), 1)
+        self.assertEqual(allowed[0].get('cleartextTrafficPermitted'), 'true')
+        domains = allowed[0].findall('domain')
+        self.assertEqual([(domain.text, domain.get('includeSubdomains')) for domain in domains],
+                         [('127.0.0.1', 'false')])
 
 
 class AndroidInstrumentationEvidenceTests(unittest.TestCase):

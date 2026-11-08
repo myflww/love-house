@@ -4,15 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#fff8ed">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="爱之屋">
   <meta name="description" content="把记忆带在身边。爱之屋手机版在设备本地保存、检索、整理和迁移你的记忆。">
   <meta name="referrer" content="no-referrer">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
   <title>爱之屋 · 随身记忆</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="assets/love-house-icon.png">
   <link rel="icon" type="image/png" href="assets/love-house-icon.png">
   <link rel="stylesheet" href="styles.css">
   <script defer src="register-sw.js"></script>
@@ -30,6 +26,7 @@
     <main id="main" tabindex="-1">
       <section id="view-memory" class="view" aria-labelledby="memoryHeading">
         <div class="section-heading"><div><p class="eyebrow">让相处留下痕迹</p><h2 id="memoryHeading">把记忆带在身边</h2></div><span id="memoryCount" class="count-chip">0 条</span></div>
+        <section id="fullEngineEntry" class="engine-entry" hidden><h3>新版完整记忆 · 0.10.6rc1</h3><p>与桌面共用记忆引擎：整理、人格、召回和动态星图。当前旧库保留在此处。</p><div class="engine-actions"><button id="openFullEngine" class="button primary">打开完整记忆</button><button id="migrateLegacy" class="button">迁移当前旧库</button></div><small>迁移会新建独立库，不删除旧记录；采用脱敏 JSON，不复制 API Key 或连接配置。</small></section>
         <p class="intro">每一段原话，都有自己的位置。</p><button id="homeConnectAgent" class="button primary">连接有 Agent 能力的聊天窗口</button>
         <form id="searchForm" class="search-box" role="search"><span aria-hidden="true">⌕</span><input id="searchInput" type="search" placeholder="找一句话、一个名字或标签" aria-label="搜索当前记忆库" autocomplete="off"><button type="submit" aria-label="搜索记忆">查找</button></form>
         <div class="memory-toolbar"><div class="filter-chips" role="group" aria-label="筛选记忆"><button class="chip active" data-filter="all" aria-pressed="true">全部</button><button class="chip" data-filter="dialogue" aria-pressed="false">有回复</button><button class="chip" data-filter="tagged" aria-pressed="false">有标签</button></div><button id="newMemory" class="button small primary" disabled>＋ 记一段</button></div>

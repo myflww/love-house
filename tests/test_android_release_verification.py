@@ -4,6 +4,8 @@ import hashlib
 import importlib.util
 from pathlib import Path
 import unittest
+import io
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('android_release_verify', ROOT / 'scripts/verify_android_release.py')
@@ -33,6 +35,46 @@ def transcript(code=0):
 
 
 class SignedAndroidCandidateTests(unittest.TestCase):
+    def test_engine_upgrade_keeps_original_certificate_and_rejects_version_drift(self):
+        value = manifest()
+        value.update(version_name='0.10.6rc1', version_code=4,
+                     certificate_sha256=release.ORIGINAL_CERT)
+        self.assertEqual(release.validate_manifest(value), value)
+        for key, wrong in [('certificate_sha256', 'b' * 64),
+                           ('version_name', '0.10.7rc1'), ('version_code', 3)]:
+            candidate = dict(value, **{key: wrong})
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                release.validate_manifest(candidate)
+
+    def test_engine_package_rejects_missing_abis_extra_libraries_and_permissions(self):
+        names = ['assets/web/index.html', 'assets/chaquopy/app.imy', 'assets/chaquopy/build.json']
+        names += ['lib/' + abi + '/' + library for abi in release.ENGINE_ABIS
+                  for library in release.ENGINE_LIBRARIES]
+        permission = "uses-permission: name='android.permission.INTERNET'\n"
+        def check(entries, permissions=permission, engine=True):
+            content = io.BytesIO()
+            with zipfile.ZipFile(content, 'w') as writer:
+                for name in entries:
+                    writer.writestr(name, b'FAKE bounded packaging fixture')
+            content.seek(0)
+            with zipfile.ZipFile(content) as archive:
+                return release.validate_package_contents(archive, permissions, engine=engine)
+        check(names)
+        for missing in ('assets/web/index.html', 'assets/chaquopy/app.imy',
+                        'lib/x86_64/libpython3.12.so'):
+            with self.subTest(missing=missing), self.assertRaises(ValueError):
+                check([name for name in names if name != missing])
+        for extra in ('lib/arm64-v8a/libunexpected.so', 'lib/armeabi-v7a/libpython3.12.so'):
+            with self.subTest(extra=extra), self.assertRaises(ValueError):
+                check(names + [extra])
+        for permissions in ('', permission + "uses-permission: name='android.permission.RECORD_AUDIO'\n",
+                            permission + "uses-permission-sdk-m: name='android.permission.CAMERA'\n"):
+            with self.subTest(permissions=permissions), self.assertRaises(ValueError):
+                check(names, permissions)
+        check(['assets/web/index.html'], '', engine=False)
+        with self.assertRaises(ValueError):
+            check(names, '', engine=False)
+
     def test_badging_attributes_allow_extra_fields_and_any_order_without_changing_identity(self):
         lines = (
             "package: name='" + release.APP_ID + "' versionCode='1' versionCodeMajor='0' versionName='0.1.0-preview1' compileSdkVersion='36'",

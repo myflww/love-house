@@ -95,6 +95,24 @@ def _source_files(root: Path) -> dict[str, bytes]:
             if public_source.scan_bytes(Path('android') / name, content):
                 raise ValueError('Android licence notice failed public-source checks: ' + name)
             files['web/android-licenses/' + name] = content
+    license_root = root / 'android/licenses'
+    if license_root.exists():
+        if license_root.is_symlink() or not license_root.is_dir():
+            raise ValueError('Android runtime notices must be a real source directory')
+        for path in sorted(license_root.rglob('*')):
+            if path.is_symlink():
+                raise ValueError('Android runtime notice symlinks are not allowed')
+            if path.is_dir():
+                continue
+            relative = path.relative_to(root)
+            if not path.is_file() or path.suffix not in {'.txt', '.md', '.json'} or not public_source.is_allowed(relative):
+                raise ValueError('Unapproved Android runtime notice')
+            content = path.read_bytes()
+            if public_source.scan_bytes(relative, content):
+                raise ValueError('Android runtime notice failed public checks')
+            files['web/android-licenses/licenses/' + path.relative_to(license_root).as_posix()] = content
+    if sum(map(len, files.values())) > MAX_BUNDLE_BYTES:
+        raise ValueError('Mobile static assets exceed the 32 MiB build limit')
     return files
 
 

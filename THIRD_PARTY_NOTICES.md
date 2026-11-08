@@ -2,6 +2,8 @@
 
 爱之屋自有代码、文档与原创素材采用根目录 `LICENSE` 中的 **PolyForm Noncommercial License 1.0.0**，版权声明见 `NOTICE`。公开源代码与允许非商业使用不等于 OSI 定义的开源许可。本文件不会将第三方组件改成非商用许可。
 
+Android 0.10.6rc1 separately embeds Chaquopy 17.2.0 and its Python 3.12.15 Android runtime. The exact Android ABI artifacts, incorporated libraries, certificate-bundle provenance and complete upstream licence texts are recorded in [Android notices](android/THIRD_PARTY_NOTICES.md) and `android/licenses/`, and copied into both Android application views. The macOS runtime collection below is not used as evidence of Android runtime identity.
+
 | Component | Where / use | License and attribution |
 |---|---|---|
 | Three.js 0.180.0 | Local 3D renderer and bundled browser runtime | MIT, Copyright © 2010–2025 three.js authors. Full text: `nkb/viz/art/LICENSE.three`; also embedded in `neural-art.bundle.js`. [Upstream](https://github.com/mrdoob/three.js/tree/r180) |

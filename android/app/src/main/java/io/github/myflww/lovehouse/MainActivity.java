@@ -51,7 +51,7 @@ import java.util.concurrent.Executors;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-/** A private, offline application origin. There is no TCP listener or remote app page. */
+/** The preserved legacy offline origin. Full engine access is an explicit native action. */
 public final class MainActivity extends Activity {
     static final String ORIGIN = "https://appassets.androidplatform.net";
     static final String HOME = ORIGIN + "/assets/web/index.html";
@@ -78,6 +78,11 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        if (!getIntent().getBooleanExtra("legacy", false)
+                && Intent.ACTION_MAIN.equals(getIntent().getAction())
+                && getPreferences(MODE_PRIVATE).getBoolean("prefer_full_engine", false)) {
+            startActivity(new Intent(this, EngineActivity.class));
+        }
         getWindow().setStatusBarColor(Color.rgb(255, 249, 239));
         getWindow().setNavigationBarColor(Build.VERSION.SDK_INT >= 27
             ? Color.rgb(255, 249, 239) : Color.rgb(71, 52, 47));
@@ -246,6 +251,44 @@ public final class MainActivity extends Activity {
     }
 
     public final class NativeFiles {
+        @JavascriptInterface public void openEngine() {
+            main.post(() -> {
+                if (!trustedLegacyPage()) return;
+                getPreferences(MODE_PRIVATE).edit().putBoolean("prefer_full_engine", true).apply();
+                startActivity(new Intent(MainActivity.this, EngineActivity.class));
+            });
+        }
+
+        @JavascriptInterface public void importLegacy(String content) {
+            main.post(() -> {
+                if (!trustedLegacyPage() || content == null || content.length() > MAX_EXPORT_BYTES) return;
+                files.execute(() -> {
+                    try {
+                        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+                        if (bytes.length > MAX_EXPORT_BYTES) throw new java.io.IOException();
+                        JSONObject envelope = new JSONObject(content);
+                        if (!"love-house-memory-share/v1".equals(envelope.optString("format")))
+                            throw new java.io.IOException();
+                        java.io.File directory = new java.io.File(getNoBackupFilesDir(), "engine-imports");
+                        if (!directory.isDirectory() && !directory.mkdirs()) throw new java.io.IOException();
+                        java.io.File staged = new java.io.File(directory, java.util.UUID.randomUUID().toString() + ".json");
+                        try (java.io.FileOutputStream stream = new java.io.FileOutputStream(staged)) {
+                            stream.write(bytes); stream.flush(); stream.getFD().sync();
+                        }
+                        main.post(() -> {
+                            if (!trustedLegacyPage()) return;
+                            getPreferences(MODE_PRIVATE).edit().putBoolean("prefer_full_engine", true).apply();
+                            Intent intent = new Intent(MainActivity.this, EngineActivity.class);
+                            intent.putExtra("migration_path", staged.getAbsolutePath());
+                            startActivity(intent);
+                        });
+                    } catch (Exception ignored) {
+                        main.post(() -> showMessage("未能准备迁移文件，原离线库没有改动。请先导出 JSON 备份后重试。"));
+                    }
+                });
+            });
+        }
+
         @JavascriptInterface public void saveFile(String requestId, String filename, String mime, String text) {
             if (requestId == null || !requestId.matches("[A-Za-z0-9_-]{1,100}")) return;
             if (filename == null || filename.length() > 180 || filename.matches(".*[\\\\/:*?\"<>|\\p{Cntrl}].*")
@@ -280,6 +323,10 @@ public final class MainActivity extends Activity {
                 }
             });
         }
+    }
+
+    private boolean trustedLegacyPage() {
+        return !closed && browser != null && isLocal(Uri.parse(browser.getUrl() == null ? "" : browser.getUrl()));
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {

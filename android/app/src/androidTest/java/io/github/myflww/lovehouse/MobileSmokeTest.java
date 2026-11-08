@@ -8,6 +8,7 @@ import static org.junit.Assert.fail;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -43,7 +44,13 @@ public final class MobileSmokeTest {
     private ActivityScenario<MainActivity> scenario;
 
     @Before public void launch() {
-        scenario = ActivityScenario.launch(MainActivity.class);
+        scenario = launchLegacy();
+    }
+
+    private ActivityScenario<MainActivity> launchLegacy() {
+        return ActivityScenario.launch(new Intent(
+            InstrumentationRegistry.getInstrumentation().getTargetContext(), MainActivity.class)
+            .putExtra("legacy", true));
     }
 
     @After public void close() {
@@ -56,12 +63,12 @@ public final class MobileSmokeTest {
         PackageManager manager = context.getPackageManager();
         PackageInfo info = manager.getPackageInfo(context.getPackageName(), PackageManager.GET_PERMISSIONS);
         String[] permissions = info.requestedPermissions == null ? new String[0] : info.requestedPermissions;
-        assertFalse(Arrays.asList(permissions).contains(Manifest.permission.INTERNET));
+        assertEquals(Arrays.asList(Manifest.permission.INTERNET), Arrays.asList(permissions));
         assertFalse(Arrays.asList(permissions).contains(Manifest.permission.READ_EXTERNAL_STORAGE));
         assertFalse(Arrays.asList(permissions).contains(Manifest.permission.WRITE_EXTERNAL_STORAGE));
         assertFalse(Arrays.asList(permissions).contains(Manifest.permission.RECORD_AUDIO));
         assertFalse(Arrays.asList(permissions).contains(Manifest.permission.CAMERA));
-        assertEquals(PackageManager.PERMISSION_DENIED,
+        assertEquals(PackageManager.PERMISSION_GRANTED,
             manager.checkPermission(Manifest.permission.INTERNET, context.getPackageName()));
         assertEquals(0, info.applicationInfo.flags & ApplicationInfo.FLAG_USES_CLEARTEXT_TRAFFIC);
         assertTrue(MainActivity.isLocal(Uri.parse(MainActivity.HOME)));
@@ -154,7 +161,7 @@ public final class MobileSmokeTest {
         assertEquals(original, evaluate("document.getElementById('detailText').textContent"));
         assertEquals("回复同样保留❤️", evaluate("document.getElementById('detailAssistant').textContent"));
         scenario.close();
-        scenario = ActivityScenario.launch(MainActivity.class);
+        scenario = launchLegacy();
         ready();
         assertEquals(selected, evaluate("document.getElementById('librarySelect').value"));
         JSONObject after = exportLibrary(selected);

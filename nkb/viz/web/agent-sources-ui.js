@@ -2,6 +2,14 @@
 (()=>{
 'use strict';
 if(typeof MEMORY==='undefined'||!document.getElementById('libraryPanel'))return;
+// Desktop source adapters use host-local files. Those files cannot be handed
+// to a different Android app or copied to a cloud server from this sandbox.
+if(window.LoveHouseAndroid===true){
+ const entry=document.createElement('button');entry.type='button';entry.id='agentSourcesBtn';entry.className='btn';entry.textContent='电脑 / 服务器活动来源';
+ entry.title='在实际运行 Agent 的设备配置活动来源，手机通过该服务的 HTTPS 页面管理。';
+ const open=()=>{if(typeof window.LoveHouseAndroidHelp==='function')window.LoveHouseAndroidHelp();else toast('请在运行 Agent 的电脑或服务器配置活动来源，再通过其 HTTPS 服务管理。');};
+ entry.onclick=open;document.getElementById('inheritLibraryBtn').before(entry);window.LoveHouseSources={open};return;
+}
 const by=id=>document.getElementById(id),make=(t,c,s)=>el(t,c,s);
 const state={owner:null,serial:0,busy:false,config:null,sources:[]};
 const owner=()=>({id:S.libraryId,epoch:S.libraryEpoch}),current=o=>o&&o.id===S.libraryId&&o.epoch===S.libraryEpoch;

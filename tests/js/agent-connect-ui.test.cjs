@@ -46,8 +46,8 @@ test('single-window scope remains visible and all-session scope requires explici
 test('Windows can select Harness and busy state is the only platform-independent lock',()=>{
  const controls=new Map();const by=id=>{if(!controls.has(id))controls.set(id,{});return controls.get(id);};
  const choices={harness:{},agent:{},api:{}};
- const ctx={remoteHost:false,navigator:{platform:'Win32',userAgent:'Windows NT 10.0'},MEMORY:{busy:false,config:null},writeBusy:false,S:{libraryChanging:false},choices,by,canManageMemory:()=>true,wizardStep:1,hostSelect:{value:'harness'},newLib:{checked:false},newLibName:{},startButton:{},close:{},back:{},next:{},agentSetupText:()=>'',agentMcpText:()=>'',connectionConfigPath:()=>'',astrbotChoice:{dataset:{}}};
- Object.assign(ctx,{workbuddyChoice:{},isCurrentAgentConfig:()=>false,agentPrivatePath:()=>'',pathInput:{},mcpArea:{},setupArea:{},workbuddyStatus:{},clearWorkBuddyPlan(){},workbuddyGuide:{},workbuddyApply:{},copyAgentPath:{},workbuddyNow:{},rebindCancel:{},rebindConfirm:{},rebindDialog:{}});
+ const ctx={remoteHost:false,androidHost:false,navigator:{platform:'Win32',userAgent:'Windows NT 10.0'},MEMORY:{busy:false,config:null},writeBusy:false,S:{libraryChanging:false},choices,by,canManageMemory:()=>true,wizardStep:1,hostSelect:{value:'harness'},newLib:{checked:false},newLibName:{},startButton:{},close:{},back:{},next:{},agentSetupText:()=>'',agentMcpText:()=>'',connectionConfigPath:()=>'',astrbotChoice:{dataset:{}}};
+ Object.assign(ctx,{workbuddyChoice:{},isCurrentAgentConfig:()=>false,agentPrivatePath:()=>'',agentConfigReady:()=>false,pathInput:{},mcpArea:{},setupArea:{},workbuddyStatus:{},clearWorkBuddyPlan(){},workbuddyGuide:{},workbuddyApply:{},copyAgentPath:{},workbuddyNow:{},rebindCancel:{},rebindConfirm:{},rebindDialog:{}});
  const match=source.match(/function sync\([^]*?\nfunction go/);assert(match);vm.runInNewContext(match[0].replace(/\nfunction go$/,'')+';sync();',ctx);
  assert.equal(choices.harness.disabled,false);
  ctx.MEMORY.busy=true;vm.runInNewContext('sync()',ctx);assert.equal(choices.harness.disabled,true);
@@ -70,8 +70,23 @@ test('the installer plans and applies to the same existing connection and manual
 
 test('a remote mobile session uses a generic Agent even when an old link requests Harness',async()=>{
  const values=new Map();const by=id=>{if(!values.has(id))values.set(id,{});return values.get(id);};
- const ctx={remoteHost:true,MEMORY:{busy:false,libraries:[]},canManageMemory:()=>true,refreshLibraries:async()=>{},hostSelect:{value:'harness'},advancedPaths:{},connectionHostChanged:()=>{},by,S:{isDemo:false,libraryId:'same-library'},newLib:{},newLibName:{},go:()=>{},dialog:{showModal:()=>{}},choices:{agent:{focus:()=>{}}}};
+ const ctx={remoteHost:true,androidHost:false,MEMORY:{busy:false,libraries:[]},canManageMemory:()=>true,refreshLibraries:async()=>{},hostSelect:{value:'harness'},advancedPaths:{},connectionHostChanged:()=>{},by,S:{isDemo:false,libraryId:'same-library'},newLib:{},newLibName:{},go:()=>{},dialog:{showModal:()=>{}},choices:{agent:{focus:()=>{}}}};
  const fn=vm.runInNewContext(source.match(/async function openWizard[^\n]+/)[0]+';openWizard',ctx);await fn('harness');assert.equal(ctx.hostSelect.value,'agent');assert.equal(by('connectionLibrary').value,'same-library');
+});
+
+test('Android starts with its phone-local Agent flow instead of a desktop installer',async()=>{
+ const values=new Map();const by=id=>{if(!values.has(id))values.set(id,{});return values.get(id);};
+ const ctx={remoteHost:false,androidHost:true,MEMORY:{busy:false,libraries:[]},canManageMemory:()=>true,refreshLibraries:async()=>{},hostSelect:{value:'harness'},advancedPaths:{},connectionHostChanged:()=>{},by,S:{isDemo:false,libraryId:'phone-library'},newLib:{},newLibName:{},go:()=>{},dialog:{showModal:()=>{}},choices:{agent:{focus:()=>{}}}};
+ const fn=vm.runInNewContext(source.match(/async function openWizard[^\n]+/)[0]+';openWizard',ctx);
+ await fn('harness');assert.equal(ctx.hostSelect.value,'agent');assert.equal(by('connectionLibrary').value,'phone-library');
+});
+
+test('a complete HTTP MCP connection is copyable without a desktop config file',()=>{
+ const ready=vm.runInNewContext(extract('agentPrivatePath')+'\n'+extract('agentMcpText')+'\n'+extract('agentConfigReady')+';agentConfigReady');
+ const cfg={connection:{host:'agent'},configuration_ready:true,remote_config:{transport:'streamable-http'},mcp_config:{mcpServers:{phone:{type:'http',url:'http://127.0.0.1:8768/mcp/example'}}}};
+ assert.equal(ready(cfg),true);assert.equal(ready({...cfg,configuration_ready:false}),false);
+ assert.equal(ready({...cfg,connection:{host:'agent',revoked:true}}),false);
+ assert.equal(ready({...cfg,mcp_config:{}}),false);
 });
 
 

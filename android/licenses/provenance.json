@@ -1,0 +1,164 @@
+{
+  "schema": "love-house-android-runtime-licenses/v1",
+  "collected_at": "2026-11-08",
+  "embedded_runtime": {
+    "chaquopy": "17.2.0",
+    "python": "3.12.15-0",
+    "abis": [
+      "arm64-v8a",
+      "x86_64"
+    ]
+  },
+  "artifacts": [
+    {
+      "artifact": "target-3.12.15-0-arm64-v8a.zip",
+      "sha256": "bcc3cb4edcff25c8c3103cf45ea35b66ef0a728bb2b3e7731d3c045093ff6d39",
+      "source": "https://repo.maven.apache.org/maven2/com/chaquo/python/target/3.12.15-0/target-3.12.15-0-arm64-v8a.zip"
+    },
+    {
+      "artifact": "target-3.12.15-0-x86_64.zip",
+      "sha256": "83a977b2b4b1bdb9c8a5a65571bf0ff865777ec8cfcc593de6696a6aaf859a60",
+      "source": "https://repo.maven.apache.org/maven2/com/chaquo/python/target/3.12.15-0/target-3.12.15-0-x86_64.zip"
+    },
+    {
+      "artifact": "target-3.12.15-0-stdlib-pyc.zip",
+      "sha256": "3d2c518265718355b4ddbb7bb7a0fced519699c3184501185d2ed3150c3e9b06",
+      "source": "https://repo.maven.apache.org/maven2/com/chaquo/python/target/3.12.15-0/target-3.12.15-0-stdlib-pyc.zip"
+    }
+  ],
+  "cpython_source_archive": {
+    "url": "https://www.python.org/ftp/python/3.12.15/Python-3.12.15.tar.xz",
+    "sha256": "c2c4321961fab0fb999d66e0cecf521c2ab3994c7992873ea99e306c1094fd5a"
+  },
+  "native_version_evidence": {
+    "openssl": "3.5.9 from target include/openssl/opensslv.h",
+    "sqlite": "3.53.4 from target include/sqlite3.h",
+    "bzip2": "1.0.8 embedded version string",
+    "xz_liblzma": "5.4.6 embedded version string",
+    "libffi": "3.4.4 from upstream Chaquopy target/python/build.sh dependency list",
+    "expat": "2.8.5 from exact CPython source Modules/expat/expat.h",
+    "unicode": "15.0.0 from exact CPython source Modules/unicodedata_db.h"
+  },
+  "chaquopy_license_note": "MIT text fetched from upstream master LICENSE.txt; its fixed digest is recorded here. Actual SDK version is pinned independently by Maven Gradle 17.2.0 artifact.",
+  "dependency_recipe": {
+    "url": "https://raw.githubusercontent.com/chaquo/chaquopy/master/target/python/build.sh",
+    "sha256": "963bfd2e558b31d8977effb624d7baf843416c157533009618c62f0c1c1042f6"
+  },
+  "ca_bundle": {
+    "source": "https://raw.githubusercontent.com/certifi/python-certifi/2026.10.23/certifi/cacert.pem",
+    "sha256": "2ef52ad56b4803e264045c915e55c236cbfa045b84b81efefc218a19eb44bd2b",
+    "matches_embedded_gradle_resource": true,
+    "license": "MPL-2.0",
+    "scope": "CA bundle file only; not the complete Love House application"
+  },
+  "files": [
+    {
+      "file": "AUTHORS.openssl-3.5.9.txt",
+      "sha256": "b9f638dfc06b59c2d3b808186c3b30f713805a5db390f5b77b1703ac58acb83e",
+      "bytes": 1022,
+      "source": "https://raw.githubusercontent.com/openssl/openssl/openssl-3.5.9/AUTHORS.md"
+    },
+    {
+      "file": "LICENSE.CC0-1.0.txt",
+      "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+      "bytes": 7048,
+      "source": "https://raw.githubusercontent.com/spdx/license-list-data/main/text/CC0-1.0.txt"
+    },
+    {
+      "file": "LICENSE.HACL-Python-3.12.15.txt",
+      "sha256": "998ce04fb8ad9dedb0bc1b44938f8c3dcf1089780fa105ce1c8c30fb5554d78c",
+      "bytes": 1207,
+      "source": "https://www.python.org/ftp/python/3.12.15/Python-3.12.15.tar.xz",
+      "archive_member": "deduplicated leading MIT notices in Modules/_hacl/*.c/*.h"
+    },
+    {
+      "file": "LICENSE.MPL-2.0.txt",
+      "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04",
+      "bytes": 16726,
+      "source": "https://www.mozilla.org/media/MPL/2.0/index.txt"
+    },
+    {
+      "file": "LICENSE.Unicode-DFS-2016.txt",
+      "sha256": "1a33fc12a3abb0b3eb14db70e36ef1d0af51c93b1cc1f80f022c3bd406e9b874",
+      "bytes": 2858,
+      "source": "https://raw.githubusercontent.com/spdx/license-list-data/main/text/Unicode-DFS-2016.txt"
+    },
+    {
+      "file": "LICENSE.bzip2-1.0.8.txt",
+      "sha256": "c6dbbf828498be844a89eaa3b84adbab3199e342eb5cb2ed2f0d4ba7ec0f38a3",
+      "bytes": 1896,
+      "source": "https://raw.githubusercontent.com/libarchive/bzip2/bzip2-1.0.8/LICENSE"
+    },
+    {
+      "file": "LICENSE.certifi-2026.10.23.txt",
+      "sha256": "e93716da6b9c0d5a4a1df60fe695b370f0695603d21f6f83f053e42cfc10caf7",
+      "bytes": 989,
+      "source": "https://raw.githubusercontent.com/certifi/python-certifi/2026.10.23/LICENSE"
+    },
+    {
+      "file": "LICENSE.chaquopy-17.2.0.txt",
+      "sha256": "345a9fdfeed355d37b18569ef277ba56eb0ab7c0b17a08a90163ce8d33d2b862",
+      "bytes": 1076,
+      "source": "https://raw.githubusercontent.com/chaquo/chaquopy/master/LICENSE.txt"
+    },
+    {
+      "file": "LICENSE.cpython-3.12.15.txt",
+      "sha256": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf",
+      "bytes": 13936,
+      "source": "https://www.python.org/ftp/python/3.12.15/Python-3.12.15.tar.xz",
+      "archive_member": "Python-3.12.15/LICENSE"
+    },
+    {
+      "file": "LICENSE.cpython-third-party-3.12.15.txt",
+      "sha256": "341832873fd316a37927e79385093fbbfd40a467428480835fe435a80cadf4e5",
+      "bytes": 54130,
+      "source": "https://www.python.org/ftp/python/3.12.15/Python-3.12.15.tar.xz",
+      "archive_member": "Python-3.12.15/Doc/license.rst"
+    },
+    {
+      "file": "LICENSE.expat-2.8.5.txt",
+      "sha256": "31b15de82aa19a845156169a17a5488bf597e561b2c318d159ed583139b25e87",
+      "bytes": 1144,
+      "source": "https://www.python.org/ftp/python/3.12.15/Python-3.12.15.tar.xz",
+      "archive_member": "Python-3.12.15/Modules/expat/COPYING"
+    },
+    {
+      "file": "LICENSE.libffi-3.4.4.txt",
+      "sha256": "2c9c2acb9743e6b007b91350475308aee44691d96aa20eacef8e199988c8c388",
+      "bytes": 1132,
+      "source": "https://raw.githubusercontent.com/libffi/libffi/v3.4.4/LICENSE"
+    },
+    {
+      "file": "LICENSE.openssl-3.5.9-Apache-2.0.txt",
+      "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a",
+      "bytes": 10175,
+      "source": "https://raw.githubusercontent.com/openssl/openssl/openssl-3.5.9/LICENSE.txt"
+    },
+    {
+      "file": "LICENSE.sqlite-3.53.4.txt",
+      "sha256": "85806d613cfda5901f848b3b5b4b04396c8c64e89c97c0af3706c42b0c44bb47",
+      "bytes": 1485,
+      "source": "https://repo.maven.apache.org/maven2/com/chaquo/python/target/3.12.15-0/target-3.12.15-0-arm64-v8a.zip",
+      "archive_member": "include/sqlite3.h leading public-domain notice"
+    },
+    {
+      "file": "LICENSE.xz-5.4.6.txt",
+      "sha256": "29a1e305b2e34eefe5d4602d00cde1d528b71c5d9f2eec5106972cf6ddb6f73f",
+      "bytes": 3347,
+      "source": "https://raw.githubusercontent.com/tukaani-project/xz/v5.4.6/COPYING"
+    },
+    {
+      "file": "NOTICE.BLAKE2-Python-3.12.15.txt",
+      "sha256": "a27d7169aa4b7db350c5e46da87184c4b7a8ac8e4d86dce38845fdffd789d7b5",
+      "bytes": 519,
+      "source": "https://www.python.org/ftp/python/3.12.15/Python-3.12.15.tar.xz",
+      "archive_member": "Python-3.12.15/Modules/_blake2/impl/blake2.h leading notice"
+    },
+    {
+      "file": "NOTICE.Unicode-15.0.0.txt",
+      "sha256": "53672c0d0b5185e3cf04c8e970d544c3af81ae7c8eeba0b9cf6d355aa954ae1f",
+      "bytes": 635,
+      "source": "https://www.unicode.org/Public/15.0.0/ucd/ReadMe.txt"
+    }
+  ]
+}

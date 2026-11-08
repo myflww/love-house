@@ -1,5 +1,7 @@
 # Native iOS Simulator service-connection verification
 
+**Archived QA tooling.** The project no longer offers an iPhone edition or runs a dedicated iOS workflow. These historical tests remain for reproducibility; `fixture_server.py` is also used by the active Android HTTPS gateway tests. They are not an installation or publishing path. Existing iPhone users should [export their original JSON before migrating](../docs/手机版安装与使用.md#旧-iphone-版的记忆迁移).
+
 This is a disposable QA app, not an installable iPhone release or a claim of physical-device acceptance. It executes the real `/mobile/` portal inside UIKit's WKWebView on an iOS Simulator runtime. DOM form actions are driven through WebKit's native JavaScript testing API; the HTTP, cookies, TLS, page modules, rendering and transport run in the iOS engine.
 
 The backend is a separate checkout containing the real `MemoryHost` and `RemoteGateway`; the fixture does not imitate their endpoints. A short-lived CA signs the loopback server certificate. The first native load must reject that untrusted CA. Only then is the CA added through `simctl keychain add-root-cert`, and the normal WebKit trust path must accept it. No certificate challenge delegate or insecure HTTPS exception is installed.

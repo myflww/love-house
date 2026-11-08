@@ -372,7 +372,13 @@ class ShareStore:
         return {**share_preview(value), "importable": True, "connections_rebound": False,
                 "will_create_new_library": True, "model_called": False}
 
-    def import_file(self, content, name=None):
+    def import_file(self, content, name=None, *, source_fingerprint=None):
+        # This optional idempotency mark belongs to a trusted local adapter,
+        # never to an imported envelope. Commit it with the imported graph so
+        # a process exit before auxiliary receipt bookkeeping can be recovered.
+        if source_fingerprint is not None and (not isinstance(source_fingerprint, str)
+                or not re.fullmatch(r'[0-9a-f]{64}', source_fingerprint)):
+            raise ValidationError('内部导入指纹须为64位小写十六进制摘要')
         value = self._read(content)
         if name is not None and (not isinstance(name, str) or not name.strip() or len(name) > 80): raise ValidationError("新记忆库名须为1~80字")
         new_name = name or (value["name"][:70] + " · 分享导入")
@@ -395,6 +401,8 @@ class ShareStore:
             if isinstance(candidate, dict): candidate["library_id"] = library_id
         brain["meta"]["organizer_profile"] = {"enabled": False, "provider_id": "", "base_url": "", "model": ""}
         brain["meta"]["shared_import"] = {"format": FORMAT, "at": time.time(), "original_name": value["name"], "connections_rebound": False}
+        if source_fingerprint is not None:
+            brain['meta']['shared_import']['source_fingerprint'] = source_fingerprint
         def apply(target):
             loaded = Brain(brain)
             from ..organizer.experiences import rebind_experiences_after_import

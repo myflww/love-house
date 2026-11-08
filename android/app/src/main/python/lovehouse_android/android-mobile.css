@@ -1,0 +1,6 @@
+#androidMemoryBar{position:fixed;bottom:0;left:0;right:0;z-index:50;display:flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:4px 8px;background:#fff8ef;color:#694a4c;border-top:1px solid #c89da0;font:12px/1.5 system-ui,sans-serif}
+#androidMemoryBar button{min-height:32px;background:#ffe6d4;border:1px solid #c89da0;border-radius:5px;color:#694a4c;padding:4px 8px}
+html[data-lovehouse-platform=android] #app{height:calc(100dvh - 48px)}
+html[data-lovehouse-platform=android] dialog{max-width:calc(100vw - 28px);max-height:calc(100dvh - 60px);overflow:auto;box-sizing:border-box}
+html[data-lovehouse-platform=android] dialog p{line-height:1.8}
+@media(max-width:600px){html[data-lovehouse-platform=android] .floating-panel{max-width:calc(100vw - 20px)!important;right:10px!important;left:auto!important}html[data-lovehouse-platform=android] :is(.companion-scroll,.modal-body){overflow:auto;overscroll-behavior:contain}#androidMemoryBar{font-size:11px;gap:5px}}

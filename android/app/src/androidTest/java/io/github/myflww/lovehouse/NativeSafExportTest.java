@@ -37,7 +37,8 @@ public final class NativeSafExportTest {
         ContentResolver resolver = instrumentation.getTargetContext().getContentResolver();
         try {
             resolver.delete(SyntheticDocumentProvider.DOCUMENT, null, null);
-            scenario = ActivityScenario.launch(MainActivity.class);
+            scenario = ActivityScenario.launch(new Intent(instrumentation.getTargetContext(), MainActivity.class)
+                .putExtra("legacy", true));
             waitFor("app ready", "document.documentElement && document.documentElement.dataset.appReady==='true' && window.LoveHouseApp && window.LoveHouseApp.store && document.getElementById('newMemory') && !document.getElementById('newMemory').disabled");
             String name = "Smoke SAF " + UUID.randomUUID();
             StringBuilder text = new StringBuilder("UTF8 合成原文 e\u0301 / é 🙂\n");

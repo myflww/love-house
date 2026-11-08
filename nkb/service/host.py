@@ -95,10 +95,15 @@ class MemoryHost:
                         if migrated['changed'] or identity_changed or controls_before!=brain.meta.get('memory_source_controls'):
                             guard.persist()
                     self._usage_enabled[library_id]=migrated['usage_reinforcement']
-                server=ThreadingHTTPServer(('127.0.0.1',0),make_handler(brain))
+                server=self.graph_server(brain)
                 thread=threading.Thread(target=server.serve_forever,kwargs={'poll_interval':.1},daemon=True)
                 server.daemon_threads=False;thread.start();self._servers[library_id]=server;self._threads.append(thread)
             return self._servers[library_id].server_port
+    def graph_server(self,brain):
+        """Platform adapter hook; desktop keeps its original local transport."""
+        return ThreadingHTTPServer(('127.0.0.1',0),make_handler(brain))
+    def library_json(self,library_id,path,body=None,timeout=20,*,headers=None):
+        return local_json(self.port_for(library_id),path,body,timeout=timeout,headers=headers)
     def snapshot(self,library_id):
         self.port_for(library_id)
         return self._servers[library_id].RequestHandlerClass.memory_snapshot()
@@ -754,11 +759,11 @@ class MemoryHost:
         if name=='memory_context':
             context=self.context(cid,token,args)
             return context['memory_context']
-        if name=='memory_persona':return local_json(self.port_for(c['library_id']),'/api/persona')
+        if name=='memory_persona':return self.library_json(c['library_id'],'/api/persona')
         if name=='memory_remember':
             rejected=self._agent_session_gate(c,args.get('session_id'))
             if rejected:return rejected
-            result=local_json(self.port_for(c['library_id']),'/api/ai/remember',{**args,'origin':'harness'})
+            result=self.library_json(c['library_id'],'/api/ai/remember',{**args,'origin':'harness'})
             self.enqueue_nodes(c['library_id'],[result.get('id')]);return result
         if name=='memory_persona_import':
             if args.get('explicit') is not True or not isinstance(args.get('user_request'),str) or not args['user_request'].strip():raise ValidationError('人格导入需要明确用户请求与原话')
@@ -1145,7 +1150,7 @@ def make_controller(host):
                 # Their code may stay loaded while the desktop service upgrades.
                 return result['memory_context'] if path.split('?',1)[0]=='/api/ai/context' and body.get('origin')=='harness' else result
             try:
-                result=local_json(host.port_for(lib),path,body)
+                result=host.library_json(lib,path,body)
                 if body is not None and path.split('?',1)[0] in ('/api/ai/record','/api/ai/event','/api/ingest'):
                     if not result.get('duplicate_of'):host.enqueue_nodes(lib,[result.get('id')] if result.get('id') else result.get('node_ids',[]))
                 return result

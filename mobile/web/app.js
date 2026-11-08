@@ -457,13 +457,14 @@ function platformGuidance() {
     $('dataRetention').textContent = 'APK 的记忆保存在这台手机的应用私有空间。卸载或清除应用数据会删除存档，请先导出 JSON；同一签名的覆盖升级会保留数据。';
     $('installText').textContent = '你正在使用 Android APK。记忆无需电脑常开，也不会自动传到桌面。需要跨设备迁移时，请用 JSON 导出与导入。';
   } else if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
-    $('installText').textContent = '使用 Safari 打开此页面，点击分享，再选“添加到主屏幕”。之后从主屏幕的爱之屋图标打开。这是可安装网页版，不是需要 Apple 签名的 IPA。';
+    $('installText').textContent = 'iPhone 版已停止提供和维护。旧记忆仍可在此导出 JSON，再导入 Android 或电脑；核对迁移完成前，请保留网站数据。';
     $('dataRetention').textContent = '记忆保存在这台设备的浏览器 / 主屏幕应用空间。清除网站数据、移除应用或系统回收存储可能导致丢失，请定期导出 JSON；不同打开方式的数据可能独立。';
   }
 }
 
 async function start() {
   platformGuidance();
+  $('fullEngineEntry').hidden = !(platform() === 'android' && window.LoveHouseNative && typeof window.LoveHouseNative.openEngine === 'function');
   try {
     const initialized = await store.init();
     state.selected = initialized ? initialized.selectedLibraryId || initialized.selectedId || initialized.selected_id || null : null;
@@ -488,6 +489,19 @@ window.LoveHouseApp = { store, ready: window.LoveHouseReady, refresh };
 
 // Service navigation carries only an origin. Authentication happens on the selected service.
 $('homeConnectAgent').addEventListener('click',()=>showView('connect'));
+$('openFullEngine').addEventListener('click', () => {
+  if (window.LoveHouseNative && typeof window.LoveHouseNative.openEngine === 'function') window.LoveHouseNative.openEngine();
+});
+$('migrateLegacy').addEventListener('click', async () => {
+  if (!state.ready || !state.selected || !window.LoveHouseNative || typeof window.LoveHouseNative.importLegacy !== 'function') return;
+  if (!window.confirm('将“' + libraryName() + '”复制到新版完整记忆？原库会保留，已识别的密钥、连接和本机路径会脱敏。可先在“备份”保存 JSON。')) return;
+  const button = $('migrateLegacy'); setButtonBusy(button, true);
+  try {
+    const exported = await store.exportLibrary(state.selected);
+    window.LoveHouseNative.importLegacy(JSON.stringify(exported));
+  } catch (error) { toast(readableError(error, '迁移未完成，原库没有改动。')); }
+  finally { setButtonBusy(button, false); }
+});
 $('memoryServiceAddress').addEventListener('input',()=>{
  const link=$('openMemoryService');
  try{const url=memoryServiceUrl($('memoryServiceAddress').value.trim());link.href=url;link.classList.remove('disabled-link');link.setAttribute('aria-disabled','false');$('memoryServiceError').textContent='在这台服务上选择存档并复制给 Agent。管理凭据只在服务自己的页面填写。';}

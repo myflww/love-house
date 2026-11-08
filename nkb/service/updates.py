@@ -56,7 +56,7 @@ def version_key(value):
 def target_platform(system=None, machine=None):
     system = (system or platform.system()).lower()
     machine = (machine or platform.machine()).lower()
-    name = {"darwin": "macos", "macos": "macos", "windows": "windows", "linux": "linux"}.get(system, "other")
+    name = {"darwin": "macos", "macos": "macos", "windows": "windows", "linux": "linux", "android": "android"}.get(system, "other")
     arch = "arm64" if machine in ("arm64", "aarch64") else "x64" if machine in ("x86_64", "amd64", "x64") else machine
     return name, arch
 
@@ -91,6 +91,17 @@ def _asset_score(name, target, arch):
     elif target == "linux":
         if "linux" not in lower or not lower.endswith((".appimage", ".deb", ".rpm", ".tar.gz")):
             return 0
+        score = 20
+    elif target == "android":
+        if (not re.fullmatch(r'lovehouse-[0-9a-z.-]+-android(?:-(?:arm64|aarch64|x64|x86_64|universal))?\.apk', lower)
+                or any(word in lower for word in ("unsigned", "test", "debug", "qa-only", "instrumentation", "source", "symbols", "checksum", "sha256"))):
+            return 0
+        # This release is a multi-ABI APK containing both supported 64-bit ABIs.
+        # Future architecture-specific packages must identify their architecture.
+        if arch not in ("arm64", "x64"):
+            return 0
+        if not re.search(r"(?:arm64|aarch64|x64|x86_64|amd64|universal)", lower):
+            return 25
         score = 20
     else:
         return 0

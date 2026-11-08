@@ -1,5 +1,6 @@
 plugins {
     id 'com.android.application'
+    id 'com.chaquo.python'
 }
 
 android {
@@ -11,9 +12,12 @@ android {
         applicationId 'io.github.myflww.lovehouse.preview'
         minSdk 26
         targetSdk 36
-        versionCode 3
-        versionName '0.8.0rc2'
+        versionCode 4
+        versionName '0.10.6rc1'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        ndk {
+            abiFilters 'arm64-v8a', 'x86_64'
+        }
     }
 
     compileOptions {
@@ -50,6 +54,7 @@ def preparedAssets = layout.buildDirectory.dir('generated/mobileAssets')
 def prepareMobileAssets = tasks.register('prepareMobileAssets', Exec) {
     workingDir repositoryRoot
     inputs.files(fileTree(new File(repositoryRoot, 'mobile/web')))
+    inputs.files(fileTree(new File(rootProject.projectDir, 'licenses')))
     inputs.files(new File(repositoryRoot, 'scripts/prepare_mobile_assets.py'),
                  new File(repositoryRoot, 'scripts/prepare_public_release.py'),
                  new File(repositoryRoot, 'LICENSE'), new File(repositoryRoot, 'NOTICE'),
@@ -62,6 +67,45 @@ def prepareMobileAssets = tasks.register('prepareMobileAssets', Exec) {
                 '--output', preparedAssets.get().asFile
 }
 tasks.named('preBuild').configure { dependsOn prepareMobileAssets }
+
+def preparedEngine = layout.buildDirectory.dir('generated/enginePython')
+def prepareAndroidEngine = tasks.register('prepareAndroidEngine', Exec) {
+    workingDir repositoryRoot
+    inputs.files(fileTree(new File(repositoryRoot, 'nkb')))
+    inputs.files(new File(repositoryRoot, 'scripts/prepare_android_engine.py'))
+    inputs.files(fileTree(new File(repositoryRoot, 'android/app/src/main/python')))
+    inputs.files(fileTree(new File(rootProject.projectDir, 'licenses')),
+                 new File(rootProject.projectDir, 'THIRD_PARTY_NOTICES.md'),
+                 new File(rootProject.projectDir, 'LICENSE.androidx-Apache-2.0.txt'))
+    inputs.files(new File(repositoryRoot, 'LICENSE'), new File(repositoryRoot, 'NOTICE'),
+                 new File(repositoryRoot, 'THIRD_PARTY_NOTICES.md'))
+    outputs.dir preparedEngine
+    def python = providers.environmentVariable('LOVE_HOUSE_BUILD_PYTHON').orElse('python3').get()
+    commandLine python, new File(repositoryRoot, 'scripts/prepare_android_engine.py'),
+                '--output', preparedEngine.get().asFile
+}
+tasks.named('preBuild').configure { dependsOn prepareAndroidEngine }
+// Chaquopy reads Python source before the ordinary Android preBuild pipeline.
+// Its inputs must be prepared for every variant, including instrumentation.
+tasks.configureEach { task ->
+    if (task.name.matches('generate.*Python.*') || task.name.matches('merge.*Python.*')) {
+        task.dependsOn prepareAndroidEngine
+    }
+}
+
+chaquopy {
+    defaultConfig {
+        version '3.12'
+        def python = providers.environmentVariable('LOVE_HOUSE_BUILD_PYTHON').orElse('python3.12').get()
+        buildPython python
+        extractPackages 'nkb', 'lovehouse_android'
+    }
+    sourceSets {
+        main {
+            srcDirs = [preparedEngine.get().asFile]
+        }
+    }
+}
 
 dependencies {
     implementation 'androidx.webkit:webkit:1.18.0'

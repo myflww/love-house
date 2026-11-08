@@ -1,17 +1,21 @@
-name: Android offline APK verification
+name: Android full memory engine verification
 
 on:
   push:
-    branches: [codex/android-preview, codex/workbuddy-connect-080rc2]
+    branches: [codex/android-preview, codex/workbuddy-connect-080rc2, codex/android-0106-update]
     paths:
       - 'android/**'
       - 'mobile/**'
       - 'nkb/viz/web/remote-mobile.*'
       - 'nkb/viz/web/connection-ux.js'
       - 'scripts/prepare_mobile_assets.py'
+      - 'scripts/prepare_android_engine.py'
+      - 'nkb/**'
       - 'scripts/prepare_public_release.py'
       - 'scripts/check_android_test_results.py'
       - 'scripts/run_android_smoke.sh'
+      - 'scripts/run_android_0106_smoke.py'
+      - 'tests/test_android_0106_smoke.py'
       - 'tests/test_android_packaging.py'
       - '.github/workflows/android.yml'
       - 'LICENSE'
@@ -22,9 +26,13 @@ on:
       - 'android/**'
       - 'mobile/**'
       - 'scripts/prepare_mobile_assets.py'
+      - 'scripts/prepare_android_engine.py'
+      - 'nkb/**'
       - 'scripts/prepare_public_release.py'
       - 'scripts/check_android_test_results.py'
       - 'scripts/run_android_smoke.sh'
+      - 'scripts/run_android_0106_smoke.py'
+      - 'tests/test_android_0106_smoke.py'
       - 'tests/test_android_packaging.py'
       - '.github/workflows/android.yml'
   workflow_dispatch:
@@ -33,7 +41,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: android-preview-${{ github.ref }}
+  group: android-preview-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -72,10 +80,11 @@ jobs:
           gradle-version: '8.13'
       - name: Check safe packaging and create local WebView assets
         run: |
-          python -m unittest tests.test_android_packaging tests.test_public_release -v
+          python -m unittest tests.test_android_packaging tests.test_android_release_verification tests.test_android_0106_smoke tests.test_android_runtime_licenses tests.test_public_release -v
           node --test mobile/tests/*.test.mjs
           python -m unittest discover -s mobile/tests -p 'test_*.py' -v
           python scripts/prepare_mobile_assets.py
+          python scripts/prepare_android_engine.py
       - name: Install the pinned Android SDK components
         run: |
           command -v sdkmanager
@@ -98,7 +107,7 @@ jobs:
           force-avd-creation: true
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader -noaudio -no-boot-anim -camera-back none
-          script: bash scripts/run_android_smoke.sh
+          script: python scripts/run_android_0106_smoke.py --api-level ${{ matrix.api-level }}
       - name: Preserve unsigned APK and developer signing tools after tests pass
         run: |
           set -euo pipefail
@@ -107,11 +116,18 @@ jobs:
           test_apk='android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk'
           test -f "$test_apk"
           "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$apk"
-          # The application is Java/WebView only and must remain ABI-universal.
-          if unzip -Z1 "$apk" | grep -E '^lib/[^/]+/[^/]+\.so$'; then
-            echo 'Unexpected native dependency in the universal Android APK' >&2
-            exit 1
-          fi
+          # Validate the exact embedded Python ABIs and sole network permission.
+          # This rejects unexpected native libraries and broad device access.
+          python - <<'PYPACKAGE'
+          import pathlib,subprocess,sys,zipfile,os
+          sys.path.insert(0, 'scripts')
+          from verify_android_release import validate_package_contents
+          apk=pathlib.Path('android/app/build/outputs/apk/release/app-release-unsigned.apk')
+          aapt=pathlib.Path(os.environ['ANDROID_HOME'])/'build-tools/36.0.0/aapt'
+          badging=subprocess.check_output([str(aapt),'dump','badging',str(apk)],text=True)
+          with zipfile.ZipFile(apk) as archive:
+              validate_package_contents(archive,badging,engine=True)
+          PYPACKAGE
           mkdir -p build/android/signing-tools
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" > build/android/apk-badging.txt
           python - <<'PYAPK'
@@ -134,7 +150,14 @@ jobs:
           cp LICENSE NOTICE THIRD_PARTY_NOTICES.md build/android/
           printf '%s\n' 'This is a developer artifact, not an installable public release.' 'The APK is unsigned. Keep private signing keys outside Git and sign the verified APK with a persistent key.' 'apksigner.jar is an Android SDK Build-Tools developer utility; preserve its upstream licence notices.' > build/android/README-UNSIGNED.txt
           (cd build/android && sha256sum "LoveHouse-$version-Android-unsigned.apk" signing-tools/apksigner.jar) > build/android/SHA256SUMS.txt
-          python -c "import json,os,pathlib; pathlib.Path('build/android/verification.json').write_text(json.dumps({'schema':'love-house-android-build/v1','source_commit':os.environ['GITHUB_SHA'],'api_level':int('${{ matrix.api-level }}'),'instrumentation':'passed','artifact':'unsigned_not_for_distribution','version_name':json.loads(pathlib.Path('build/android/apk-identity.json').read_text())['versionName'],'version_code':int(json.loads(pathlib.Path('build/android/apk-identity.json').read_text())['versionCode']),'min_sdk':26,'target_sdk':36,'no_native_libraries':True},indent=2)+'\n',encoding='utf-8')"
+          python -c "import json,os,pathlib,subprocess; pathlib.Path('build/android/verification.json').write_text(json.dumps({'schema':'love-house-android-build/v1','source_commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'api_level':int('${{ matrix.api-level }}'),'instrumentation':json.loads(pathlib.Path('build/android/instrumentation-verification.json').read_text()),'artifact':'unsigned_not_for_distribution','version_name':json.loads(pathlib.Path('build/android/apk-identity.json').read_text())['versionName'],'version_code':int(json.loads(pathlib.Path('build/android/apk-identity.json').read_text())['versionCode']),'min_sdk':26,'target_sdk':36,'engine_abis':['arm64-v8a','x86_64'],'engine':'embedded_python_3.12'},indent=2)+'\n',encoding='utf-8')"
+      - name: Package the frozen original-signer handoff after real tests
+        run: |
+          python scripts/prepare_android_0106_handoff.py \
+            --expected-source-commit "$(git rev-parse HEAD)" \
+            --unsigned-apk android/app/build/outputs/apk/release/app-release-unsigned.apk \
+            --instrumentation-apk android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk \
+            --output build/android/Original-Signer-Handoff
       - uses: actions/upload-artifact@v4
         with:
           name: android-unsigned-api-${{ matrix.api-level }}
@@ -149,5 +172,8 @@ jobs:
           path: |
             android/app/build/reports/
             android/app/build/outputs/androidTest-results/
+            build/android/instrumentation.txt
+            build/android/instrumentation-verification.json
+            build/android/*.png
           if-no-files-found: ignore
           retention-days: 14

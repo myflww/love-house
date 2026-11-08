@@ -1,5 +1,7 @@
 # Android 0.10.6rc1 原发行签名与覆盖升级交接
 
+> 2026-11-08 收尾状态：原签名、公开旧版覆盖升级及发布已完成，[下载主 APK](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-0.10.6rc1-Android.apk)、[最终验收报告](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/Android-0106-verification.json)。下文保留当时交接输入与操作要求，文中的“尚未／仍需”描述签名前阶段，不代表当前发行状态。后续签新构建仍须重新验证，不能复用本次通过记录。
+
 本交接供持有爱之屋**原发行私钥**的电脑使用。输入是开发产物和冻结源码，不是面向用户的安装包；当前尚未证明已完成原签名、覆盖升级或公开发布。不要将 unsigned APK 改名后上传，也不要把测试 APK 放进推荐下载。
 
 ## 交接内容

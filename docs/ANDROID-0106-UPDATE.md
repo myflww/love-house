@@ -1,8 +1,8 @@
 # Android 0.10.6rc1 更新与签名验收
 
-更新日期：2026-11-08。**本分支正在将桌面 0.10.6rc1 的完整记忆引擎接入 Android，原发行签名和安装升级验收尚未完成，因此没有新的公开发行 APK。** 当前可下载安装的版本仍是 [0.8.0rc2](https://github.com/myflww/love-house/releases/tag/v0.8.0rc2)。
+更新日期：2026-11-08。**Android 0.10.6rc1 原发行签名 APK 已公开发布，已完成从公开 0.8.0rc2 的不卸载覆盖升级验收。** [下载 APK](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-0.10.6rc1-Android.apk) · [校验文件](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/Android-SHA256SUMS.txt) · [完整验收报告](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/Android-0106-verification.json)。
 
-这次更新包含手机内运行的共享引擎，不是只把旧 APK 的版本号改成桌面版本。下述新版能力是本轮实现与验收目标；测试结果、最终安装包 SHA-256 和证书指纹须在签名验收完成后补充。开发用 unsigned APK 与测试 APK 不用于日常安装。
+这次更新包含手机内运行的共享引擎，不是只把旧 APK 的版本号改成桌面版本。下述能力已接入，实际验收及兼容范围见本文后半部分。开发用 unsigned APK 与测试 APK 不用于日常安装。
 
 ## 本轮接入的能力
 
@@ -25,7 +25,7 @@
 - 目标系统为 Android 8.0+，目标架构为 `arm64-v8a` 和 `x86_64`。32 位 Android 设备不在新版内置 Python 的发行范围内。
 - 包名保持 `io.github.myflww.lovehouse.preview`，新版 `versionCode` 为 `4`，版本名为 `0.10.6rc1`。
 - 覆盖升级必须继续使用原持久发行私钥。另生成一个签名，即使包名相同，也不能覆盖旧版并保留其应用数据。
-- 本轮本机开发与测试产物不能代替原签名发行包。计划由持有原发行签名的另一台电脑完成签名与覆盖安装验收，再上传公开 APK。具体脚本、输入格式和成功条件见[原签名交接书](ANDROID-0106-SIGNING-HANDOFF.md)。
+- 本页下载指向已验收的原签名主程序。主包、冻结 QA 和额外验收探针均核对原证书；QA-only、unsigned、私钥和口令不进入发行下载。原始输入与流程保留在[签名交接书](ANDROID-0106-SIGNING-HANDOFF.md)。
 - 升级前先从旧版导出每个库的 JSON。不要先卸载旧版，也不要清除应用数据。
 
 ## 旧库如何进入完整记忆
@@ -73,14 +73,14 @@
 
 ## 发布前的验收与交接
 
-2026-11-08 本机构建与测试已经完成，原发行签名和从旧公开 APK 覆盖升级仍待另一台电脑完成：
+2026-11-08 的冻结源码构建与签名前测试记录如下；本次签后验收另列在下方，保留原测试范围：
 
 - Android 16 / API 36、360px 竖屏、较新 WebView：完整引擎、原生管理 Cookie、独立库内部端口保护、人格开关、更正保留原文、重开持久化、真实旧库迁移和系统文件导出，11 项原生测试通过，无跳过。
 - Android 9 / API 28 镜像自带 WebView 66：旧版离线库 5 项、系统文件导出 1 项和原生内核更新提示 1 项通过，无跳过。这里没有宣称旧内核可运行完整新版；完整界面要求 WebView 109+，请更新 Android System WebView / Chrome 后再使用。
 - Python 端共享记忆、分享、安卓传输隔离、迁移中断恢复、凭据作用域、更新器及原签名交接等 108 项回归通过；另有 9 项交接包测试通过。前端连接与工作区、旧库及服务链接 62 项测试和活动来源 26 项测试通过。
 - 本轮仅用合成资料与测试凭据，没有调用付费模型，没有读取其他软件的 API Key，也没有新增真实 QQ 机器人验收。模拟器结果不能代表所有实体 Android 手机。
 
-原签名电脑还需按[签名交接书](ANDROID-0106-SIGNING-HANDOFF.md)完成后续项目；以下是全流程要求，构建与模拟器通过不替代最后两项：
+原签名收尾已按[签名交接书](ANDROID-0106-SIGNING-HANDOFF.md)完成，覆盖以下步骤；详细原始记录见发布附件：
 
 1. 干净环境构建、静态检查及共享核心回归，确认 APK 确实包含新版引擎与资源。
 2. Android 实际 WebView 打开完整页面、本机 HTTP 读写、重启持久化、独立库与 Agent 授权拒绝。
@@ -89,6 +89,17 @@
 5. 在持有原发行私钥的电脑签名，核对包名、版本、证书指纹，再从公开旧版 `0.8.0rc2` 原签名 APK 覆盖升级，核对旧库与导出结果。
 6. 上传后重新下载公开 APK，比对 SHA-256，并将 README 与安装说明的下载入口更新为该已验收文件。
 
-尚未完成原签名升级验收时，保持旧版公开链接，并提供明确的签名交接，不把 unsigned APK 改名后发布。模拟器、源码或 CI 通过也不代表所有真实 Android 手机已完成验收。
+### 本次原签名发行验收
+
+原发行签名已核对；公开旧版 0.8.0rc2 → 本版的双库覆盖升级及进程重启通过。Android 16 / API36 的完整引擎 11 项测试及额外迁移、幂等、实际文件导出恢复、库隔离与凭据重启验收通过；Android 9 / API28 的旧内核仅通过旧入口、内核更新提示 7 项及旧库升级保留，不代表完整引擎可在该旧内核运行。完整界面需要 WebView 109+。以上为独立模拟器与合成数据，未调用付费模型，实体手机尚待验证。
+
+- 固定源提交：`732d7df84815e7b360f3bf1820b261747ae1d047`，与成功构建交接包逐文件 Git blob 核对；只签名，不重编或更改主程序有效载荷。
+- 主包：`LoveHouse-0.10.6rc1-Android.apk`，48,430,105 字节，`versionCode 4`。
+- APK SHA-256：`4d27f0a732c6edc53fbfcdcaac43f573b91327b703e10396e5d0c8435390f018`。
+- 原证书 SHA-256：`ca4b184194816fe3617feaa841e11b47f5a9a9a00493e8cbc015210c04a3a4cc`。
+- [实际原签名覆盖升级与测试](https://github.com/myflww/love-house/actions/runs/42487440646)；[追加发布及匿名下载校验](https://github.com/myflww/love-house/actions/runs/42488733437)。
+- 私钥和受保护口令留在原电脑；公开的签名报告仍保留签名阶段 `device_upgrade_verified:false`，模拟器升级与运行验收由另附 `Android-0106-verification.json` 记录，公开下载校验见发布工作流，不倒填早期回执。
+
+旧版 APK 保留在原发布页。请勿把 unsigned 或 QA-only 包作为日常安装版本。模拟器、源码或 CI 通过不代表所有真实 Android 手机已验收。
 
 项目继续采用 [PolyForm Noncommercial 1.0.0](../LICENSE)，非商业使用，保留 myflww 署名及[第三方声明](../THIRD_PARTY_NOTICES.md)。本轮停止提供 iPhone 版；旧用户先按[迁移说明](手机版安装与使用.md#旧-iphone-版的记忆迁移)导出原有 JSON。

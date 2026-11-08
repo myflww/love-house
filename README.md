@@ -18,7 +18,7 @@
 |---|---|---|---|
 | Windows x64 | **0.10.6rc1 · 完整预发布** | [安装版 EXE](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-Setup-0.10.6rc1-Windows-x64.exe) · [便携版 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-0.10.6rc1-Windows-x64.zip) | Intel / AMD 64 位；目标为 Windows 10 2004（19041）及以上或 Windows 11 |
 | macOS | **0.10.6rc1 · 完整预发布** | [下载 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-0.10.6rc1-macOS-arm64.zip) | Apple Silicon（M 系列）；macOS 13.0+ |
-| Android | **0.10.6rc1 · 待原发行签名** | [新版与签名进度](docs/ANDROID-0106-UPDATE.md) · [旧版 0.8.0rc2 APK](https://github.com/myflww/love-house/releases/download/v0.8.0rc2/LoveHouse-0.8.0rc2-Android.apk) | 新版为 64 位 ARM / x86；Android 8.0+，WebView 109+，建议最新 |
+| Android | **0.10.6rc1 · 原签名预览版** | [下载 APK](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-0.10.6rc1-Android.apk) · [校验文件](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/Android-SHA256SUMS.txt) | 64 位 ARM / x86；Android 8.0+，完整界面需 WebView 109+，建议最新 |
 
 0.10.6rc1 为本轮完整预发布，本轮修复聚焦对话中的话题召回，安装／升级及原生运行验收状态与范围见[发布页](https://github.com/myflww/love-house/releases/tag/v0.10.6rc1)及[本版说明](docs/release-0.10.6rc1.md)。支持目标不代表全部系统已实测。
 
@@ -47,7 +47,7 @@
 
 ### Android
 
-**新版 0.10.6rc1 已完成构建与本机模拟器验收，等待另一台电脑使用原发行私钥签名并验证覆盖升级。** 可安装的公开 APK 仍为 0.8.0rc2；不要将流水线的 unsigned APK 当作可升级的安装包。
+**Android 0.10.6rc1 原签名 APK 已发布，可从 0.8.0rc2 直接覆盖升级。** 升级前逐库导出 JSON，不要先卸载或清除应用数据。原发行签名已核对；公开旧版 0.8.0rc2 → 本版的双库覆盖升级及进程重启通过。Android 16 / API36 的完整引擎 11 项测试及额外迁移、幂等、实际文件导出恢复、库隔离与凭据重启验收通过；Android 9 / API28 的旧内核仅通过旧入口、内核更新提示 7 项及旧库升级保留，不代表完整引擎可在该旧内核运行。完整界面需要 WebView 109+。以上为独立模拟器与合成数据，未调用付费模型，实体手机尚待验证。
 
 新版在手机内置与桌面相同版本的记忆引擎和完整界面，接入记忆整理、人格、召回、原文与更正历史、独立库及神经星图。原来的离线库保留，通过“打开完整记忆”和“迁移当前旧库”明确选择使用；迁移不会删除旧库。模型整理需要为目标库配置 API，按实际用量计费。
 
@@ -55,7 +55,7 @@
 
 已发布的 0.8.0rc2 继续支持手动记录、检索、多库、标签星图和 JSON 导入导出；这些旧版下载不包含新的本机完整引擎。设备间的本地存档各自保存，没有自动云同步。
 
-[新版 Android 更新与签名进度](docs/ANDROID-0106-UPDATE.md) · [手机版安装与使用](docs/手机版安装与使用.md) · [已发布的 0.8.0rc2](https://github.com/myflww/love-house/releases/tag/v0.8.0rc2)
+[Android 下载与升级说明](docs/ANDROID-0106-UPDATE.md) · [手机版安装与使用](docs/手机版安装与使用.md) · [公开验收报告](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/Android-0106-verification.json)
 
 ## 开始使用
 

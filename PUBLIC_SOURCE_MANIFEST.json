@@ -108,8 +108,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 27205,
-      "sha256": "e9c34fb9cddbc1a6dbb4ae4a81f38e36a062d66f00606b8ccabee780c25cb28f"
+      "bytes": 27517,
+      "sha256": "ec5d0e10c14cdf4a2de8225cf2546bcb309b99a1c87c2398efc3405bb4435183"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -133,8 +133,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 6733,
-      "sha256": "30010342f909ed30445adfeb8ff1e04cc40382e0c6ec46421fe25e1d3644a89d"
+      "bytes": 7241,
+      "sha256": "a5d47e67c83dbc091d03c25ef74a218e1ec316de4ae0f7f433d61712217e2399"
     },
     {
       "path": "ROADMAP.md",
@@ -828,13 +828,13 @@
     },
     {
       "path": "docs/ANDROID-0106-SIGNING-HANDOFF.md",
-      "bytes": 7726,
-      "sha256": "b09160254891871d54028e316564fd49dc131aa25958ee5f0e9008b97d561408"
+      "bytes": 8255,
+      "sha256": "ce0d37ba68ecdc3fdcea2a7e74b7b443c7e14c6ab87a47f1b47ebe7d9cbfcb0b"
     },
     {
       "path": "docs/ANDROID-0106-UPDATE.md",
-      "bytes": 10407,
-      "sha256": "f44c7c6016374a2d9ed9b5d98582e436452bbde7cd7777903c22415b95a542f9"
+      "bytes": 11895,
+      "sha256": "bc4bd835b301aa9b218df6cf3aa989dda923e4b22f762eaea13580c9513d6275"
     },
     {
       "path": "docs/ANDROID-SIGN-EXISTING-KEY.md",
@@ -1118,8 +1118,8 @@
     },
     {
       "path": "docs/release-0.10.6rc1.md",
-      "bytes": 5515,
-      "sha256": "6fc20a11851421f4f07541ff3b3d6943c4ad80a8e7bc36e539ad5cd1a30d2361"
+      "bytes": 6193,
+      "sha256": "64a473df555635a4e84347229bafc7fcb6843843d87e0d638a0778546c8e9b39"
     },
     {
       "path": "docs/releases/v0.5.0-platform-notes.md",
@@ -1148,8 +1148,8 @@
     },
     {
       "path": "docs/下载与系统支持.md",
-      "bytes": 8409,
-      "sha256": "c58df1d572c0f6552abbabf4341054ad47da4b2d4623f13fb594caf000e4c354"
+      "bytes": 8969,
+      "sha256": "a7280f2a78f82d792669e17e92b7070500d898f0cd7201c51f0dd0d1e76ecf70"
     },
     {
       "path": "docs/发布与许可.md",
@@ -1183,8 +1183,8 @@
     },
     {
       "path": "docs/手机版安装与使用.md",
-      "bytes": 7711,
-      "sha256": "efbcdb45b63a93ad5aafa89cc23c89bdb1a35c9072cfe5e0ba3cbb28b25ac07b"
+      "bytes": 8544,
+      "sha256": "29126b319627c0b92eaf0d61eab3f120fc9ecad057b87c8edab83826323af2f5"
     },
     {
       "path": "docs/架构.md",

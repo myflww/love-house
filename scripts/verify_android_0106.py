@@ -14,6 +14,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import urllib.parse
 import urllib.request
 import zipfile
@@ -196,11 +197,15 @@ def parse_probe(text, mode, api_level):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--api-level', type=int, choices=(28, 36), required=True)
+    parser.add_argument('--diagnostic-only', action='store_true', help='Non-release API36 timeout/stack investigation only')
     args = parser.parse_args()
     output = ROOT / 'build/android0106'
     output.mkdir(parents=True, exist_ok=False)
     report = {'schema': 'love-house-android-original-signed-0106-acceptance/v1', 'ok': False,
               'source_commit': SOURCE, 'api_level': args.api_level, 'model_calls': 0}
+    if args.diagnostic_only:
+        require(args.api_level == 36, 'Supplemental diagnostic uses only the API36 disposable emulator')
+        report.update(diagnostic_only=True, public_release_evidence=False)
     stage = 'candidate'
     try:
         require(os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted',
@@ -233,6 +238,10 @@ def main():
         require(not command(prefix + ['shell', 'pm', 'list', 'packages', APP]).strip(), 'Fresh emulator required; existing app data will not be removed')
         provider = webview_identity(command(prefix + ['shell', 'dumpsys', 'webviewupdate']))
         scope = scope_for(args.api_level, provider)
+        if args.diagnostic_only:
+            # Restart adbd BEFORE any instrumentation shell is active. Doing
+            # adb root from the observer would sever that shell's transport.
+            command(prefix + ['root']);command(prefix + ['wait-for-device'])
         report.update(webview=provider, instrumentation_scope=scope['instrumentation_scope'], partial=scope['partial'], full_engine_verified=False)
         stage = 'public_original_apk'
         old = fetch_old(output / 'public-old-0.8.0rc2.apk');report['old_apk_identity'] = identity(old, sdk, 'old')
@@ -240,10 +249,69 @@ def main():
         require('Success' in command(prefix + ['install', '-t', paths['extra_qa']], timeout=180), 'Supplemental original-signed QA install failed')
         results = []
         transcripts = {}
+        def capture_diagnostics(label, *, stack=False):
+            # Entire emulator is fresh and owned. No real libraries/keys exist.
+            # Read only synthetic activity metadata, crash output and PNGs.
+            for name, tail in [('activity', ['shell', 'dumpsys', 'activity', 'top']),
+                               ('fatal', ['logcat', '-d', '-t', '500', '-s', 'AndroidRuntime:E'])]:
+                try:
+                    raw = command(prefix + tail, timeout=20).encode('utf-8')[:262144]
+                    (output / (label + '-' + name + '-diagnostic.txt')).write_bytes(raw)
+                except (OSError, ValueError, subprocess.SubprocessError):
+                    pass
+            try:
+                raw = command(prefix + ['exec-out', 'screencap', '-p'], timeout=20, binary=True)
+                valid_png(raw);(output / (label + '-synthetic-timeout.png')).write_bytes(raw)
+            except (OSError, ValueError, subprocess.SubprocessError):
+                pass
+            if stack:
+                try:
+                    pid = command(prefix + ['shell', 'pidof', APP], timeout=15).strip()
+                    require(bool(re.fullmatch(r'[0-9]+', pid)), 'Only the exact owned target process may be dumped')
+                    command(prefix + ['shell', 'kill', '-3', pid], timeout=15)
+                    # SIGQUIT writes Android's managed-thread dump under /data/anr.
+                    import time
+                    time.sleep(3)
+                    listing = command(prefix + ['shell', 'ls', '-t', '/data/anr'], timeout=15).splitlines()
+                    for name in listing[:2]:
+                        if re.fullmatch(r'anr_[A-Za-z0-9_.-]{1,100}', name):
+                            raw = command(prefix + ['exec-out', 'cat', '/data/anr/' + name], timeout=20, binary=True)
+                            if ('Cmd line: ' + APP + '\n').encode('ascii') in raw[:4096]:
+                                (output / (label + '-' + name + '-diagnostic.txt')).write_bytes(raw[:1048576])
+                except (OSError, ValueError, subprocess.SubprocessError):
+                    pass
         def probe(mode, filename):
             nonlocal stage
             stage = filename
-            text = command(prefix + ['shell', 'am', 'instrument', '-w', '-r', '-e', 'mode', mode, EXTRA + '/' + RUNNER], timeout=600)
+            stop = threading.Event()
+            observer = None
+            if args.diagnostic_only and mode == 'migrate':
+                def observe():
+                    if not stop.wait(60):
+                        capture_diagnostics('migrate-60s', stack=True)
+                observer = threading.Thread(target=observe, daemon=True)
+                observer.start()
+            try:
+                text = command(prefix + ['shell', 'am', 'instrument', '-w', '-r', '-e', 'mode', mode, EXTRA + '/' + RUNNER], timeout=180 if args.diagnostic_only and mode == 'migrate' else 600)
+            except subprocess.TimeoutExpired as exc:
+                raw = exc.stdout or b''
+                if isinstance(raw, str):
+                    raw = raw.encode('utf-8')
+                raw = raw[:1048576]
+                (output / (filename + '-probe.txt')).write_bytes(raw)
+                text = raw.decode('utf-8', errors='replace')
+                phases = re.findall(r'^INSTRUMENTATION_STATUS: qa_stage=([A-Za-z0-9_]{1,80})\s*$', text, re.M)
+                safe = {'mode': mode, 'exception': 'TimeoutExpired'}
+                if phases:
+                    safe['error_stage'] = phases[-1]
+                report['supplemental_failure'] = safe
+                print(json.dumps({'supplemental_failure': safe}))
+                capture_diagnostics(filename + '-timeout', stack=args.diagnostic_only)
+                raise
+            finally:
+                stop.set()
+                if observer:
+                    observer.join(timeout=60)
             (output / (filename + '-probe.txt')).write_text(text, encoding='utf-8', newline='\n')
             transcripts[filename + '-probe.txt'] = digest(text.encode('utf-8'))
             try:
@@ -270,6 +338,9 @@ def main():
         probe('credential_seed', 'credential_seed');restart();probe('credential_delete', 'credential_delete')
         if scope['full_engine_verified']:
             restart();probe('migrate', 'migrate');restart();probe('persisted', 'persisted')
+        if args.diagnostic_only:
+            report['diagnostic_completed'] = True
+            return 1  # Diagnostic-only runs can never become release evidence.
         report['supplemental'] = {'passed': True, 'modes': [x.removesuffix('-probe.txt') for x in transcripts], 'results': results,
                                   'migration': 'passed' if scope['full_engine_verified'] else 'requires_modern_webview',
                                   'complete_engine_export_restore_saf': 'passed' if scope['full_engine_verified'] else 'requires_modern_webview',

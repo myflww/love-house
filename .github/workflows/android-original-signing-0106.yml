@@ -72,6 +72,7 @@ jobs:
             build/android0106/*-probe.txt
             build/android0106/instrumentation.txt
             build/android0106/*.png
+            build/android0106/*-diagnostic.txt
           if-no-files-found: warn
           retention-days: 14
       - uses: actions/upload-artifact@v4

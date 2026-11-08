@@ -1,0 +1,24 @@
+{
+  "schema": "love-house-android-0106-extra-qa-signing/v1",
+  "qa_only": true,
+  "published": false,
+  "build_run": 42487090859,
+  "build_commit": "e386502219090ddbc9233030fb86bb8b5b37bd56",
+  "java_source_sha256": "255552d1a9748edef7a0bc6a376d820d3f235c2c684d1b28c7d1cbc3a8344675",
+  "source_input_sha256": "d4c982f3dc925af12cde2259bc4298b283bc39753c411e74d4139d5b1223afd2",
+  "bytes": 25140,
+  "sha256": "28c431916005c96afe3bdfd8dd6a2c8320f41fdee2b36005b115438630e753f4",
+  "certificate_sha256": "ca4b184194816fe3617feaa841e11b47f5a9a9a00493e8cbc015210c04a3a4cc",
+  "payload_preserved": true,
+  "identity": {
+    "package": "io.github.myflww.lovehouse.extraqa",
+    "version_code": "1",
+    "version_name": "1",
+    "min_sdk": [
+      "26"
+    ],
+    "target_sdk": [
+      "36"
+    ]
+  }
+}

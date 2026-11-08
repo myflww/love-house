@@ -47,4 +47,4 @@
 
 Windows 目标为 x64、Windows 10 2004+／Windows 11；macOS 包适用于 Apple Silicon、macOS 13.0+，采用 ad-hoc 签名，尚未公证。实际平台验收范围以发布验证文件为准。Android 已追加 [0.10.6rc1 原签名 APK](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-0.10.6rc1-Android.apk)，可从公开 0.8.0rc2 覆盖升级；64 位 ARM / x86、Android 8.0+，完整界面需 WebView 109+。API36 完整引擎与 API28 旧内核的不同验证范围见 [Android 说明](ANDROID-0106-UPDATE.md)及[独立验收报告](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/Android-0106-verification.json)。本次追加未更换原有 Windows、macOS、源码或校验资产；实验性 AstrBot 附件保持 0.3.0。
 
-升级前备份完整数据目录。[本版发布页](https://github.com/myflww/love-house/releases/tag/v0.10.6rc1)提供完整包、源码和校验值，匿名下载核验见附带的 `Public-download-verification.json`。
+升级前备份完整数据目录。[本版发布页](https://github.com/myflww/love-house/releases/tag/v0.10.6rc1)提供完整包、源码和校验值，桌面原始匿名下载核验见附带的 `Public-download-verification.json`；新增 Android APK 与三份附件的匿名逐字节复核见[安卓发布工作流](https://github.com/myflww/love-house/actions/runs/42488733437)。

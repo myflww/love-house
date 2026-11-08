@@ -1118,8 +1118,8 @@
     },
     {
       "path": "docs/release-0.10.6rc1.md",
-      "bytes": 6031,
-      "sha256": "31f1f106e96936cc8c907e87a2dae71da8a4c8bbf345f89c3a72659997090a39"
+      "bytes": 6193,
+      "sha256": "64a473df555635a4e84347229bafc7fcb6843843d87e0d638a0778546c8e9b39"
     },
     {
       "path": "docs/releases/v0.5.0-platform-notes.md",

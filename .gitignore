@@ -71,3 +71,15 @@ android/signing.properties
 
 # Verified Microsoft offline runtime used only by local packaging.
 /resources/runtime/
+
+# Local environment credentials and private keys (examples stay shareable).
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.sample
+!.env.*.sample
+!.env.template
+!.env.*.template
+*.pem
+*.key

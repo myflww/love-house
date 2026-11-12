@@ -45,7 +45,7 @@ class NeuralAtlasTests(unittest.TestCase):
             cwd=ROOT, capture_output=True, text=True, timeout=30,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("# pass 15", result.stdout)
+        self.assertIn("# pass 21", result.stdout)
 
 
 if __name__ == "__main__":

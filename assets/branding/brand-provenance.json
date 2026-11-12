@@ -1,0 +1,28 @@
+{
+  "schema": "love-house-brand-source/v1",
+  "master": "assets/branding/love-house-icon.png",
+  "sha256": "d102ba407cb2201d89b867e303867dde171da4dfa13d41e679863c8f71c48bc1",
+  "bytes": 719689,
+  "width": 1254,
+  "height": 1254,
+  "format": "PNG",
+  "color": "RGBA8",
+  "generation": {
+    "tool": "imagegen",
+    "transparent_background": true,
+    "referenced_images": false,
+    "prompt": "assets/branding/icon-prompt.txt",
+    "prompt_sha256": "d3c41dbedd56a0f43d5e850e953153192fd3fa3edbb056bcd04b47a65099e265",
+    "request_date": "2026-11-01"
+  },
+  "processing": "Copied byte-for-byte from the selected generated result; no pixel redraw or re-encoding.",
+  "uses": {
+    "web_header": "nkb/viz/web/index.html#houseBrandIcon",
+    "empty_memory_page": "Clones the same houseBrandIcon source",
+    "github_banner": "assets/branding/project-banner.svg#love-house-heart",
+    "macos_icon": "scripts/build_macos.py builds ICNS and AppIconSource.png from this master",
+    "windows_icon": "scripts/build_windows.py builds ICO from this master"
+  },
+  "previous_master_sha256": "0c52d4259a4dc20516d1a5ba6762cfe47e135be1cc577b1d83b30c46ddc763a9",
+  "historical_source_policy": "Earlier released tags retain their original branding; no user data or caches are changed."
+}

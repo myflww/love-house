@@ -38,8 +38,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 18904,
-      "sha256": "ad0e67c5e5a8b9c09ae6fd052e879c1be7213457e693b340f8c6ad5356820ffa"
+      "bytes": 19495,
+      "sha256": "f8eb916ecee166b01b0f9140d73490df52f52686c7ef0840ef3837aaaf8af586"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -63,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 17165,
-      "sha256": "03bf9f924953dcb749d9bba4266957f961f6cb4e5c8dabf3cd85b3bee582bff2"
+      "bytes": 22987,
+      "sha256": "f1169bf5897c225df554425eaaea882c035b9fcd240353355fc477c769e92948"
     },
     {
       "path": "ROADMAP.md",
@@ -77,19 +77,29 @@
       "sha256": "a33e1f11ef8a6144d0053ab2e65ef70bb8683196b31b9a989a070fa394103c0e"
     },
     {
+      "path": "assets/branding/brand-provenance.json",
+      "bytes": 1270,
+      "sha256": "57d90ec9335fb389853b10d90fcb22ea67d00223ae54dea12acdd2f9f931f537"
+    },
+    {
       "path": "assets/branding/icon-prompt.txt",
-      "bytes": 956,
-      "sha256": "7421c6754bdd2f96b3635b4395276409168c4dadbe9e95c2aa99bcde7ea2c7d4"
+      "bytes": 1220,
+      "sha256": "d3c41dbedd56a0f43d5e850e953153192fd3fa3edbb056bcd04b47a65099e265"
     },
     {
       "path": "assets/branding/love-house-icon.png",
-      "bytes": 1110130,
-      "sha256": "0c52d4259a4dc20516d1a5ba6762cfe47e135be1cc577b1d83b30c46ddc763a9"
+      "bytes": 719689,
+      "sha256": "d102ba407cb2201d89b867e303867dde171da4dfa13d41e679863c8f71c48bc1"
+    },
+    {
+      "path": "assets/branding/project-banner-0102.svg",
+      "bytes": 961197,
+      "sha256": "21a45c8e0186451c2651f2817670cb8ac64e8aa24fac7314eda708ac26fbace3"
     },
     {
       "path": "assets/branding/project-banner.svg",
-      "bytes": 1789,
-      "sha256": "ec58f634f804ae6295510b18fc00612a21aa818c5f6e95754709fb326bc60c92"
+      "bytes": 961197,
+      "sha256": "21a45c8e0186451c2651f2817670cb8ac64e8aa24fac7314eda708ac26fbace3"
     },
     {
       "path": "assets/fonts/README.md",
@@ -247,6 +257,21 @@
       "sha256": "fb098bfb75532f101f31a38e9a093e31c43c50bf1d83f4def3c463a8749f5c61"
     },
     {
+      "path": "assets/screenshots/love-house-connect-0102.png",
+      "bytes": 1348950,
+      "sha256": "8ffcb873eb65c900aa03db8a9d969c59f1bc1b67380076597bc3f6c86bf76f19"
+    },
+    {
+      "path": "assets/screenshots/love-house-overview-0102.png",
+      "bytes": 1402743,
+      "sha256": "520f94ea7aed3bd1bcf68914ca0f2b2b4e5d6ff208284bc9fc51ee24dcf1db66"
+    },
+    {
+      "path": "assets/screenshots/love-house-persona-0102.png",
+      "bytes": 594975,
+      "sha256": "7a18dc84b23c062597971eb4d9d62d515f1f9a2ba91d4aa7d530c8b898ee35fb"
+    },
+    {
       "path": "assets/screenshots/neural-flat-010.png",
       "bytes": 54500,
       "sha256": "c57fe84ee9c26f28b59bcc213b2cf16510b58c88a09a0286e920cc4308b3441b"
@@ -338,8 +363,8 @@
     },
     {
       "path": "desktop/AtlasApp.swift",
-      "bytes": 66406,
-      "sha256": "dd182cd19a66b6cc0886d7ead15acd38615cabbced4b63f36ca7d91790bb61b7"
+      "bytes": 71685,
+      "sha256": "09e1c7054989a2f3cbfe9dc9c3d4f95eb1bc508ccef2ca6eac292444ee5105bd"
     },
     {
       "path": "desktop/Icon.swift",
@@ -447,6 +472,16 @@
       "sha256": "ac8f59050e23c0198a7adefd497bec48d43bf8d6310495ee9db6eefa256f6972"
     },
     {
+      "path": "docs/MACOS-0102-HANDOFF.md",
+      "bytes": 7677,
+      "sha256": "4ea472399dc7fb091b89636d2f01a5bffd5a73fd43a58888c7eb3d4a72c9d232"
+    },
+    {
+      "path": "docs/MACOS-0102-UPDATE.md",
+      "bytes": 3793,
+      "sha256": "8a40c52bd3c948ef74d593e90d1985064382053a42d401e2070cca44d7cf9b7c"
+    },
+    {
       "path": "docs/MACOS-060-HANDOFF.md",
       "bytes": 3825,
       "sha256": "2941434727bbb4b8d6a73a13a794e7207986951f9327915c84a7b4f09efe49a4"
@@ -497,6 +532,16 @@
       "sha256": "f4220e86d09b404bfbafcf2b9e8374a881d21171572c3580e97d28459d06963b"
     },
     {
+      "path": "docs/ReleaseNotes-0.10.1rc1-Windows.md",
+      "bytes": 5423,
+      "sha256": "b495d8f65a1edbfdc8d891e7633a4e63789dd9f23995b6d995cdc1af038de54e"
+    },
+    {
+      "path": "docs/ReleaseNotes-0.10.2rc1-Windows.md",
+      "bytes": 4806,
+      "sha256": "58d4e45916a3e562f78cb438ebae88822de57afb0bf96a2f809049a5eb9f6303"
+    },
+    {
       "path": "docs/ReleaseNotes-0.9.0-macOS.md",
       "bytes": 1727,
       "sha256": "af00cc15a58e58bf3b9f6f1e6aab71b46174f8ef55a514a9ae8bc1d3049e4a4f"
@@ -515,6 +560,21 @@
       "path": "docs/WINDOWS-0101-HANDOFF.md",
       "bytes": 2601,
       "sha256": "77132986f1d242e5d8b1467e0e3a5cc8905ac43c6402500e6c304fb4a918039f"
+    },
+    {
+      "path": "docs/WINDOWS-0101-UPDATE.md",
+      "bytes": 8975,
+      "sha256": "26daa5ccb8b060d6a3916a2151015d2e137c4e6fe1d2b7ccb58d251c88449d50"
+    },
+    {
+      "path": "docs/WINDOWS-0102-BRANDING-HANDOFF.md",
+      "bytes": 1841,
+      "sha256": "52897e51511dcd67f6f8b0e32a996899bad0c3f3916b329d2fabad67a9261cba"
+    },
+    {
+      "path": "docs/WINDOWS-0102-UPDATE.md",
+      "bytes": 5915,
+      "sha256": "5b57d7daa2338cd20d4587ab7ee26e10508bdf5feb03a555518b98d4c5c80766"
     },
     {
       "path": "docs/WINDOWS-090-HANDOFF.md",
@@ -538,8 +598,8 @@
     },
     {
       "path": "docs/下载与系统支持.md",
-      "bytes": 5919,
-      "sha256": "6aff2e02467fefb0dda1289d7377b357ee12f51c75ddb5ebd45f537bd59539ed"
+      "bytes": 12650,
+      "sha256": "7bdb5c63f365d2d0d64f34c99c5a4fb4c84c94666e4f08cd75146eee73c476c0"
     },
     {
       "path": "docs/发布与许可.md",
@@ -643,8 +703,8 @@
     },
     {
       "path": "extensions/astrbot-love-house/README.md",
-      "bytes": 12576,
-      "sha256": "b1bd4e80a07235d2861e187c5307ce52d96844743f0460c8e9cc6b20c25e172d"
+      "bytes": 16228,
+      "sha256": "99e8e0813977ed72ba0ec056b3474f57b3302776418b9925e210732db1f34c9d"
     },
     {
       "path": "extensions/astrbot-love-house/__init__.py",
@@ -658,23 +718,23 @@
     },
     {
       "path": "extensions/astrbot-love-house/bridge.py",
-      "bytes": 17230,
-      "sha256": "5125597db1c634844bfa99a33235ea13864320ed128b22468ec409e3f1571088"
+      "bytes": 17744,
+      "sha256": "3fa3770c0762fc53b98b14f128ad50fee87cc629f2edf3f350b0ee97dc9f84d1"
     },
     {
       "path": "extensions/astrbot-love-house/main.py",
-      "bytes": 15204,
-      "sha256": "0cd056a3f48db5363e25fb5c6a846c814504cdd7c5e503fe05f03ee686a91f9a"
+      "bytes": 17972,
+      "sha256": "5eaf1f2152541cbef9825c29f4b7ce216f47403a3bad4950e361ecb0a53487ba"
     },
     {
       "path": "extensions/astrbot-love-house/metadata.yaml",
       "bytes": 359,
-      "sha256": "2519e5c68dbb4ee18d5b2cfb25a9eb0d32a04c48b3b38727271d7020f097c125"
+      "sha256": "7dad7a4e19040ffb4c131d24095bfd0b65cc1550dd0aea38c8f48ec68efcf925"
     },
     {
       "path": "extensions/astrbot-love-house/package.py",
       "bytes": 4632,
-      "sha256": "39d794965f292060727187db4c22d6873c458cdf15416260030aa154222a0397"
+      "sha256": "0065d41c1c3aea6b73f09272af50df77efb08698f8ae4fb9f1f6de21b8416ed0"
     },
     {
       "path": "extensions/astrbot-love-house/source_client.py",
@@ -799,7 +859,7 @@
     {
       "path": "nkb/_version.py",
       "bytes": 23,
-      "sha256": "bfb1b2a7cf6e985cc3b58e39b538c2757a999d0d91374d4089b75837112fc58a"
+      "sha256": "03f00046ab714ce8ff0104e98e980ec4dc7e50e062a39c1815f6769ab74c29fb"
     },
     {
       "path": "nkb/adapters/__init__.py",
@@ -1062,6 +1122,11 @@
       "sha256": "1fc97e5a9368b3cc59962cf1dbc3a90d7f795833cf64d74f12df2079d5ae24de"
     },
     {
+      "path": "nkb/service/astrbot_setup.py",
+      "bytes": 4658,
+      "sha256": "f99a61c78e4c94161fc55aaca7fd423087dbcbb6966829aff77233702e9be72b"
+    },
+    {
       "path": "nkb/service/backups.py",
       "bytes": 7015,
       "sha256": "ab4cf34bb14f233138f044c60f043be884f3141d50a86f003bfc722fb2b569dd"
@@ -1128,8 +1193,8 @@
     },
     {
       "path": "nkb/service/host.py",
-      "bytes": 87343,
-      "sha256": "2482d240c3a97e79d3cb5436f7b0da9eaa1c956119d04cf61f2e5593b0c79ce2"
+      "bytes": 89845,
+      "sha256": "7fb8b12e646cafb4576de4a898de87fa892c41d13c5f64c770d42048e730a119"
     },
     {
       "path": "nkb/service/providers.py",
@@ -1233,8 +1298,8 @@
     },
     {
       "path": "nkb/viz/art/approved-atlas-renderer.js",
-      "bytes": 12509,
-      "sha256": "4ccd0231945f684632cfba9a9e80c1c09f7b839b4861590eb51afe436fe0277a"
+      "bytes": 16728,
+      "sha256": "851d819b7c7f0fc31e1e2f2529fea637e7397384540a75fa9b36f5df0324aab4"
     },
     {
       "path": "nkb/viz/art/build.mjs",
@@ -1248,8 +1313,8 @@
     },
     {
       "path": "nkb/viz/art/neural-art.bundle.js",
-      "bytes": 567061,
-      "sha256": "b2763b1e7a8888dde651afa6b0d2d6f2fdd671c9d7fba0dd1921f9fdc80182fa"
+      "bytes": 569767,
+      "sha256": "826fe21e495bb350423e7a787b6af1f9401b66934dace59344dc1d1c64372fdc"
     },
     {
       "path": "nkb/viz/art/neural-art.js",
@@ -1288,8 +1353,8 @@
     },
     {
       "path": "nkb/viz/web/agent-sources-ui.js",
-      "bytes": 15100,
-      "sha256": "841360d434d662bde16d90b401ca6983f311f567b31c7fac74537632a990b9f7"
+      "bytes": 24095,
+      "sha256": "29f4b04ee04815e6905a413f83714722863f2e8ff281f6dea7f1f1bfefe25c4f"
     },
     {
       "path": "nkb/viz/web/button-hints.js",
@@ -1318,8 +1383,8 @@
     },
     {
       "path": "nkb/viz/web/index.html",
-      "bytes": 1695170,
-      "sha256": "ea899b78510534355056854fc90381e4669b61fc2486be20c3e25aa1027b2bc6"
+      "bytes": 1174582,
+      "sha256": "568348c68157857899c3eb5c0ac61f5bdfeb28fc96e79130b2708d3b4582b850"
     },
     {
       "path": "nkb/viz/web/library-manager-ui.js",
@@ -1333,8 +1398,8 @@
     },
     {
       "path": "nkb/viz/web/memory-organizer-ui.js",
-      "bytes": 24586,
-      "sha256": "5148c0537b809d22f54385cd5b78d42313f8f568b32f78cbf0fb1e1f0114eb8b"
+      "bytes": 34560,
+      "sha256": "9fbd4e324066a0e1df2193ac48d36140d3e84c4ea2911ec68a3b258ac74726c3"
     },
     {
       "path": "nkb/viz/web/memory-portability-ui.js",
@@ -1379,12 +1444,17 @@
     {
       "path": "scripts/build_macos.py",
       "bytes": 36774,
-      "sha256": "b761e5e7fabc7528c7dba2da3ee5bfd053796a26bc4fba55fabb1896cb03447b"
+      "sha256": "1c45b3a3e38f695f60ac95461c8680cdaa4681ff6716e9e28bc64e2d4901edc6"
     },
     {
       "path": "scripts/build_windows.py",
       "bytes": 10079,
       "sha256": "386282f6ea920b794d7bbb59deb711d92f96a63ec6a54141304677d8ac49c625"
+    },
+    {
+      "path": "scripts/check_branding.py",
+      "bytes": 4942,
+      "sha256": "1d21e8f537fc71d90361ce99b4dcdff1c2c2e2b34ad43dd4a202dade459f54b9"
     },
     {
       "path": "scripts/configure_agent_source.py",
@@ -1403,8 +1473,8 @@
     },
     {
       "path": "scripts/prepare_public_release.py",
-      "bytes": 13393,
-      "sha256": "0153b80d6e1df9fdd0f4d358b58ac88907c402af6526f900d9f698eeff42924a"
+      "bytes": 16955,
+      "sha256": "9c9735a2c509d51541d2c6e34c2e275ee3130ed81c5dbbe3697e821aecec3e72"
     },
     {
       "path": "scripts/run_memory_service.py",
@@ -1428,8 +1498,8 @@
     },
     {
       "path": "tests/js/agent-sources-ui.test.cjs",
-      "bytes": 14427,
-      "sha256": "e82994b798c94bf999c5ae1cc13cb028e2803ae9f734379a4c5e195dda876c57"
+      "bytes": 21239,
+      "sha256": "5ead309bfb63ef96330e5fbc726e0cbeb8428588b024a07d5e54f1d1235fbf88"
     },
     {
       "path": "tests/js/approved-atlas-painter.test.mjs",
@@ -1438,8 +1508,8 @@
     },
     {
       "path": "tests/js/approved-atlas-renderer.test.mjs",
-      "bytes": 10442,
-      "sha256": "da5feae965c3d52cfe7dc123034d0a85c0b92eab1c44e07e7d2bbb4ad1c2df85"
+      "bytes": 17592,
+      "sha256": "f78a338db95d8d6f5f5d33a59341fea584ff6ff84b4a7faad5ed82932b44b24d"
     },
     {
       "path": "tests/js/button-hints.test.cjs",
@@ -1482,14 +1552,19 @@
       "sha256": "386000a9a4782fd7f8c83d75aafeac2fa741454282d0fd986788f7cd8b03666c"
     },
     {
+      "path": "tests/js/organizer-configuration-ui.test.cjs",
+      "bytes": 9880,
+      "sha256": "6bbb0b217e5d765e8c42747b58b53d22bf327a70613c7470b60e1dba11482759"
+    },
+    {
       "path": "tests/js/organizer-rules-ui.test.cjs",
       "bytes": 2083,
       "sha256": "b732c97ef15454b2ece035617793ac7520988083ac41238eac9e862962f1d55d"
     },
     {
       "path": "tests/js/persona-growth-ui.test.cjs",
-      "bytes": 19497,
-      "sha256": "60050dd32043ec1b18a4952bb0315b5aa6e8d9a8a4032f54bd130156ae05830f"
+      "bytes": 19556,
+      "sha256": "0c357bfb97b82f3fab4f57608f4fa9b551f95bb5ee6d6a0c88933113c4e0576b"
     },
     {
       "path": "tests/js/retention-ui.test.cjs",
@@ -1538,8 +1613,8 @@
     },
     {
       "path": "tests/test_agent_source_service.py",
-      "bytes": 16396,
-      "sha256": "7efab6c0e0b9289154182c2eb148cc162aaa8d479c19e237e3d2a46e032af6e9"
+      "bytes": 22079,
+      "sha256": "f38a5ea33cf110d8aeab93ab793a8d2c0c13ea26ec7061ecdf369fe603e7fdeb"
     },
     {
       "path": "tests/test_agent_sources.py",
@@ -1568,8 +1643,8 @@
     },
     {
       "path": "tests/test_astrbot_adapter.py",
-      "bytes": 50578,
-      "sha256": "6f8f5bec54a85a9cc0b4bc5fe2086f880782589eea295a9a1baa23b2f9085c13"
+      "bytes": 58242,
+      "sha256": "56fbcc2516cef9ff2890662194095fa0711de4a5ac4b115be9f180c4e0458f47"
     },
     {
       "path": "tests/test_button_hints.py",
@@ -1719,7 +1794,7 @@
     {
       "path": "tests/test_neural_atlas.py",
       "bytes": 2305,
-      "sha256": "47575987169a70ad65fbe5e722ea71b4f21f81094b98867f9347e3dd3d5db973"
+      "sha256": "00ff451e2449088497bb2afd7f263bad11e13d22700a4a77be8ad1b081c46a52"
     },
     {
       "path": "tests/test_node_visibility.py",
@@ -1750,6 +1825,11 @@
       "path": "tests/test_organizer_configuration_repair.py",
       "bytes": 15172,
       "sha256": "d5121073519d16e83c85d2b3fe5e6154460b77cd61db6798e70ce6952f7adc2f"
+    },
+    {
+      "path": "tests/test_organizer_configuration_status.py",
+      "bytes": 7272,
+      "sha256": "74fa8a5aeec5382de670fefea38edc68a1645ff5e270c27d0924a620d2ca1d12"
     },
     {
       "path": "tests/test_organizer_rules.py",
@@ -1818,8 +1898,8 @@
     },
     {
       "path": "tests/test_public_release.py",
-      "bytes": 8291,
-      "sha256": "50fb6ffc501a6966bb296a183e475a3bceee06d737fff088882f3252bf3434df"
+      "bytes": 12194,
+      "sha256": "c2965f18b5eb0edde317be6f8394ca7f53f18b4db5dc18fe68d2f0869ca4c10e"
     },
     {
       "path": "tests/test_recording_dedup.py",

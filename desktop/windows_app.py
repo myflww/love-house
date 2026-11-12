@@ -11,7 +11,6 @@ import sys
 import tempfile
 import threading
 import time
-from http.server import ThreadingHTTPServer
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
@@ -19,6 +18,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parent))
 from nkb._version import __version__
 from nkb.core.atlas import atlas_brain
 from nkb.service.host import MemoryHost,make_controller
+from nkb.service.httpd import LoopbackHTTPServer as ThreadingHTTPServer
 from nkb.service.credentials import KeyStore
 from nkb.storage.jsonfile import JsonFileStorage
 from windows_diagnostics import (WEBVIEW2_URL,AlreadyRunning,StartupLog,WebView2Unavailable,
@@ -154,6 +154,7 @@ class ControllerRuntime:
         self.lock.acquire()
         try:
             self.host=MemoryHost(self.root,key_store=KeyStore(allow_source_build=False,allow_keychain=not self.testing))
+            if self.testing:self.host.updates.settings({'auto_check':False})
             example=self.root/'framework-example.brain.json'
             if not self.host.manager.demo_suppressed:
                 if not example.exists():atlas_brain(example).save()
@@ -169,7 +170,7 @@ class ControllerRuntime:
             self.server.daemon_threads=False;self.host.controller_port=self.server.server_port
             self.url='http://127.0.0.1:'+str(self.server.server_port)+'/'
             self.thread=threading.Thread(target=self.server.serve_forever,kwargs={'poll_interval':.1},daemon=True);self.thread.start()
-            state={'pid':os.getpid(),'controller_port':self.server.server_port,'port':self.server.server_port,
+            state={'pid':os.getpid(),'controller_instance_id':self.host.instance_id,'controller_port':self.server.server_port,'port':self.server.server_port,
                    'personal_port':self.server.server_port,'service_version':'0.4.0','name':'爱之屋记忆服务'}
             JsonFileStorage(self.ready).save(state)
             JsonFileStorage(self.root/'controller-state.json').save({'controller_port':self.server.server_port,'service_version':'0.4.0'})
@@ -218,7 +219,7 @@ def atomic_export(path,data):
 
 class NativeAPI:
     def __init__(self,url):self._url=url;self._window=None;self._saving=threading.Lock()
-    def platform_info(self):return {'platform':'windows','native':True,'renderer':'WebView2','version':__version__,'harness_supported':False}
+    def platform_info(self):return {'platform':'windows','native':True,'renderer':'WebView2','version':__version__,'harness_supported':True}
     def save_memory_file(self,filename,content):
         if not self._saving.acquire(False):return {'saved':False,'cancelled':False,'error':'另一个保存窗口尚未关闭。'}
         try:
@@ -278,6 +279,22 @@ def write_diagnostics(data_dir,log):
     raise OSError('diagnostics could not be written')
 
 
+def require_smoke_turn_saved(host,library_id,user,assistant,*,timeout=10):
+    """A queue ACK is intermediate; verify the exact second-party roles in its fixed library.
+
+    The desktop retry worker can deliver a file before the submitting process
+    drains its own snapshot. That valid race must not turn a saved turn into a
+    failed smoke, nor may an unsaved queue entry be reported as success.
+    """
+    deadline=time.monotonic()+timeout
+    while True:
+        nodes=host.snapshot(library_id)['nodes']
+        if any(node.get('text')==user and node.get('meta',{}).get('source')=='conversation_turn'
+               and node.get('meta',{}).get('assistant_reply')==assistant for node in nodes.values()):return
+        if time.monotonic()>=deadline:raise AssertionError('Exact hook roles were not saved in the bound library')
+        time.sleep(.05)
+
+
 def backend_smoke(report):
     """No GUI/model/real credentials: verify controller, original sharing and restart."""
     import subprocess
@@ -286,9 +303,27 @@ def backend_smoke(report):
         root=Path(directory);runtime=ControllerRuntime(root/'data',testing=True).start()
         try:
             cfg=runtime.host.new_connection({'host':'agent','name':'FAKE Windows Agent','library_id':'default'})
+            from nkb.service.host import local_json
+            latest={'retention':local_json(runtime.server.server_port,'/api/retention'),
+                    'rules':local_json(runtime.server.server_port,'/api/organizer/rules'),
+                    'sources':local_json(runtime.server.server_port,'/api/agent/sources'),
+                    'experiences':local_json(runtime.server.server_port,'/api/experiences'),
+                    'updates':local_json(runtime.server.server_port,'/api/updates'),
+                    'handoff':local_json(runtime.server.server_port,'/api/memory/handoff',{'profile':'S'})}
+            assert latest['retention']['mode']=='adaptive'
+            assert runtime.host.snapshot('default')['config']['max_nodes'] is None
+            assert latest['rules']['read_only'] and latest['rules']['guidance']
+            assert latest['sources']['agent_id']=='default' and latest['experiences']['read_only']
+            assert latest['updates']['current_version']==__version__ and not latest['updates']['settings']['auto_check']
+            assert latest['handoff']['read_only']
+            plugin=runtime.host.astrbot_package()
+            assert plugin.startswith(b'PK'), 'Reviewed AstrBot source package missing'
             client=AgentClient(cfg['private_path'])
             assert client.status()['connected']
-            assert client.submit_hook({'session_id':'fake-window','turn_id':'one','user':'假数据：我不喜欢被曲解。','assistant':'这是完整的助手原话。','status':'complete'})['saved']
+            first={'session_id':'fake-window','turn_id':'one','user':'假数据：我不喜欢被曲解。','assistant':'这是完整的助手原话。','status':'complete'}
+            receipt=client.submit_hook(first)
+            assert receipt.get('saved') or receipt.get('local_queue_committed')
+            require_smoke_turn_saved(runtime.host,'default',first['user'],first['assistant'])
             boot=client.tool('memory_bootstrap',{});assert boot['total_memories']==1
             page=client.tool('memory_list',{});nid=page['entries'][0]['id']
             assert client.tool('memory_read',{'memory_id':nid})['text']=='假数据：我不喜欢被曲解。'
@@ -311,7 +346,10 @@ def backend_smoke(report):
                 assert rows[2]['result']['structuredContent']['identity']['library_id']=='default'
                 hook=cfg['hook_config'];fake={'session_id':'fake-window','turn_id':'two','user':'假数据：第二条实际原文','assistant':'第二条实际回复','status':'complete'}
                 got=subprocess.run([hook['command'],*hook['args']],input=json.dumps(fake),capture_output=True,text=True,encoding='utf-8',timeout=30)
-                assert got.returncode==0 and json.loads(got.stdout)['saved']
+                assert got.returncode==0
+                receipt=json.loads(got.stdout)
+                assert receipt.get('saved') or receipt.get('local_queue_committed')
+                require_smoke_turn_saved(runtime.host,'default',fake['user'],fake['assistant'])
             expected=runtime.host.snapshot('default');port=runtime.server.server_port
         finally:runtime.stop()
         assert not runtime.ready.exists()
@@ -320,7 +358,7 @@ def backend_smoke(report):
             assert runtime.server.server_port==port and runtime.host.snapshot('default')==expected
         finally:runtime.stop()
         result={'ok':True,'version':__version__,'controller':'passed','stdio_and_hook':'passed' if getattr(sys,'frozen',False) else 'source-only',
-                'sharing_roundtrip':'passed','restart':'passed','real_model_calls':0,'real_credentials_accessed':False}
+                'sharing_roundtrip':'passed','restart':'passed','latest_feature_apis':'passed','astrbot_source_package':'passed','real_model_calls':0,'real_credentials_accessed':False}
     result.update(phase='complete',process_complete=True,cleanup={'status':'removed','isolated':True})
     smoke_report(report,result)
     return result
@@ -380,10 +418,10 @@ def run_window(data_dir,*,smoke=False,report=None,result=None,log=None,visible=F
                 try:
                     ready=threading.Event();box={}
                     def received(value):box['value']=value;ready.set()
-                    window.evaluate_js("(async()=>{const h=await(await fetch('/api/health')).json();const l=await(await fetch('/api/libraries')).json();const gl=document.createElement('canvas').getContext('webgl2');return {health:h,library_count:l.libraries.length,title:document.title,save_bridge:typeof window.pywebview.api.save_memory_file==='function',graph:!!document.querySelector('canvas'),webgl:!!gl};})()",received)
+                    window.evaluate_js("(async()=>{const h=await(await fetch('/api/health')).json();const l=await(await fetch('/api/libraries')).json();const gl=document.createElement('canvas').getContext('webgl2');return {health:h,library_count:l.libraries.length,title:document.title,save_bridge:typeof window.pywebview.api.save_memory_file==='function',graph:!!document.querySelector('canvas'),webgl:!!gl,latest_controls:['memoryRetentionDialog','organizerRulesBtn','dialogueImportDialog','windowHandoffBtn','checkForUpdates','agentSourcesDialog','experienceTimelineDialog'].every(id=>!!document.getElementById(id))};})()",received)
                     assert ready.wait(45),'WebView2 JS response timed out'
                     value=box['value'];assert value['health']['ok'] and value['health']['version']==__version__
-                    assert value['save_bridge'] and value['graph'] and value['webgl'],value
+                    assert value['save_bridge'] and value['graph'] and value['webgl'] and value['latest_controls'],value
                     result.update(ok=True,webview=value,phase='native_checks_passed')
                 except Exception as exc:result.update(failure=smoke_failure(exc),phase='native_checks_failed')
                 finally:window.destroy()

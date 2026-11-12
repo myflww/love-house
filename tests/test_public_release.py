@@ -11,6 +11,11 @@ spec.loader.exec_module(release)
 
 
 class PublicReleaseTests(unittest.TestCase):
+    def test_astrbot_plugin_exports_only_reviewed_source_not_runtime_configuration(self):
+        for name in ('main.py','bridge.py','source_client.py','metadata.yaml','_conf_schema.json','README.md','LICENSE','package.py','__init__.py'):
+            self.assertTrue(release.is_allowed(Path('extensions/astrbot-love-house')/name),name)
+        for name in ('settings.json','private-source.json','data/events.json','outbox/event.json','capture.sqlite3'):
+            self.assertFalse(release.is_allowed(Path('extensions/astrbot-love-house')/name),name)
     def seed(self, root):
         for name, value in {
             'LICENSE': '# PolyForm Noncommercial License 1.0.0\n',

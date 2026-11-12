@@ -263,9 +263,22 @@ def learn_from_dialogue(brain):
         return {"changed": False, "reason": "learning_disabled", "revision": state["revision"]}
     ignored = set(state.get("learning_ignored_ids", []))
     from .dedup import is_duplicate
-    turns = [n for n in brain.export()["nodes"] if n.get("recoverable") and not is_duplicate(n,brain)
-             and n.get("meta", {}).get("source") == "conversation_turn"
-             and n["id"] not in ignored and isinstance(n["meta"].get("assistant_reply"), str)][-100:]
+    # Export builds a complete visualization, including copied text/edges and
+    # state for unrelated nodes.  Learning needs only the last 100 eligible raw
+    # turns in insertion order.  Check live lifecycle state before using them,
+    # preserving the same disabled/future/superseded/recovery rules as export.
+    stamp, turns = now(), []
+    for node in reversed(brain.nodes.values()):
+        meta = node.get("meta", {})
+        if (meta.get("source") != "conversation_turn" or node["id"] in ignored
+                or not isinstance(meta.get("assistant_reply"), str)):
+            continue
+        if not brain._node_state(node, stamp)["recoverable"] or is_duplicate(node, brain):
+            continue
+        turns.append(node)
+        if len(turns) == 100:
+            break
+    turns.reverse()
     matches = {}
     for node in turns:
         for line in node["text"].splitlines():

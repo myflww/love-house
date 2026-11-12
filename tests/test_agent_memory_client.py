@@ -86,6 +86,17 @@ class AgentMemoryClientTests(unittest.TestCase):
   self.assertIn('真实用户原话',pending[0].read_text());self.assertNotIn(TOKEN,pending[0].read_text())
   service=self.start_service();self.assertEqual(self.client.drain()['pending'],0);self.assertEqual(len(service.receipts),1)
   replay=self.client.submit_hook(self.turn());self.assertTrue(replay['saved']);self.assertTrue(replay['duplicate']);self.assertEqual(len(service.receipts),1)
+ def test_peer_draining_before_submitter_receipt_is_a_queue_state_not_data_loss(self):
+  service=self.start_service();peer=self.new_client();enqueue=self.client._enqueue
+  def delivered_by_peer(event):
+   key=enqueue(event);self.assertEqual(peer.drain()['pending'],0);return key
+  with patch.object(self.client,'_enqueue',side_effect=delivered_by_peer):
+   result=self.client.submit_hook(self.turn('peer-won-delivery'))
+  self.assertTrue(result['local_queue_committed']);self.assertFalse(result['saved'])
+  self.assertEqual(result['pending'],0);self.assertEqual(len(service.receipts),1)
+  received=next(iter(service.receipts.values()))['event']['normalized']
+  self.assertEqual((received['user'],received['assistant']),('真实用户原话','真实助手原话'))
+
  def test_background_reconnect_finds_changed_port_without_changing_agent_or_gui_binding(self):
   receipts={};self.client.start();self.client.submit_hook(self.turn('before'))
   first=self.start_service(receipts=receipts);self.wait_for(lambda:self.client.pending_count()==0)
@@ -148,7 +159,11 @@ class AgentMemoryClientTests(unittest.TestCase):
   with self.assertRaises(AgentConnectionError) as caught:self.client.submit_hook({**self.turn(),'assistant':'不同的回复'})
   self.assertEqual(caught.exception.code,'event_conflict');self.assertEqual(self.client.pending_count(),1)
  def test_redirect_and_environment_proxy_cannot_transmit_memory_elsewhere(self):
-  target=self.start_service();source=self.start_service(redirect=f'http://127.0.0.1:{target.port}/steal')
+  # The redirect/proxy target is not a discoverable memory controller.
+  # Registering both as the same credential/PID makes coarse Windows mtimes
+  # choose the target directly instead of exercising the redirect boundary.
+  target=LocalMemoryService();self.services.append(target)
+  source=self.start_service(redirect=f'http://127.0.0.1:{target.port}/steal')
   with patch.dict(os.environ,{'HTTP_PROXY':f'http://127.0.0.1:{target.port}','ALL_PROXY':f'http://127.0.0.1:{target.port}'}):
    result=self.new_client().submit_hook(self.turn())
   self.assertFalse(result['saved']);self.assertEqual(target.posts,[]);self.assertEqual(self.client.pending_count(),1)

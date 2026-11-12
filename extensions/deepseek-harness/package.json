@@ -21,7 +21,8 @@
     "configure.py",
     "README.md",
     "samples",
-    "host-contract.json"
+    "host-contract.json",
+    "host-contract-fingerprints.json"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",

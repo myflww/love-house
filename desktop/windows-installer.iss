@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.5.1rc1"
+  #define AppVersion "0.8.0rc1"
 #endif
 #ifndef BundleDir
   #define BundleDir "..\dist\windows\LoveHouse"

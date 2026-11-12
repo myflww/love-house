@@ -47,7 +47,7 @@ def reflect(brain: Brain, *, min_cluster: int = 3, max_new: int = 2,
             continue
         if len(created) >= max_new:
             break
-        if len(brain.nodes) >= brain.config.max_nodes:
+        if brain.config.max_nodes is not None and len(brain.nodes) >= brain.config.max_nodes:
             # 反思是一项巩固任务，不能为了归纳而驱逐自己的来源成员。
             skipped.append(tag)
             skip_reasons.append({"tag": tag, "reason": "capacity_limit",

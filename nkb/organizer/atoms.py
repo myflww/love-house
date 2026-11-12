@@ -12,7 +12,7 @@ SCHEMA = 'love-house-memory-atom/v1'
 _WORD = re.compile(r'^[\w.:-]{1,120}$', re.UNICODE)
 _NEGATIVE = re.compile(r'不喜欢|不再|从不|没有|不是|不住|不在|不想|不希望|不同意|不能|不愿|\b(?:not|never|no longer|don\'t|doesn\'t|isn\'t|can\'t|won\'t)\b',re.I)
 _COMPLEX = re.compile(r'但是|不过|然而|并非|不是不|\b(?:but|however|unless)\b',re.I)
-_ROLE = {'user':'user','用户':'user','使用者':'user','我':'user','agent':'agent','assistant':'agent','助手':'agent','代理':'agent','tool':'tool','工具':'tool'}
+_ROLE = {'user':'user','用户':'user','使用者':'user','我':'user','agent':'agent','assistant':'agent','助手':'agent','代理':'agent','tool':'tool','工具':'tool','platform_participant':'platform_participant'}
 
 
 def _text(value, maximum, name):
@@ -31,8 +31,10 @@ def normalize_atom(op):
     supplied=op.get('atom')
     evidence=op['evidence']
     role='user' if any(e['role']=='user' for e in evidence) else 'tool' if op.get('observation') else 'agent'
+    external=role=='user' and any(e['role']=='user' and e.get('participant_scope')=='external_participant' for e in evidence)
+    default_subject='platform_participant' if external else role
     if supplied is None:
-        return {'subject':role,'predicate':op['key'],'value':op['verbatim_text'] or '\n'.join(e.get('context',e['quote']) for e in evidence)[:2000],
+        return {'subject':default_subject,'predicate':op['key'],'value':op['verbatim_text'] or '\n'.join(e.get('context',e['quote']) for e in evidence)[:2000],
                 'qualifiers':{'polarity':'unknown'},'relation_status':'verbatim_fallback'},False
     if not isinstance(supplied,dict) or set(supplied)-{'subject','predicate','value','qualifiers'}:
         raise OrganizerError('机器记录只允许subject/predicate/value/qualifiers','invalid_atom')
@@ -48,6 +50,7 @@ def normalize_atom(op):
     if canonical_subject is None and not any(subject in c for c in contexts):
         raise OrganizerError('机器主语不属于证据实体或固定角色','invalid_atom')
     subject=canonical_subject or subject
+    if external and subject=='user':subject='platform_participant'
     qualifiers=supplied.get('qualifiers',{})
     if not isinstance(qualifiers,dict) or set(qualifiers)-{'polarity','scope','unit'}:
         raise OrganizerError('机器限定项只允许polarity/scope/unit；时间由程序记录','invalid_atom')
@@ -73,7 +76,7 @@ def source_references(evidence):
     result=[];seen=set()
     for e in evidence:
         if not isinstance(e,dict) or not isinstance(e.get('id'),str):continue
-        ref={k:deepcopy(e[k]) for k in ('id','role','receipt_id','source_event_at') if k in e}
+        ref={k:deepcopy(e[k]) for k in ('id','role','receipt_id','source_event_at','participant_scope','participant_id') if k in e}
         key=json.dumps(ref,ensure_ascii=False,sort_keys=True)
         if key not in seen:seen.add(key);result.append(ref)
     return result
@@ -89,13 +92,18 @@ def atom_signature(atom):
     return sha256(json.dumps(material,ensure_ascii=False,sort_keys=True,allow_nan=False).encode()).hexdigest()
 
 
+def evidence_event_at(evidence):
+    """Unknown historical time stays unknown, rather than becoming organize time."""
+    stamps=[e.get('source_event_at') for e in evidence if isinstance(e,dict) and isinstance(e.get('source_event_at'),(int,float))
+            and not isinstance(e.get('source_event_at'),bool) and math.isfinite(e['source_event_at'])]
+    return max(stamps) if stamps else None
+
+
 def make_atom(op,node,library_id,sources=None):
     atom=deepcopy(op.get('atom') or normalize_atom(op)[0])
     refs=source_references(sources if sources is not None else op['evidence'])
-    stamps=[e.get('source_event_at') for e in refs if isinstance(e.get('source_event_at'),(int,float))
-            and not isinstance(e.get('source_event_at'),bool) and math.isfinite(e['source_event_at'])]
     atom.update(schema=SCHEMA,library_id=library_id,layer=node.get('meta',{}).get('organizer_layer',op['layer']),key=op['key'],
                 domain=op['domain'],certainty=op['certainty'],valid_from=node['valid_from'],valid_to=node.get('valid_to'),
-                event_at=max(stamps) if stamps else node.get('event_at'),recorded_at=node['created'],evidence=refs)
+                event_at=evidence_event_at(refs),recorded_at=node['created'],evidence=refs)
     if node.get('meta',{}).get('evidence_scope')=='tool_observation':atom['outcome']=node['meta'].get('outcome','observed')
     return atom

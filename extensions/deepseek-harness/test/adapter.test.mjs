@@ -10,9 +10,10 @@ import { Context } from '@deepseek-ai/cordis';
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session';
 import { createUserMessage, createAssistantMessage } from '@deepseek-ai/dsh-llm';
 
+const hostVersion = process.env.LOVE_HOUSE_HARNESS_TEST_VERSION || '0.2.1-rc.3';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function eventually(check) { for (let i=0;i<80;i++) { if(check())return; await sleep(25); } assert.ok(check(), 'condition not reached'); }
-async function mockController({reject=false}={}) {
+async function mockController({reject=false,eventDelay=0}={}) {
   const events=[]; const contexts=[]; const server=http.createServer(async(req,res)=>{
     let raw='';for await(const part of req)raw+=part;
     const body=raw?JSON.parse(raw):null;
@@ -21,7 +22,7 @@ async function mockController({reject=false}={}) {
     if(!req.headers.authorization?.startsWith('Bearer fixture-')){res.statusCode=401;return res.end('{}');}
     if(req.url.endsWith('/heartbeat'))return res.end('{"host_online":true}');
     if(req.url.endsWith('/context')){contexts.push({url:req.url,body});return res.end(JSON.stringify({packet:'已选库的真实人格和记忆材料',memory_ids:['memory-1']}));}
-    events.push({url:req.url,body});res.end(JSON.stringify({accepted:!reject,status:'pending'}));
+    events.push({url:req.url,body});if(eventDelay)await sleep(eventDelay);res.end(JSON.stringify({accepted:!reject,status:'pending'}));
   });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   return {events,contexts,server,base:`http://127.0.0.1:${server.address().port}`,close:()=>new Promise(resolve=>server.close(resolve))};
@@ -29,7 +30,7 @@ async function mockController({reject=false}={}) {
 function fixture(base, extra={}) {
   const dir=mkdtempSync(join(tmpdir(),'neural-host-test-'));const config=join(dir,'connection.json');
   writeFileSync(config,JSON.stringify({connection_id:'connection-a',connection_token:'fixture-secret-not-a-real-token',library_id:'library-a',base_url:base,...extra}));
-  const options={connection_file:config,host_version:'0.2.1-rc.3',state_dir:join(dir,'outbox'),retry_ms:20,timeout_ms:300};
+  const options={connection_file:config,host_version:hostVersion,state_dir:join(dir,'outbox'),retry_ms:20,timeout_ms:300};
   return {dir,config,options,clean:()=>rmSync(dir,{recursive:true,force:true})};
 }
 const session={id:'actual-session-id',header:{id:'actual-session-id',origin:undefined}};
@@ -145,7 +146,7 @@ test('live private enabled=false stops new capture, context and retry but retain
   }finally{await adapter.dispose();await mock.close();f.clean();}
 });
 
-test('real rc3 Cordis and SessionStore publish canonical committed events into the plugin without a model call',async()=>{
+test('real supported Cordis and SessionStore publish canonical committed events into the plugin without a model call',async()=>{
   const mock=await mockController();const f=fixture(mock.base);const ctx=new Context();
   const store=ctx.plugin(SessionStore);await store.await();
   const owner=ctx.plugin({name:'isolated-host-contract-fixture',apply(inner){apply(inner,f.options);}});await owner.await();
@@ -160,4 +161,80 @@ test('real rc3 Cordis and SessionStore publish canonical committed events into t
     assert.deepEqual(mock.events.map(x=>x.body.seq),[0,1,2,3,4,5]);assert.equal(mock.events.at(-1).body.record.normalized.status,'complete');
     assert.equal(mock.events.at(-1).body.record.normalized.assistant,text);
   }finally{await owner.dispose();await store.dispose();await mock.close();f.clean();}
+});
+
+test('MCP connection installs Harness capture without claiming or persisting incomplete candidate windows',async()=>{
+  const mock=await mockController();const f=fixture(mock.base,{connection_id:'agent-complete-binding',connection_host:'agent',session_scope:'next_session'});
+  const adapter=new HostAdapter(f.options);const candidate={id:'agent-candidate',header:{}};
+  const original=message('pending-user','user','候选窗口在完整结束前不能落盘');
+  try{
+    const payload={agent:{session:candidate},messages:[original],turn:1,step:1,signal:new AbortController().signal};
+    const recalled=await adapter.beforeStep(payload,async()=>({kind:'enter',messages:[original]}));
+    assert.equal(recalled.messages.length,2);assert.equal(mock.contexts.length,1);
+    adapter.capture(candidate,{type:'turn/start',data:{turn:1},seq:0,time:1});
+    adapter.capture(candidate,{type:'user/message',data:original,seq:1,time:2});
+    await adapter.flush();assert.equal(mock.events.length,0);
+    assert.equal(readdirSync(adapter.stateDir).filter(p=>p.endsWith('.event.json')).length,0);
+    assert.equal(JSON.parse(readFileSync(join(adapter.stateDir,'identity.json'))).bound_session,undefined);
+    adapter.capture(candidate,{type:'turn/end',data:{turn:1,reason:{kind:'aborted'}},seq:2,time:3});
+    await adapter.flush();assert.equal(mock.events.length,0);
+    assert.equal(JSON.parse(readFileSync(join(adapter.stateDir,'identity.json'))).bound_session,undefined);
+    turn(adapter,{start:20});await adapter.flush();
+    assert.equal(mock.events.length,1);const first=mock.events[0].body;
+    assert.equal(first.event_type,'turn/end');assert.equal(first.record.normalized.status,'complete');
+    assert.equal(first.record.raw_events.length,6);assert.equal(first.record.raw_events[3].type,'tool/result');
+    assert.ok(!JSON.stringify(first).includes('must-not-leak'));
+    assert.equal(JSON.parse(readFileSync(join(adapter.stateDir,'identity.json'))).bound_session,session.id);
+    adapter.capture(candidate,{type:'user/message',data:original,seq:3,time:4});await adapter.flush();
+    assert.equal(mock.events.length,1);assert.equal(readdirSync(adapter.stateDir).filter(p=>p.endsWith('.event.json')).length,0);
+  }finally{await adapter.dispose();await mock.close();f.clean();}
+});
+
+test('Agent Harness mode uses real supported committed events and its first complete turn survives reconnect',async()=>{
+  const mock=await mockController({reject:true});const f=fixture(mock.base,{connection_id:'agent-rc3-binding',connection_host:'agent',session_scope:'next_session'});
+  const ctx=new Context();const store=ctx.plugin(SessionStore);await store.await();
+  const owner=ctx.plugin({name:'isolated-agent-host-fixture',apply(inner){apply(inner,f.options);}});await owner.await();
+  try{
+    const actual=ctx.sessions.create(SessionId('agent-rc3-real-session'));
+    actual.append('turn/start',{turn:1});
+    actual.append('user/message',createUserMessage({source:{kind:'user'},content:[{type:'text',text:'这轮必须由宿主事件自动上报'}]}),{surfaceOp:'append'});
+    await sleep(30);assert.equal(mock.events.length,0);
+    const text='完整真实回复无需memory_record_turn调用';
+    actual.append('assistant/message',{turn:1,step:1,message:createAssistantMessage({source:{provider:'offline-fixture',model:'no-network'},content:[{type:'text',text}]}),stream:[]},{surfaceOp:'append'});
+    actual.append('turn/end',{turn:1,reason:{kind:'completed'}});
+    await eventually(()=>mock.events.length>0);
+    assert.ok(mock.events.every(e=>e.body.event_type==='turn/end'));
+    await owner.dispose();await store.dispose();await mock.close();
+    const recovered=await mockController();const cfg=JSON.parse(readFileSync(f.config));cfg.base_url=recovered.base;writeFileSync(f.config,JSON.stringify(cfg));
+    const restarted=new HostAdapter(f.options);
+    try{await restarted.flush();assert.equal(recovered.events.length,1);assert.equal(recovered.events[0].body.record.normalized.assistant,text);
+      assert.equal(readdirSync(restarted.stateDir).filter(p=>p.endsWith('.event.json')).length,0);
+    }finally{await restarted.dispose();await recovered.close();}
+  }finally{await owner.dispose();await store.dispose();if(mock.server.listening)await mock.close();f.clean();}
+});
+
+
+test('shutdown drains events queued after the in-flight snapshot before aborting the controller',async()=>{
+  const mock=await mockController({eventDelay:30});const f=fixture(mock.base);const adapter=new HostAdapter(f.options);
+  try{
+    adapter.capture(session,{type:'turn/start',data:{turn:1},seq:0,time:1});
+    await eventually(()=>mock.events.length===1);
+    adapter.capture(session,{type:'user/message',data:message('shutdown-user','user','退出前必须自动保存原话'),seq:1,time:2});
+    adapter.capture(session,{type:'assistant/message',data:{turn:1,message:message('shutdown-assistant','assistant','退出前的完整回复')},seq:2,time:3});
+    adapter.capture(session,{type:'turn/end',data:{turn:1,reason:{kind:'completed'}},seq:3,time:4});
+    await Promise.all([adapter.dispose(),adapter.dispose()]);
+    assert.equal(mock.events.length,4);assert.equal(mock.events.at(-1).body.record.normalized.status,'complete');
+    assert.equal(mock.events.at(-1).body.record.normalized.assistant,'退出前的完整回复');
+    assert.equal(readdirSync(adapter.stateDir).filter(p=>p.endsWith('.event.json')).length,0);
+    assert.equal(JSON.parse(readFileSync(join(adapter.stateDir,'status.json'))).last_error,null);
+  }finally{await adapter.dispose();await mock.close();f.clean();}
+});
+
+test('shutdown retains rejected records and never starts new capture while draining',async()=>{
+  const mock=await mockController({reject:true,eventDelay:20});const f=fixture(mock.base);const adapter=new HostAdapter(f.options);
+  try{
+    turn(adapter);const closing=adapter.dispose();turn(adapter,{start:100});await closing;
+    assert.equal(readdirSync(adapter.stateDir).filter(p=>p.endsWith('.event.json')).length,6);
+    assert.ok(mock.events.length<=1);assert.ok(mock.events.every(e=>e.body.seq<100));
+  }finally{await adapter.dispose();await mock.close();f.clean();}
 });

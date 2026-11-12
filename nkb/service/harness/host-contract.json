@@ -1,6 +1,9 @@
 {
   "adapter_version": "0.4.0",
-  "runtime_support": ["0.2.1-rc.3"],
+  "runtime_support": [
+    "0.2.1-rc.3",
+    "0.2.1-rc.5"
+  ],
   "source_reviewed_master": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
   "primary_packages": [
     "https://registry.npmjs.org/@deepseek-ai/dsh-agent/-/dsh-agent-0.2.1-rc.3.tgz",
@@ -12,5 +15,105 @@
   "identity": "session.id + event.seq; original message.id/tool callId retained",
   "delivery": "POST /api/connections/{connection_id}/events; accepted:true acknowledges private journal persistence only",
   "context": "POST /api/connections/{connection_id}/context",
-  "unsupported": "Versions outside runtime_support require compatibility validation or the explicit API-proxy fallback; no automatic claim of full host capture."
+  "unsupported": "Versions outside runtime_support require compatibility validation or the explicit API-proxy fallback; no automatic claim of full host capture.",
+  "rc5_static_validation": {
+    "checked_on": "2026-10-30",
+    "baseline": "0.2.1-rc.3",
+    "candidate": "0.2.1-rc.5",
+    "method": "Compare official npm tarballs; every non-package.json file is byte-identical. package.json differs only in rc.3/rc.5 version strings.",
+    "packages": [
+      {
+        "name": "@deepseek-ai/dsh-agent",
+        "files_compared_excluding_package_json": 23,
+        "code_and_types_identical": true,
+        "file_manifest_sha256": "c7b964d4ed1e6cbb1dc0a1aa5fe8ba40bcdf18096e1770444e32bc73606b0fd5",
+        "baseline_tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-agent/-/dsh-agent-0.2.1-rc.3.tgz",
+        "candidate_tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-agent/-/dsh-agent-0.2.1-rc.5.tgz",
+        "baseline_tarball_sha256": "2cfd29e0a1870a3a4e23fb8a98a2a6d14ae4bc3a2921f550394a21397360f90a",
+        "candidate_tarball_sha256": "2d9b3f2df391f030b7848a4294e8f80009c448e2225d3c7ac67004e9ff4d1142",
+        "baseline_registry_integrity": "sha512-S6x/deneAsd+pOgecRLM1PC1No9O472kHjS9pS57nuTXi2Vtdo9l7qF+q7PfiHRezL5dxv5gUBQMORPmIYDNvQ==",
+        "candidate_registry_integrity": "sha512-mHNbxag0rZVNHaXZvr4OhiveaTTGMNPEpzO4nS8ohOQiQL0MWqA7brwtjBbaAlB3aMZ13tbHGHINpFlXdu8J3Q=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-session",
+        "files_compared_excluding_package_json": 27,
+        "code_and_types_identical": true,
+        "file_manifest_sha256": "ad8dafa0a6377339abba136621065dbb04cabed35d9de786d724c0550f527baf",
+        "baseline_tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-session/-/dsh-session-0.2.1-rc.3.tgz",
+        "candidate_tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-session/-/dsh-session-0.2.1-rc.5.tgz",
+        "baseline_tarball_sha256": "3397ff1f339cdd9e13ada06ae0d6c2efcfb92be9df9041a48a2cb72b6ee7069c",
+        "candidate_tarball_sha256": "8571710817dbf5172079168861bfaef581efc26a4b83a4c003f2d1ef632ae7b4",
+        "baseline_registry_integrity": "sha512-z1Dfn6yB2YMm9iNThPHaIYCx0Y/mKjm+fMrWFtnPZmX0fJXVmTIr4RAfLF7ZFJk6qd52SUl8d2uX+uNbrPJESg==",
+        "candidate_registry_integrity": "sha512-A5NdQFgeY4qi29+lBzgZiOloiFe+E1iBbIRjJTplee79rswYGUUmUZYmOvAcdmk4tERkY2S9htuc+V+jNifqRw=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-llm",
+        "files_compared_excluding_package_json": 37,
+        "code_and_types_identical": true,
+        "file_manifest_sha256": "aadfb8d038786af66847a7fd302673c88ee4c06065de1d2f2b5084ca796a7da6",
+        "baseline_tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-llm/-/dsh-llm-0.2.1-rc.3.tgz",
+        "candidate_tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-llm/-/dsh-llm-0.2.1-rc.5.tgz",
+        "baseline_tarball_sha256": "244964904379b32998d573d6426f582da843666430e5bf0463711f55defc521d",
+        "candidate_tarball_sha256": "6b422d70aee363dcce81be0481dda9d801c2ae03a4f314497e407d184df2313c",
+        "baseline_registry_integrity": "sha512-7Fq7zS3yQb1J1PsaNmahQ1gHDdsb338UhTkmZCexlNecmc5I44c/PbkHcT5pJ5SO4hnLplJOdDhiIMFpvvyAaw==",
+        "candidate_registry_integrity": "sha512-g9mSILkqY7wByl0tpLBhXxWxQ3MoNzXokuJq86R/snPL3v1OonXv1b46wtvldEgyr88aK1gBBlifMsRnXjMWTA=="
+      },
+      {
+        "name": "@deepseek-ai/dsh-scope",
+        "files_compared_excluding_package_json": 7,
+        "code_and_types_identical": true,
+        "file_manifest_sha256": "44f02baedf02dd987033532dda2b5e97803fff4e214f529c7a79f849df73dcbb",
+        "baseline_tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-scope/-/dsh-scope-0.2.1-rc.3.tgz",
+        "candidate_tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-scope/-/dsh-scope-0.2.1-rc.5.tgz",
+        "baseline_tarball_sha256": "542a55c355a54d066eabe8bd6659afa497307bd6c8944bc032ab0c643eab49b1",
+        "candidate_tarball_sha256": "fd661bb9abf25ffbd2b82bbf1823c3c197bd107b85e3315821231bccf7456373",
+        "baseline_registry_integrity": "sha512-3oCu1zZhbJTzV9TtYXjVUyxc9yOaQOYzxSGQvMuZ/q/O7/1Y1ofIS2j2GETfc79mCoiQIoQAjr2gu/ncXSgALw==",
+        "candidate_registry_integrity": "sha512-KrYnnJwPuHXPRayueGCWqn7Uy5CWph/5Kt2CcubBxMTFqC7bHaHiDNeTQW9HmECczmKLD2U5dFSCTe569s4YeQ=="
+      }
+    ],
+    "registry_integrity_verified": true
+  },
+  "rc5_runtime_validation": {
+    "checked_on": "2026-10-30",
+    "dependencies": "Independent npm installation of @deepseek-ai/dsh-agent,llm,scope,session@0.2.1-rc.5 and @deepseek-ai/cordis@4.0.5",
+    "checks": [
+      "TypeScript typecheck",
+      "Bundled adapter build",
+      "13 Node tests including real Cordis/SessionStore events, automatic completed-turn capture, window isolation, and offline replay"
+    ],
+    "real_model_called": false,
+    "result": "passed"
+  },
+  "profile_detection_validation": {
+    "checked_on": "2026-10-30",
+    "official_host_version": "0.2.1-rc.3",
+    "official_api": "@deepseek-ai/dsh-app-boot.initProfile",
+    "actual_test": "Called the installed official Electron bundled API in an isolated temporary directory, then ran Python detect/apply on that generated profile",
+    "official_generated_files": [
+      "cordis.patch.yml",
+      "package.json",
+      "pnpm-workspace.yaml"
+    ],
+    "accepted_manifest": "private:true and dsh.profile.bundles is an array of nonempty strings",
+    "plugin_apply": "passed",
+    "manifest_preserved": true,
+    "cordis_root_not_created": true,
+    "ordinary_npm_projects_rejected": true,
+    "real_model_called": false
+  },
+  "future_version_policy": {
+    "strategy": "Static exact-runtime contract fingerprints, not a version-only allowlist",
+    "fingerprints_file": "host-contract-fingerprints.json",
+    "runtime_files_checked": 37,
+    "metadata": "module entrypoints, dependency contracts, package types and engines; only same-release exact SDK versions normalized",
+    "trusted_baseline": [
+      "0.2.1-rc.3",
+      "0.2.1-rc.5"
+    ],
+    "runtime_recheck": true,
+    "upgrades_with_identical_code": "Reconnect automatically and report installed SDK version",
+    "changed_contract": "Reject automatic configuration/loading and report differing SDK files or metadata",
+    "installed_code_executed_for_detection": false,
+    "real_official_electron_smoke": "Passed against installed official rc.3 ASAR with isolated disabled connection; no model or credentials accessed"
+  }
 }

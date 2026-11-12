@@ -6,7 +6,7 @@ import json
 import os
 import signal
 import threading
-from http.server import ThreadingHTTPServer
+from nkb.service.httpd import LoopbackHTTPServer as ThreadingHTTPServer
 from pathlib import Path
 from nkb.core.atlas import atlas_brain
 from nkb.service.host import MemoryHost, make_controller
@@ -44,13 +44,19 @@ def bind_controller(host, data_dir):
     raise RuntimeError("无法启动本机记忆服务")
 
 
-def main():
+def main(host_initializer=None, *, key_store=None, on_phase=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", type=Path, required=True)
     parser.add_argument("--ready-file", type=Path, required=True)
     parser.add_argument("--parent-pid", type=int)
+    parser.add_argument("--no-demo", action="store_true", help="Do not register the optional visual example")
     parser.add_argument("--library", help=argparse.SUPPRESS)  # Legacy launch flag; never changes bindings.
     args = parser.parse_args()
+    def phase(name):
+        if on_phase is not None:
+            try:on_phase(name)
+            except Exception:pass  # Optional metadata cannot block the service.
+    phase("starting")
     args.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     args.ready_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     lock_file = (args.data_dir / ".desktop-writer.lock").open("a+")
@@ -63,17 +69,23 @@ def main():
     lock_file.truncate()
     lock_file.write(str(os.getpid()))
     lock_file.flush()
+    phase("writer_locked")
     host, server, thread = None, None, None
     stopping = threading.Event()
     try:
-        host = MemoryHost(args.data_dir, with_demo=False)
+        host = MemoryHost(args.data_dir, with_demo=False, key_store=key_store)
+        phase("memory_host_ready")
+        if host_initializer is not None:
+            host_initializer(host)
+        phase("initializer_applied")
         example = args.data_dir / "framework-example.brain.json"
-        if not host.manager.demo_suppressed:
+        if not args.no_demo and not host.manager.demo_suppressed:
             if not example.exists():
                 atlas_brain(example).save()
                 example.chmod(0o600)
             host.manager.register_demo(example)
         server = bind_controller(host, args.data_dir)
+        phase("controller_bound")
         def stop(signum=None, frame=None):
             stopping.set()
         signal.signal(signal.SIGTERM, stop)
@@ -92,13 +104,16 @@ def main():
                 stopping.set()
         thread = threading.Thread(target=serve)
         thread.start()
+        phase("http_thread_started")
         ready = {"pid": os.getpid(), "port": server.server_port,
+                 "controller_instance_id":host.instance_id,
                  "controller_port": server.server_port, "personal_port": server.server_port,
                  "service_version": SERVICE_VERSION, "library": "default",
                  "name": "爱之屋记忆服务", "personal_name": "爱之屋记忆服务",
                  "selected_library": host.manager.selected_id}
         JsonFileStorage(args.ready_file).save(ready)
         args.ready_file.chmod(0o600)
+        phase("ready_written")
         print(json.dumps({"status": "ready", **ready}, ensure_ascii=False), flush=True)
         stopping.wait()
         print("Desktop Controller stopped cleanly", flush=True)

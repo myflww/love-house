@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="referrer" content="same-origin">
+  <meta name="theme-color" content="#fff8ed">
+  <title>爱之屋 · 连接 Agent</title>
+  <link rel="stylesheet" href="/mobile/remote-mobile.css">
+  <script type="module" src="/mobile/remote-mobile.js"></script>
+</head>
+<body>
+  <main class="shell">
+    <header><span class="heart" aria-hidden="true">♥</span><div><p class="eyebrow">LOVE HOUSE</p><h1>连接你的 Agent</h1></div><span id="version" class="badge">记忆服务</span></header>
+    <p class="intro">让有 Agent 能力的聊天窗口自己加载配置，把相处保存在你选定的记忆库。</p>
+    <p id="notice" class="notice" role="status" aria-live="polite"></p>
+    <section id="loginPanel" class="card">
+      <h2>打开自己的记忆服务</h2>
+      <p>当前服务：<strong id="serviceOrigin"></strong></p>
+      <form id="loginForm">
+        <label for="adminToken">服务管理凭据</label>
+        <input id="adminToken" type="password" required autocomplete="off" spellcheck="false">
+        <p class="fine">使用你在自己的电脑或服务器上生成的管理凭据。这里无需填写聊天模型的 API Key。</p>
+        <button id="loginButton" class="primary" type="submit" disabled disabled>打开记忆库</button>
+      </form>
+    </section>
+    <div id="workspace" hidden>
+      <section class="card">
+        <div class="heading"><h2>选择已有连接</h2><button id="refreshConnections" type="button">刷新</button></div>
+        <label for="connectionSelect">继续使用原来的身份与存档</label>
+        <select id="connectionSelect"><option value="">选择连接，或在下面创建</option></select>
+      </section>
+      <section class="card">
+        <h2>为一个聊天窗口生成配置</h2>
+        <form id="connectionForm">
+          <label for="librarySelect">保存到哪个记忆库</label>
+          <select id="librarySelect" required></select>
+          <label for="connectionName">连接名称</label>
+          <input id="connectionName" maxlength="80" placeholder="例如：手机里的大肥鱼" autocomplete="off">
+          <p class="fine">默认由第一轮完整的真实对话固定目标窗口，其他窗口不会写入这份连接。配置不会创建新的 Agent 身份。</p>
+          <button id="createConnection" class="primary" type="submit">生成给 Agent 的配置</button>
+        </form>
+      </section>
+      <section id="configPanel" class="card" hidden>
+        <h2 id="configHeading">让 Agent 保存并加载</h2>
+        <p id="connectionTarget" class="fine"></p>
+        <ol class="steps">
+          <li>复制下方说明，交给拥有工具或宿主配置能力的 Agent 窗口。</li>
+          <li>让它保存配置、加载记忆工具，并调用 <code>memory_status</code> 和 <code>memory_bootstrap</code> 核对存档。</li>
+          <li>宿主支持轮次结束回调时，由它配置自动上报；完成一轮对话后检查记录。</li>
+        </ol>
+        <div class="actions"><button id="copyAgent" class="primary" type="button">复制给 Agent</button><button id="copyMcp" type="button">只复制 MCP 配置</button></div>
+        <details><summary>查看配置与安装说明</summary><label for="agentSetup">给 Agent 的说明</label><textarea id="agentSetup" readonly rows="9" spellcheck="false"></textarea><label for="mcpConfig">标准 HTTPS MCP 配置</label><textarea id="mcpConfig" readonly rows="8" spellcheck="false"></textarea><label for="hookConfig">宿主自动上报接口</label><textarea id="hookConfig" readonly rows="7" spellcheck="false"></textarea></details>
+        <p class="fine">这份记忆访问凭据只交给你信任的 Agent。普通网页若没有工具或宿主配置能力，仅粘贴文字不会建立连接。</p>
+        <div class="connection-state"><strong id="captureState">等待 Agent 加载</strong><p id="captureDetails"></p></div>
+        <button id="checkConnection" type="button">检查 Agent 连接与记录</button>
+      </section>
+      <section class="card"><h2>同一份记忆，随时查看</h2><p>经历、记忆规律、整理准则、导入与分享都由这台服务的 0.8 版本提供。手机不会另存一份不同身份的副本。</p><a class="button" href="/app/">打开完整记忆界面</a><p id="browserNote" class="fine" hidden>当前浏览器可以配置 Agent。完整记忆界面需要近期版本的浏览器；如无法打开，请更新浏览器后访问这台服务。</p></section>
+      <button id="logout" class="quiet" type="button">退出服务管理</button>
+    </div>
+    <footer>爱之屋 · myflww · 非商业使用</footer>
+  </main>
+</body>
+</html>

@@ -155,9 +155,11 @@ def main():
         tools = args.sdk / 'build-tools/36.0.0'
         identities = {key: identity(path, tools, value['version_name'], value['version_code'], test=key == 'test_apk')
                       for key, path in paths.items()}
-        rows = [row.strip() for row in command(['adb', 'devices']).splitlines()[1:] if row.strip()]
+        adb_tool = args.sdk / 'platform-tools/adb'
+        require(adb_tool.is_file(), 'The selected Android SDK has no platform-tools/adb')
+        rows = [row.strip() for row in command([adb_tool, 'devices']).splitlines()[1:] if row.strip()]
         require(len(rows) == 1 and re.fullmatch(r'emulator-\d+\s+device', rows[0]), 'Exactly one fresh emulator and no physical device is required')
-        adb = ['adb', '-s', rows[0].split()[0]]
+        adb = [adb_tool, '-s', rows[0].split()[0]]
         require(command(adb + ['shell', 'getprop', 'ro.kernel.qemu']).strip() == '1', 'Physical devices are not accepted')
         require(command(adb + ['shell', 'getprop', 'ro.build.version.sdk']).strip() == str(args.api_level), 'Wrong actual emulator API')
         require(not command(adb + ['shell', 'pm', 'list', 'packages', APP_ID]).strip(), 'Use a fresh emulator; existing app data will not be removed')

@@ -6,8 +6,10 @@ from pathlib import Path
 import unittest
 import io
 import zipfile
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
 spec = importlib.util.spec_from_file_location('android_release_verify', ROOT / 'scripts/verify_android_release.py')
 release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
@@ -37,11 +39,11 @@ def transcript(code=0):
 class SignedAndroidCandidateTests(unittest.TestCase):
     def test_engine_upgrade_keeps_original_certificate_and_rejects_version_drift(self):
         value = manifest()
-        value.update(version_name='0.10.6rc1', version_code=4,
+        value.update(version_name=release.ENGINE_VERSION[0], version_code=release.ENGINE_VERSION[1],
                      certificate_sha256=release.ORIGINAL_CERT)
         self.assertEqual(release.validate_manifest(value), value)
         for key, wrong in [('certificate_sha256', 'b' * 64),
-                           ('version_name', '0.10.7rc1'), ('version_code', 3)]:
+                           ('version_name', '99.0.0'), ('version_code', 3)]:
             candidate = dict(value, **{key: wrong})
             with self.subTest(field=key), self.assertRaises(ValueError):
                 release.validate_manifest(candidate)

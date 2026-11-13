@@ -244,6 +244,7 @@ function refreshGuide(){
  if(c.revoked)guideNotice.textContent='连接已断开，旧配置不再可用；已有记忆保留。';
  else if(c.enabled===false)guideNotice.textContent='连接已暂停，新对话暂不保存。';
  else if(!isAPI&&!isAgent&&cfg.supported===false)guideNotice.textContent=cfg.message||(cfg.setup&&cfg.setup.detected&&cfg.setup.detected.message)||'请重新检测 Harness；程序会分别检查安装位置与宿主接口兼容性。';
+ else if(!c.host_online&&(cfg.adapter_refresh||cfg.auto_capture?.harness?.adapter_refresh)?.requires_harness_reload)guideNotice.textContent='已随爱之屋更新同步原有 Harness 插件。请重载或重启 Harness，再在原绑定窗口完成一轮对话核对；暂停状态与窗口范围保持。';
  else if(isAgent)guideNotice.textContent=agentConnectionAdvice(c);
  else if(!guideNotice.textContent)guideNotice.textContent=saved?'已收到真实对话。':'请在目标窗口完成一轮对话，再核对记录。';
  const legacy=(cfg.setup&&cfg.setup.detected&&cfg.setup.detected.legacy_manual_entries)||(MEMORY.detect&&MEMORY.detect.legacy_manual_entries)||[];if(!isAPI&&!isAgent&&legacy.some(x=>!MEMORY.libraries.some(l=>l.id===(x.target_library_id||'default'))))guideNotice.textContent+=' 旧全局 MCP 工具仍指向已移除存档，不会自动改绑。';

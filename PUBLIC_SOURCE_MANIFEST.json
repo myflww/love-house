@@ -28,8 +28,8 @@
     },
     {
       "path": ".github/workflows/android.yml",
-      "bytes": 9301,
-      "sha256": "11346e5a81a1ca1b83be8d5f6b968c4130ea20be49f30ba3d7d88d3982767029"
+      "bytes": 9741,
+      "sha256": "b24890760aefc049c3aafcb85bc818249258b7a6da5ac4f8f29e4be76563eb50"
     },
     {
       "path": ".github/workflows/ci.yml",
@@ -43,13 +43,13 @@
     },
     {
       "path": ".github/workflows/harness-compatibility.yml",
-      "bytes": 11397,
-      "sha256": "a7cf36a1d4415b9e336c7868f18729b2085df2dcd69849ca2e3fa5663fbd021c"
+      "bytes": 11788,
+      "sha256": "2ca2b2e54b77f3573735fb39edecea9f69177ad475cf36580de7522a35ccf837"
     },
     {
       "path": ".github/workflows/macos-release.yml",
-      "bytes": 6155,
-      "sha256": "fbcfcb711e299ced128d1b8b423924064d546cdac050167f26addbc9ef68eefe"
+      "bytes": 6179,
+      "sha256": "c9556ecbd7537036f245790e5f3d8cf3e143e241396ee423ebefedb850bd8bfd"
     },
     {
       "path": ".github/workflows/publish-windows-0101.yml",
@@ -78,8 +78,8 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "bytes": 31875,
-      "sha256": "358953816cfaec84e2ce3360cdac1b8696d546b4446d4a31b497813d302d0a24"
+      "bytes": 32005,
+      "sha256": "d9aa396681ccf382f49bdea2b7590f707a122c8ce10ed5c4d83f6a938b985f04"
     },
     {
       "path": ".github/workflows/verify-public-windows-mobile-preview.yml",
@@ -103,63 +103,13 @@
     },
     {
       "path": ".gitignore",
-      "bytes": 1454,
-      "sha256": "1fba16e0c7f7fd4508f64a2dfc38b696caa60c548c3959ae1b3a8d1b2e4a43e7"
-    },
-    {
-      "path": "CHANGELOG.md",
-      "bytes": 27517,
-      "sha256": "ec5d0e10c14cdf4a2de8225cf2546bcb309b99a1c87c2398efc3405bb4435183"
-    },
-    {
-      "path": "CONTRIBUTING.md",
-      "bytes": 5097,
-      "sha256": "d47658957b9e141a8d4df80f6b29241a353a6c036929f2e530a73d578d4e53d6"
-    },
-    {
-      "path": "LICENSE",
-      "bytes": 4563,
-      "sha256": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5"
-    },
-    {
-      "path": "Makefile",
-      "bytes": 1214,
-      "sha256": "b9959d3e42800e895dbc8467923b44be2ba46dcaf625eca670a9d1db40394b67"
-    },
-    {
-      "path": "NOTICE",
-      "bytes": 681,
-      "sha256": "65e3acd2f297d13775c8102c41c8e13f975dd860f6ba9bbaa6d65175e1cdcc64"
-    },
-    {
-      "path": "README.md",
-      "bytes": 7241,
-      "sha256": "a5d47e67c83dbc091d03c25ef74a218e1ec316de4ae0f7f433d61712217e2399"
-    },
-    {
-      "path": "ROADMAP.md",
-      "bytes": 2570,
-      "sha256": "3fa2729cec2fedd4d084e42bcc3c6f5b32d2f2beb57e969a99016dcc9cb4d9d4"
-    },
-    {
-      "path": "THIRD_PARTY_NOTICES.md",
-      "bytes": 9077,
-      "sha256": "db0d9cc3fc2af4c40e3042a704f03eb4e9bf2cac4d3afd49a7a13af24e16300f"
-    },
-    {
-      "path": "android/LICENSE.androidx-Apache-2.0.txt",
-      "bytes": 10175,
-      "sha256": "809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0"
-    },
-    {
-      "path": "android/THIRD_PARTY_NOTICES.md",
-      "bytes": 3974,
-      "sha256": "8ee69a7b7c8b1c26233c1be51e98e43a7a72e42896da88badde921e09407dd46"
+      "bytes": 1645,
+      "sha256": "d177fb6b32ac7f257171f664084db34cd71ac4fc0878ff85c6c8099e109eac28"
     },
     {
       "path": "android/app/build.gradle",
       "bytes": 4582,
-      "sha256": "9142a60e3a91991afe4e00897752a16843cdc86797b6f4fe7e03d71c6a5a71b5"
+      "sha256": "d801f54fbc2d02cd12e8f464ba33b390196e804214eb08409817104aa435e354"
     },
     {
       "path": "android/app/src/androidTest/AndroidManifest.xml",
@@ -197,11 +147,6 @@
       "sha256": "baf1a7bb13917cad349fa85aed3c748c3db98f81b83accd3403218ea0be2f7ac"
     },
     {
-      "path": "android/app/src/androidTest/remote-gateway/README.md",
-      "bytes": 1560,
-      "sha256": "076f5e7d912412be5fe26b5678ed56f5ed18160fe82c9d1ad77f6f6e9a7c5a4c"
-    },
-    {
       "path": "android/app/src/androidTest/remote-gateway/build.gradle",
       "bytes": 889,
       "sha256": "022e5beebbd89367c2ff44adfa36b63436116405521e69f951f704a0a1b7fd51"
@@ -210,6 +155,11 @@
       "path": "android/app/src/androidTest/remote-gateway/gradle.properties",
       "bytes": 149,
       "sha256": "eb818df0e223e6f4047acd93573b95e3498c41dcc2d4ca55c536b3bf0885cee7"
+    },
+    {
+      "path": "android/app/src/androidTest/remote-gateway/README.md",
+      "bytes": 1560,
+      "sha256": "076f5e7d912412be5fe26b5678ed56f5ed18160fe82c9d1ad77f6f6e9a7c5a4c"
     },
     {
       "path": "android/app/src/androidTest/remote-gateway/settings.gradle",
@@ -312,34 +262,24 @@
       "sha256": "30545461648490a1a58b182b5c9ae01642f1453f76e724a583bb49378113ea34"
     },
     {
+      "path": "android/LICENSE.androidx-Apache-2.0.txt",
+      "bytes": 10175,
+      "sha256": "809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0"
+    },
+    {
       "path": "android/licenses/AUTHORS.openssl-3.5.9.txt",
       "bytes": 1022,
       "sha256": "b9f638dfc06b59c2d3b808186c3b30f713805a5db390f5b77b1703ac58acb83e"
     },
     {
-      "path": "android/licenses/LICENSE.CC0-1.0.txt",
-      "bytes": 7048,
-      "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
-    },
-    {
-      "path": "android/licenses/LICENSE.HACL-Python-3.12.15.txt",
-      "bytes": 1207,
-      "sha256": "998ce04fb8ad9dedb0bc1b44938f8c3dcf1089780fa105ce1c8c30fb5554d78c"
-    },
-    {
-      "path": "android/licenses/LICENSE.MPL-2.0.txt",
-      "bytes": 16726,
-      "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"
-    },
-    {
-      "path": "android/licenses/LICENSE.Unicode-DFS-2016.txt",
-      "bytes": 2858,
-      "sha256": "1a33fc12a3abb0b3eb14db70e36ef1d0af51c93b1cc1f80f022c3bd406e9b874"
-    },
-    {
       "path": "android/licenses/LICENSE.bzip2-1.0.8.txt",
       "bytes": 1896,
       "sha256": "c6dbbf828498be844a89eaa3b84adbab3199e342eb5cb2ed2f0d4ba7ec0f38a3"
+    },
+    {
+      "path": "android/licenses/LICENSE.CC0-1.0.txt",
+      "bytes": 7048,
+      "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
     },
     {
       "path": "android/licenses/LICENSE.certifi-2026.10.23.txt",
@@ -367,9 +307,19 @@
       "sha256": "31b15de82aa19a845156169a17a5488bf597e561b2c318d159ed583139b25e87"
     },
     {
+      "path": "android/licenses/LICENSE.HACL-Python-3.12.15.txt",
+      "bytes": 1207,
+      "sha256": "998ce04fb8ad9dedb0bc1b44938f8c3dcf1089780fa105ce1c8c30fb5554d78c"
+    },
+    {
       "path": "android/licenses/LICENSE.libffi-3.4.4.txt",
       "bytes": 1132,
       "sha256": "2c9c2acb9743e6b007b91350475308aee44691d96aa20eacef8e199988c8c388"
+    },
+    {
+      "path": "android/licenses/LICENSE.MPL-2.0.txt",
+      "bytes": 16726,
+      "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"
     },
     {
       "path": "android/licenses/LICENSE.openssl-3.5.9-Apache-2.0.txt",
@@ -380,6 +330,11 @@
       "path": "android/licenses/LICENSE.sqlite-3.53.4.txt",
       "bytes": 1485,
       "sha256": "85806d613cfda5901f848b3b5b4b04396c8c64e89c97c0af3706c42b0c44bb47"
+    },
+    {
+      "path": "android/licenses/LICENSE.Unicode-DFS-2016.txt",
+      "bytes": 2858,
+      "sha256": "1a33fc12a3abb0b3eb14db70e36ef1d0af51c93b1cc1f80f022c3bd406e9b874"
     },
     {
       "path": "android/licenses/LICENSE.xz-5.4.6.txt",
@@ -412,9 +367,9 @@
       "sha256": "a7d49bc0227dcaf26ee1154684e3328d6cc5fbc6744e6bb3789f74eca6151b64"
     },
     {
-      "path": "android/upgrade-qa/README.md",
-      "bytes": 1206,
-      "sha256": "20671b39e38439621015af931c077d97d6152765fbf0ceb2a737f0fae1495a71"
+      "path": "android/THIRD_PARTY_NOTICES.md",
+      "bytes": 3974,
+      "sha256": "8ee69a7b7c8b1c26233c1be51e98e43a7a72e42896da88badde921e09407dd46"
     },
     {
       "path": "android/upgrade-qa/app/build.gradle",
@@ -428,8 +383,8 @@
     },
     {
       "path": "android/upgrade-qa/app/src/main/java/io/github/myflww/lovehouse/upgradeqa/UpgradeProbeInstrumentation.java",
-      "bytes": 20547,
-      "sha256": "1afaa4ac4487a2d6ed8de5c694236d7436ef0f7eaf37b6a82b162959d4a20197"
+      "bytes": 21040,
+      "sha256": "c3a282fbb717f04b208cfea522796e268942ad1c06f0dbdd116f66743c9b780a"
     },
     {
       "path": "android/upgrade-qa/build.gradle",
@@ -440,6 +395,11 @@
       "path": "android/upgrade-qa/gradle.properties",
       "bytes": 77,
       "sha256": "65c8508e4db1e61f18f29d3ded79431d70397238316774859a627f2d29e02bb4"
+    },
+    {
+      "path": "android/upgrade-qa/README.md",
+      "bytes": 1206,
+      "sha256": "20671b39e38439621015af931c077d97d6152765fbf0ceb2a737f0fae1495a71"
     },
     {
       "path": "android/upgrade-qa/settings.gradle",
@@ -462,11 +422,6 @@
       "sha256": "ec58f634f804ae6295510b18fc00612a21aa818c5f6e95754709fb326bc60c92"
     },
     {
-      "path": "assets/fonts/README.md",
-      "bytes": 1379,
-      "sha256": "b9952268b030bddbecc22b25f3ce436113dc74e87d797e11fea931abbe5d9161"
-    },
-    {
       "path": "assets/fonts/ark-pixel-12px-proportional-zh_hans.woff2",
       "bytes": 566768,
       "sha256": "0c6b9a6d8aa19150537e6ccba248909192258167a8bcc7a18d5dad1a2ee12632"
@@ -480,6 +435,11 @@
       "path": "assets/fonts/ark-pixel-source.json",
       "bytes": 1018,
       "sha256": "bce36dab4fbf960f0a6b049f53f9c3a870fb0656c9e6f283f30224f375c6df92"
+    },
+    {
+      "path": "assets/fonts/README.md",
+      "bytes": 1379,
+      "sha256": "b9952268b030bddbecc22b25f3ce436113dc74e87d797e11fea931abbe5d9161"
     },
     {
       "path": "assets/licenses/python-3.12.14-20260825/LICENSE.bdb.txt",
@@ -507,16 +467,6 @@
       "sha256": "122f2c27000472a201d337b9b31f7eb2b52d091b02857061a8880371612d9534"
     },
     {
-      "path": "assets/licenses/python-3.12.14-20260825/LICENSE.libX11.txt",
-      "bytes": 47018,
-      "sha256": "2daec087a88e7c9b8082557cdeebad5bbb8155a4137472f0b22e269cd99d0c1e"
-    },
-    {
-      "path": "assets/licenses/python-3.12.14-20260825/LICENSE.libXau.txt",
-      "bytes": 1148,
-      "sha256": "56abe29bb1d9806a9e04fa9f80fed2c0f18027594df3f098148d814aef6bddfa"
-    },
-    {
       "path": "assets/licenses/python-3.12.14-20260825/LICENSE.libedit.txt",
       "bytes": 1614,
       "sha256": "29cea33c32bbc9785142386377915612a2fa786482c46843383384aded2e09b1"
@@ -535,6 +485,16 @@
       "path": "assets/licenses/python-3.12.14-20260825/LICENSE.libuuid.txt",
       "bytes": 1432,
       "sha256": "122ee1f7e258f2c3c0e538a75c037684f420454bf3850ddc74ce750bbf5fe86b"
+    },
+    {
+      "path": "assets/licenses/python-3.12.14-20260825/LICENSE.libX11.txt",
+      "bytes": 47018,
+      "sha256": "2daec087a88e7c9b8082557cdeebad5bbb8155a4137472f0b22e269cd99d0c1e"
+    },
+    {
+      "path": "assets/licenses/python-3.12.14-20260825/LICENSE.libXau.txt",
+      "bytes": 1148,
+      "sha256": "56abe29bb1d9806a9e04fa9f80fed2c0f18027594df3f098148d814aef6bddfa"
     },
     {
       "path": "assets/licenses/python-3.12.14-20260825/LICENSE.libxcb.txt",
@@ -582,14 +542,14 @@
       "sha256": "818922b2620f12801a12bf78e399644a30990e66824abd8ca8ec24d451d6f92c"
     },
     {
-      "path": "assets/licenses/python-3.12.14-20260825/README.md",
-      "bytes": 1374,
-      "sha256": "d7ad90e8ef4f9abf78cde8ba267db7e3f86edef5081f285a31e63beda747b941"
-    },
-    {
       "path": "assets/licenses/python-3.12.14-20260825/provenance.json",
       "bytes": 6457,
       "sha256": "59cce96223f47e8a56b6df2270c86976393f81c3e83d939f6857cff1402232d7"
+    },
+    {
+      "path": "assets/licenses/python-3.12.14-20260825/README.md",
+      "bytes": 1374,
+      "sha256": "d7ad90e8ef4f9abf78cde8ba267db7e3f86edef5081f285a31e63beda747b941"
     },
     {
       "path": "assets/licenses/webview2-sdk-1.0.3856.49/LICENSE.txt",
@@ -602,14 +562,14 @@
       "sha256": "106423785c5b7eba0a8e61d1837f2132e9c828e20ad530f565d981c1df60dd90"
     },
     {
-      "path": "assets/licenses/webview2-sdk-1.0.3856.49/README.md",
-      "bytes": 978,
-      "sha256": "d5702fd258be050955e338db96f747d2f3258a6c9c4693a60ffdead2500e731f"
-    },
-    {
       "path": "assets/licenses/webview2-sdk-1.0.3856.49/provenance.json",
       "bytes": 3131,
       "sha256": "f62d129de629571177fd880afefda40e3e55d55a645d6dcfc7a070d442da1fd2"
+    },
+    {
+      "path": "assets/licenses/webview2-sdk-1.0.3856.49/README.md",
+      "bytes": 978,
+      "sha256": "d5702fd258be050955e338db96f747d2f3258a6c9c4693a60ffdead2500e731f"
     },
     {
       "path": "assets/screenshots/inherit-memory.png",
@@ -707,24 +667,14 @@
       "sha256": "18d6ed0641f638cc817baee0d8e41083bee1d7636ed7b5f563b6b35daade2bb0"
     },
     {
-      "path": "desktop/AtlasApp.swift",
-      "bytes": 66927,
-      "sha256": "328bb1bd24b34511be9b21de41cf8908a810627f483898006b1d079df777acc4"
+      "path": "CHANGELOG.md",
+      "bytes": 28044,
+      "sha256": "110cebbae2c1eb394ea66cbafe447fdd4b212d655ea8ef8b43a63c9faf8e45d8"
     },
     {
-      "path": "desktop/Icon.swift",
-      "bytes": 1679,
-      "sha256": "1eacc2f3299b93e2f3b1e67a11f694a1a2cad7dd24bcf44802e30fa8a25a8fbc"
-    },
-    {
-      "path": "desktop/Keychain.swift",
-      "bytes": 3382,
-      "sha256": "05ee6e9cfe5e151d3fdf697b542b7e2ebdc1d278ccb15d0665022083291e9cf4"
-    },
-    {
-      "path": "desktop/README.md",
-      "bytes": 3893,
-      "sha256": "d56fb535b1a8da576d39a8bd8baca62d876ba6b62cef666d66a9d4203d83c1a4"
+      "path": "CONTRIBUTING.md",
+      "bytes": 5097,
+      "sha256": "d47658957b9e141a8d4df80f6b29241a353a6c036929f2e530a73d578d4e53d6"
     },
     {
       "path": "desktop/agent_memory_bridge.py",
@@ -735,6 +685,11 @@
       "path": "desktop/agent_memory_hook.py",
       "bytes": 1871,
       "sha256": "8504043f943d668820909b9ff16d3fcb6c7680870a9ee0dafc0c38781725e79b"
+    },
+    {
+      "path": "desktop/AtlasApp.swift",
+      "bytes": 66927,
+      "sha256": "328bb1bd24b34511be9b21de41cf8908a810627f483898006b1d079df777acc4"
     },
     {
       "path": "desktop/deepseek-harness-overlay.example.yaml",
@@ -750,6 +705,21 @@
       "path": "desktop/harness_bridge.py",
       "bytes": 24188,
       "sha256": "748d4ee0c91009734a5f4a10b62e344d91b39fcbb04c113f467fe9cd46a1e4be"
+    },
+    {
+      "path": "desktop/Icon.swift",
+      "bytes": 1679,
+      "sha256": "1eacc2f3299b93e2f3b1e67a11f694a1a2cad7dd24bcf44802e30fa8a25a8fbc"
+    },
+    {
+      "path": "desktop/Keychain.swift",
+      "bytes": 3382,
+      "sha256": "05ee6e9cfe5e151d3fdf697b542b7e2ebdc1d278ccb15d0665022083291e9cf4"
+    },
+    {
+      "path": "desktop/README.md",
+      "bytes": 3893,
+      "sha256": "d56fb535b1a8da576d39a8bd8baca62d876ba6b62cef666d66a9d4203d83c1a4"
     },
     {
       "path": "desktop/requirements-windows.txt",
@@ -827,6 +797,11 @@
       "sha256": "6a6dbcc543cb622fd74e26aac57b1df291cb77cc2f1eb02f8a5f5bf708aaf753"
     },
     {
+      "path": "docs/Agent身份与全活动记忆.md",
+      "bytes": 10141,
+      "sha256": "bbbc12ca85839210cfa48dbc0ae789d1a27be9f618ec4e2506c959cb64f4b8ba"
+    },
+    {
       "path": "docs/ANDROID-0106-SIGNING-HANDOFF.md",
       "bytes": 8255,
       "sha256": "ce0d37ba68ecdc3fdcea2a7e74b7b443c7e14c6ab87a47f1b47ebe7d9cbfcb0b"
@@ -837,9 +812,19 @@
       "sha256": "bc4bd835b301aa9b218df6cf3aa989dda923e4b22f762eaea13580c9513d6275"
     },
     {
+      "path": "docs/ANDROID-0107-HANDOFF.md",
+      "bytes": 7070,
+      "sha256": "fb5bea4c2903908e3faebc5bd579a80dd6641c4a679efa7ae9addf35439a536e"
+    },
+    {
       "path": "docs/ANDROID-SIGN-EXISTING-KEY.md",
       "bytes": 2864,
       "sha256": "a8920d5012471003f0bd0575f1c1d1191a0d48997f5345176ccd8be4b20ff3d1"
+    },
+    {
+      "path": "docs/ANDROID-SIGNING-HANDOFF.md",
+      "bytes": 1898,
+      "sha256": "5a8feb1ce2dafa62c5674848e4e7be986b69669659f98433ca926babcbee4b8c"
     },
     {
       "path": "docs/API.md",
@@ -852,19 +837,14 @@
       "sha256": "db00ad26d330d008fe3c485c47afe13e5b5f8f14fe996143a8995af0463184ef"
     },
     {
-      "path": "docs/Agent身份与全活动记忆.md",
-      "bytes": 10141,
-      "sha256": "bbbc12ca85839210cfa48dbc0ae789d1a27be9f618ec4e2506c959cb64f4b8ba"
-    },
-    {
       "path": "docs/DeepSeek与Harness接入.md",
       "bytes": 4290,
       "sha256": "43b22087da77377b42731c5e3aa19150b5a6dadfa5da0bf6616cdb414ad48cd9"
     },
     {
       "path": "docs/HARNESS-COMPATIBILITY.md",
-      "bytes": 3274,
-      "sha256": "9230a885247bd2bc002cbb1314402cda52cbb5ba2dcbeaf4f1e0cec3bf9d362e"
+      "bytes": 4763,
+      "sha256": "ef9843b8146fc36925f4fb0093f7992042fc602334d9db13216ca7849c8c7ed6"
     },
     {
       "path": "docs/KIMI-REVIEW-20261030.md",
@@ -927,6 +907,21 @@
       "sha256": "7e47e4f13326c39d389fc2394707732958223fa678ee72b816417f02c554a80c"
     },
     {
+      "path": "docs/memory-0105-design.md",
+      "bytes": 10103,
+      "sha256": "85301dd1078d586e0c47957883fd53012d694d7c9f7fd12c1b1f2d38eaf7ff59"
+    },
+    {
+      "path": "docs/memory-0105-evidence/memory-read-benchmark.json",
+      "bytes": 2919,
+      "sha256": "6e69947b45345d143d6a948933091b4d9f2c85422002a65ed66db34be3933228"
+    },
+    {
+      "path": "docs/memory-0105-evidence/source-directory-benchmark.json",
+      "bytes": 812,
+      "sha256": "bf9177effffee1c6653f68fd678e366288169a2cd19debbf0c6b975d856de456"
+    },
+    {
       "path": "docs/NEURAL-ATLAS-010.md",
       "bytes": 4806,
       "sha256": "b77a0137e7dda3d3a56e12a32a080944eb1e777cef5fb89ba64c7e713f114e6e"
@@ -937,9 +932,39 @@
       "sha256": "e504057b5fb46139be92b44b89e7a54d14b926c9320b8d0c5ca2c5e028726516"
     },
     {
+      "path": "docs/qa/experience-0104-audit.md",
+      "bytes": 4842,
+      "sha256": "69cc3decc68a70edd55bd40c8d40bd7984fa1db8a222c4c47dc750a54a184635"
+    },
+    {
+      "path": "docs/qa/experience-0104-control-inventory.md",
+      "bytes": 83280,
+      "sha256": "276eb4816a2def5ff30fe898a16c594228df043ad775d7bb6ab10d67b5cfc98b"
+    },
+    {
+      "path": "docs/qa/experience-0104-plan.md",
+      "bytes": 1844,
+      "sha256": "78f49a300720d0b1c2ac83ab784ec3aaa4a1ebcb0e362da9abc58bd7c3646c5d"
+    },
+    {
       "path": "docs/QQ-AstrBot-云端接入方案.md",
       "bytes": 2647,
       "sha256": "3359da3518d3e088d4705b702a0b53f51745806f9bf7f9a8035a241771bf60ec"
+    },
+    {
+      "path": "docs/release-0.10.5rc1.md",
+      "bytes": 6974,
+      "sha256": "fa0b5b7ddfe822e73578e04496b70db82b56dad1b0c7b96c79e7fc83ecc83fcb"
+    },
+    {
+      "path": "docs/release-0.10.6rc1.md",
+      "bytes": 6193,
+      "sha256": "64a473df555635a4e84347229bafc7fcb6843843d87e0d638a0778546c8e9b39"
+    },
+    {
+      "path": "docs/release-0.10.7rc1.md",
+      "bytes": 1849,
+      "sha256": "21533253e23ccb0887f2b98a0c00ffebdae06d29945ad500b1812eea1caebd5e"
     },
     {
       "path": "docs/RELEASE-080RC2.md",
@@ -957,24 +982,24 @@
       "sha256": "58d4e45916a3e562f78cb438ebae88822de57afb0bf96a2f809049a5eb9f6303"
     },
     {
-      "path": "docs/ReleaseNotes-0.10.3rc1-Windows.md",
-      "bytes": 6615,
-      "sha256": "9f3935e408ddddb8bd570f14544435aa38e91c0366e11412d134c0d938c9bcf1"
-    },
-    {
       "path": "docs/ReleaseNotes-0.10.3rc1-macOS.md",
       "bytes": 4016,
       "sha256": "cddd2b1d242c9ac096e3a8be188426081d72ba6471a61da774775c142be83ce7"
     },
     {
-      "path": "docs/ReleaseNotes-0.10.4rc1-Windows.md",
-      "bytes": 6306,
-      "sha256": "8b1bd85f1c5a9f1dc10154b8df7ebcfc81e24805cb612011c7784ed6950a761b"
+      "path": "docs/ReleaseNotes-0.10.3rc1-Windows.md",
+      "bytes": 6615,
+      "sha256": "9f3935e408ddddb8bd570f14544435aa38e91c0366e11412d134c0d938c9bcf1"
     },
     {
       "path": "docs/ReleaseNotes-0.10.4rc1-macOS.md",
       "bytes": 3902,
       "sha256": "8a3c2a91b5e1e04b7ff358ccaf5024eaaea1976bceea18f7195642770bd3021d"
+    },
+    {
+      "path": "docs/ReleaseNotes-0.10.4rc1-Windows.md",
+      "bytes": 6306,
+      "sha256": "8b1bd85f1c5a9f1dc10154b8df7ebcfc81e24805cb612011c7784ed6950a761b"
     },
     {
       "path": "docs/ReleaseNotes-0.9.0-macOS.md",
@@ -985,6 +1010,31 @@
       "path": "docs/ReleaseNotes-0.9.1rc1-Windows.md",
       "bytes": 2204,
       "sha256": "1b1c752540346e7e571cfce3e535eb83209d4b17509b02ca10638a0c91eafc82"
+    },
+    {
+      "path": "docs/releases/v0.5.0-platform-notes.md",
+      "bytes": 2995,
+      "sha256": "db53b4d31e55c7634d0080713c7c798d13870a157c6533d13eb1086a59a27f59"
+    },
+    {
+      "path": "docs/releases/windows-0.5.1rc1.md",
+      "bytes": 2228,
+      "sha256": "98d180bd78d08334642ff81d1ac35cbfa3b4eb3e0eef1e25d945cf331f56f69f"
+    },
+    {
+      "path": "docs/research/idle-review-design.md",
+      "bytes": 17960,
+      "sha256": "d3e7c990f224d66f294467a76e913d516d8db665f0f6eb5f0b67c6f66eaf5301"
+    },
+    {
+      "path": "docs/retrieval-0106-evidence/same-data-report.json",
+      "bytes": 36143,
+      "sha256": "2779c26baf1f2a5db23dd8a93b33efa282cb180ec3ff40bbf4e61f1b37c7fe36"
+    },
+    {
+      "path": "docs/retrieval-0106-evidence/synthetic-fixture.json",
+      "bytes": 14903,
+      "sha256": "23c7241c7f9a28d72e362915bff52ce3071c20668a47540be54f6a719c3181ea"
     },
     {
       "path": "docs/WINDOWS-010-HANDOFF.md",
@@ -1082,74 +1132,9 @@
       "sha256": "a769231c9c5c66a64fa10e8e103cbce0c16c52d7165e082cf2c3c0f202533176"
     },
     {
-      "path": "docs/memory-0105-design.md",
-      "bytes": 10103,
-      "sha256": "85301dd1078d586e0c47957883fd53012d694d7c9f7fd12c1b1f2d38eaf7ff59"
-    },
-    {
-      "path": "docs/memory-0105-evidence/memory-read-benchmark.json",
-      "bytes": 2919,
-      "sha256": "6e69947b45345d143d6a948933091b4d9f2c85422002a65ed66db34be3933228"
-    },
-    {
-      "path": "docs/memory-0105-evidence/source-directory-benchmark.json",
-      "bytes": 812,
-      "sha256": "bf9177effffee1c6653f68fd678e366288169a2cd19debbf0c6b975d856de456"
-    },
-    {
-      "path": "docs/qa/experience-0104-audit.md",
-      "bytes": 4842,
-      "sha256": "69cc3decc68a70edd55bd40c8d40bd7984fa1db8a222c4c47dc750a54a184635"
-    },
-    {
-      "path": "docs/qa/experience-0104-control-inventory.md",
-      "bytes": 83280,
-      "sha256": "276eb4816a2def5ff30fe898a16c594228df043ad775d7bb6ab10d67b5cfc98b"
-    },
-    {
-      "path": "docs/qa/experience-0104-plan.md",
-      "bytes": 1844,
-      "sha256": "78f49a300720d0b1c2ac83ab784ec3aaa4a1ebcb0e362da9abc58bd7c3646c5d"
-    },
-    {
-      "path": "docs/release-0.10.5rc1.md",
-      "bytes": 6974,
-      "sha256": "fa0b5b7ddfe822e73578e04496b70db82b56dad1b0c7b96c79e7fc83ecc83fcb"
-    },
-    {
-      "path": "docs/release-0.10.6rc1.md",
-      "bytes": 6193,
-      "sha256": "64a473df555635a4e84347229bafc7fcb6843843d87e0d638a0778546c8e9b39"
-    },
-    {
-      "path": "docs/releases/v0.5.0-platform-notes.md",
-      "bytes": 2995,
-      "sha256": "db53b4d31e55c7634d0080713c7c798d13870a157c6533d13eb1086a59a27f59"
-    },
-    {
-      "path": "docs/releases/windows-0.5.1rc1.md",
-      "bytes": 2228,
-      "sha256": "98d180bd78d08334642ff81d1ac35cbfa3b4eb3e0eef1e25d945cf331f56f69f"
-    },
-    {
-      "path": "docs/research/idle-review-design.md",
-      "bytes": 17960,
-      "sha256": "d3e7c990f224d66f294467a76e913d516d8db665f0f6eb5f0b67c6f66eaf5301"
-    },
-    {
-      "path": "docs/retrieval-0106-evidence/same-data-report.json",
-      "bytes": 36143,
-      "sha256": "2779c26baf1f2a5db23dd8a93b33efa282cb180ec3ff40bbf4e61f1b37c7fe36"
-    },
-    {
-      "path": "docs/retrieval-0106-evidence/synthetic-fixture.json",
-      "bytes": 14903,
-      "sha256": "23c7241c7f9a28d72e362915bff52ce3071c20668a47540be54f6a719c3181ea"
-    },
-    {
       "path": "docs/下载与系统支持.md",
-      "bytes": 8969,
-      "sha256": "a7280f2a78f82d792669e17e92b7070500d898f0cd7201c51f0dd0d1e76ecf70"
+      "bytes": 9418,
+      "sha256": "8c7bdadad45d34a8b6d621b3948d15fb7759fbbea85e62ec56115154fe3f75a5"
     },
     {
       "path": "docs/发布与许可.md",
@@ -1227,11 +1212,6 @@
       "sha256": "697507f45672d30510a9fa7536f54468aaad0e7cc766301b6680ae6ec956d480"
     },
     {
-      "path": "examples/harness-cli-qa/README.md",
-      "bytes": 871,
-      "sha256": "02f4fb4eb2c97899ee8bdf753bd31391d6d248cdb6ee0bd331ea3a9fc3d96192"
-    },
-    {
       "path": "examples/harness-cli-qa/package-lock.json",
       "bytes": 433509,
       "sha256": "c00fd2230356def7a8505c247d31e01ba9cd20c6d6cebf0edb85337a64105ffc"
@@ -1240,6 +1220,11 @@
       "path": "examples/harness-cli-qa/package.json",
       "bytes": 161,
       "sha256": "d49fb138841567ed9b102047b968507d0b892571bf471406e6983e837cf7beec"
+    },
+    {
+      "path": "examples/harness-cli-qa/README.md",
+      "bytes": 871,
+      "sha256": "02f4fb4eb2c97899ee8bdf753bd31391d6d248cdb6ee0bd331ea3a9fc3d96192"
     },
     {
       "path": "examples/seed/图与向量.md",
@@ -1257,16 +1242,6 @@
       "sha256": "fb0d829c1539e8ed6c8fed3c2188c46e0c2d1365a5c427c7b213489a08f10baf"
     },
     {
-      "path": "extensions/astrbot-love-house/LICENSE",
-      "bytes": 4563,
-      "sha256": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5"
-    },
-    {
-      "path": "extensions/astrbot-love-house/README.md",
-      "bytes": 16228,
-      "sha256": "99e8e0813977ed72ba0ec056b3474f57b3302776418b9925e210732db1f34c9d"
-    },
-    {
       "path": "extensions/astrbot-love-house/__init__.py",
       "bytes": 79,
       "sha256": "327b4824e5a10c06217e407ab20818ca75c7e0eee448c9ecb41b243ca3b0f108"
@@ -1280,6 +1255,11 @@
       "path": "extensions/astrbot-love-house/bridge.py",
       "bytes": 17744,
       "sha256": "3fa3770c0762fc53b98b14f128ad50fee87cc629f2edf3f350b0ee97dc9f84d1"
+    },
+    {
+      "path": "extensions/astrbot-love-house/LICENSE",
+      "bytes": 4563,
+      "sha256": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5"
     },
     {
       "path": "extensions/astrbot-love-house/main.py",
@@ -1297,24 +1277,14 @@
       "sha256": "0065d41c1c3aea6b73f09272af50df77efb08698f8ae4fb9f1f6de21b8416ed0"
     },
     {
+      "path": "extensions/astrbot-love-house/README.md",
+      "bytes": 16228,
+      "sha256": "99e8e0813977ed72ba0ec056b3474f57b3302776418b9925e210732db1f34c9d"
+    },
+    {
       "path": "extensions/astrbot-love-house/source_client.py",
       "bytes": 24239,
       "sha256": "1535c7d3196a7375241c3e4688a183bac8bc4e4500d7b0ab726231f560d17711"
-    },
-    {
-      "path": "extensions/deepseek-harness/LICENSE",
-      "bytes": 4563,
-      "sha256": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5"
-    },
-    {
-      "path": "extensions/deepseek-harness/NOTICE",
-      "bytes": 681,
-      "sha256": "65e3acd2f297d13775c8102c41c8e13f975dd860f6ba9bbaa6d65175e1cdcc64"
-    },
-    {
-      "path": "extensions/deepseek-harness/README.md",
-      "bytes": 14036,
-      "sha256": "f242def66fac58f2ed39f39c71aece1a129066a1b1252489601c4bbc6471740d"
     },
     {
       "path": "extensions/deepseek-harness/build.mjs",
@@ -1323,13 +1293,8 @@
     },
     {
       "path": "extensions/deepseek-harness/configure.py",
-      "bytes": 34579,
-      "sha256": "b2988a40122aa5a5bd3071eeee0449379db600b96059c260f9a17660fa17dd0d"
-    },
-    {
-      "path": "extensions/deepseek-harness/dist/THIRD_PARTY_LICENSES.txt",
-      "bytes": 783,
-      "sha256": "558b20a2c348693345e3b97acb9b56e46896f96689d50ee66ac225b8199eaf30"
+      "bytes": 41987,
+      "sha256": "1a46aafb4526d74240a4db7945c2c0dd9df75be2f1882546a8643956baa4e8ca"
     },
     {
       "path": "extensions/deepseek-harness/dist/configure.js",
@@ -1338,18 +1303,23 @@
     },
     {
       "path": "extensions/deepseek-harness/dist/index.js",
-      "bytes": 44220,
-      "sha256": "0556afcc09e1677cbf4e33ec2e2f5f1e305a2888f56b4abed141947485664bc4"
+      "bytes": 44234,
+      "sha256": "ec5da578d326ff01e8d2f19c4bd1f5993b5ce31b45223258ea8373e61d2ce2ef"
     },
     {
       "path": "extensions/deepseek-harness/dist/proxy.js",
-      "bytes": 50582,
-      "sha256": "ce45722116db25324b911e3e42f2d1acf2e7a30ad4bbf4d92a4eef49f2c3a425"
+      "bytes": 50596,
+      "sha256": "5e0cab0418a819e0f8507f7cd48b2d34b4b6804231063d0d898d17217f66d564"
+    },
+    {
+      "path": "extensions/deepseek-harness/dist/THIRD_PARTY_LICENSES.txt",
+      "bytes": 783,
+      "sha256": "558b20a2c348693345e3b97acb9b56e46896f96689d50ee66ac225b8199eaf30"
     },
     {
       "path": "extensions/deepseek-harness/host-capabilities.json",
-      "bytes": 2508,
-      "sha256": "24cb79efc04a4116d14b702c20a84749b45e715d8c002645c96d63780ee028e0"
+      "bytes": 2522,
+      "sha256": "705f9824f7913a2affafb08ceebf3eff6f4d533a01621b2269c201a12a03095d"
     },
     {
       "path": "extensions/deepseek-harness/host-contract-fingerprints.json",
@@ -1358,13 +1328,23 @@
     },
     {
       "path": "extensions/deepseek-harness/host-contract.json",
-      "bytes": 8451,
-      "sha256": "b67daa97c1b2d377cbcd8231a1ca87c57da16e31a6f48d3f6428c1bb57dc88c1"
+      "bytes": 9124,
+      "sha256": "c6eb7890f2bfae877b9de7c61b3ee1fbb1adfab85e70759e03ec9f0f5b2e7977"
+    },
+    {
+      "path": "extensions/deepseek-harness/LICENSE",
+      "bytes": 4563,
+      "sha256": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5"
     },
     {
       "path": "extensions/deepseek-harness/licenses/yaml-ISC.txt",
       "bytes": 738,
       "sha256": "5bba27375d93e9119f76c1015f7672cf9ad5f70952296e0842fb2243d6376869"
+    },
+    {
+      "path": "extensions/deepseek-harness/NOTICE",
+      "bytes": 681,
+      "sha256": "65e3acd2f297d13775c8102c41c8e13f975dd860f6ba9bbaa6d65175e1cdcc64"
     },
     {
       "path": "extensions/deepseek-harness/package-lock.json",
@@ -1375,6 +1355,11 @@
       "path": "extensions/deepseek-harness/package.json",
       "bytes": 1050,
       "sha256": "e15437ee92b0e50a678183db8aae8244d3c7897b0faf4bd53b48096944e35997"
+    },
+    {
+      "path": "extensions/deepseek-harness/README.md",
+      "bytes": 14036,
+      "sha256": "f242def66fac58f2ed39f39c71aece1a129066a1b1252489601c4bbc6471740d"
     },
     {
       "path": "extensions/deepseek-harness/samples/host.overlay.yml",
@@ -1408,13 +1393,13 @@
     },
     {
       "path": "extensions/deepseek-harness/test/adapter.test.mjs",
-      "bytes": 45717,
-      "sha256": "0a8d98dbb604ae0ceddb52314e65eeb15bfb12a4e20eb98a89eef2bc5a228bb4"
+      "bytes": 46650,
+      "sha256": "2e754578dfa7d259e7ce0d4d7c52055dfb43e0077068a9e1d28b9929b178ac3b"
     },
     {
       "path": "extensions/deepseek-harness/test/compatibility.test.mjs",
-      "bytes": 9209,
-      "sha256": "0f910d698cf51983e3f69b104f3f61b8f500c4986dc4fc0a71a619c2c7eb24a4"
+      "bytes": 10311,
+      "sha256": "668535425f321f2b39790919a02a2192ef0ab64dd72cdb12c231b4d8b88e86a3"
     },
     {
       "path": "extensions/deepseek-harness/test/configure.test.mjs",
@@ -1427,16 +1412,6 @@
       "sha256": "989dfb377b99414f208ea0bde04c06fca36d11a479b3deeab09cb708e4c5a231"
     },
     {
-      "path": "ios-smoke/PortalSmoke.swift",
-      "bytes": 12477,
-      "sha256": "e32fb9da634ccae077667afdb27abc76c4ebd64aa386b3b81b7244490371eba5"
-    },
-    {
-      "path": "ios-smoke/README.md",
-      "bytes": 2468,
-      "sha256": "b680a6785d93dc29c11b1c38ded28c7f7368363afacc6d8b8a74840911ab8770"
-    },
-    {
       "path": "ios-smoke/check_reports.py",
       "bytes": 2413,
       "sha256": "9825ed0e88fb6a06302d875367c5e2388d6c9b1c9f7ff5bdb9f4ade9f19f1cc6"
@@ -1447,9 +1422,29 @@
       "sha256": "0fe33e66e3a371c67df67ebeece960acafe4e469a0571b26ddc6ebbbd27bb847"
     },
     {
+      "path": "ios-smoke/PortalSmoke.swift",
+      "bytes": 12477,
+      "sha256": "e32fb9da634ccae077667afdb27abc76c4ebd64aa386b3b81b7244490371eba5"
+    },
+    {
+      "path": "ios-smoke/README.md",
+      "bytes": 2468,
+      "sha256": "b680a6785d93dc29c11b1c38ded28c7f7368363afacc6d8b8a74840911ab8770"
+    },
+    {
       "path": "ios-smoke/run_ios_portal_smoke.sh",
       "bytes": 5829,
       "sha256": "62f75b72567fdadd2d04fa36815afe353849e9ab7c44257a309038d7ee5b1402"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 4563,
+      "sha256": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5"
+    },
+    {
+      "path": "Makefile",
+      "bytes": 1214,
+      "sha256": "b9959d3e42800e895dbc8467923b44be2ba46dcaf625eca670a9d1db40394b67"
     },
     {
       "path": "mobile/README.md",
@@ -1549,7 +1544,7 @@
     {
       "path": "nkb/_version.py",
       "bytes": 26,
-      "sha256": "7f6e6a96dd874c29f4e28d102169150267742da59e4a258905c961ba4ed60bc7"
+      "sha256": "f20f4c474fa64e0d4d9c4ba93145d69606160153641e5e1c6dd8c855d7933b1a"
     },
     {
       "path": "nkb/adapters/__init__.py",
@@ -1585,11 +1580,6 @@
       "path": "nkb/cli/main.py",
       "bytes": 20983,
       "sha256": "360cf03917239a377a2cd56f0de33c4eb43cb722246491e891bc35ca98a0038f"
-    },
-    {
-      "path": "nkb/companion/RECORDING_DEDUP.md",
-      "bytes": 4059,
-      "sha256": "bbcbf21bb496b229099db8e4d05441e2fbb337b88b71aacdc9badb079016cdd2"
     },
     {
       "path": "nkb/companion/__init__.py",
@@ -1635,6 +1625,11 @@
       "path": "nkb/companion/persona.py",
       "bytes": 43457,
       "sha256": "882da4ebfb2e0eb364eb611cbbf23f27aa50c6f5df8ba7952db57713b6e48ddc"
+    },
+    {
+      "path": "nkb/companion/RECORDING_DEDUP.md",
+      "bytes": 4059,
+      "sha256": "bbcbf21bb496b229099db8e4d05441e2fbb337b88b71aacdc9badb079016cdd2"
     },
     {
       "path": "nkb/companion/retention.py",
@@ -1727,11 +1722,6 @@
       "sha256": "e49136f76098bc4b3bd4bbf78e95e1419f50014d9ab3200a54f9742db075453e"
     },
     {
-      "path": "nkb/organizer/README.md",
-      "bytes": 11685,
-      "sha256": "07437660e267a5dc1794abaa1180871afbf5ffe582b2cbbfc7d20f6bf1d00d75"
-    },
-    {
       "path": "nkb/organizer/__init__.py",
       "bytes": 575,
       "sha256": "0cf475af369b2ad8753f18b4d0da7ea8e06df3373496dc43bb1d2918801d4bb7"
@@ -1770,6 +1760,11 @@
       "path": "nkb/organizer/model.py",
       "bytes": 12408,
       "sha256": "29ac1cd1e073d7ebc70fbbe7e9959623652c86752adc5e823b3e2eef813650a2"
+    },
+    {
+      "path": "nkb/organizer/README.md",
+      "bytes": 11685,
+      "sha256": "07437660e267a5dc1794abaa1180871afbf5ffe582b2cbbfc7d20f6bf1d00d75"
     },
     {
       "path": "nkb/organizer/rules.py",
@@ -1832,11 +1827,6 @@
       "sha256": "04f64f4c0db3db0820edcd57bccfd3dcfee4360147475bece1e7100a967ba469"
     },
     {
-      "path": "nkb/service/AGENT_CONNECTOR.md",
-      "bytes": 6789,
-      "sha256": "beb974a116dee75057e5a04c42d316bf6ef04c3b8e25c6f48c007a87f4a3163d"
-    },
-    {
       "path": "nkb/service/__init__.py",
       "bytes": 68,
       "sha256": "3a1400f452d237fc7ceed3e6bf519aeee66a690a975caaff28b7909a2ab88ef6"
@@ -1845,6 +1835,11 @@
       "path": "nkb/service/agent_client.py",
       "bytes": 45067,
       "sha256": "ed25ec8112504ec048cc569806dac7a35e4b33eaf00410b9f375486cb60973d9"
+    },
+    {
+      "path": "nkb/service/AGENT_CONNECTOR.md",
+      "bytes": 6789,
+      "sha256": "beb974a116dee75057e5a04c42d316bf6ef04c3b8e25c6f48c007a87f4a3163d"
     },
     {
       "path": "nkb/service/agent_sources.py",
@@ -1882,6 +1877,46 @@
       "sha256": "55d0400d64a618698b3c2b8538a2e05e9a3d9a7b1f6cc081d16d5b03a6f85f4b"
     },
     {
+      "path": "nkb/service/harness/configure.py",
+      "bytes": 41987,
+      "sha256": "1a46aafb4526d74240a4db7945c2c0dd9df75be2f1882546a8643956baa4e8ca"
+    },
+    {
+      "path": "nkb/service/harness/dist/configure.js",
+      "bytes": 273207,
+      "sha256": "586149d8dce1caa06e7511321480fb1b5db5607e2f10764ac3bfc7f8b179687b"
+    },
+    {
+      "path": "nkb/service/harness/dist/index.js",
+      "bytes": 44234,
+      "sha256": "ec5da578d326ff01e8d2f19c4bd1f5993b5ce31b45223258ea8373e61d2ce2ef"
+    },
+    {
+      "path": "nkb/service/harness/dist/proxy.js",
+      "bytes": 50596,
+      "sha256": "5e0cab0418a819e0f8507f7cd48b2d34b4b6804231063d0d898d17217f66d564"
+    },
+    {
+      "path": "nkb/service/harness/dist/THIRD_PARTY_LICENSES.txt",
+      "bytes": 783,
+      "sha256": "558b20a2c348693345e3b97acb9b56e46896f96689d50ee66ac225b8199eaf30"
+    },
+    {
+      "path": "nkb/service/harness/host-capabilities.json",
+      "bytes": 2522,
+      "sha256": "705f9824f7913a2affafb08ceebf3eff6f4d533a01621b2269c201a12a03095d"
+    },
+    {
+      "path": "nkb/service/harness/host-contract-fingerprints.json",
+      "bytes": 4824,
+      "sha256": "783a0b4f49b36819834fcd7f87f0d03461eba7f0b1db079aac0bc4696d4cee55"
+    },
+    {
+      "path": "nkb/service/harness/host-contract.json",
+      "bytes": 9124,
+      "sha256": "c6eb7890f2bfae877b9de7c61b3ee1fbb1adfab85e70759e03ec9f0f5b2e7977"
+    },
+    {
       "path": "nkb/service/harness/LICENSE",
       "bytes": 4563,
       "sha256": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5"
@@ -1897,49 +1932,9 @@
       "sha256": "f242def66fac58f2ed39f39c71aece1a129066a1b1252489601c4bbc6471740d"
     },
     {
-      "path": "nkb/service/harness/configure.py",
-      "bytes": 34579,
-      "sha256": "b2988a40122aa5a5bd3071eeee0449379db600b96059c260f9a17660fa17dd0d"
-    },
-    {
-      "path": "nkb/service/harness/dist/THIRD_PARTY_LICENSES.txt",
-      "bytes": 783,
-      "sha256": "558b20a2c348693345e3b97acb9b56e46896f96689d50ee66ac225b8199eaf30"
-    },
-    {
-      "path": "nkb/service/harness/dist/configure.js",
-      "bytes": 273207,
-      "sha256": "586149d8dce1caa06e7511321480fb1b5db5607e2f10764ac3bfc7f8b179687b"
-    },
-    {
-      "path": "nkb/service/harness/dist/index.js",
-      "bytes": 44220,
-      "sha256": "0556afcc09e1677cbf4e33ec2e2f5f1e305a2888f56b4abed141947485664bc4"
-    },
-    {
-      "path": "nkb/service/harness/dist/proxy.js",
-      "bytes": 50582,
-      "sha256": "ce45722116db25324b911e3e42f2d1acf2e7a30ad4bbf4d92a4eef49f2c3a425"
-    },
-    {
-      "path": "nkb/service/harness/host-capabilities.json",
-      "bytes": 2508,
-      "sha256": "24cb79efc04a4116d14b702c20a84749b45e715d8c002645c96d63780ee028e0"
-    },
-    {
-      "path": "nkb/service/harness/host-contract-fingerprints.json",
-      "bytes": 4824,
-      "sha256": "783a0b4f49b36819834fcd7f87f0d03461eba7f0b1db079aac0bc4696d4cee55"
-    },
-    {
-      "path": "nkb/service/harness/host-contract.json",
-      "bytes": 8451,
-      "sha256": "b67daa97c1b2d377cbcd8231a1ca87c57da16e31a6f48d3f6428c1bb57dc88c1"
-    },
-    {
       "path": "nkb/service/host.py",
-      "bytes": 110886,
-      "sha256": "f8d5d24585597e4f3952973fe530415c15d38524ad5be9eb94b702a052fb3792"
+      "bytes": 112698,
+      "sha256": "cb0704e7a69d9995c5349fea9d1c94704c31d106c7486900389c871429d9fe1e"
     },
     {
       "path": "nkb/service/httpd.py",
@@ -2032,21 +2027,6 @@
       "sha256": "59fac0ab11dc1aa69e8d7d69510ad64ae4d5abd5ca6b7390e07f594c2e818649"
     },
     {
-      "path": "nkb/viz/art/LICENSE.digital-brain",
-      "bytes": 1065,
-      "sha256": "7fb8f56b521671260973af775a4cf83a4a607d90d13bb334f5f93cf9fbca21fb"
-    },
-    {
-      "path": "nkb/viz/art/LICENSE.three",
-      "bytes": 1081,
-      "sha256": "bfe119ea4fd413f5f7ca3fcd63adb0c4a073ed39daa2fe7d3e6b769e21272601"
-    },
-    {
-      "path": "nkb/viz/art/README.md",
-      "bytes": 2651,
-      "sha256": "f9c522cb2f6c95ba0ca420f91d38b6a89e64ef30e158efba1e68f2e425d819d0"
-    },
-    {
       "path": "nkb/viz/art/approved-atlas-data.js",
       "bytes": 3975,
       "sha256": "b5a042232b187c69be8e38d1b1bed5460708849a7b95e5dceb7d9db0314d6eb3"
@@ -2070,6 +2050,16 @@
       "path": "nkb/viz/art/digital-brain-adapted.js",
       "bytes": 4740,
       "sha256": "72957f8a6789ecb23ea5c293a1b133f602fc0f69d4469e92474209fcc4e8e7b2"
+    },
+    {
+      "path": "nkb/viz/art/LICENSE.digital-brain",
+      "bytes": 1065,
+      "sha256": "7fb8f56b521671260973af775a4cf83a4a607d90d13bb334f5f93cf9fbca21fb"
+    },
+    {
+      "path": "nkb/viz/art/LICENSE.three",
+      "bytes": 1081,
+      "sha256": "bfe119ea4fd413f5f7ca3fcd63adb0c4a073ed39daa2fe7d3e6b769e21272601"
     },
     {
       "path": "nkb/viz/art/neural-art.bundle.js",
@@ -2100,6 +2090,11 @@
       "path": "nkb/viz/art/package.json",
       "bytes": 238,
       "sha256": "6c37201fb78c4f668114fdaae66dad484b1664985248481623c4ed66f3b73495"
+    },
+    {
+      "path": "nkb/viz/art/README.md",
+      "bytes": 2651,
+      "sha256": "f9c522cb2f6c95ba0ca420f91d38b6a89e64ef30e158efba1e68f2e425d819d0"
     },
     {
       "path": "nkb/viz/art/synapse-dynamics.js",
@@ -2133,8 +2128,8 @@
     },
     {
       "path": "nkb/viz/web/connection-ux.js",
-      "bytes": 62901,
-      "sha256": "7c7d140946e7ec1e2fe29cccca5aa9d95fe50d648392ff704a8d4f645b4cc5ae"
+      "bytes": 63209,
+      "sha256": "341ae3e79e0caece035936ea8004136071516a0871404bd8b9b1ff0f15f71109"
     },
     {
       "path": "nkb/viz/web/dialogue-import-ui.js",
@@ -2242,14 +2237,34 @@
       "sha256": "cd0c25e9d88f1d6b1858ed314285352c51e589cc9fe8219c5551ba74828c6d8c"
     },
     {
+      "path": "NOTICE",
+      "bytes": 681,
+      "sha256": "65e3acd2f297d13775c8102c41c8e13f975dd860f6ba9bbaa6d65175e1cdcc64"
+    },
+    {
       "path": "pyproject.toml",
       "bytes": 2030,
       "sha256": "8d9edc7c63472f07f286debc1dc32007b5eafff8d52bb272e18af8b9d0d48c57"
     },
     {
+      "path": "README.md",
+      "bytes": 7811,
+      "sha256": "99cb7a8c7af7a636c326e66cbd107560a227b55721c161b3c5821e8d2d256207"
+    },
+    {
+      "path": "ROADMAP.md",
+      "bytes": 2570,
+      "sha256": "3fa2729cec2fedd4d084e42bcc3c6f5b32d2f2beb57e969a99016dcc9cb4d9d4"
+    },
+    {
       "path": "scripts/android-080rc2-signing-candidate.json",
       "bytes": 736,
       "sha256": "9e1e6415c6f0ecd3f4282afe50d512eec146730d6dcbe974d4338f936db1cf79"
+    },
+    {
+      "path": "scripts/android_release_identity.py",
+      "bytes": 1151,
+      "sha256": "859db71f42e4d50409a551a6215032bc01be4a30c855b249161b4cdaef10f203"
     },
     {
       "path": "scripts/android_remote_fixture_server.py",
@@ -2315,6 +2330,11 @@
       "path": "scripts/prepare_android_engine.py",
       "bytes": 6343,
       "sha256": "96ada806e66ca26c6423205b3415105c52d33932194e1df1dd0ffd272f7647ff"
+    },
+    {
+      "path": "scripts/prepare_android_release_handoff.py",
+      "bytes": 13418,
+      "sha256": "4e2e3ff4294da65c5482693851387813756ff35fde3137d62c2d8d8ab95426a1"
     },
     {
       "path": "scripts/prepare_android_remote_fixture.py",
@@ -2407,6 +2427,11 @@
       "sha256": "11f2211944ead4cec5ddb8f0d12a7e06d362263a3e87c80400c0612bdf58eff5"
     },
     {
+      "path": "scripts/sign_android_release.py",
+      "bytes": 17992,
+      "sha256": "9698a34e7b12a750ecee235181940288d747f7a369a594334f9ebd45fbb86523"
+    },
+    {
       "path": "scripts/sign_android_upgrade.py",
       "bytes": 7916,
       "sha256": "5b6a8dc3d2091c1768dc8c021f0e3ad0e23519237169dd1a5ff04d285e6621af"
@@ -2418,8 +2443,13 @@
     },
     {
       "path": "scripts/verify_android_release.py",
-      "bytes": 20519,
-      "sha256": "ef6e3c68b033c82d9bbaf62f4e5dabb8cd0451b1761f9d40054103f1f15d9126"
+      "bytes": 20635,
+      "sha256": "764b8c50c156e48160c614814cebf2b51cdadbead0744bfea3ab7211e0f06533"
+    },
+    {
+      "path": "scripts/verify_android_signed_upgrade.py",
+      "bytes": 13188,
+      "sha256": "062f48f290d24731007468a696f72b7ccdef405b404bfd6c42a8a3ca517bbf30"
     },
     {
       "path": "scripts/verify_harness_connection.py",
@@ -2449,7 +2479,7 @@
     {
       "path": "scripts/windows_upgrade_smoke.py",
       "bytes": 30725,
-      "sha256": "22a3b3568fdf3e7e76313a437b8658c5a944686b544be3e6517924a208ae3b39"
+      "sha256": "557ce9ebaaea230189c997c8252f2a04c7481a68746bf48bef13f21303742977"
     },
     {
       "path": "scripts/workbuddy-080rc2-publication.json",
@@ -2673,8 +2703,8 @@
     },
     {
       "path": "tests/test_android_engine.py",
-      "bytes": 14259,
-      "sha256": "9914d9f87430231b4e71c354239d1a510d405580fc0d7eb8960ce164fb6151c1"
+      "bytes": 14296,
+      "sha256": "484cfb6751f782fd4094c4e0ea802e6fd4c52722f4ca4f1d93af0e329b0a2fec"
     },
     {
       "path": "tests/test_android_packaging.py",
@@ -2682,14 +2712,24 @@
       "sha256": "7bb5349ec722ba7cc069b5f277ed23632ab3b463f1a14543f81e0b4e3a6565f9"
     },
     {
+      "path": "tests/test_android_release_handoff.py",
+      "bytes": 10553,
+      "sha256": "8d622735e49a7d1cc2a3aa777fbded1cd31fd4611f268f37c7e4e77918e97937"
+    },
+    {
       "path": "tests/test_android_release_publish.py",
       "bytes": 9327,
       "sha256": "87f58250429d7989bd3906edf45e19c0b7bcbf845f2153b07f3c6dd66d2733ea"
     },
     {
+      "path": "tests/test_android_release_signing.py",
+      "bytes": 13763,
+      "sha256": "238dc25734f53c0bb855701fd5a81f20c208675806894db6f9bbd5f4ab047344"
+    },
+    {
       "path": "tests/test_android_release_verification.py",
-      "bytes": 8702,
-      "sha256": "79d825c308b7e6877746250bb9cd7d10c458bb1ab245dc7c9a793ec10585173f"
+      "bytes": 8790,
+      "sha256": "b4e8543e7bafa4ea7724bde27ebb9835d82b23896261273fcb0cb4e65b151efb"
     },
     {
       "path": "tests/test_android_remote_package_boundary.py",
@@ -2700,6 +2740,11 @@
       "path": "tests/test_android_runtime_licenses.py",
       "bytes": 3563,
       "sha256": "6ed9edb0cab63c88c8b54b83c8a3af2117e40b1c18c33447459cc0b330bac5e2"
+    },
+    {
+      "path": "tests/test_android_signed_upgrade.py",
+      "bytes": 4851,
+      "sha256": "2574553c197d75ffc0b48df278f4b1ec0dcc0cf8244f4cc474a6b49bab598e23"
     },
     {
       "path": "tests/test_android_upgrade_signing.py",
@@ -2818,13 +2863,18 @@
     },
     {
       "path": "tests/test_harness_capabilities.py",
-      "bytes": 5082,
-      "sha256": "3106884de8b60886997893b5304fcb1b80c14827d01cab1e3d7c2c306bcb8d31"
+      "bytes": 6599,
+      "sha256": "240113d9e210f156081c6f17e877768b6cd1cc059416ca8ef731619bca5fa0b2"
     },
     {
       "path": "tests/test_harness_legacy_detection.py",
       "bytes": 2633,
       "sha256": "ce6d21b51b226f151a990303cf3300a12e2c1d58b41df335fe511b2a621ad43b"
+    },
+    {
+      "path": "tests/test_harness_refresh.py",
+      "bytes": 12916,
+      "sha256": "8837291a2e699dc16579490132726775aa866e3836f9329de7c549bb8645faaa"
     },
     {
       "path": "tests/test_harness_windows_detection.py",
@@ -3219,7 +3269,7 @@
     {
       "path": "tests/test_windows_upgrade_smoke.py",
       "bytes": 17785,
-      "sha256": "0452052703b86dd4235fada32832ee0c032eb591f8901bd6b57f3ed081c3c745"
+      "sha256": "14a1200cf99e635b424dee1dc9a5ecf09539e40c84a6649672cf7f801cd3dd82"
     },
     {
       "path": "tests/test_workbuddy_connection_state.py",
@@ -3230,6 +3280,11 @@
       "path": "tests/test_workbuddy_connector.py",
       "bytes": 17048,
       "sha256": "f9d5027c0c61c3ecea9d2daa4c248c0af54e0005c4e86709d6192fcc8f9408e7"
+    },
+    {
+      "path": "THIRD_PARTY_NOTICES.md",
+      "bytes": 9077,
+      "sha256": "db0d9cc3fc2af4c40e3042a704f03eb4e9bf2cac4d3afd49a7a13af24e16300f"
     },
     {
       "path": "启动爱之屋.command",

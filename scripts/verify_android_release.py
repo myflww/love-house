@@ -17,11 +17,13 @@ import sys
 import urllib.request
 import zipfile
 
+from android_release_identity import release_identity
+
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = 'love-house-android-candidate/v1'
 APP_ID = 'io.github.myflww.lovehouse.preview'
 MAX_APK_BYTES = 100 * 1024 * 1024
-ENGINE_VERSION = ('0.10.6rc1', 4)
+ENGINE_VERSION = release_identity() if (ROOT / "android/app/build.gradle").is_file() else None
 ORIGINAL_CERT = 'ca4b184194816fe3617feaa841e11b47f5a9a9a00493e8cbc015210c04a3a4cc'
 ENGINE_ABIS = {'arm64-v8a', 'x86_64'}
 ENGINE_LIBRARIES = {'libchaquopy_java.so', 'libpython3.12.so',

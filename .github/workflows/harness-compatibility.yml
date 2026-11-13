@@ -46,7 +46,7 @@ jobs:
         with:
           node-version: '24.22.1'
       - id: matrix
-        name: Select supported versions and the scheduled latest candidate
+        name: Select supported versions and scheduled update-channel candidates
         env:
           EVENT_NAME: ${{ github.event_name }}
         run: |
@@ -57,9 +57,13 @@ jobs:
             { id: 'rc5-linux', os: 'ubuntu-latest', selector: '0.2.1-rc.5', cordis: '4.0.5' },
             { id: 'rc1-linux', os: 'ubuntu-latest', selector: '0.2.2-rc.1', cordis: '4.1.0' },
             { id: 'rc1-windows', os: 'windows-latest', selector: '0.2.2-rc.1', cordis: '4.1.0' },
+            { id: 'rc2-linux', os: 'ubuntu-latest', selector: '0.2.2-rc.2', cordis: '4.1.0' },
+            { id: 'rc2-windows', os: 'windows-latest', selector: '0.2.2-rc.2', cordis: '4.1.0' },
+            { id: 'rc2-macos', os: 'macos-latest', selector: '0.2.2-rc.2', cordis: '4.1.0' },
           ];
           if (['schedule', 'workflow_dispatch'].includes(process.env.EVENT_NAME)) {
             include.push({ id: 'latest-linux', os: 'ubuntu-latest', selector: 'latest', cordis: '' });
+            include.push({ id: 'next-linux', os: 'ubuntu-latest', selector: 'next', cordis: '' });
           }
           appendFileSync(process.env.GITHUB_OUTPUT, `include=${JSON.stringify(include)}\n`);
           console.log(JSON.stringify(include, null, 2));

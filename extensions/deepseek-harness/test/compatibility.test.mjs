@@ -110,8 +110,27 @@ test('unrelated implementation changes and additive public fields do not invalid
     const runtime = join(f.modules, '@deepseek-ai/dsh-session/lib/index.js');
     writeFileSync(runtime, readFileSync(runtime, 'utf8') + '\n// independently changed implementation detail\n');
     const declaration = join(f.modules, '@deepseek-ai/dsh-agent/lib/types/runtime-types.d.ts');
-    writeFileSync(declaration, readFileSync(declaration, 'utf8').replace('messages: UserMessage[];', 'messages: UserMessage[]; futureContext?: string;'));
+    const original = readFileSync(declaration, 'utf8');
+    const start = original.indexOf("'agent/pre-step'");
+    const end = original.indexOf('Promise<PreStepDecision>;', start) + 'Promise<PreStepDecision>;'.length;
+    assert.ok(start >= 0 && end > start);
+    const payload = original.slice(start, end);
+    const additive = payload.replace('signal: AbortSignal;', 'signal: AbortSignal; futureContext?: { effort: string };');
+    assert.notEqual(payload, additive);
+    writeFileSync(declaration, original.slice(0, start) + additive + original.slice(end));
     const adapter = new HostAdapter(f.options); await adapter.dispose();
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+test('changed pre-step return type is rejected despite unchanged runtime hook markers', () => {
+  const f = installedFutureFixture();
+  try {
+    const path = join(f.modules, '@deepseek-ai/dsh-agent/lib/types/runtime-types.d.ts');
+    const original = readFileSync(path, 'utf8');
+    const signature = '}, next: () => Promise<PreStepDecision>): Promise<PreStepDecision>;';
+    assert.ok(original.includes(signature));
+    writeFileSync(path, original.replace(signature, '}, next: () => Promise<PreStepDecision>): Promise<void>;'));
+    assert.throws(() => new HostAdapter(f.options), /contract could not be verified/);
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });
 

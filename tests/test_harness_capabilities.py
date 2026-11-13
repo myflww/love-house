@@ -51,6 +51,30 @@ class CapabilityTests(unittest.TestCase):
         self.assertEqual(result['compatibility']['status'], 'capability_match')
         self.assertEqual(result['version'], self.version)
 
+    def test_pre_step_payload_accepts_added_fields_like_newer_official_sdk(self):
+        path = self.modules / '@deepseek-ai/dsh-agent/lib/types/runtime-types.d.ts'
+        declaration = path.read_text('utf-8')
+        start = declaration.index("'agent/pre-step'")
+        end = declaration.index('Promise<PreStepDecision>;', start) + len('Promise<PreStepDecision>;')
+        original = declaration[start:end]
+        changed = original.replace('signal: AbortSignal;', 'signal: AbortSignal; futureContext?: { effort: string };')
+        self.assertNotEqual(original, changed)
+        path.write_text(declaration[:start] + changed + declaration[end:], encoding='utf-8')
+        self.assertTrue(self.detect()['supported'])
+
+    def test_changed_pre_step_return_type_is_rejected_with_detected_version(self):
+        path = self.modules / '@deepseek-ai/dsh-agent/lib/types/runtime-types.d.ts'
+        declaration = path.read_text('utf-8')
+        original = '}, next: () => Promise<PreStepDecision>): Promise<PreStepDecision>;'
+        self.assertIn(original, declaration)
+        path.write_text(declaration.replace(original, '}, next: () => Promise<PreStepDecision>): Promise<void>;'),
+                        encoding='utf-8')
+        result = self.detect()
+        self.assertTrue(result['detected'])
+        self.assertEqual(result['version'], self.version)
+        self.assertFalse(result['supported'])
+        self.assertTrue(any('runtime-types.d.ts' in item for item in result['compatibility']['diagnostics']))
+
     def test_production_archive_without_development_declarations_remains_compatible(self):
         for path in self.modules.rglob('*.d.ts'):
             path.unlink()

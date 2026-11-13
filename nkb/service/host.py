@@ -73,8 +73,35 @@ class MemoryHost:
         self.updates=UpdateChecker(self.root)
         from .idle_review import IdleReviewService
         self.reviews=IdleReviewService(self,transport=organizer_transport)
+        self.harness_refresh_results=self.refresh_harness_installations()
         self.worker=threading.Thread(target=self._retry,daemon=True);self.worker.start()
         self.organizer.start()
+    def refresh_harness_installations(self):
+        """Keep existing, owned profile copies in step with this app's adapter.
+
+        Never install a new source, recover a removed entry or change a private
+        connection binding. A paused source stays paused; revoked entries are
+        not inspected. The host must reload a changed module before using it.
+        """
+        import importlib.util
+        helper=harness_resources()/'configure.py'
+        if not helper.is_file():return {}
+        try:
+            spec=importlib.util.spec_from_file_location('nkb_harness_refresh',helper)
+            module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        except Exception:return {}
+        results={}
+        for connection in self.connections.list():
+            cid=connection['id']
+            if (connection['host'] not in ('harness','agent') or not connection.get('configured_at')
+                    or connection['revoked'] or self.sources.for_connection(cid)):continue
+            try:results[cid]=module.refresh_owned_installation(self.harness_connection_config(cid))
+            except Exception:
+                # No paths, credentials or exception text from a private profile
+                # enter diagnostics. An optional adapter cannot stop the library.
+                results[cid]={'connection_id':cid,'refreshed':False,'status':'refresh_unavailable',
+                              'message':'无法同步原宿主插件；原连接与记忆保留，可在连接页检查安装'}
+        return results
     def port_for(self,library_id):
         self.library(library_id)
         with self._lock:
@@ -794,6 +821,7 @@ class MemoryHost:
             module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
             plan=module.configure(self.harness_connection_config(cid),apply=False)
         return {'supported':bool(plan.get('supported')),'configured':bool(c.get('configured_at')),
+                'adapter_refresh':self.harness_refresh_results.get(cid),
                 'detected':plan.get('detected',{}),'setup':plan,
                 'configure_endpoint':'/api/connections/'+cid+'/configure',
                 'requires_harness_reload':True,'preserves_connection':True,
@@ -867,6 +895,7 @@ class MemoryHost:
                 'api_base_url':base+'/connections/'+cid+'/v1','config':config,
                 'host_options':adapter_options,
                 'setup':setup,'supported': bool(setup and setup.get('supported')) if c['host']=='harness' else True,
+                'adapter_refresh':self.harness_refresh_results.get(cid) if c['host']=='harness' else None,
                 'requires_apply':c['host']=='harness' and not bool(c.get('configured_at')),
                 'configuration_ready':c['host']=='api' or bool(c.get('configured_at')),
                 'instructions':('将本地API地址和连接凭证填入聊天客户端；请求经过这里才会自动存档。' if c['host']=='api' else '加载宿主自动存档插件后发起一轮新对话；首条完整记录落盘后才显示自动存档。')}

@@ -45,6 +45,8 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
     private UiAutomation automation;
     private String stage = "arguments";
     private int fromVersionCode;
+    private int toVersionCode;
+    private String toVersionName;
 
     @Override public void onCreate(Bundle args) {
         super.onCreate(args);
@@ -62,7 +64,11 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
         try {
             require(mode.equals("seed") || mode.equals("verify"));
             fromVersionCode = Integer.parseInt(arguments.getString("from_version_code", ""));
-            require(fromVersionCode == 1 || fromVersionCode == 2);
+            require(fromVersionCode >= 1 && fromVersionCode <= 4);
+            toVersionCode = Integer.parseInt(arguments.getString("to_version_code", "3"));
+            toVersionName = arguments.getString("to_version_name", "0.8.0rc2");
+            require(toVersionCode > fromVersionCode && toVersionCode < 2100000000);
+            require(toVersionName.matches("[0-9]+\\.[0-9]+\\.[0-9]+[0-9A-Za-z.-]*"));
             stage = "disposable_emulator";
             require(Build.VERSION.SDK_INT == 28 || Build.VERSION.SDK_INT == 36);
             Process prop = new ProcessBuilder("/system/bin/getprop", "ro.kernel.qemu").start();
@@ -89,7 +95,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
             report.putBoolean("ok", true);
             report.putInt("api_level", Build.VERSION.SDK_INT);
             report.putInt("from_version_code", fromVersionCode);
-            report.putInt("expected_version_code", mode.equals("seed") ? fromVersionCode : 3);
+            report.putInt("expected_version_code", mode.equals("seed") ? fromVersionCode : toVersionCode);
             report.putBoolean("same_original_certificate", true);
             report.putBoolean("original_text_preserved", true);
             report.putBoolean("assistant_reply_preserved", true);
@@ -110,8 +116,9 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
         PackageManager manager = getTargetContext().getPackageManager();
         PackageInfo info = manager.getPackageInfo(APP, PackageManager.GET_SIGNING_CERTIFICATES);
         require(info.packageName.equals(APP));
-        require(info.versionCode == (mode.equals("seed") ? fromVersionCode : 3));
-        require((mode.equals("seed") ? (fromVersionCode == 1 ? "0.1.0-preview1" : "0.8.0rc1") : "0.8.0rc2").equals(info.versionName));
+        require(info.versionCode == (mode.equals("seed") ? fromVersionCode : toVersionCode));
+        String[] oldNames = {"", "0.1.0-preview1", "0.8.0rc1", "0.8.0rc2", "0.10.6rc1"};
+        require((mode.equals("seed") ? oldNames[fromVersionCode] : toVersionName).equals(info.versionName));
         Signature[] signatures = info.signingInfo.getApkContentsSigners();
         require(signatures != null && signatures.length == 1);
         byte[] digest = MessageDigest.getInstance("SHA-256").digest(signatures[0].toByteArray());

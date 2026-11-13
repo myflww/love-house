@@ -1,0 +1,557 @@
+{
+  "schema": "love-house-harness-compatibility-ci-summary/v1",
+  "source_sha": "4a61140d0c220c41ace2aea0f9cbd0a28b0cf29d",
+  "product_version": "0.10.7rc1",
+  "run_id": 43369845347,
+  "run_url": "https://github.com/myflww/love-house/actions/runs/43369845347",
+  "run_attempt": 1,
+  "conclusion": "success",
+  "matrix_rows": 7,
+  "passed_rows": 7,
+  "connection_modes_per_row": [
+    "harness",
+    "agent"
+  ],
+  "synthetic_model_only": true,
+  "real_credentials_accessed": false,
+  "external_paid_model_calls": 0,
+  "rows": [
+    {
+      "matrix_id": "rc3-linux",
+      "job_id": 131702858559,
+      "job_url": "https://github.com/myflww/love-house/actions/runs/43369845347/job/131702858559",
+      "conclusion": "success",
+      "system": "Linux",
+      "architecture": "x86_64",
+      "python": "3.12.16",
+      "node_version_configured": "24.22.1",
+      "selection": {
+        "selector": "0.2.1-rc.3",
+        "version": "0.2.1-rc.3",
+        "cordisRange": "~4.0.5",
+        "cliTarball": "https://registry.npmjs.org/@deepseek-ai/dsh/-/dsh-0.2.1-rc.3.tgz",
+        "cliIntegrity": "sha512-H+E9HLnHf7fJqzen84Z9Bq8ggb5xbrcbyhZjXTJLE9NabHr3zteGvTRvdvGkxPl4ov80is4WLglFmSo+/olJjg==",
+        "cordisVersion": "4.0.5"
+      },
+      "adapter_sdk": {
+        "@deepseek-ai/cordis": "4.0.5",
+        "@deepseek-ai/dsh-agent": "0.2.1-rc.3",
+        "@deepseek-ai/dsh-session": "0.2.1-rc.3",
+        "@deepseek-ai/dsh-llm": "0.2.1-rc.3",
+        "@deepseek-ai/dsh-scope": "0.2.1-rc.3"
+      },
+      "adapter_tests": {
+        "tests": 47,
+        "failures": 0
+      },
+      "python_tests": {
+        "tests": 68,
+        "failures": 0,
+        "skipped": 0
+      },
+      "real_cli": {
+        "ok": true,
+        "complete": true,
+        "cases": [
+          {
+            "connection_host": "harness",
+            "ok": true,
+            "plugin_applied": true,
+            "archive_status": "automatic_connected",
+            "original_user_saved": true,
+            "original_assistant_saved": true,
+            "foreign_window_excluded": true,
+            "model_requests": 2
+          },
+          {
+            "connection_host": "agent",
+            "ok": true,
+            "plugin_applied": true,
+            "archive_status": "automatic_connected",
+            "original_user_saved": true,
+            "original_assistant_saved": true,
+            "foreign_window_excluded": true,
+            "model_requests": 2
+          }
+        ]
+      },
+      "artifact": {
+        "id": 14012325940,
+        "name": "harness-compatibility-rc3-linux",
+        "url": "https://github.com/myflww/love-house/actions/runs/43369845347/artifacts/14012325940",
+        "bytes": 90540,
+        "sha256": "b8beb456c8e595649c366ca809f4da1e9a35a12bb3600beeb7387877b56f87fe",
+        "download_digest_verified": true,
+        "evidence_sha256": {
+          "selection.json": "030caab3cd08c29fa16ee9d90899d5fc8141a025d2210f86d2dd06bed07667ab",
+          "adapter-sdk.json": "6df22bf17bce5f2e6fa17c56b9764e6255c8b244fa05c9202fdff829aa17a27b",
+          "real-cli/result.json": "259e06beba86a4c1b700949a94c3f51ba5cef8321c1d11817f60df6fd4ba3b4a",
+          "python-tests.log": "cf596294da64815764f4840fba056e3c0ca857984b5ee09790e418f0dc0549e5",
+          "adapter-tests.log": "27aa8a9a995352e10a3ab5c1f24a50d11d2396a2e29e3074e1f1f54537a8d0f6"
+        }
+      },
+      "local_download_proof": "build/release-0107/ci-43369845347/14012325940/download-verification.json"
+    },
+    {
+      "matrix_id": "rc5-linux",
+      "job_id": 131702858596,
+      "job_url": "https://github.com/myflww/love-house/actions/runs/43369845347/job/131702858596",
+      "conclusion": "success",
+      "system": "Linux",
+      "architecture": "x86_64",
+      "python": "3.12.16",
+      "node_version_configured": "24.22.1",
+      "selection": {
+        "selector": "0.2.1-rc.5",
+        "version": "0.2.1-rc.5",
+        "cordisRange": "~4.0.5",
+        "cliTarball": "https://registry.npmjs.org/@deepseek-ai/dsh/-/dsh-0.2.1-rc.5.tgz",
+        "cliIntegrity": "sha512-WkyJZv4zl9sCAxSzRctGm58m0rilGqwR6pniBiLOz5CPDfHfDuAUicg0AAazXI7oj/Cph6/cjNTncA/rpLTXpw==",
+        "cordisVersion": "4.0.5"
+      },
+      "adapter_sdk": {
+        "@deepseek-ai/cordis": "4.0.5",
+        "@deepseek-ai/dsh-agent": "0.2.1-rc.5",
+        "@deepseek-ai/dsh-session": "0.2.1-rc.5",
+        "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
+        "@deepseek-ai/dsh-scope": "0.2.1-rc.5"
+      },
+      "adapter_tests": {
+        "tests": 47,
+        "failures": 0
+      },
+      "python_tests": {
+        "tests": 68,
+        "failures": 0,
+        "skipped": 0
+      },
+      "real_cli": {
+        "ok": true,
+        "complete": true,
+        "cases": [
+          {
+            "connection_host": "harness",
+            "ok": true,
+            "plugin_applied": true,
+            "archive_status": "automatic_connected",
+            "original_user_saved": true,
+            "original_assistant_saved": true,
+            "foreign_window_excluded": true,
+            "model_requests": 2
+          },
+          {
+            "connection_host": "agent",
+            "ok": true,
+            "plugin_applied": true,
+            "archive_status": "automatic_connected",
+            "original_user_saved": true,
+            "original_assistant_saved": true,
+            "foreign_window_excluded": true,
+            "model_requests": 2
+          }
+        ]
+      },
+      "artifact": {
+        "id": 14011622438,
+        "name": "harness-compatibility-rc5-linux",
+        "url": "https://github.com/myflww/love-house/actions/runs/43369845347/artifacts/14011622438",
+        "bytes": 90535,
+        "sha256": "e79bbd1bf9ac59866436fc147fd7c2f8b38be47828e9ea22d7bfe7af95bda983",
+        "download_digest_verified": true,
+        "evidence_sha256": {
+          "selection.json": "ea4e5602ba798787a8bd6d37b0693567ab8585ffebb09f59262fd6129e7a831f",
+          "adapter-sdk.json": "aa6bdcbb1a3bbde3e5efbbc1f31c391c8081801f8e66b5c92f5ef4f4b76c0a7a",
+          "real-cli/result.json": "472d60ed242d7bc4ce600475a5c6a228d9138fedf39e422f0550ac64a2581e8b",
+          "python-tests.log": "46f83e75986f85a5abb9ec949b52211a12e087b4030c9d5cd975d1d513f36e3b",
+          "adapter-tests.log": "92c38edd8fa3198cc3773e3ad86464c4cdedad40d791895e356a82fbfbff60bc"
+        }
+      },
+      "local_download_proof": "build/release-0107/ci-43369845347/14011622438/download-verification.json"
+    },
+    {
+      "matrix_id": "rc1-linux",
+      "job_id": 131702858558,
+      "job_url": "https://github.com/myflww/love-house/actions/runs/43369845347/job/131702858558",
+      "conclusion": "success",
+      "system": "Linux",
+      "architecture": "x86_64",
+      "python": "3.12.16",
+      "node_version_configured": "24.22.1",
+      "selection": {
+        "selector": "0.2.2-rc.1",
+        "version": "0.2.2-rc.1",
+        "cordisRange": "~4.1.0",
+        "cliTarball": "https://registry.npmjs.org/@deepseek-ai/dsh/-/dsh-0.2.2-rc.1.tgz",
+        "cliIntegrity": "sha512-ijR9UEVYkG15Q/Q79JzvzLBzQOQfc63VLr9n6flpwHPhr5IKn2UxthnSoto/P9l7qGd7pPvI1Ra6TW7LH3oKpg==",
+        "cordisVersion": "4.1.0"
+      },
+      "adapter_sdk": {
+        "@deepseek-ai/cordis": "4.1.0",
+        "@deepseek-ai/dsh-agent": "0.2.2-rc.1",
+        "@deepseek-ai/dsh-session": "0.2.2-rc.1",
+        "@deepseek-ai/dsh-llm": "0.2.2-rc.1",
+        "@deepseek-ai/dsh-scope": "0.2.2-rc.1"
+      },
+      "adapter_tests": {
+        "tests": 47,
+        "failures": 0
+      },
+      "python_tests": {
+        "tests": 68,
+        "failures": 0,
+        "skipped": 0
+      },
+      "real_cli": {
+        "ok": true,
+        "complete": true,
+        "cases": [
+          {
+            "connection_host": "harness",
+            "ok": true,
+            "plugin_applied": true,
+            "archive_status": "automatic_connected",
+            "original_user_saved": true,
+            "original_assistant_saved": true,
+            "foreign_window_excluded": true,
+            "model_requests": 2
+          },
+          {
+            "connection_host": "agent",
+            "ok": true,
+            "plugin_applied": true,
+            "archive_status": "automatic_connected",
+            "original_user_saved": true,
+            "original_assistant_saved": true,
+            "foreign_window_excluded": true,
+            "model_requests": 2
+          }
+        ]
+      },
+      "artifact": {
+        "id": 14011572665,
+        "name": "harness-compatibility-rc1-linux",
+        "url": "https://github.com/myflww/love-house/actions/runs/43369845347/artifacts/14011572665",
+        "bytes": 94553,
+        "sha256": "7ea1d894091b645abf60bd17925e81af10a3fe8627105214fdb3b360162c2d91",
+        "download_digest_verified": true,
+        "evidence_sha256": {
+          "selection.json": "dd4841641a75b9f3c9f8bccc6ff35375033cffb12c68577219aa0223894cba40",
+          "adapter-sdk.json": "ca828d7bbdd4d0c3213deb5af0b2fb892a52b6313624dae8b4fe59256598acde",
+          "real-cli/result.json": "72808183237dcc67be075457f25f1cb8717dae6fc7bf8d2a9593cb65eca1888f",
+          "python-tests.log": "7803be2c3e35011ca173cca39bf5be24dda217a6fa851d57db9fd1dd782fe2e6",
+          "adapter-tests.log": "03b271fcaa0c01153134e84f65afedce1ecf768ed91aa3ab22533df3300222be"
+        }
+      },
+      "local_download_proof": "build/release-0107/ci-43369845347/14011572665/download-verification.json"
+    },
+    {
+      "matrix_id": "rc1-windows",
+      "job_id": 131702858572,
+      "job_url": "https://github.com/myflww/love-house/actions/runs/43369845347/job/131702858572",
+      "conclusion": "success",
+      "system": "Windows",
+      "architecture": "AMD64",
+      "python": "3.12.10",
+      "node_version_configured": "24.22.1",
+      "selection": {
+        "selector": "0.2.2-rc.1",
+        "version": "0.2.2-rc.1",
+        "cordisRange": "~4.1.0",
+        "cliTarball": "https://registry.npmjs.org/@deepseek-ai/dsh/-/dsh-0.2.2-rc.1.tgz",
+        "cliIntegrity": "sha512-ijR9UEVYkG15Q/Q79JzvzLBzQOQfc63VLr9n6flpwHPhr5IKn2UxthnSoto/P9l7qGd7pPvI1Ra6TW7LH3oKpg==",
+        "cordisVersion": "4.1.0"
+      },
+      "adapter_sdk": {
+        "@deepseek-ai/cordis": "4.1.0",
+        "@deepseek-ai/dsh-agent": "0.2.2-rc.1",
+        "@deepseek-ai/dsh-session": "0.2.2-rc.1",
+        "@deepseek-ai/dsh-llm": "0.2.2-rc.1",
+        "@deepseek-ai/dsh-scope": "0.2.2-rc.1"
+      },
+      "adapter_tests": {
+        "tests": 47,
+        "failures": 0
+      },
+      "python_tests": {
+        "tests": 68,
+        "failures": 0,
+        "skipped": 3
+      },
+      "real_cli": {
+        "ok": true,
+        "complete": true,
+        "cases": [
+          {
+            "connection_host": "harness",
+            "ok": true,
+            "plugin_applied": true,
+            "archive_status": "automatic_connected",
+            "original_user_saved": true,
+            "original_assistant_saved": true,
+            "foreign_window_excluded": true,
+            "model_requests": 2
+          },
+          {
+            "connection_host": "agent",
+            "ok": true,
+            "plugin_applied": true,
+            "archive_status": "automatic_connected",
+            "original_user_saved": true,
+            "original_assistant_saved": true,
+            "foreign_window_excluded": true,
+            "model_requests": 2
+          }
+        ]
+      },
+      "artifact": {
+        "id": 14012655751,
+        "name": "harness-compatibility-rc1-windows",
+        "url": "https://github.com/myflww/love-house/actions/runs/43369845347/artifacts/14012655751",
+        "bytes": 94694,
+        "sha256": "3dba2e2291599d4fada1cb83f3284f15dcff4f42e0f196c39454aa2f30e4a8ff",
+        "download_digest_verified": true,
+        "evidence_sha256": {
+          "selection.json": "dd4841641a75b9f3c9f8bccc6ff35375033cffb12c68577219aa0223894cba40",
+          "adapter-sdk.json": "ca828d7bbdd4d0c3213deb5af0b2fb892a52b6313624dae8b4fe59256598acde",
+          "real-cli/result.json": "c25251e77e3f98b559810249832ec70cb8702d934a45714823291c729063cc4e",
+          "python-tests.log": "11d3183487a50afb65f81dc1ff5708ff030c5ace9b51d1c38d769d99a1cf1cda",
+          "adapter-tests.log": "ddfdf8f71033b563cc98da8dffbc502c4d8a1800b3752fd2435286d2f0b9cc0d"
+        }
+      },
+      "local_download_proof": "build/release-0107/ci-43369845347/14012655751/download-verification.json"
+    },
+    {
+      "matrix_id": "rc2-linux",
+      "job_id": 131702858560,
+      "job_url": "https://github.com/myflww/love-house/actions/runs/43369845347/job/131702858560",
+      "conclusion": "success",
+      "system": "Linux",
+      "architecture": "x86_64",
+      "python": "3.12.16",
+      "node_version_configured": "24.22.1",
+      "selection": {
+        "selector": "0.2.2-rc.2",
+        "version": "0.2.2-rc.2",
+        "cordisRange": "~4.1.0",
+        "cliTarball": "https://registry.npmjs.org/@deepseek-ai/dsh/-/dsh-0.2.2-rc.2.tgz",
+        "cliIntegrity": "sha512-J727r2C471x2cYXGjqZ0D9T1ZyaYQDFH/Ynx8iq+85oslM4nky5YTBnbAuTtxMhW7nhY8wuAEfjjFCQ+K6Swgw==",
+        "cordisVersion": "4.1.0"
+      },
+      "adapter_sdk": {
+        "@deepseek-ai/cordis": "4.1.0",
+        "@deepseek-ai/dsh-agent": "0.2.2-rc.2",
+        "@deepseek-ai/dsh-session": "0.2.2-rc.2",
+        "@deepseek-ai/dsh-llm": "0.2.2-rc.2",
+        "@deepseek-ai/dsh-scope": "0.2.2-rc.2"
+      },
+      "adapter_tests": {
+        "tests": 47,
+        "failures": 0
+      },
+      "python_tests": {
+        "tests": 68,
+        "failures": 0,
+        "skipped": 0
+      },
+      "real_cli": {
+        "ok": true,
+        "complete": true,
+        "cases": [
+          {
+            "connection_host": "harness",
+            "ok": true,
+            "plugin_applied": true,
+            "archive_status": "automatic_connected",
+            "original_user_saved": true,
+            "original_assistant_saved": true,
+            "foreign_window_excluded": true,
+            "model_requests": 2
+          },
+          {
+            "connection_host": "agent",
+            "ok": true,
+            "plugin_applied": true,
+            "archive_status": "automatic_connected",
+            "original_user_saved": true,
+            "original_assistant_saved": true,
+            "foreign_window_excluded": true,
+            "model_requests": 2
+          }
+        ]
+      },
+      "artifact": {
+        "id": 14011503336,
+        "name": "harness-compatibility-rc2-linux",
+        "url": "https://github.com/myflww/love-house/actions/runs/43369845347/artifacts/14011503336",
+        "bytes": 95773,
+        "sha256": "c0cbf420e3df2ab0bca7c7533ad243983c1a175ce5adb91638bc30026701f849",
+        "download_digest_verified": true,
+        "evidence_sha256": {
+          "selection.json": "dd239ae1f8b761cf1fb6ca5d1971a11bf4e11941c1dc21bfacd4c220ea4109bf",
+          "adapter-sdk.json": "9ab32a04538d7dcf820267dd2321600c5a9435c5b930315994696370ad48ba59",
+          "real-cli/result.json": "6478528536142e59f04ec352e36097e05e89cef7011c15cabbc86d24f41e79a2",
+          "python-tests.log": "241d4c6ed45afe51a001b03493b781a9329793999bc7ec45fe5a311ecfee2413",
+          "adapter-tests.log": "ab2f5c11ab873ccc544100a26c8338636fdcdccfe738e177690ae114ab685949"
+        }
+      },
+      "local_download_proof": "build/release-0107/ci-43369845347/14011503336/download-verification.json"
+    },
+    {
+      "matrix_id": "rc2-windows",
+      "job_id": 131702858555,
+      "job_url": "https://github.com/myflww/love-house/actions/runs/43369845347/job/131702858555",
+      "conclusion": "success",
+      "system": "Windows",
+      "architecture": "AMD64",
+      "python": "3.12.10",
+      "node_version_configured": "24.22.1",
+      "selection": {
+        "selector": "0.2.2-rc.2",
+        "version": "0.2.2-rc.2",
+        "cordisRange": "~4.1.0",
+        "cliTarball": "https://registry.npmjs.org/@deepseek-ai/dsh/-/dsh-0.2.2-rc.2.tgz",
+        "cliIntegrity": "sha512-J727r2C471x2cYXGjqZ0D9T1ZyaYQDFH/Ynx8iq+85oslM4nky5YTBnbAuTtxMhW7nhY8wuAEfjjFCQ+K6Swgw==",
+        "cordisVersion": "4.1.0"
+      },
+      "adapter_sdk": {
+        "@deepseek-ai/cordis": "4.1.0",
+        "@deepseek-ai/dsh-agent": "0.2.2-rc.2",
+        "@deepseek-ai/dsh-session": "0.2.2-rc.2",
+        "@deepseek-ai/dsh-llm": "0.2.2-rc.2",
+        "@deepseek-ai/dsh-scope": "0.2.2-rc.2"
+      },
+      "adapter_tests": {
+        "tests": 47,
+        "failures": 0
+      },
+      "python_tests": {
+        "tests": 68,
+        "failures": 0,
+        "skipped": 3
+      },
+      "real_cli": {
+        "ok": true,
+        "complete": true,
+        "cases": [
+          {
+            "connection_host": "harness",
+            "ok": true,
+            "plugin_applied": true,
+            "archive_status": "automatic_connected",
+            "original_user_saved": true,
+            "original_assistant_saved": true,
+            "foreign_window_excluded": true,
+            "model_requests": 2
+          },
+          {
+            "connection_host": "agent",
+            "ok": true,
+            "plugin_applied": true,
+            "archive_status": "automatic_connected",
+            "original_user_saved": true,
+            "original_assistant_saved": true,
+            "foreign_window_excluded": true,
+            "model_requests": 2
+          }
+        ]
+      },
+      "artifact": {
+        "id": 14012037188,
+        "name": "harness-compatibility-rc2-windows",
+        "url": "https://github.com/myflww/love-house/actions/runs/43369845347/artifacts/14012037188",
+        "bytes": 95932,
+        "sha256": "18a5a821894e688d45910ced1093a7614dfc875440d64929bcb9890d7a88a0ba",
+        "download_digest_verified": true,
+        "evidence_sha256": {
+          "selection.json": "dd239ae1f8b761cf1fb6ca5d1971a11bf4e11941c1dc21bfacd4c220ea4109bf",
+          "adapter-sdk.json": "9ab32a04538d7dcf820267dd2321600c5a9435c5b930315994696370ad48ba59",
+          "real-cli/result.json": "104f3f27528727a55a3b39383bb9fc125be0fefb7ff5e6287f2361caf29a0579",
+          "python-tests.log": "57c6304abf4d688374068e378e904097c9aaff27bc336a8c5e2f5ed4b4460ab8",
+          "adapter-tests.log": "5e67aa4c25ed3da22bfa51311e7594b461762969d05d73607c4e058f57d6d4a8"
+        }
+      },
+      "local_download_proof": "build/release-0107/ci-43369845347/14012037188/download-verification.json"
+    },
+    {
+      "matrix_id": "rc2-macos",
+      "job_id": 131702858553,
+      "job_url": "https://github.com/myflww/love-house/actions/runs/43369845347/job/131702858553",
+      "conclusion": "success",
+      "system": "Darwin",
+      "architecture": "arm64",
+      "python": "3.12.10",
+      "node_version_configured": "24.22.1",
+      "selection": {
+        "selector": "0.2.2-rc.2",
+        "version": "0.2.2-rc.2",
+        "cordisRange": "~4.1.0",
+        "cliTarball": "https://registry.npmjs.org/@deepseek-ai/dsh/-/dsh-0.2.2-rc.2.tgz",
+        "cliIntegrity": "sha512-J727r2C471x2cYXGjqZ0D9T1ZyaYQDFH/Ynx8iq+85oslM4nky5YTBnbAuTtxMhW7nhY8wuAEfjjFCQ+K6Swgw==",
+        "cordisVersion": "4.1.0"
+      },
+      "adapter_sdk": {
+        "@deepseek-ai/cordis": "4.1.0",
+        "@deepseek-ai/dsh-agent": "0.2.2-rc.2",
+        "@deepseek-ai/dsh-session": "0.2.2-rc.2",
+        "@deepseek-ai/dsh-llm": "0.2.2-rc.2",
+        "@deepseek-ai/dsh-scope": "0.2.2-rc.2"
+      },
+      "adapter_tests": {
+        "tests": 47,
+        "failures": 0
+      },
+      "python_tests": {
+        "tests": 68,
+        "failures": 0,
+        "skipped": 0
+      },
+      "real_cli": {
+        "ok": true,
+        "complete": true,
+        "cases": [
+          {
+            "connection_host": "harness",
+            "ok": true,
+            "plugin_applied": true,
+            "archive_status": "automatic_connected",
+            "original_user_saved": true,
+            "original_assistant_saved": true,
+            "foreign_window_excluded": true,
+            "model_requests": 2
+          },
+          {
+            "connection_host": "agent",
+            "ok": true,
+            "plugin_applied": true,
+            "archive_status": "automatic_connected",
+            "original_user_saved": true,
+            "original_assistant_saved": true,
+            "foreign_window_excluded": true,
+            "model_requests": 2
+          }
+        ]
+      },
+      "artifact": {
+        "id": 14011931997,
+        "name": "harness-compatibility-rc2-macos",
+        "url": "https://github.com/myflww/love-house/actions/runs/43369845347/artifacts/14011931997",
+        "bytes": 95968,
+        "sha256": "db7cc5317031c1cca47b2ed05c6d8ea8b525891f3a219df81bb7f7d017de62e2",
+        "download_digest_verified": true,
+        "evidence_sha256": {
+          "selection.json": "dd239ae1f8b761cf1fb6ca5d1971a11bf4e11941c1dc21bfacd4c220ea4109bf",
+          "adapter-sdk.json": "9ab32a04538d7dcf820267dd2321600c5a9435c5b930315994696370ad48ba59",
+          "real-cli/result.json": "3a6973749d226f23003799ebb84c4f8bca709b0c2c611561b2810386ef2535e4",
+          "python-tests.log": "6d3dab458d11553e9c600a19ed4d8627f3875e81e6ba3059da3950b1ce68a3e5",
+          "adapter-tests.log": "85d0a914eb6f658454b04cc8dc9f97cde31731086a6b7f0ed4dfeab614234988"
+        }
+      },
+      "local_download_proof": "build/release-0107/ci-43369845347/14011931997/download-verification.json"
+    }
+  ],
+  "limits": [
+    "Real official npm CLI, isolated profiles and local synthetic provider; not the actual user desktop profile.",
+    "Real CLI receipts establish capture and foreign-window exclusion; adapter tests separately exercise recall and authorization behavior.",
+    "Current interface compatibility and daily latest/next checks do not guarantee future breaking upstream APIs."
+  ]
+}

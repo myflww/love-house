@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import lovehouse_android as android
 import prepare_android_engine as packaging
 from nkb.service.updates import select_release, target_platform
+from nkb._version import __version__
 
 
 class Vault:
@@ -75,7 +76,7 @@ class EngineTests(unittest.TestCase):
         with self.request('/api/graph', management=True) as response:
             self.assertIn('nodes', json.load(response))
         with self.request('/api/health') as response:
-            self.assertEqual(json.load(response)['version'], '0.10.6rc1')
+            self.assertEqual(json.load(response)['version'], __version__)
 
     def test_credential_scope_persistence_and_deletion(self):
         keys = android._runtime['host'].keys

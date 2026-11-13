@@ -21,6 +21,17 @@ FINGERPRINT_FILE = ROOT / "host-contract-fingerprints.json"
 CAPABILITY_FILE = ROOT / "host-capabilities.json"
 
 
+def _tested_versions():
+    """Informational only; actual support is decided by installed capabilities."""
+    try:
+        versions = json.loads(CAPABILITY_FILE.read_text("utf-8")).get("tested_versions", [])
+        if isinstance(versions, list):
+            return list(dict.fromkeys([*SUPPORTED, *(v for v in versions if isinstance(v, str))]))
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass
+    return list(SUPPORTED)
+
+
 def _legacy_entries(profile):
     """Recognize only the known packaged bridge; never return env/credential data."""
     found = []
@@ -411,7 +422,7 @@ def detect(app_path=None, profile_dir=None):
             "version": version, "shell_version": shell_version, "version_source": version_source,
             "supported": version in SUPPORTED or compatibility["status"] in ("fingerprint_match", "capability_match"),
             "compatibility": compatibility,
-            "supported_versions": list(SUPPORTED) + ["0.2.2-rc.1"], "profile_dir": str(profile),
+            "supported_versions": _tested_versions(), "profile_dir": str(profile),
             "profile_source": "explicit" if profile_dir else "DSH_HOME" if os.environ.get("DSH_HOME") else "desktop-default",
             "profile_exists": profile_exists, "profile_format": profile_format,
             "legacy_manual_entries": _legacy_entries(profile),
@@ -580,6 +591,104 @@ def set_enabled(connection_config, enabled, remove=False, app_path=None):
             "connection_id": prepared["connection_id"], "managed_entry_removed": removed,
             "backup": str(backup) if backup else None, "outbox_preserved": True,
             "message": "本连接私有enabled已更新；插件每次采集/注入/心跳/投递前重读，旧队列保留"}
+
+
+def refresh_owned_installation(connection_config):
+    """Upgrade an already installed adapter without enrolling or enabling anything.
+
+    Application upgrades replace their bundled adapter, but Harness loads the
+    separate copy in its profile. Only our marker, exact managed entry and the
+    existing private binding together authorize refreshing that copy. Private
+    credentials, window scope, pause state and durable outboxes are untouched.
+    """
+    prepared = configure(connection_config, apply=False)
+    cid = prepared["connection_id"]
+    result = {"connection_id": cid, "refreshed": False, "assets_updated": [],
+              "host_proof_updated": False, "requires_harness_reload": False}
+    installation = Path(prepared["connection_file"]).parent
+    patch = Path(prepared["patch_file"])
+    private_file = Path(prepared["connection_file"])
+    marker = installation / "managed.json"
+    if (installation.is_symlink() or any(path.is_symlink() for path in (patch, private_file, marker))
+            or not all(path.is_file() for path in (patch, private_file, marker))):
+        return {**result, "status": "not_owned", "message": "未找到完整的自有安装，未创建或恢复宿主条目"}
+    if any(path.stat().st_size > 4 * 1024 * 1024 for path in (patch, private_file, marker)):
+        return {**result, "status": "not_owned", "message": "安装标记或配置不符合自有格式，未修改"}
+    owned = json.loads(marker.read_text("utf-8"))
+    private_bytes = private_file.read_bytes()
+    private = json.loads(private_bytes)
+    supplied = connection_config.get("config", connection_config)
+    token = supplied.get("connection_token", supplied.get("connectionToken"))
+    if (not isinstance(owned, dict) or owned.get("managed_by") != OWNER or not isinstance(private, dict)
+            or private.get("connection_id") != cid or private.get("library_id") != prepared["library_id"]
+            or private.get("connection_token") != token):
+        return {**result, "status": "binding_changed", "message": "自有安装的连接绑定已变化，未覆盖"}
+    source = patch.read_bytes().decode("utf-8")
+    lines = prepared["overlay"].splitlines(keepends=True)
+    begins = list(re.finditer(r"(?m)^" + re.escape(lines[0].rstrip("\r\n")) + r"(?:\r?\n|$)", source))
+    ends = list(re.finditer(r"(?m)^" + re.escape(lines[-1].rstrip("\r\n")) + r"(?:\r?\n|$)", source))
+    if len(begins) != 1 or len(ends) != 1 or ends[0].start() <= begins[0].start():
+        # Do not recreate a manually removed entry or adopt an unknown layer.
+        return {**result, "status": "entry_missing", "message": "原宿主条目已移除或更改，未恢复连接"}
+    start, finish = begins[0].start(), ends[0].end()
+    begin, end = begins[0].group(), ends[0].group()
+    block = source[start:finish]
+    block_lines = block.splitlines()
+    if len(block_lines) != 3 or not block_lines[1].startswith("- insert: "):
+        return {**result, "status": "entry_changed", "message": "原自有条目已自定义，未自动改写"}
+    entries = json.loads(block_lines[1][len("- insert: "):])
+    expected = json.loads(lines[1][len("- insert: "):])
+    if (not isinstance(entries, list) or len(entries) != 1 or not isinstance(entries[0], dict)
+            or entries[0].get("id") != expected[0]["id"] or entries[0].get("name") != expected[0]["name"]
+            or not isinstance(entries[0].get("config"), dict)
+            or entries[0]["config"].get("managed_by") != OWNER
+            or entries[0]["config"].get("connection_file") != str(private_file)):
+        return {**result, "status": "entry_changed", "message": "原条目不再指向此连接，未修改"}
+    # Some host updaters replace a versioned installation directory. A missing
+    # saved binary may follow normal installation inventory, but an existing
+    # explicitly selected installation stays selected. The profile and private
+    # connection above remain fixed in either case.
+    if not prepared["detected"]["detected"]:
+        detected = detect(profile_dir=prepared["detected"]["profile_dir"])
+        if detected["supported"] and detected["compatibility"].get("descriptor"):
+            prepared["supported"] = True
+            prepared["plugin_config"].update(host_version=detected["version"],
+                                             host_contract=detected["compatibility"]["descriptor"])
+    updates = []
+    for name in ("index.js", "configure.js", "proxy.js", "THIRD_PARTY_LICENSES.txt"):
+        origin, target = ROOT / "dist" / name, installation / name
+        if not origin.is_file() or target.is_symlink():
+            return {**result, "status": "asset_unavailable", "message": "自有插件资源不完整或目标是链接，未更新"}
+        current = target.read_bytes() if target.is_file() else None
+        content = origin.read_bytes()
+        if current != content:
+            updates.append((target, content.decode("utf-8")))
+    # Preserve additional user settings and the exact bytes of other entries.
+    if prepared["supported"] and prepared["plugin_config"].get("host_contract"):
+        entries[0]["config"].update({key: prepared["plugin_config"][key]
+                                     for key in ("host_version", "host_contract")})
+    eol = "\r\n" if begin.endswith("\r\n") else "\n"
+    replacement = begin + "- insert: " + json.dumps(entries, ensure_ascii=False) + eol + end
+    changed_proof = replacement != block
+    # A concurrent manual edit or another connection installation wins; a later
+    # application start can retry without replacing the new user configuration.
+    if patch.read_bytes().decode("utf-8") != source or private_file.read_bytes() != private_bytes:
+        return {**result, "status": "changed_during_refresh", "message": "宿主配置正在变化，本次保留原配置"}
+    for target, content in updates:
+        _private(target, content)
+    if changed_proof:
+        if patch.read_bytes().decode("utf-8") != source:
+            return {**result, "refreshed": bool(updates), "assets_updated": [target.name for target, _ in updates],
+                    "requires_harness_reload": bool(updates), "status": "changed_during_refresh",
+                    "message": "自有插件已同步；宿主配置正在变化，保留新配置并等待下次核对"}
+        backup = patch.with_name(patch.name + ".neural-knowledge-" + str(time.time_ns()) + ".backup")
+        _private(backup, source)
+        _private(patch, source[:start] + replacement + source[finish:])
+    changed = bool(updates or changed_proof)
+    return {**result, "refreshed": changed, "assets_updated": [target.name for target, _ in updates],
+            "host_proof_updated": changed_proof, "requires_harness_reload": changed,
+            "status": "updated" if changed else "current",
+            "message": "已同步自有宿主插件；已运行的Harness需重载后使用" if changed else "自有宿主插件已是当前版本"}
 
 
 if __name__ == "__main__":

@@ -14,21 +14,23 @@
 
 ## 下载
 
-[推荐下载 · 0.10.6rc1](https://github.com/myflww/love-house/releases/latest)
+[推荐下载 · 0.10.7rc1](https://github.com/myflww/love-house/releases/latest)
 
 | 系统 | 最新版本 | 下载 | 系统要求 |
 |---|---|---|---|
-| Windows x64 | **0.10.6rc1 · 当前推荐版** | [安装版 EXE](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-Setup-0.10.6rc1-Windows-x64.exe) · [便携版 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-0.10.6rc1-Windows-x64.zip) | Intel / AMD 64 位；目标为 Windows 10 2004（19041）及以上或 Windows 11 |
-| macOS | **0.10.6rc1 · 当前推荐版** | [下载 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-0.10.6rc1-macOS-arm64.zip) | Apple Silicon（M 系列）；macOS 13.0+ |
+| Windows x64 | **0.10.7rc1 · 当前推荐版** | [安装版 EXE](https://github.com/myflww/love-house/releases/download/v0.10.7rc1/LoveHouse-Setup-0.10.7rc1-Windows-x64.exe) · [便携版 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.7rc1/LoveHouse-0.10.7rc1-Windows-x64.zip) | Intel / AMD 64 位；目标为 Windows 10 2004（19041）及以上或 Windows 11 |
+| macOS | **0.10.7rc1 · 当前推荐版** | [下载 ZIP](https://github.com/myflww/love-house/releases/download/v0.10.7rc1/LoveHouse-0.10.7rc1-macOS-arm64.zip) | Apple Silicon（M 系列）；macOS 13.0+ |
 | Android | **0.10.6rc1 · 原签名预览版** | [下载 APK](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/LoveHouse-0.10.6rc1-Android.apk) · [校验文件](https://github.com/myflww/love-house/releases/download/v0.10.6rc1/Android-SHA256SUMS.txt) | 64 位 ARM / x86；Android 8.0+，完整界面需 WebView 109+，建议最新 |
 
-0.10.6rc1 为当前推荐下载版本，本轮修复聚焦对话中的话题召回，安装／升级及原生运行验收状态与范围见[发布页](https://github.com/myflww/love-house/releases/tag/v0.10.6rc1)及[本版说明](docs/release-0.10.6rc1.md)。支持目标不代表全部系统已实测。
+0.10.7rc1 为当前推荐下载版本，本轮整合 DSH 新接口兼容、已有适配器副本升级与更新通道持续检查，安装／升级及原生运行验收状态与范围见[发布页](https://github.com/myflww/love-house/releases/tag/v0.10.7rc1)及[本版说明](docs/release-0.10.7rc1.md)。支持目标不代表全部系统已实测。
 
 目前没有 macOS Intel、Windows ARM64／32 位或 Linux 桌面安装包。项目已停止提供 iPhone 版；旧主屏幕版用户请先[导出原有记忆](docs/手机版安装与使用.md#旧-iphone-版的记忆迁移)，再迁移到 Android 或桌面版。
 
 ## 各系统最新版
 
-### Windows 0.10.6rc1（当前推荐版）
+### Windows 0.10.7rc1（当前推荐版）
+
+- **DSH 更新兼容**：按实际接口能力连接新版，升级时刷新已归属的适配器副本；保留窗口绑定、暂停和待发送记录。已运行的 DSH 需重新加载插件一次。
 
 - **围绕实际话题召回**：澄清与问句套话本身不作为相关依据；无对象时允许空召回，显式查原话仍可找，不用旧窗口猜当前所指。
 - **自由形成、忠于原话**：猜想、误解、矛盾和故事设定可整理成有角色与来源的材料，不必逐条裁决真假；重要设定、人格和关系变化继续受保护。
@@ -39,15 +41,17 @@
 
 保留模型/强度选择、默认最高上下文和输出、星云拖动旋转与 Shift 平移、选中节点才停止自旋，以及启动更新提醒。科学借鉴、合成性能条件与验证范围分别说明，不宣称外部记忆整理等于训练模型或人脑记忆。
 
-[发布页](https://github.com/myflww/love-house/releases/tag/v0.10.6rc1) · [本版说明与验证范围](docs/release-0.10.6rc1.md) · [记忆设计与论文依据](docs/memory-0105-design.md)
+[发布页](https://github.com/myflww/love-house/releases/tag/v0.10.7rc1) · [本版说明与验证范围](docs/release-0.10.7rc1.md) · [记忆设计与论文依据](docs/memory-0105-design.md)
 
-### macOS 0.10.6rc1（当前推荐版）
+### macOS 0.10.7rc1（当前推荐版）
 
-同步本轮共享记忆服务、历史读取和本地空闲目录，继续使用 AppKit / WKWebView 和内置 Python，保留原数据目录及 Keychain helper。本轮 arm64 包的构建、原生运行与升级验证单独记录，不以 Windows 结果代替 Mac 验收。
+同步本轮 DSH 兼容、已有适配器刷新和共享记忆服务，继续使用 AppKit / WKWebView 和内置 Python，保留原数据目录及 Keychain helper。本轮 arm64 包的构建、原生运行与升级验证单独记录，不以 Windows 结果代替 Mac 验收。
 
-[发布说明与验证范围](docs/release-0.10.6rc1.md#验证与下载) · [上一版 Mac 升级与恢复参考](docs/MACOS-0104-UPDATE.md)
+[发布说明与验证范围](docs/release-0.10.7rc1.md#验证与下载) · [上一版 Mac 升级与恢复参考](docs/MACOS-0104-UPDATE.md)
 
 ### Android
+
+0.10.7rc1 已同步源码并通过 API28／36 构建与仪器测试，原签名在另一台设备，由该设备按[签名发布交接书](docs/ANDROID-0107-HANDOFF.md)完成签名、覆盖升级验收后再追加 APK。当前可安装版仍为下列 0.10.6rc1。
 
 **Android 0.10.6rc1 原签名 APK 已发布，可从 0.8.0rc2 直接覆盖升级。** 升级前逐库导出 JSON，不要先卸载或清除应用数据。原发行签名已核对；公开旧版 0.8.0rc2 → 本版的双库覆盖升级及进程重启通过。Android 16 / API36 的完整引擎 11 项测试及额外迁移、幂等、实际文件导出恢复、库隔离与凭据重启验收通过；Android 9 / API28 的旧内核仅通过旧入口、内核更新提示 7 项及旧库升级保留，不代表完整引擎可在该旧内核运行。完整界面需要 WebView 109+。以上为独立模拟器与合成数据，未调用付费模型，实体手机尚待验证。
 

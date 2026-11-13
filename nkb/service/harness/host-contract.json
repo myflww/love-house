@@ -3,7 +3,8 @@
   "runtime_support": [
     "0.2.1-rc.3",
     "0.2.1-rc.5",
-    "0.2.2-rc.1"
+    "0.2.2-rc.1",
+    "0.2.2-rc.2"
   ],
   "source_reviewed_master": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
   "primary_packages": [
@@ -111,7 +112,7 @@
     "additive_updates": "Accept compatible API shapes without exact version or whole-file equality; read actual SDK version at each plugin load",
     "packaged_types": "Electron production archives may omit d.ts; require consumed runtime surfaces and live service validation",
     "changed_contract": "Reject missing or changed required interfaces with detected version and actionable diagnostics; no claim of automatic archival before a real receipt",
-    "continuous_validation": "Daily official CLI latest candidate and pinned old/new SDK matrix with isolated synthetic model; no real user profile or model keys"
+    "continuous_validation": "Daily official CLI latest and next candidates; pinned old SDK on Linux, rc.1 on Linux/Windows, rc.2 on Linux/Windows/macOS; isolated synthetic model with no real user profile or model keys"
   },
   "independent_output": "Only a completed matching turn in an already fixed root session, with no human input and a final committed text-only model assistant message. Never claims next_session or normalizes intermediate assistant/message events as output.",
   "before_no_human_work": "Only an already fixed root session with observed, matching, uninterrupted turn/start may query context using its public Session.deriveMessages() latest real human text, or a fixed baseline when that valid public projection has no task text. No new claim, other session, private reasoning, raw event snapshots, or synthetic user archival.",
@@ -128,6 +129,21 @@
     ],
     "original_user_and_assistant_saved": true,
     "foreign_window_excluded": true,
+    "complete": true
+  },
+  "rc022_rc2_local_validation": {
+    "checked_on": "2026-11-13",
+    "system": "Windows",
+    "host_version": "0.2.2-rc.2",
+    "cordis_version": "4.1.0",
+    "real_official_npm_cli": true,
+    "synthetic_model_only": true,
+    "real_credentials_accessed": false,
+    "connection_modes": ["harness", "agent"],
+    "original_user_and_assistant_saved": true,
+    "foreign_window_excluded": true,
+    "archive_status": "automatic_connected",
+    "limitation": "Isolated official npm CLI behavior on Windows; packaged desktop and other systems require their own CI results",
     "complete": true
   }
 }

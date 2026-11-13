@@ -162,10 +162,14 @@ test('changed consumed event shapes invalidate the open turn while unrelated new
   }finally{await adapter.dispose();await mock.close();f.clean();}
 });
 
-test('multiple next-session instances ignore boot/synthetic input and bind distinct human windows',async()=>{
+for(const delayedAck of [false,true])test(`multiple next-session instances bind distinct human windows with delayed ACK=${delayedAck}`,async()=>{
   let releaseFirstAck;
   const firstAck=new Promise(resolve=>{releaseFirstAck=resolve;});
   const mock=await mockController({beforeEventAck:body=>body.session_id==='isolated-window-A'&&body.event_type==='turn/start'?firstAck:undefined});const a=fixture(mock.base,{session_scope:'next_session'});const b=fixture(mock.base,{session_scope:'next_session',connection_id:'connection-b',library_id:'library-b'});
+  // The retry case deliberately withholds a durable ACK beyond the transport
+  // deadline. Delivery is at least once: repeated HTTP requests must keep the
+  // same immutable event identity, rather than create another memory event.
+  if(delayedAck){a.options.timeout_ms=1200;b.options.timeout_ms=1200;}
   const first=new HostAdapter(a.options);const second=new HostAdapter(b.options);
   const s1={id:'isolated-window-A',header:{}};const s2={id:'isolated-window-B',header:{}};
   const pre=(session,source={kind:'user'})=>({agent:{session},messages:[message('actual-'+session.id,'user','窗口真实发言',source)],turn:1,step:1,signal:new AbortController().signal});
@@ -180,6 +184,7 @@ test('multiple next-session instances ignore boot/synthetic input and bind disti
     for(const adapter of [first,second])adapter.capture(s2,{type:'turn/start',data:{turn:1},seq:0,time:1});
     const two=pre(s2);await second.beforeStep(two,async()=>({kind:'enter',messages:two.messages}));
     for(const adapter of [first,second])adapter.capture(s2,{type:'user/message',data:two.messages[0],seq:1,time:2});
+    if(delayedAck)await eventually(()=>mock.events.filter(e=>e.body.session_id===s1.id&&e.body.event_type==='turn/start').length>=2);
     // A turn may enqueue its human message while the earlier start is in flight.
     // Await durable delivery of both windows, rather than only that first batch.
     const inFlight=first.flush();releaseFirstAck();await inFlight;
@@ -190,7 +195,16 @@ test('multiple next-session instances ignore boot/synthetic input and bind disti
     }
     assert.ok(mock.events.filter(e=>e.url.includes('connection-a')).every(e=>e.body.session_id==='isolated-window-A'));
     assert.ok(mock.events.filter(e=>e.url.includes('connection-b')).every(e=>e.body.session_id==='isolated-window-B'));
-    assert.equal(mock.events.filter(e=>e.url.includes('connection-a')).length,2);assert.equal(mock.events.filter(e=>e.url.includes('connection-b')).length,2);
+    for(const connection of ['connection-a','connection-b']){
+      const attempts=mock.events.filter(e=>e.url.includes(connection));const unique=new Map();
+      for(const event of attempts){
+        const earlier=unique.get(event.body.event_id);
+        if(earlier)assert.deepEqual(event,earlier,'a retried durable event must keep its original identity and payload');
+        else unique.set(event.body.event_id,event);
+      }
+      assert.equal(unique.size,2);
+      assert.deepEqual([...unique.values()].map(e=>[e.body.seq,e.body.event_type]).sort((a,b)=>a[0]-b[0]),[[0,'turn/start'],[1,'user/message']]);
+    }
     assert.deepEqual(mock.contexts.map(e=>[e.url,e.body.session_id]),[['/api/connections/connection-a/context',s1.id],['/api/connections/connection-b/context',s2.id]]);
     for(const adapter of [first,second])assert.equal(readdirSync(adapter.stateDir).filter(p=>p.endsWith('.event.json')).length,0);
   }finally{releaseFirstAck();await first.dispose();await second.dispose();await mock.close();a.clean();b.clean();}

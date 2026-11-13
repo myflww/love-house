@@ -842,6 +842,11 @@
       "sha256": "43b22087da77377b42731c5e3aa19150b5a6dadfa5da0bf6616cdb414ad48cd9"
     },
     {
+      "path": "docs/dsh-0107-evidence/compatibility-ci-summary.json",
+      "bytes": 22022,
+      "sha256": "90dfe692c2121f86359d683f5de8482312f95fc416a0a7cbe53171cf93d2bbf6"
+    },
+    {
       "path": "docs/HARNESS-COMPATIBILITY.md",
       "bytes": 4763,
       "sha256": "ef9843b8146fc36925f4fb0093f7992042fc602334d9db13216ca7849c8c7ed6"
@@ -963,8 +968,8 @@
     },
     {
       "path": "docs/release-0.10.7rc1.md",
-      "bytes": 1849,
-      "sha256": "21533253e23ccb0887f2b98a0c00ffebdae06d29945ad500b1812eea1caebd5e"
+      "bytes": 4413,
+      "sha256": "8fe06582e87d91d79af2d69be715392c8723750fec658fa7dbc5aeb553b8f029"
     },
     {
       "path": "docs/RELEASE-080RC2.md",
@@ -2248,8 +2253,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 7811,
-      "sha256": "99cb7a8c7af7a636c326e66cbd107560a227b55721c161b3c5821e8d2d256207"
+      "bytes": 7844,
+      "sha256": "3d23d8cbe8f154f6aa4aca8efe1ec95de3d0af1cdd9cf88c08669bdbf61ab7d7"
     },
     {
       "path": "ROADMAP.md",
